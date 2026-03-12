@@ -133,9 +133,14 @@ export default function AppointmentModal({
         setStatus(effectiveStatus)
         setPendingStatus(null)
         setReportError(false)
-        setSaved(true)
         onUpdate(updated)
-        setTimeout(() => setSaved(false), 2000)
+        // Fermer le modal après changement de statut
+        if (effectiveStatus !== status) {
+          setTimeout(() => onClose(), 600)
+        } else {
+          setSaved(true)
+          setTimeout(() => setSaved(false), 2000)
+        }
       }
     } finally {
       setSaving(false)
