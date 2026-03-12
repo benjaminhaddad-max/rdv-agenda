@@ -126,7 +126,7 @@ function redirectByRole(
   if (dbUser.role === 'admin') {
     return NextResponse.redirect(new URL('/admin', request.url))
   }
-  if (dbUser.role === 'commercial') {
+  if (dbUser.role === 'commercial' || dbUser.role === 'closer') {
     return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))
   }
   if (dbUser.role === 'telepro') {
