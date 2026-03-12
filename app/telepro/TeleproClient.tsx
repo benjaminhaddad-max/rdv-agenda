@@ -519,6 +519,7 @@ export default function TeleproClient({
   const [engData, setEngData]             = useState<Record<string, EngInfo>>({})
   const [loadingEng, setLoadingEng]       = useState<Record<string, boolean>>({})
   const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
+  const [closingDeal, setClosingDeal]     = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -648,6 +649,27 @@ export default function TeleproClient({
   useEffect(() => {
     if (activeTab === 'historique') fetchHistorique()
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const marquerPerdu = useCallback(async (rdv: HistRdv) => {
+    if (!rdv.hubspot_deal_id) return
+    setClosingDeal(rdv.id)
+    try {
+      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'fermePerdu' }),
+      })
+      if (res.ok) {
+        setHistRdvs(prev => prev.map(r =>
+          r.id === rdv.id
+            ? { ...r, hs_stage_label: 'Fermé / Perdu', hs_stage_color: '#ef4444' }
+            : r
+        ))
+      }
+    } finally {
+      setClosingDeal(null)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const REPRISE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
   const hasReprise = (data: EngInfo) => {
@@ -1680,26 +1702,27 @@ export default function TeleproClient({
             const eng = engData[rdv.id]
             const isExpanded = expandedHistRdv === rdv.id
             const isReprise = eng && hasReprise(eng)
+            const isAReplanifier = rdv.hs_stage_label === 'À replanifier'
 
             return (
               <div key={rdv.id} style={{
                 background: '#1a1d27',
-                border: `1px solid ${isReprise ? '#f97316' : '#2a2d3e'}`,
+                border: `1px solid ${isReprise ? '#f97316' : isAReplanifier ? 'rgba(249,115,22,0.3)' : '#2a2d3e'}`,
                 borderRadius: 12, marginBottom: 10, overflow: 'hidden',
               }}>
-                {/* En-tête carte */}
+                {/* Ligne principale : date, nom, closer, stage, reprise */}
                 <div
                   onClick={() => {
                     const next = isExpanded ? null : rdv.id
                     setExpandedHistRdv(next)
                     if (next) fetchEngagements(rdv)
                   }}
-                  style={{ padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                  style={{ padding: '14px 20px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
                 >
                   <div style={{ minWidth: 80, fontSize: 11, color: '#555870', flexShrink: 0 }}>
                     {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
                   </div>
-                  <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: '#e8eaf0', minWidth: 0 }}>
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#e8eaf0', minWidth: 0 }}>
                     {rdv.prospect_name}
                     {rdv.rdv_users && (
                       <span style={{ marginLeft: 8, fontSize: 11, color: '#555870', fontWeight: 400 }}>
@@ -1721,6 +1744,62 @@ export default function TeleproClient({
                   )}
                   <span style={{ color: '#555870', fontSize: 12, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
+
+                {/* Ligne infos prospect (toujours visible) */}
+                <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {rdv.prospect_phone && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      <Phone size={10} /> {rdv.prospect_phone}
+                    </span>
+                  )}
+                  {rdv.prospect_email && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      <Mail size={10} /> {rdv.prospect_email}
+                    </span>
+                  )}
+                  {rdv.formation_type && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      <GraduationCap size={10} /> {rdv.formation_type}
+                    </span>
+                  )}
+                  {rdv.classe_actuelle && (
+                    <span style={{ fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      {rdv.classe_actuelle}
+                    </span>
+                  )}
+                </div>
+
+                {/* Boutons d'action pour "À replanifier" */}
+                {isAReplanifier && (
+                  <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}
+                      disabled={rebookLoading === rdv.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.35)',
+                        borderRadius: 7, padding: '5px 12px', color: '#6b87ff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <RotateCcw size={12} />
+                      {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}
+                      disabled={closingDeal === rdv.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: 7, padding: '5px 12px', color: '#ef4444',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <X size={12} />
+                      {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Détails expansibles */}
                 {isExpanded && (

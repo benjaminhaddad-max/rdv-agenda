@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getDeal, getDealEngagements, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
+import { getDeal, getDealEngagements, updateDealStage, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
@@ -42,4 +42,23 @@ export async function GET(
       }))
       .sort((a, b) => b.createdAt - a.createdAt),
   })
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const { stage } = await req.json() as { stage: keyof typeof STAGES }
+  if (!stage || !(stage in STAGES)) {
+    return NextResponse.json({ error: 'stage invalide' }, { status: 400 })
+  }
+  try {
+    await updateDealStage(id, stage)
+    const stageInfo = STAGE_LABELS[STAGES[stage]] ?? { label: String(stage), color: '#8b8fa8' }
+    return NextResponse.json({ ok: true, stageLabel: stageInfo.label, stageColor: stageInfo.color })
+  } catch (e) {
+    console.error('updateDealStage error:', e)
+    return NextResponse.json({ error: 'Erreur HubSpot' }, { status: 500 })
+  }
 }
