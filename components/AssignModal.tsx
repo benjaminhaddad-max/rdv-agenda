@@ -65,7 +65,7 @@ export default function AssignModal({
     fetch('/api/users')
       .then(r => r.json())
       .then(async (users: Commercial[]) => {
-        const closersList = users.filter(u => u.role === 'commercial')
+        const closersList = users.filter(u => u.role === 'commercial' || u.role === 'admin')
 
         // Charger le nombre de RDV de chaque closer cette semaine
         const weekStart = new Date(appointment.start_at)

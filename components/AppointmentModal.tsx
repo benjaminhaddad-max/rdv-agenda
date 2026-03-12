@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall } from 'lucide-react'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import { format } from 'date-fns'
@@ -68,6 +68,10 @@ export default function AppointmentModal({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [reportError, setReportError] = useState(false)
+
+  // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
+  // et que la souris glisse légèrement sur le backdrop avant le mouseup
+  const mouseDownOnBackdrop = useRef(false)
 
   const start = new Date(appointment.start_at)
   const end = new Date(appointment.end_at)
@@ -161,7 +165,11 @@ export default function AppointmentModal({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
+      onClick={(e) => {
+        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
+        mouseDownOnBackdrop.current = false
+      }}
     >
       <div style={{
         background: '#1e2130',

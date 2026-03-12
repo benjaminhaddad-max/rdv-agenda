@@ -495,7 +495,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
       {/* ── Tab: Mon planning ──────────────────────────────────────────── */}
       {activeTab === 'planning' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <WeekCalendar closerId={user.id} closerColor={user.avatar_color} />
+          <WeekCalendar closerId={user.id} closerColor={user.avatar_color} closerName={user.name} />
         </div>
       )}
 

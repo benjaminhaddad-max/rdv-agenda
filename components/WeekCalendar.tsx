@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, Users, LayoutDashboard } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Users, LayoutDashboard, Plus } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
 import AppointmentModal from './AppointmentModal'
+import CloserNewRdvModal from './CloserNewRdvModal'
 
 type Appointment = {
   id: string
@@ -66,7 +67,7 @@ function durationToPercent(startStr: string, endStr: string, refDate: Date): num
   return Math.max(4, (duration / total) * 100)
 }
 
-export default function WeekCalendar({ adminMode = false, closerId, closerColor }: { adminMode?: boolean; closerId?: string; closerColor?: string }) {
+export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string }) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -84,12 +85,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor 
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<'week' | 'list'>('week')
+  const [showNewRdvModal, setShowNewRdvModal] = useState(false)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i))
   const weekKey = format(currentWeekStart, 'yyyy-MM-dd')
 
-  // Closers uniquement (pas managers, pas télépros)
-  const closers = commerciaux.filter(c => c.role === 'commercial')
+  // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
+  const closers = commerciaux.filter(c => c.role === 'commercial' || c.role === 'admin')
 
   // Compteurs semaine (hors annulés et non-assignés)
   const rdvCount = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne').length
@@ -334,6 +336,32 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor 
           </div>
         )}
 
+        {/* Bouton + RDV — visible uniquement pour les closers */}
+        {closerId && !adminMode && (
+          <button
+            onClick={() => setShowNewRdvModal(true)}
+            style={{
+              marginLeft: 'auto',
+              background: 'rgba(79,110,247,0.15)',
+              border: '1px solid rgba(79,110,247,0.4)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#6b87ff', fontSize: 12, fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(79,110,247,0.25)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(79,110,247,0.15)'
+            }}
+          >
+            <Plus size={13} />
+            Nouveau RDV
+          </button>
+        )}
+
         {loading && (
           <div style={{ fontSize: 12, color: '#555870', marginLeft: 8 }}>Chargement…</div>
         )}
@@ -557,7 +585,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor 
         </div>
       )}
 
-      {/* Modal */}
+      {/* AppointmentModal (consultation/édition) */}
       {selectedAppointment && (
         <AppointmentModal
           appointment={selectedAppointment}
@@ -565,6 +593,19 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor 
           onUpdate={(updated) => {
             setAppointments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             setSelectedAppointment(prev => prev ? { ...prev, ...updated } : null)
+          }}
+        />
+      )}
+
+      {/* CloserNewRdvModal (création) */}
+      {showNewRdvModal && closerId && (
+        <CloserNewRdvModal
+          closerId={closerId}
+          closerName={closerName ?? 'moi'}
+          onClose={() => setShowNewRdvModal(false)}
+          onSuccess={() => {
+            setShowNewRdvModal(false)
+            fetchAppointments()
           }}
         />
       )}
