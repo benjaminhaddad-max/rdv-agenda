@@ -228,6 +228,42 @@ function TeleproRdvModal({
           </div>
         </div>
 
+        {/* Suivi statut (lecture seule) */}
+        {rdv.status !== 'confirme' && rdv.status !== 'non_assigne' && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+              Résultat du RDV
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {([
+                { status: 'no_show',      label: 'No-show',        icon: '❌', hint: '→ A replanifier' },
+                { status: 'annule',       label: 'Annulé',         icon: '🚫', hint: '→ A replanifier' },
+                { status: 'a_travailler', label: 'A travailler',   icon: '📧', hint: '→ Mail PI + brochure' },
+                { status: 'pre_positif',  label: 'Pré-positif',    icon: '🔥', hint: '→ Mail PI + brochure' },
+                { status: 'positif',      label: 'POSITIF',        icon: '🎉', hint: '→ Pré-inscription' },
+                { status: 'negatif',      label: 'Négatif',        icon: '💀', hint: '→ Rien à faire' },
+              ] as { status: AppointmentStatus; label: string; icon: string; hint: string }[]).map(action => {
+                const cfg = STATUS_CONFIG[action.status]
+                const isActive = rdv.status === action.status
+                return (
+                  <div key={action.status} style={{
+                    background: isActive ? cfg.bg : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${isActive ? cfg.border : '#2a2d3e'}`,
+                    borderRadius: 10, padding: '10px 14px',
+                    opacity: isActive ? 1 : 0.35,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? cfg.color : '#555870', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {action.icon} {action.label}
+                      {isActive && <span style={{ marginLeft: 'auto', fontSize: 12 }}>✓</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#555870', marginTop: 2 }}>{action.hint}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Rapport closer (lecture seule) */}
         {(rdv.report_summary || rdv.report_telepro_advice) && (
           <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
