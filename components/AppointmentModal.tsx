@@ -363,11 +363,11 @@ export default function AppointmentModal({
                 disabled={confirmingProspect || saving}
                 style={{
                   flex: 1,
-                  background: status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.06)',
-                  border: `1px solid ${status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : 'rgba(16,185,129,0.2)'}`,
+                  background: status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'transparent',
+                  border: `1px solid ${status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#2a2d3e'}`,
                   borderRadius: 8, padding: '9px 14px',
-                  color: status === 'confirme_prospect' ? '#10b981' : '#4b7a69',
-                  fontSize: 13, fontWeight: status === 'confirme_prospect' ? 700 : 500,
+                  color: status === 'confirme_prospect' ? '#10b981' : '#555870',
+                  fontSize: 13, fontWeight: status === 'confirme_prospect' ? 700 : 400,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   opacity: confirmingProspect ? 0.7 : 1,
                 }}
@@ -380,11 +380,11 @@ export default function AppointmentModal({
                 disabled={saving || confirmingProspect}
                 style={{
                   flex: 1,
-                  background: status === 'annule' ? 'rgba(107,114,128,0.18)' : 'rgba(107,114,128,0.06)',
-                  border: `1px solid ${status === 'annule' ? 'rgba(107,114,128,0.5)' : 'rgba(107,114,128,0.2)'}`,
+                  background: status === 'annule' ? 'rgba(107,114,128,0.18)' : 'transparent',
+                  border: `1px solid ${status === 'annule' ? 'rgba(107,114,128,0.5)' : '#2a2d3e'}`,
                   borderRadius: 8, padding: '9px 14px',
-                  color: status === 'annule' ? '#9ca3af' : '#4b5060',
-                  fontSize: 13, fontWeight: status === 'annule' ? 700 : 500,
+                  color: status === 'annule' ? '#9ca3af' : '#555870',
+                  fontSize: 13, fontWeight: status === 'annule' ? 700 : 400,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   opacity: saving ? 0.7 : 1,
                 }}
