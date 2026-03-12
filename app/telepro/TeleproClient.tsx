@@ -238,36 +238,46 @@ function TeleproRdvModal({
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               Retour prospect
             </div>
-            {rdv.status === 'confirme' ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                {onConfirm && (
-                  <button
-                    onClick={onConfirm}
-                    disabled={confirming || cancelling}
-                    style={{ flex: 1, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: 8, padding: '9px 14px', color: '#10b981', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: confirming ? 0.7 : 1 }}
-                  >
-                    ✅ {confirming ? 'Confirmation…' : 'Prospect confirmé'}
-                  </button>
-                )}
-                {onCancel && (
-                  <button
-                    onClick={onCancel}
-                    disabled={cancelling || confirming}
-                    style={{ flex: 1, background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)', borderRadius: 8, padding: '9px 14px', color: '#6b7280', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: cancelling ? 0.7 : 1 }}
-                  >
-                    🚫 {cancelling ? 'Annulation…' : 'Prospect a annulé'}
-                  </button>
-                )}
-              </div>
-            ) : rdv.status === 'confirme_prospect' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
-                ✅ Prospect confirmé
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', fontWeight: 600 }}>
-                🚫 Prospect a annulé
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {onConfirm && (
+                <button
+                  onClick={onConfirm}
+                  disabled={confirming || cancelling}
+                  style={{
+                    flex: 1,
+                    background: rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.06)',
+                    border: `1px solid ${rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : 'rgba(16,185,129,0.2)'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: rdv.status === 'confirme_prospect' ? '#10b981' : '#4b7a69',
+                    fontSize: 13, fontWeight: rdv.status === 'confirme_prospect' ? 700 : 500,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: confirming ? 0.7 : 1,
+                  }}
+                >
+                  ✅ {confirming ? 'Confirmation…' : 'Prospect confirmé'}
+                  {rdv.status === 'confirme_prospect' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
+                </button>
+              )}
+              {onCancel && (
+                <button
+                  onClick={onCancel}
+                  disabled={cancelling || confirming}
+                  style={{
+                    flex: 1,
+                    background: rdv.status === 'annule' ? 'rgba(107,114,128,0.18)' : 'rgba(107,114,128,0.06)',
+                    border: `1px solid ${rdv.status === 'annule' ? 'rgba(107,114,128,0.5)' : 'rgba(107,114,128,0.2)'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: rdv.status === 'annule' ? '#9ca3af' : '#4b5060',
+                    fontSize: 13, fontWeight: rdv.status === 'annule' ? 700 : 500,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: cancelling ? 0.7 : 1,
+                  }}
+                >
+                  🚫 {cancelling ? 'Annulation…' : 'Prospect a annulé'}
+                  {rdv.status === 'annule' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
