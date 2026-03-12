@@ -7,6 +7,7 @@ import {
   Calendar, Clock, Phone, Tag, FileText, ArrowLeft, Search, User, MapPin,
   GraduationCap, X, CheckCircle, Link, Plus, Mail, Video, PhoneCall, Copy,
   Check, PlusCircle, RefreshCw, ChevronLeft, ChevronRight, TrendingUp, RotateCcw, List,
+  ExternalLink,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
@@ -51,7 +52,11 @@ type MyAppointment = {
   report_summary?: string | null
   report_telepro_advice?: string | null
   hubspot_contact_id?: string | null
+  hubspot_deal_id?: string | null
   notes?: string | null
+  source?: string | null
+  classe_actuelle?: string | null
+  departement?: string | null
   rdv_users?: { id: string; name: string; avatar_color: string; slug: string } | null
 }
 
@@ -82,6 +87,15 @@ const TRACKING_STATUSES: AppointmentStatus[] = [
 // Statuts pour lesquels on propose "Reprendre RDV"
 const REPLAN_STATUSES: AppointmentStatus[] = ['no_show', 'a_travailler', 'negatif']
 
+// ─── Constantes HubSpot ────────────────────────────────────────────────────
+const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
+const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
+const SOURCE_LABEL: Record<string, string> = {
+  telepro: '📞 Placé par télépro',
+  prospect: '🌐 Réservé en ligne',
+  admin: '⚙️ Placé en admin',
+}
+
 // ─── Styles partagés ───────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#252840', border: '1px solid #2a2d3e',
@@ -99,6 +113,165 @@ function generateJitsiLink() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
   const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
   return `https://meet.jit.si/diploma-sante-${rand}`
+}
+
+// ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────
+function TeleproRdvModal({
+  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose,
+}: {
+  rdv: MyAppointment
+  noteValue: string
+  onNoteChange: (val: string) => void
+  onNoteSave: () => void
+  saving: boolean
+  saved: boolean
+  onClose: () => void
+}) {
+  const start = new Date(rdv.start_at)
+  const end = new Date(rdv.end_at)
+  const meetingColor = rdv.meeting_type === 'visio' ? '#6b87ff' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#f59e0b'
+  const meetingLabel = rdv.meeting_type === 'visio' ? 'Visio' : rdv.meeting_type === 'telephone' ? 'Téléphone' : 'Présentiel'
+  const mouseDownOnBackdrop = { current: false }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
+      onClick={e => { if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose(); mouseDownOnBackdrop.current = false }}
+    >
+      <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0', marginBottom: 4 }}>{rdv.prospect_name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8b8fa8', fontSize: 14 }}>
+              <Clock size={14} />
+              <span>{format(start, 'EEEE d MMMM', { locale: fr })} · {format(start, 'HH:mm')} – {format(end, 'HH:mm')}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <StatusBadge status={rdv.status} />
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Infos prospect */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+              <Mail size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+              <span>{rdv.prospect_email}</span>
+            </div>
+            {rdv.prospect_phone && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <Phone size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <span>{rdv.prospect_phone}</span>
+              </div>
+            )}
+            {rdv.formation_type && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <Tag size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong></span>
+              </div>
+            )}
+            {rdv.source && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <span>{SOURCE_LABEL[rdv.source] || rdv.source}</span>
+              </div>
+            )}
+            {rdv.meeting_type && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                {rdv.meeting_type === 'visio' ? <Video size={14} style={{ color: meetingColor, flexShrink: 0 }} />
+                  : rdv.meeting_type === 'telephone' ? <PhoneCall size={14} style={{ color: meetingColor, flexShrink: 0 }} />
+                  : <MapPin size={14} style={{ color: meetingColor, flexShrink: 0 }} />}
+                <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
+                {rdv.meeting_type === 'visio' && rdv.meeting_link && (
+                  <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
+                    style={{ background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6, padding: '2px 10px', color: '#6b87ff', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Video size={11} /> Rejoindre
+                  </a>
+                )}
+              </div>
+            )}
+            {rdv.classe_actuelle && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <span style={{ color: '#f59e0b', flexShrink: 0 }}>🎓</span>
+                <span>Classe actuelle : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle}</strong></span>
+              </div>
+            )}
+            {rdv.rdv_users && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <span>Closer : <strong style={{ color: '#e8eaf0' }}>{rdv.rdv_users.name}</strong></span>
+              </div>
+            )}
+            {(rdv.hubspot_contact_id || rdv.hubspot_deal_id) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {rdv.hubspot_contact_id && (
+                  <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${rdv.hubspot_contact_id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, padding: '4px 10px', color: '#f59e0b', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                    <ExternalLink size={11} /> Contact HubSpot
+                  </a>
+                )}
+                {rdv.hubspot_deal_id && (
+                  <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${rdv.hubspot_deal_id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6, padding: '4px 10px', color: '#6b87ff', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                    <ExternalLink size={11} /> Transaction HubSpot
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rapport closer (lecture seule) */}
+        {(rdv.report_summary || rdv.report_telepro_advice) && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+              Rapport du RDV
+            </div>
+            {rdv.report_summary && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé du RDV</div>
+                <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
+              </div>
+            )}
+            {rdv.report_telepro_advice && (
+              <div>
+                <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
+                <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Note interne — ÉDITABLE */}
+        <div style={{ padding: '16px 24px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <FileText size={12} /> Note interne
+          </div>
+          <textarea
+            value={noteValue}
+            onChange={e => onNoteChange(e.target.value)}
+            placeholder="Tes notes d'appel…"
+            rows={4}
+            style={{ width: '100%', background: '#252840', border: '1px solid #2a2d3e', borderRadius: 10, padding: '11px 14px', color: '#e8eaf0', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+          />
+          <button
+            onClick={onNoteSave}
+            disabled={saving}
+            style={{ marginTop: 10, background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 8, padding: '8px 18px', color: saved ? '#22c55e' : '#f59e0b', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <Check size={13} /> {saved ? 'Sauvegardé !' : saving ? 'Sauvegarde…' : 'Sauvegarder la note'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Composant principal ───────────────────────────────────────────────────
@@ -173,6 +346,7 @@ export default function TeleproClient({
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({})
   const [savingNote, setSavingNote] = useState<string | null>(null)
   const [savedNote, setSavedNote] = useState<string | null>(null)
+  const [selectedRdv, setSelectedRdv] = useState<MyAppointment | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -520,6 +694,19 @@ export default function TeleproClient({
         </div>
       </div>
 
+      {/* ── Modal fiche RDV ─────────────────────────────────────────────── */}
+      {selectedRdv && (
+        <TeleproRdvModal
+          rdv={selectedRdv}
+          noteValue={selectedRdv.id in editingNotes ? editingNotes[selectedRdv.id] : (selectedRdv.notes || '')}
+          onNoteChange={val => setEditingNotes(prev => ({ ...prev, [selectedRdv.id]: val }))}
+          onNoteSave={() => saveNote(selectedRdv.id)}
+          saving={savingNote === selectedRdv.id}
+          saved={savedNote === selectedRdv.id}
+          onClose={() => setSelectedRdv(null)}
+        />
+      )}
+
       {/* ── Onglet Mon Planning ──────────────────────────────────────────── */}
       {activeTab === 'rdvs' && !isAdmin && (
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
@@ -712,63 +899,13 @@ export default function TeleproClient({
                                 {isRebooking ? 'Chargement…' : 'Reprendre RDV'}
                               </button>
                             )}
-                            <button onClick={() => setExpandedRdv(expanded ? null : rdv.id)}
-                              style={{ background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 7, padding: '4px 8px', color: '#555870', fontSize: 11, cursor: 'pointer' }}>
-                              {expanded ? '▲' : '▼'}
+                            <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
+                              style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '4px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              Voir fiche
                             </button>
                           </div>
                         </div>
                       </div>
-
-                      {/* Expanded */}
-                      {expanded && (
-                        <div style={{ padding: '0 18px 14px', borderTop: '1px solid #2a2d3e' }}>
-                          {rdv.prospect_email && (
-                            <div style={{ marginTop: 10, fontSize: 12, color: '#8b8fa8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <Mail size={11} /> {rdv.prospect_email}
-                            </div>
-                          )}
-                          {rdv.meeting_type === 'visio' && rdv.meeting_link && (
-                            <div style={{ marginTop: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <Video size={11} style={{ color: '#6b87ff' }} />
-                              <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer" style={{ color: '#6b87ff', textDecoration: 'none' }}>
-                                {rdv.meeting_link}
-                              </a>
-                            </div>
-                          )}
-                          {rdv.report_summary && (
-                            <div style={{ marginTop: 12 }}>
-                              <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé (closer)</div>
-                              <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
-                            </div>
-                          )}
-                          {rdv.report_telepro_advice && (
-                            <div style={{ marginTop: 10 }}>
-                              <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
-                              <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
-                            </div>
-                          )}
-                          <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
-                            <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <FileText size={10} /> Note interne
-                            </div>
-                            <textarea
-                              value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
-                              onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
-                              placeholder="Tes notes d'appel…"
-                              rows={3}
-                              style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
-                            />
-                            <button
-                              onClick={() => saveNote(rdv.id)}
-                              disabled={savingNote === rdv.id}
-                              style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                            >
-                              <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )
                 })}
@@ -854,59 +991,11 @@ export default function TeleproClient({
                                   </button>
                                 )}
                               </div>
-                              <button onClick={() => setExpandedRdv(expanded ? null : rdv.id)}
-                                style={{ background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 7, padding: '4px 8px', color: '#555870', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
-                                {expanded ? '▲' : '▼'}
+                              <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
+                                style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '4px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                                Voir fiche
                               </button>
                             </div>
-                            {expanded && (
-                              <div style={{ padding: '0 16px 14px', borderTop: '1px solid #2a2d3e' }}>
-                                {rdv.prospect_email && (
-                                  <div style={{ marginTop: 10, fontSize: 12, color: '#8b8fa8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <Mail size={11} /> {rdv.prospect_email}
-                                  </div>
-                                )}
-                                {rdv.meeting_type === 'visio' && rdv.meeting_link && (
-                                  <div style={{ marginTop: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <Video size={11} style={{ color: '#6b87ff' }} />
-                                    <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer" style={{ color: '#6b87ff', textDecoration: 'none' }}>
-                                      {rdv.meeting_link}
-                                    </a>
-                                  </div>
-                                )}
-                                {rdv.report_summary && (
-                                  <div style={{ marginTop: 12 }}>
-                                    <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé (closer)</div>
-                                    <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
-                                  </div>
-                                )}
-                                {rdv.report_telepro_advice && (
-                                  <div style={{ marginTop: 10 }}>
-                                    <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
-                                    <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
-                                  </div>
-                                )}
-                                <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
-                                  <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <FileText size={10} /> Note interne
-                                  </div>
-                                  <textarea
-                                    value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
-                                    onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
-                                    placeholder="Tes notes d'appel…"
-                                    rows={3}
-                                    style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
-                                  />
-                                  <button
-                                    onClick={() => saveNote(rdv.id)}
-                                    disabled={savingNote === rdv.id}
-                                    style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                  >
-                                    <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         )
                       })}
@@ -972,8 +1061,7 @@ export default function TeleproClient({
                                 border: `1px solid ${isSameDay(day, today) ? 'rgba(79,110,247,0.25)' : '#2a2d3e'}`,
                                 borderRadius: 10, overflow: 'hidden',
                               }}>
-                                <div onClick={() => setExpandedRdv(expanded ? null : rdv.id)}
-                                  style={{ padding: '11px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                                   <div style={{ fontSize: 15, fontWeight: 800, color: '#6b87ff', minWidth: 44, flexShrink: 0 }}>
                                     {format(new Date(rdv.start_at), 'HH:mm')}
                                   </div>
@@ -1002,43 +1090,12 @@ export default function TeleproClient({
                                       <div style={{ fontSize: 11, color: '#555870' }}>Non assigné</div>
                                     )}
                                     <StatusBadge status={rdv.status} />
+                                    <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
+                                      style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '3px 8px', color: '#6b87ff', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
+                                      Voir fiche
+                                    </button>
                                   </div>
                                 </div>
-                                {expanded && (
-                                  <div style={{ padding: '0 16px 14px', borderTop: '1px solid #2a2d3e' }}>
-                                    {rdv.report_summary && (
-                                      <div style={{ marginTop: 12 }}>
-                                        <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé (closer)</div>
-                                        <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
-                                      </div>
-                                    )}
-                                    {rdv.report_telepro_advice && (
-                                      <div style={{ marginTop: 10 }}>
-                                        <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
-                                        <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
-                                      </div>
-                                    )}
-                                    <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
-                                      <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <FileText size={10} /> Note interne
-                                      </div>
-                                      <textarea
-                                        value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
-                                        onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
-                                        placeholder="Tes notes d'appel…"
-                                        rows={3}
-                                        style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
-                                      />
-                                      <button
-                                        onClick={() => saveNote(rdv.id)}
-                                        disabled={savingNote === rdv.id}
-                                        style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                      >
-                                        <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             )
                           })}

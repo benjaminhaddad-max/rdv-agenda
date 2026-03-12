@@ -103,6 +103,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated)
   }
 
+  // === CAS 2b : NOTE INTERNE SEULEMENT (pas de statut) ===
+  if (notes !== undefined && status === undefined) {
+    const { data, error } = await db
+      .from('rdv_appointments')
+      .update({ notes: notes || null })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
   // === CAS 2 : MISE À JOUR STATUT ===
   const validStatuses = [
     'non_assigne', 'confirme',
