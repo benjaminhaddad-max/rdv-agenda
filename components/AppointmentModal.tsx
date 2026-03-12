@@ -151,7 +151,6 @@ export default function AppointmentModal({
         setStatus('annule')
         setPendingStatus(null)
         onUpdate(updated)
-        setTimeout(() => onClose(), 600)
       } else {
         setPendingStatus(null)
       }
