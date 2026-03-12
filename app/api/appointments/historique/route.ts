@@ -12,26 +12,21 @@ const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.fermePerdu]:           { label: 'Fermé / Perdu',        color: '#ef4444' },
 }
 
-// Oct 1 2025 en millisecondes (timestamp pour closedate HubSpot)
-const HISTORIQUE_START_MS = new Date('2025-10-01T00:00:00.000Z').getTime()
-
 // GET /api/appointments/historique?hubspot_owner_id=xxx
 export async function GET(req: NextRequest) {
   const ownerId = req.nextUrl.searchParams.get('hubspot_owner_id')
   if (!ownerId) return NextResponse.json([])
 
   // 1. Chercher les deals HubSpot via la propriété "teleprospecteur" (custom field)
-  //    Filtre HubSpot : pipeline uniquement (closedate filtrée côté JS pour éviter les erreurs silencieuses)
+  //    Filtre HubSpot : pipeline uniquement
   const allDeals = await searchDealsByOwner(ownerId, PIPELINE_2026_2027, 0)
   if (allDeals.length === 0) return NextResponse.json([])
 
-  // Filtrer côté JS : RDVs passés depuis le 1er oct. 2025
-  const historicStart = new Date(HISTORIQUE_START_MS)
+  // Filtrer côté JS : RDVs passés (closedate <= now), sans limite de date de départ
   const now = new Date()
   const hsDeals = allDeals.filter(d => {
     if (!d.properties.closedate) return false
-    const cd = new Date(d.properties.closedate)
-    return cd >= historicStart && cd <= now
+    return new Date(d.properties.closedate) <= now
   })
   if (hsDeals.length === 0) return NextResponse.json([])
 
