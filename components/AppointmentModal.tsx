@@ -43,6 +43,7 @@ const SOURCE_LABEL: Record<string, string> = {
 }
 
 const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
+const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 
 const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
   visio:       { icon: Video,     label: 'Visio',       color: '#6b87ff' },
@@ -266,7 +267,7 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {appointment.hubspot_contact_id && (
                   <a
-                    href={`https://app.hubspot.com/contacts/${HS_PORTAL_ID}/contact/${appointment.hubspot_contact_id}`}
+                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${appointment.hubspot_contact_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -282,7 +283,7 @@ export default function AppointmentModal({
                 )}
                 {appointment.hubspot_deal_id && (
                   <a
-                    href={`https://app.hubspot.com/contacts/${HS_PORTAL_ID}/deal/${appointment.hubspot_deal_id}`}
+                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${appointment.hubspot_deal_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
