@@ -21,8 +21,18 @@ export async function GET(req: NextRequest) {
   if (!ownerId) return NextResponse.json([])
 
   // 1. Chercher les deals HubSpot via la propriété "teleprospecteur" (custom field)
-  //    Filtre : pipeline + closedate >= oct. 2025 + closedate <= maintenant (RDVs passés)
-  const hsDeals = await searchDealsByOwner(ownerId, PIPELINE_2026_2027, HISTORIQUE_START_MS)
+  //    Filtre HubSpot : pipeline uniquement (closedate filtrée côté JS pour éviter les erreurs silencieuses)
+  const allDeals = await searchDealsByOwner(ownerId, PIPELINE_2026_2027, 0)
+  if (allDeals.length === 0) return NextResponse.json([])
+
+  // Filtrer côté JS : RDVs passés depuis le 1er oct. 2025
+  const historicStart = new Date(HISTORIQUE_START_MS)
+  const now = new Date()
+  const hsDeals = allDeals.filter(d => {
+    if (!d.properties.closedate) return false
+    const cd = new Date(d.properties.closedate)
+    return cd >= historicStart && cd <= now
+  })
   if (hsDeals.length === 0) return NextResponse.json([])
 
   const dealIds = hsDeals.map(d => d.id)

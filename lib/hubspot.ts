@@ -258,10 +258,6 @@ export async function searchDealsByOwner(
           filters: [
             { propertyName: 'teleprospecteur', operator: 'EQ', value: ownerId },
             { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
-            // closedate = date du RDV ; on filtre les RDVs depuis sinceMs
-            ...(sinceMs > 0 ? [{ propertyName: 'closedate', operator: 'GTE', value: String(sinceMs) }] : []),
-            // Seulement les RDVs passés (closedate <= maintenant)
-            { propertyName: 'closedate', operator: 'LTE', value: String(Date.now()) },
           ],
         }],
         properties: ['dealname', 'dealstage', 'closedate', 'createdate'],
