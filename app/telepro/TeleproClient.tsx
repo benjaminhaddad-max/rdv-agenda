@@ -1890,72 +1890,130 @@ export default function TeleproClient({
                   <div style={{ borderTop: '1px solid #2a2d3e', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
                     {/* ── Fiche du closer ─────────────────────────────── */}
-                    <div style={{ background: '#0f1117', border: '1px solid #2a2d3e', borderRadius: 10, padding: '12px 16px' }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Fiche RDV
-                      </div>
-                      {/* Statut du RDV + type de meeting */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        {rdv.status && (
-                          <StatusBadge status={rdv.status as AppointmentStatus} />
-                        )}
-                        {rdv.meeting_type && (
-                          <span style={{ fontSize: 11, color: '#8b8fa8', background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 5, padding: '2px 8px' }}>
-                            {rdv.meeting_type === 'visio' ? '🎥 Visio' : rdv.meeting_type === 'telephone' ? '📞 Téléphone' : '🤝 Présentiel'}
+                    {/* ── Fiche RDV complète (lecture seule) ── */}
+                    <div style={{ background: '#0f1117', border: '1px solid #2a2d3e', borderRadius: 10, overflow: 'hidden' }}>
+                      {/* Statut verdict du closer */}
+                      <div style={{ padding: '10px 16px', borderBottom: '1px solid #1a1d27', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <StatusBadge status={rdv.status as AppointmentStatus} />
+                        {rdv.rdv_users && (
+                          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+                            Closer : <strong style={{ color: '#c8cadb' }}>{rdv.rdv_users.name}</strong>
                           </span>
                         )}
-                        {rdv.rdv_users && (
-                          <span style={{ fontSize: 11, color: '#8b8fa8' }}>Closer : <strong style={{ color: '#c8cadb' }}>{rdv.rdv_users.name}</strong></span>
+                      </div>
+                      {/* Infos prospect */}
+                      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7, borderBottom: '1px solid #1a1d27' }}>
+                        {rdv.prospect_email && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
+                            <Mail size={13} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                            <span>{rdv.prospect_email}</span>
+                          </div>
+                        )}
+                        {rdv.prospect_phone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
+                            <Phone size={13} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                            <span>{rdv.prospect_phone}</span>
+                          </div>
+                        )}
+                        {rdv.formation_type && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
+                            <Tag size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong></span>
+                          </div>
+                        )}
+                        {rdv.classe_actuelle && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
+                            <GraduationCap size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span>Classe : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle}</strong></span>
+                          </div>
+                        )}
+                        {rdv.meeting_type && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            {rdv.meeting_type === 'visio'
+                              ? <Video size={13} style={{ color: '#6b87ff', flexShrink: 0 }} />
+                              : rdv.meeting_type === 'telephone'
+                                ? <PhoneCall size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                : <MapPin size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />}
+                            <span style={{ color: rdv.meeting_type === 'visio' ? '#6b87ff' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>
+                              {rdv.meeting_type === 'visio' ? 'Visio' : rdv.meeting_type === 'telephone' ? 'Téléphone' : 'Présentiel'}
+                            </span>
+                            {rdv.meeting_type === 'visio' && rdv.meeting_link && (
+                              <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
+                                style={{ background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6, padding: '2px 8px', color: '#6b87ff', fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Video size={10} /> Rejoindre
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {rdv.hubspot_deal_id && (
+                          <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${rdv.hubspot_deal_id}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 6, padding: '3px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 600, textDecoration: 'none', alignSelf: 'flex-start' }}>
+                            <ExternalLink size={10} /> Transaction HubSpot
+                          </a>
                         )}
                       </div>
-                      {/* Rapport closer */}
-                      {(rdv.report_summary || rdv.report_telepro_advice) ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {rdv.report_summary && (
-                            <p style={{ fontSize: 13, color: '#c8cadb', margin: 0, lineHeight: 1.5 }}>{rdv.report_summary}</p>
-                          )}
-                          {rdv.report_telepro_advice && (
-                            <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>💡 {rdv.report_telepro_advice}</p>
-                          )}
+                      {/* Rapport du closer */}
+                      <div style={{ padding: '12px 16px' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Rapport du closer
                         </div>
-                      ) : (
-                        <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>
-                          {rdv.rdv_users ? 'Aucun rapport laissé par le closer.' : 'RDV non encore assigné à un closer.'}
-                        </p>
-                      )}
+                        {(rdv.report_summary || rdv.report_telepro_advice) ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {rdv.report_summary && (
+                              <p style={{ fontSize: 13, color: '#c8cadb', margin: 0, lineHeight: 1.5 }}>{rdv.report_summary}</p>
+                            )}
+                            {rdv.report_telepro_advice && (
+                              <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>💡 {rdv.report_telepro_advice}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>
+                            {rdv.rdv_users ? 'Aucun rapport laissé par le closer.' : 'RDV non encore assigné à un closer.'}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    {/* ── Suivi post-RDV (Délai de réflexion uniquement) ── */}
-                    {isDelaiReflexion && isSupabaseBacked && (
+                    {/* ── Suivi post-RDV (Délai de réflexion) ── */}
+                    {isDelaiReflexion && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           Suivi post-RDV
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {SUIVI_OPTIONS.map(opt => {
-                            const isActive = rdv.telepro_suivi === opt.value
-                            return (
-                              <button
-                                key={opt.value}
-                                onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
-                                disabled={savingSuivi === rdv.id}
-                                style={{
-                                  background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
-                                  border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
-                                  borderRadius: 7, padding: '5px 12px',
-                                  color: isActive ? opt.color : '#8b8fa8',
-                                  fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                }}
-                              >
-                                {opt.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                        {rdv.telepro_suivi && rdv.telepro_suivi_at && (
-                          <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
-                            Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {!isSupabaseBacked ? (
+                          <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>
+                            Ce RDV n&apos;est pas dans notre base — suivi non disponible.
                           </p>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {SUIVI_OPTIONS.map(opt => {
+                                const isActive = rdv.telepro_suivi === opt.value
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
+                                    disabled={savingSuivi === rdv.id}
+                                    style={{
+                                      background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
+                                      border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
+                                      borderRadius: 7, padding: '5px 12px',
+                                      color: isActive ? opt.color : '#8b8fa8',
+                                      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                              <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
+                                Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
