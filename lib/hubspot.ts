@@ -237,3 +237,14 @@ export async function updateDealOwner(dealId: string, ownerId: string) {
     }),
   })
 }
+
+// ─── Fusionner deux contacts HubSpot ──────────────────────────────────────
+export async function mergeContacts(primaryContactId: string, secondaryContactId: string) {
+  return hubspotFetch('/crm/v3/objects/contacts/merge', {
+    method: 'POST',
+    body: JSON.stringify({
+      primaryObjectId: primaryContactId,
+      objectIdToMerge: secondaryContactId,
+    }),
+  })
+}

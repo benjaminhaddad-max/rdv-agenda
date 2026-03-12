@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { LayoutDashboard, Calendar, Clock, Users, Briefcase } from 'lucide-react'
+import { LayoutDashboard, Calendar, Clock, Users, Briefcase, GitMerge } from 'lucide-react'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
+import DoublonsManager from '@/components/DoublonsManager'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminPage() {
@@ -14,6 +15,7 @@ export default function AdminPage() {
   const [showAvailability, setShowAvailability] = useState(false)
   const [showTelepros, setShowTelepros] = useState(false)
   const [showClosers, setShowClosers] = useState(false)
+  const [showDoublons, setShowDoublons] = useState(false)
 
   // Quand un RDV est assigné, on rafraîchit le calendrier
   const handleAssigned = useCallback(() => {
@@ -70,6 +72,19 @@ export default function AdminPage() {
           >
             <Briefcase size={13} />
             Closers
+          </button>
+          <button
+            onClick={() => setShowDoublons(true)}
+            style={{
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#ef4444', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            <GitMerge size={13} />
+            Doublons
           </button>
           <button
             onClick={() => setShowAvailability(true)}
@@ -149,6 +164,10 @@ export default function AdminPage() {
       {/* Panel closers */}
       {showClosers && (
         <CloserManager onClose={() => setShowClosers(false)} />
+      )}
+      {/* Panel doublons */}
+      {showDoublons && (
+        <DoublonsManager onClose={() => setShowDoublons(false)} />
       )}
     </div>
   )

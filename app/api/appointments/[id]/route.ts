@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { createDeal, updateDealStage, updateDealOwner, addNoteToEngagements, STAGES } from '@/lib/hubspot'
+import { createDeal, updateDealStage, updateDealOwner, updateContact, addNoteToEngagements, STAGES } from '@/lib/hubspot'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -156,6 +156,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (stageMap[status]) {
         await updateDealStage(appointment.hubspot_deal_id, stageMap[status])
       }
+
+      // Pour les statuts issus du RDV, le closer qui pose le statut devient propriétaire du deal + contact
+      const closerStatuses = ['a_travailler', 'pre_positif', 'positif', 'negatif']
+      if (closerStatuses.includes(status) && appointment.commercial_id) {
+        const { data: closer } = await db
+          .from('rdv_users')
+          .select('hubspot_owner_id')
+          .eq('id', appointment.commercial_id)
+          .single()
+
+        if (closer?.hubspot_owner_id) {
+          await updateDealOwner(appointment.hubspot_deal_id, closer.hubspot_owner_id)
+          if (appointment.hubspot_contact_id) {
+            await updateContact(appointment.hubspot_contact_id, { hubspot_owner_id: closer.hubspot_owner_id })
+          }
+        }
+      }
+
       // Ajouter une note avec le statut bien visible + rapport closer
       const noteLines = [
         `${statusLabel[status] || status.toUpperCase()}`,
