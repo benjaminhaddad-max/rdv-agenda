@@ -15,9 +15,12 @@ interface ContactInfo {
     hs_last_activity_date?: string
     notes_last_contacted?: string
     num_associated_deals?: string
+    hs_lead_status?: string
+    lifecyclestage?: string
   }
   teleproName: string
   teleproColor: string
+  dealStage?: string
 }
 
 interface DuplicateGroup {
@@ -26,6 +29,7 @@ interface DuplicateGroup {
   reason: 'same_phone' | 'same_email' | 'same_name'
   confidence: 'high' | 'medium'
   crossTelepro: boolean
+  matchedValue?: string
 }
 
 interface Stats {
@@ -33,6 +37,34 @@ interface Stats {
   totalGroups: number
   scannedTelepros: number
   ignoredCount: number
+}
+
+function normalizePhoneUI(phone: string): string {
+  let p = phone.replace(/[\s\-\.\(\)]/g, '')
+  if (p.startsWith('+33')) p = '0' + p.slice(3)
+  if (p.startsWith('0033')) p = '0' + p.slice(4)
+  return p
+}
+
+const LEAD_STATUS: Record<string, { label: string; color: string }> = {
+  NEW:                  { label: 'Nouveau',           color: '#6b87ff' },
+  OPEN:                 { label: 'Ouvert',            color: '#22c55e' },
+  IN_PROGRESS:          { label: 'En cours',          color: '#f59e0b' },
+  OPEN_DEAL:            { label: 'Deal ouvert',       color: '#22c55e' },
+  UNQUALIFIED:          { label: 'Non qualifié',      color: '#ef4444' },
+  ATTEMPTED_TO_CONTACT: { label: 'Tentative contact', color: '#8b8fa8' },
+  CONNECTED:            { label: 'Connecté',          color: '#22c55e' },
+  BAD_TIMING:           { label: 'Mauvais timing',    color: '#f59e0b' },
+}
+
+const DEAL_STAGES: Record<string, { label: string; color: string }> = {
+  '3165428979': { label: 'À replanifier',         color: '#f59e0b' },
+  '3165428980': { label: 'RDV pris',              color: '#6b87ff' },
+  '3165428981': { label: 'Délai de réflexion',    color: '#8b8fa8' },
+  '3165428982': { label: 'Préinscription',        color: '#22c55e' },
+  '3165428983': { label: 'Finalisation',          color: '#22c55e' },
+  '3165428984': { label: 'Inscription confirmée', color: '#22c55e' },
+  '3165428985': { label: 'Fermé perdu',           color: '#ef4444' },
 }
 
 const REASON_CONFIG = {
@@ -326,6 +358,11 @@ function DuplicateGroupCard({
         <span style={{ fontSize: 10, fontWeight: 600, color: cc.color, padding: '3px 8px', borderRadius: 20, background: `${cc.color}12`, border: `1px solid ${cc.color}40` }}>
           {cc.label}
         </span>
+        {group.reason === 'same_phone' && group.matchedValue && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+            🔍 {group.matchedValue}
+          </span>
+        )}
       </div>
 
       {/* Deux contacts côte à côte */}
@@ -366,14 +403,34 @@ function DuplicateGroupCard({
                 {contact.properties.email || '—'}
               </div>
 
-              {/* Téléphone */}
-              <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 8 }}>
-                {contact.properties.phone || contact.properties.mobilephone || '—'}
+              {/* Téléphones — on affiche les deux champs si renseignés */}
+              <div style={{ marginBottom: 8 }}>
+                {contact.properties.phone && (() => {
+                  const isMatch = group.reason === 'same_phone' && group.matchedValue &&
+                    normalizePhoneUI(contact.properties.phone!) === group.matchedValue
+                  return (
+                    <div style={{ fontSize: 11, color: isMatch ? '#f59e0b' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                      {contact.properties.phone}{isMatch ? ' 🔍' : ''}
+                    </div>
+                  )
+                })()}
+                {contact.properties.mobilephone && (() => {
+                  const isMatch = group.reason === 'same_phone' && group.matchedValue &&
+                    normalizePhoneUI(contact.properties.mobilephone!) === group.matchedValue
+                  return (
+                    <div style={{ fontSize: 11, color: isMatch ? '#f59e0b' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                      {contact.properties.mobilephone}{isMatch ? ' 🔍' : ''}
+                    </div>
+                  )
+                })()}
+                {!contact.properties.phone && !contact.properties.mobilephone && (
+                  <div style={{ fontSize: 11, color: '#555870' }}>—</div>
+                )}
               </div>
 
               {/* Activité */}
               {(() => {
-                const lastContacted = contact.properties.notes_last_contacted
+                const lastContacted = contact.properties.notes_last_contacted || contact.properties.hs_last_activity_date
                 const deals = contact.properties.num_associated_deals
                 const created = contact.properties.createdate
                 return (
@@ -381,7 +438,7 @@ function DuplicateGroupCard({
                     {lastContacted ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
                         <span>📞</span>
-                        <span>Dernier contact : <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
+                        <span>Dern. activité CRM : <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
                       </div>
                     ) : (
                       <div style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>Jamais contacté</div>
@@ -397,6 +454,31 @@ function DuplicateGroupCard({
                         Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                     )}
+                    {/* Statut du lead */}
+                    {contact.properties.hs_lead_status && (() => {
+                      const ls = LEAD_STATUS[contact.properties.hs_lead_status!]
+                      return ls ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${ls.color}18`, color: ls.color, border: `1px solid ${ls.color}40`, marginTop: 2, alignSelf: 'flex-start' }}>
+                          {ls.label}
+                        </div>
+                      ) : null
+                    })()}
+
+                    {/* Stade du deal dans le pipeline principal */}
+                    {contact.dealStage && (() => {
+                      const ds = DEAL_STAGES[contact.dealStage!]
+                      return ds ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                          <span>🏷️</span>
+                          <span style={{ color: ds.color, fontWeight: 700 }}>{ds.label}</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870' }}>
+                          <span>🏷️</span>
+                          <span>{contact.dealStage}</span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })()}

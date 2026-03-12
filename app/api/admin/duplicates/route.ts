@@ -33,6 +33,8 @@ interface HubSpotContact {
     hs_last_activity_date?: string
     notes_last_contacted?: string
     num_associated_deals?: string
+    hs_lead_status?: string
+    lifecyclestage?: string
   }
 }
 
@@ -40,6 +42,7 @@ interface EnrichedContact extends HubSpotContact {
   teleproId: string
   teleproName: string
   teleproColor: string
+  dealStage?: string
 }
 
 interface DuplicateGroup {
@@ -48,6 +51,7 @@ interface DuplicateGroup {
   reason: 'same_phone' | 'same_email' | 'same_name'
   confidence: 'high' | 'medium'
   crossTelepro: boolean
+  matchedValue?: string
 }
 
 function normalizePhone(phone: string): string {
@@ -73,7 +77,12 @@ async function fetchContactsForOwner(ownerId: string): Promise<HubSpotContact[]>
   for (let page = 0; page < 5; page++) {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters: [{ propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId }] }],
-      properties: ['email', 'firstname', 'lastname', 'phone', 'mobilephone', 'hubspot_owner_id', 'createdate', 'hs_last_activity_date', 'notes_last_contacted', 'num_associated_deals'],
+      properties: [
+        'email', 'firstname', 'lastname', 'phone', 'mobilephone',
+        'hubspot_owner_id', 'createdate', 'hs_last_activity_date',
+        'notes_last_contacted', 'num_associated_deals',
+        'hs_lead_status', 'lifecyclestage',
+      ],
       limit: 200,
     }
     if (after) body.after = after
@@ -144,8 +153,12 @@ export async function GET(_req: NextRequest) {
     return ignoredSet.has(pairKey(a, b))
   }
 
-  function addGroup(contacts: EnrichedContact[], reason: DuplicateGroup['reason'], confidence: DuplicateGroup['confidence']) {
-    // Générer toutes les paires de ce groupe
+  function addGroup(
+    contacts: EnrichedContact[],
+    reason: DuplicateGroup['reason'],
+    confidence: DuplicateGroup['confidence'],
+    matchedValue?: string,
+  ) {
     for (let i = 0; i < contacts.length; i++) {
       for (let j = i + 1; j < contacts.length; j++) {
         const key = pairKey(contacts[i].id, contacts[j].id)
@@ -157,6 +170,7 @@ export async function GET(_req: NextRequest) {
           reason,
           confidence,
           crossTelepro: contacts[i].teleproId !== contacts[j].teleproId,
+          matchedValue,
         })
       }
     }
@@ -174,11 +188,11 @@ export async function GET(_req: NextRequest) {
       phoneMap.get(phone)!.push(c)
     }
   }
-  for (const members of phoneMap.values()) {
+  for (const [phone, members] of phoneMap.entries()) {
     if (members.length < 2) continue
     const emails = new Set(members.map(c => c.properties.email?.toLowerCase()).filter(Boolean))
     if (emails.size < 2) continue
-    addGroup(members, 'same_phone', 'high')
+    addGroup(members, 'same_phone', 'high', phone)
   }
 
   // Passe 2: Même email exact (vrais doublons HubSpot)
@@ -189,9 +203,9 @@ export async function GET(_req: NextRequest) {
     if (!emailMap.has(email)) emailMap.set(email, [])
     emailMap.get(email)!.push(c)
   }
-  for (const members of emailMap.values()) {
+  for (const [email, members] of emailMap.entries()) {
     if (members.length < 2) continue
-    addGroup(members, 'same_email', 'high')
+    addGroup(members, 'same_email', 'high', email)
   }
 
   // Passe 3: Même nom complet normalisé, emails différents
@@ -202,11 +216,11 @@ export async function GET(_req: NextRequest) {
     if (!nameMap.has(key)) nameMap.set(key, [])
     nameMap.get(key)!.push(c)
   }
-  for (const members of nameMap.values()) {
+  for (const [name, members] of nameMap.entries()) {
     if (members.length < 2) continue
     const emails = new Set(members.map(c => c.properties.email?.toLowerCase()).filter(Boolean))
     if (emails.size < 2) continue
-    addGroup(members, 'same_name', 'medium')
+    addGroup(members, 'same_name', 'medium', name)
   }
 
   // Trier : cross-télépro en premier, puis par raison (phone > email > name)
@@ -215,6 +229,58 @@ export async function GET(_req: NextRequest) {
     if (a.crossTelepro !== b.crossTelepro) return a.crossTelepro ? -1 : 1
     return reasonOrder[a.reason] - reasonOrder[b.reason]
   })
+
+  // 6. Fetch deal stages pour les contacts présents dans les groupes (batch, best-effort)
+  const contactIdsInGroups = [...new Set(groups.flatMap(g => g.contacts.map(c => c.id)))]
+  if (contactIdsInGroups.length > 0) {
+    try {
+      // Step 1: récupérer les associations contact→deal en batch
+      const assocRes = await hubspotFetch('/crm/v4/associations/contacts/deals/batch/read', {
+        method: 'POST',
+        body: JSON.stringify({ inputs: contactIdsInGroups.map(id => ({ id })) }),
+      })
+      const contactDealMap = new Map<string, string[]>()
+      for (const result of (assocRes.results || [])) {
+        const dealIds = (result.to || []).map((t: { toObjectId: string }) => String(t.toObjectId))
+        if (dealIds.length > 0) contactDealMap.set(String(result.from.id), dealIds)
+      }
+
+      // Step 2: récupérer les propriétés des deals en batch
+      const allDealIds = [...new Set([...contactDealMap.values()].flat())]
+      if (allDealIds.length > 0) {
+        const dealsRes = await hubspotFetch('/crm/v3/objects/deals/batch/read', {
+          method: 'POST',
+          body: JSON.stringify({
+            inputs: allDealIds.map(id => ({ id })),
+            properties: ['dealstage', 'pipeline', 'closedate'],
+          }),
+        })
+        const dealStageMap = new Map<string, { stage: string; pipeline: string }>()
+        for (const deal of (dealsRes.results || [])) {
+          dealStageMap.set(deal.id, {
+            stage: deal.properties.dealstage,
+            pipeline: deal.properties.pipeline,
+          })
+        }
+
+        // Enrichir les contacts des groupes avec le stade du deal le plus récent dans le pipeline principal
+        const PIPELINE = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
+        for (const group of groups) {
+          for (const contact of group.contacts) {
+            const dealIds = contactDealMap.get(contact.id) || []
+            const pipelineDeals = dealIds
+              .map(id => dealStageMap.get(id))
+              .filter(d => d && d.pipeline === PIPELINE)
+            if (pipelineDeals.length > 0) {
+              contact.dealStage = pipelineDeals[0]!.stage
+            }
+          }
+        }
+      }
+    } catch {
+      // best-effort: les deal stages ne bloquent pas la réponse
+    }
+  }
 
   return NextResponse.json({
     groups,
