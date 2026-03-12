@@ -515,6 +515,12 @@ export default function TeleproClient({
       id: number; type: string; createdAt: number
       body: string | null; direction: string | null
     }>
+    contact: {
+      email: string | null; phone: string | null
+      firstname: string | null; lastname: string | null
+      classe_actuelle: string | null; departement: string | null
+      formation: string | null
+    } | null
   }
   const [histRdvs, setHistRdvs]           = useState<HistRdv[]>([])
   const [histLoading, setHistLoading]     = useState(false)
@@ -643,7 +649,7 @@ export default function TeleproClient({
       const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`)
       if (res.ok) {
         const data = await res.json()
-        setEngData(p => ({ ...p, [rdv.id]: { engagements: data.engagements ?? [] } }))
+        setEngData(p => ({ ...p, [rdv.id]: { engagements: data.engagements ?? [], contact: data.contact ?? null } }))
       }
     } finally {
       setLoadingEng(p => ({ ...p, [rdv.id]: false }))
@@ -676,14 +682,20 @@ export default function TeleproClient({
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveSuivi = useCallback(async (rdv: HistRdv, suivi: string | null) => {
-    if (rdv.id === rdv.hubspot_deal_id) return // entrée HubSpot-only, pas de Supabase
     setSavingSuivi(rdv.id)
     try {
-      const res = await fetch(`/api/appointments/${rdv.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telepro_suivi: suivi }),
-      })
+      const isHubSpotOnly = rdv.id === rdv.hubspot_deal_id
+      const res = isHubSpotOnly
+        ? await fetch('/api/hist-suivi', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deal_id: rdv.hubspot_deal_id, suivi }),
+          })
+        : await fetch(`/api/appointments/${rdv.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telepro_suivi: suivi }),
+          })
       if (res.ok) {
         setHistRdvs(prev => prev.map(r =>
           r.id === rdv.id
@@ -1903,28 +1915,28 @@ export default function TeleproClient({
                       </div>
                       {/* Infos prospect */}
                       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7, borderBottom: '1px solid #1a1d27' }}>
-                        {rdv.prospect_email && (
+                        {(rdv.prospect_email || eng?.contact?.email) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
                             <Mail size={13} style={{ color: '#4f6ef7', flexShrink: 0 }} />
-                            <span>{rdv.prospect_email}</span>
+                            <span>{rdv.prospect_email || eng?.contact?.email}</span>
                           </div>
                         )}
-                        {rdv.prospect_phone && (
+                        {(rdv.prospect_phone || eng?.contact?.phone) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
                             <Phone size={13} style={{ color: '#4f6ef7', flexShrink: 0 }} />
-                            <span>{rdv.prospect_phone}</span>
+                            <span>{rdv.prospect_phone || eng?.contact?.phone}</span>
                           </div>
                         )}
-                        {rdv.formation_type && (
+                        {(rdv.formation_type || eng?.contact?.formation) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
                             <Tag size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong></span>
+                            <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type || eng?.contact?.formation}</strong></span>
                           </div>
                         )}
-                        {rdv.classe_actuelle && (
+                        {(rdv.classe_actuelle || eng?.contact?.classe_actuelle) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
                             <GraduationCap size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span>Classe : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle}</strong></span>
+                            <span>Classe : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle || eng?.contact?.classe_actuelle}</strong></span>
                           </div>
                         )}
                         {rdv.meeting_type && (
@@ -1981,45 +1993,41 @@ export default function TeleproClient({
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           Suivi post-RDV
                         </div>
-                        {!isSupabaseBacked ? (
-                          <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>
-                            Ce RDV n&apos;est pas dans notre base — suivi non disponible.
-                          </p>
-                        ) : (
-                          <>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {SUIVI_OPTIONS.map(opt => {
-                                const isActive = rdv.telepro_suivi === opt.value
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
-                                    disabled={savingSuivi === rdv.id}
-                                    style={{
-                                      background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
-                                      border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
-                                      borderRadius: 7, padding: '5px 12px',
-                                      color: isActive ? opt.color : '#8b8fa8',
-                                      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                    }}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                            {rdv.telepro_suivi && rdv.telepro_suivi_at && (
-                              <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
-                                Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                            )}
-                          </>
-                        )}
+                        <>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {SUIVI_OPTIONS.map(opt => {
+                              const isActive = rdv.telepro_suivi === opt.value
+                              return (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
+                                  disabled={savingSuivi === rdv.id}
+                                  style={{
+                                    background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
+                                    border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
+                                    borderRadius: 7, padding: '5px 12px',
+                                    color: isActive ? opt.color : '#8b8fa8',
+                                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                  }}
+                                >
+                                  {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                            <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
+                              Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </>
                       </div>
                     )}
 
-                    {/* Note télépro éditable */}
-                    <HistoriqueNoteEditor rdvId={rdv.id} initialNote={rdv.notes ?? ''} />
+                    {/* Note télépro éditable (seulement si Supabase-backed) */}
+                    {!isSupabaseBacked ? null : (
+                      <HistoriqueNoteEditor rdvId={rdv.id} initialNote={rdv.notes ?? ''} />
+                    )}
 
                     {/* Activité HubSpot */}
                     {loadingEng[rdv.id] && (

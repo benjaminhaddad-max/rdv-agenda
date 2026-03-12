@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getDeal, getDealEngagements, updateDealStage, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
+import { getDeal, getDealEngagements, getDealContactInfo, updateDealStage, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
@@ -16,9 +16,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const [deal, engagements] = await Promise.all([
+  const [deal, engagements, contactInfo] = await Promise.all([
     getDeal(id),
     getDealEngagements(id),
+    getDealContactInfo(id),
   ])
 
   if (!deal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
@@ -41,6 +42,15 @@ export async function GET(
         direction: e.metadata?.direction ?? null,
       }))
       .sort((a, b) => b.createdAt - a.createdAt),
+    contact: contactInfo ? {
+      email: contactInfo.properties.email ?? null,
+      phone: contactInfo.properties.phone ?? null,
+      firstname: contactInfo.properties.firstname ?? null,
+      lastname: contactInfo.properties.lastname ?? null,
+      classe_actuelle: contactInfo.properties.classe_actuelle ?? null,
+      departement: contactInfo.properties.departement ?? null,
+      formation: contactInfo.properties.diploma_sante___formation_demandee ?? null,
+    } : null,
   })
 }
 

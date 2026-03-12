@@ -300,6 +300,18 @@ export async function getDealEngagements(dealId: string): Promise<Array<{
   }
 }
 
+// ─── Récupérer le contact associé à un deal (via API associations) ────────
+export async function getDealContactInfo(dealId: string): Promise<HubSpotContact | null> {
+  try {
+    const assoc = await hubspotFetch(`/crm/v3/objects/deals/${dealId}/associations/contacts`)
+    const contactId = assoc.results?.[0]?.id
+    if (!contactId) return null
+    return getContact(String(contactId))
+  } catch {
+    return null
+  }
+}
+
 // ─── Fusionner deux contacts HubSpot ──────────────────────────────────────
 export async function mergeContacts(primaryContactId: string, secondaryContactId: string) {
   return hubspotFetch('/crm/v3/objects/contacts/merge', {
