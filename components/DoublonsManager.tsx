@@ -467,15 +467,16 @@ function DuplicateGroupCard({
                         Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                     )}
-                    {/* Statut lead hs_lead_status, ou lifecycle stage en fallback */}
+                    {/* Statut lead hs_lead_status — mapping ou valeur brute, lifecycle en fallback */}
                     {(() => {
-                      const ls = contact.properties.hs_lead_status
-                        ? LEAD_STATUS[contact.properties.hs_lead_status]
-                        : null
-                      const lc = contact.properties.lifecyclestage
-                        ? LIFECYCLE_STAGES[contact.properties.lifecyclestage]
-                        : null
-                      const badge = ls || lc
+                      const rawLs = contact.properties.hs_lead_status
+                      const rawLc = contact.properties.lifecyclestage
+                      // Priorité : hs_lead_status (mappé ou brut), puis lifecyclestage
+                      const badge = rawLs
+                        ? (LEAD_STATUS[rawLs] ?? { label: rawLs, color: '#8b8fa8' })
+                        : rawLc
+                          ? (LIFECYCLE_STAGES[rawLc] ?? { label: rawLc, color: '#8b8fa8' })
+                          : null
                       return badge ? (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${badge.color}18`, color: badge.color, border: `1px solid ${badge.color}40`, marginTop: 2, alignSelf: 'flex-start' }}>
                           {badge.label}
