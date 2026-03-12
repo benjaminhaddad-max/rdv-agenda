@@ -28,6 +28,7 @@ export const STAGES = {
 }
 
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
+export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
 const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,diploma_sante___formation_demandee,hubspot_owner_id'
 
@@ -236,6 +237,35 @@ export async function updateDealOwner(dealId: string, ownerId: string) {
       properties: { hubspot_owner_id: ownerId },
     }),
   })
+}
+
+// ─── Lire un deal HubSpot ─────────────────────────────────────────────────
+export async function getDeal(dealId: string): Promise<{
+  dealname: string; dealstage: string; closedate: string; pipeline: string
+} | null> {
+  try {
+    const data = await hubspotFetch(
+      `/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,closedate,pipeline`
+    )
+    return data.properties as { dealname: string; dealstage: string; closedate: string; pipeline: string }
+  } catch {
+    return null
+  }
+}
+
+// ─── Récupérer les engagements (notes, appels…) d'un deal ─────────────────
+export async function getDealEngagements(dealId: string): Promise<Array<{
+  engagement: { id: number; type: string; createdAt: number; timestamp: number }
+  metadata: { body?: string; status?: string; direction?: string }
+}>> {
+  try {
+    const data = await hubspotFetch(
+      `/engagements/v1/engagements/associated/deal/${dealId}/paged?count=20`
+    )
+    return data.results ?? []
+  } catch {
+    return []
+  }
 }
 
 // ─── Fusionner deux contacts HubSpot ──────────────────────────────────────

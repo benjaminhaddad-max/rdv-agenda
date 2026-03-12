@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { format, addDays, isSameDay, startOfToday, startOfWeek, addWeeks, subWeeks, isSameWeek } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
@@ -377,6 +377,56 @@ function TeleproRdvModal({
 }
 
 // ─── Composant principal ───────────────────────────────────────────────────
+// ─── Sous-composant : note éditable dans l'onglet Historique ───────────────
+function HistoriqueNoteEditor({ rdvId, initialNote }: { rdvId: string; initialNote: string }) {
+  const [note, setNote] = useState(initialNote)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    await fetch(`/api/appointments/${rdvId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: note }),
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Mes notes historiques
+      </div>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        rows={3}
+        style={{
+          width: '100%', background: '#0f1117', border: '1px solid #2a2d3e',
+          borderRadius: 8, color: '#c8cadb', fontSize: 13, padding: '8px 12px',
+          resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+        }}
+        placeholder="Laisser un compte-rendu ou note de suivi…"
+      />
+      <button
+        onClick={save}
+        disabled={saving}
+        style={{
+          marginTop: 6, background: 'rgba(79,110,247,0.15)',
+          border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6,
+          padding: '4px 12px', color: '#6b87ff', fontSize: 12,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        {saving ? 'Sauvegarde…' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+      </button>
+    </div>
+  )
+}
+
 export default function TeleproClient({
   teleproUser,
   previewMode = false,
@@ -387,7 +437,7 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique'>('rdvs')
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
@@ -451,6 +501,20 @@ export default function TeleproClient({
   const [selectedRdv, setSelectedRdv] = useState<MyAppointment | null>(null)
   const [confirmingRdv, setConfirmingRdv] = useState<string | null>(null)
   const [cancellingRdv, setCancellingRdv] = useState<string | null>(null)
+
+  // ── Historique HubSpot ────────────────────────────────────────────────
+  type DealInfo = {
+    stage: string; stageLabel: string; stageColor: string
+    pipeline: string; isCorrectPipeline: boolean
+    closedate: string
+    engagements: Array<{
+      id: number; type: string; createdAt: number
+      body: string | null; direction: string | null
+    }>
+  }
+  const [dealData, setDealData]           = useState<Record<string, DealInfo>>({})
+  const [loadingDeals, setLoadingDeals]   = useState(false)
+  const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -548,6 +612,54 @@ export default function TeleproClient({
   useEffect(() => {
     if (previewMode) { fetchMyRdvs(); fetchHsStats() }
   }, [previewMode, fetchMyRdvs, fetchHsStats])
+
+  // ── Historique : RDVs passés depuis le 1er oct. 2025 ─────────────────
+  const HISTORIQUE_START = '2025-10-01T00:00:00.000Z'
+  const pastRdvs = useMemo(() =>
+    myRdvs
+      .filter(r => r.start_at < new Date().toISOString() && r.start_at >= HISTORIQUE_START)
+      .sort((a, b) => b.start_at.localeCompare(a.start_at)),
+    [myRdvs]
+  )
+
+  const fetchAllDeals = useCallback(async () => {
+    const toFetch = pastRdvs.filter(r => r.hubspot_deal_id && !dealData[r.id])
+    if (toFetch.length === 0) return
+    setLoadingDeals(true)
+    for (let i = 0; i < toFetch.length; i += 5) {
+      const batch = toFetch.slice(i, i + 5)
+      const results = await Promise.allSettled(
+        batch.map(async r => {
+          const res = await fetch(`/api/hubspot/deal/${r.hubspot_deal_id}`)
+          if (!res.ok) return null
+          return { id: r.id, data: await res.json() as DealInfo }
+        })
+      )
+      const updates: Record<string, DealInfo> = {}
+      results.forEach(r => {
+        if (r.status === 'fulfilled' && r.value) updates[r.value.id] = r.value.data
+      })
+      setDealData(prev => ({ ...prev, ...updates }))
+    }
+    setLoadingDeals(false)
+  }, [pastRdvs, dealData]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (activeTab === 'historique') { fetchMyRdvs(); fetchAllDeals() }
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const REPRISE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+  const hasReprise = (data: DealInfo) => {
+    const cutoff = Date.now() - REPRISE_WINDOW_MS
+    return data.engagements.some(e =>
+      e.createdAt > cutoff && ['CALL', 'INCOMING_EMAIL', 'EMAIL'].includes(e.type)
+    )
+  }
+
+  const visiblePastRdvs = pastRdvs.filter(r =>
+    !r.hubspot_deal_id || !dealData[r.id] || dealData[r.id].isCorrectPipeline
+  )
+  const repriseCount = visiblePastRdvs.filter(r => dealData[r.id] && hasReprise(dealData[r.id])).length
 
   // ── Computed stats ────────────────────────────────────────────────────
   const now = new Date()
@@ -832,6 +944,25 @@ export default function TeleproClient({
                 {myRdvs.length > 0 && (
                   <span style={{ background: 'rgba(34,197,94,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                     {myRdvs.length}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setActiveTab('historique')} style={{
+                background: activeTab === 'historique' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'historique' ? 'rgba(245,158,11,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'historique' ? '#f59e0b' : '#8b8fa8',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}>
+                <Clock size={12} /> Historique
+                {pastRdvs.length > 0 && (
+                  <span style={{ background: 'rgba(245,158,11,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                    {pastRdvs.length}
+                  </span>
+                )}
+                {repriseCount > 0 && (
+                  <span style={{ background: '#f97316', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#fff' }}>
+                    🔔 {repriseCount}
                   </span>
                 )}
               </button>
@@ -1505,6 +1636,143 @@ export default function TeleproClient({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Onglet Historique ───────────────────────────────────────────── */}
+      {activeTab === 'historique' && !isAdmin && (
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
+
+          {/* En-tête */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} style={{ color: '#f59e0b' }} />
+                Historique RDV
+              </div>
+              <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
+                Diploma Santé 2026-2027 — RDVs passés depuis le 1er oct. 2025
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {loadingDeals && (
+                <span style={{ fontSize: 12, color: '#555870', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement HubSpot…
+                </span>
+              )}
+              <span style={{ fontSize: 12, color: '#555870' }}>
+                {visiblePastRdvs.length} RDV{visiblePastRdvs.length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          {visiblePastRdvs.length === 0 && !loadingDeals && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555870', fontSize: 13 }}>
+              Aucun RDV passé depuis le 1er octobre 2025.
+            </div>
+          )}
+
+          {visiblePastRdvs.map(rdv => {
+            const deal = dealData[rdv.id]
+            const isExpanded = expandedHistRdv === rdv.id
+            const isReprise = deal && hasReprise(deal)
+
+            return (
+              <div key={rdv.id} style={{
+                background: '#1a1d27',
+                border: `1px solid ${isReprise ? '#f97316' : '#2a2d3e'}`,
+                borderRadius: 12, marginBottom: 10, overflow: 'hidden',
+              }}>
+                {/* En-tête carte */}
+                <div
+                  onClick={() => setExpandedHistRdv(isExpanded ? null : rdv.id)}
+                  style={{ padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                >
+                  <div style={{ minWidth: 80, fontSize: 11, color: '#555870', flexShrink: 0 }}>
+                    {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                  </div>
+                  <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: '#e8eaf0', minWidth: 0 }}>
+                    {rdv.prospect_name}
+                    {rdv.rdv_users && (
+                      <span style={{ marginLeft: 8, fontSize: 11, color: '#555870', fontWeight: 400 }}>
+                        → {rdv.rdv_users.name}
+                      </span>
+                    )}
+                  </div>
+                  {deal && (
+                    <span style={{
+                      background: `${deal.stageColor}22`, border: `1px solid ${deal.stageColor}66`,
+                      color: deal.stageColor, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                      flexShrink: 0,
+                    }}>
+                      {deal.stageLabel}
+                    </span>
+                  )}
+                  {!deal && !rdv.hubspot_deal_id && (
+                    <span style={{ fontSize: 11, color: '#3a3d50', flexShrink: 0 }}>Sans deal HubSpot</span>
+                  )}
+                  {isReprise && (
+                    <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600, flexShrink: 0 }}>🔔 Reprise</span>
+                  )}
+                  <span style={{ color: '#555870', fontSize: 12, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
+                </div>
+
+                {/* Détails expansibles */}
+                {isExpanded && (
+                  <div style={{ borderTop: '1px solid #2a2d3e', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                    {/* Rapport closer (lecture seule) */}
+                    {(rdv.report_summary || rdv.report_telepro_advice) && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Rapport du closer
+                        </div>
+                        {rdv.report_summary && (
+                          <p style={{ fontSize: 13, color: '#c8cadb', margin: 0 }}>{rdv.report_summary}</p>
+                        )}
+                        {rdv.report_telepro_advice && (
+                          <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 6, margin: '6px 0 0' }}>💡 {rdv.report_telepro_advice}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Note télépro éditable */}
+                    <HistoriqueNoteEditor rdvId={rdv.id} initialNote={rdv.notes ?? ''} />
+
+                    {/* Activité HubSpot */}
+                    {deal && deal.engagements.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Activité HubSpot
+                        </div>
+                        {deal.engagements.slice(0, 8).map(e => (
+                          <div key={e.id} style={{ display: 'flex', gap: 10, marginBottom: 6, fontSize: 12 }}>
+                            <span style={{ color: '#555870', minWidth: 90, flexShrink: 0 }}>
+                              {new Date(e.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                            </span>
+                            <span style={{ color: '#8b8fa8', minWidth: 75, flexShrink: 0 }}>
+                              {e.type === 'NOTE' ? '📝 Note'
+                                : e.type === 'CALL' ? '📞 Appel'
+                                : (e.type === 'EMAIL' || e.type === 'INCOMING_EMAIL') ? '✉️ Email'
+                                : e.type}
+                            </span>
+                            {e.body && (
+                              <span style={{ color: '#c8cadb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                                {e.body.replace(/<[^>]+>/g, '').slice(0, 150)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {deal && deal.engagements.length === 0 && (
+                      <p style={{ fontSize: 12, color: '#555870', margin: 0 }}>Aucune activité HubSpot enregistrée.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
