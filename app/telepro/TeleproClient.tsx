@@ -51,6 +51,7 @@ type MyAppointment = {
   report_summary?: string | null
   report_telepro_advice?: string | null
   hubspot_contact_id?: string | null
+  notes?: string | null
   rdv_users?: { id: string; name: string; avatar_color: string; slug: string } | null
 }
 
@@ -169,6 +170,9 @@ export default function TeleproClient({
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null)
   const [rebookLoading, setRebookLoading] = useState<string | null>(null)
   const [planningView, setPlanningView] = useState<'week' | 'chrono'>('chrono')
+  const [editingNotes, setEditingNotes] = useState<Record<string, string>>({})
+  const [savingNote, setSavingNote] = useState<string | null>(null)
+  const [savedNote, setSavedNote] = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -191,6 +195,25 @@ export default function TeleproClient({
       setMyRdvsLoading(false)
     }
   }, [teleproUser.id, isAdmin])
+
+  async function saveNote(rdvId: string) {
+    const text = rdvId in editingNotes ? editingNotes[rdvId] : ''
+    setSavingNote(rdvId)
+    try {
+      const res = await fetch(`/api/appointments/${rdvId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: text.trim() || null }),
+      })
+      if (res.ok) {
+        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, notes: text.trim() || null } : r))
+        setSavedNote(rdvId)
+        setTimeout(() => setSavedNote(null), 2000)
+      }
+    } finally {
+      setSavingNote(null)
+    }
+  }
 
   useEffect(() => {
     if (activeTab === 'rdvs') { fetchMyRdvs(); fetchHsStats() }
@@ -725,11 +748,25 @@ export default function TeleproClient({
                               <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
                             </div>
                           )}
-                          {!rdv.report_summary && !rdv.report_telepro_advice && (
-                            <div style={{ marginTop: 12, fontSize: 13, color: '#555870', fontStyle: 'italic' }}>
-                              Pas encore de rapport du closer.
+                          <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
+                            <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <FileText size={10} /> Note interne
                             </div>
-                          )}
+                            <textarea
+                              value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
+                              onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
+                              placeholder="Tes notes d'appel…"
+                              rows={3}
+                              style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
+                            />
+                            <button
+                              onClick={() => saveNote(rdv.id)}
+                              disabled={savingNote === rdv.id}
+                              style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -849,9 +886,25 @@ export default function TeleproClient({
                                     <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
                                   </div>
                                 )}
-                                {!rdv.report_summary && !rdv.report_telepro_advice && (
-                                  <div style={{ marginTop: 12, fontSize: 13, color: '#555870', fontStyle: 'italic' }}>Pas encore de rapport du closer.</div>
-                                )}
+                                <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
+                                  <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <FileText size={10} /> Note interne
+                                  </div>
+                                  <textarea
+                                    value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
+                                    onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
+                                    placeholder="Tes notes d'appel…"
+                                    rows={3}
+                                    style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
+                                  />
+                                  <button
+                                    onClick={() => saveNote(rdv.id)}
+                                    disabled={savingNote === rdv.id}
+                                    style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                  >
+                                    <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -965,9 +1018,25 @@ export default function TeleproClient({
                                         <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
                                       </div>
                                     )}
-                                    {!rdv.report_summary && !rdv.report_telepro_advice && (
-                                      <div style={{ marginTop: 12, fontSize: 13, color: '#555870', fontStyle: 'italic' }}>Pas encore de rapport du closer.</div>
-                                    )}
+                                    <div style={{ marginTop: 14, borderTop: '1px solid #2a2d3e', paddingTop: 12 }}>
+                                      <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <FileText size={10} /> Note interne
+                                      </div>
+                                      <textarea
+                                        value={rdv.id in editingNotes ? editingNotes[rdv.id] : (rdv.notes || '')}
+                                        onChange={e => setEditingNotes(prev => ({ ...prev, [rdv.id]: e.target.value }))}
+                                        placeholder="Tes notes d'appel…"
+                                        rows={3}
+                                        style={{ ...inputStyle, resize: 'vertical', fontSize: 13 }}
+                                      />
+                                      <button
+                                        onClick={() => saveNote(rdv.id)}
+                                        disabled={savingNote === rdv.id}
+                                        style={{ marginTop: 6, background: savedNote === rdv.id ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${savedNote === rdv.id ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '5px 12px', color: savedNote === rdv.id ? '#22c55e' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                      >
+                                        <Check size={10} /> {savedNote === rdv.id ? 'Sauvegardé !' : savingNote === rdv.id ? 'Sauvegarde…' : 'Sauvegarder'}
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>

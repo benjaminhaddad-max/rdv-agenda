@@ -98,6 +98,7 @@ Statuts deal mappés :
 |---|---|---|
 | 2026-03-12 | `CONTEXT.md` | Création initiale du fichier de contexte |
 | 2026-03-12 | `app/telepro/TeleproClient.tsx` | Ajout vue chronologique (toggle "Chronologique / Par semaine") dans l'onglet Mon Planning — vue chrono par défaut, groupée par jour avec badge PASSÉ/AUJOURD'HUI, bouton "Reprendre" intégré |
+| 2026-03-12 | `app/telepro/TeleproClient.tsx` | Fix : onglet par défaut changé de "Nouveau RDV" → "Mon Planning" pour que les télépros voient directement leur planning |
 
 ---
 
