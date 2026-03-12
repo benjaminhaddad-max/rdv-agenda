@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   Calendar, Clock, Phone, Tag, FileText, ArrowLeft, Search, User, MapPin,
   GraduationCap, X, CheckCircle, Link, Plus, Mail, Video, PhoneCall, Copy,
-  Check, PlusCircle, RefreshCw, ChevronLeft, ChevronRight, TrendingUp, RotateCcw,
+  Check, PlusCircle, RefreshCw, ChevronLeft, ChevronRight, TrendingUp, RotateCcw, List,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
@@ -168,6 +168,7 @@ export default function TeleproClient({
   )
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null)
   const [rebookLoading, setRebookLoading] = useState<string | null>(null)
+  const [planningView, setPlanningView] = useState<'week' | 'chrono'>('chrono')
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -227,6 +228,18 @@ export default function TeleproClient({
         new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
       )
     : []
+
+  // Chrono view: all RDVs sorted by date ascending, grouped by day
+  const allRdvsSorted = [...myRdvs].sort((a, b) =>
+    new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+  )
+  const allChronoGroups: { date: Date; rdvs: MyAppointment[] }[] = []
+  for (const rdv of allRdvsSorted) {
+    const d = new Date(rdv.start_at)
+    const existing = allChronoGroups.find(g => isSameDay(g.date, d))
+    if (existing) existing.rdvs.push(rdv)
+    else allChronoGroups.push({ date: d, rdvs: [rdv] })
+  }
 
   // ── Slots ─────────────────────────────────────────────────────────────
   async function loadPoolSlots(date: Date) {
@@ -570,6 +583,36 @@ export default function TeleproClient({
             </div>
           )}
 
+          {/* Toggle vue chronologique / par semaine */}
+          {myRdvs.length > 0 && !statusFilter && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              <button
+                onClick={() => setPlanningView('chrono')}
+                style={{
+                  background: planningView === 'chrono' ? 'rgba(79,110,247,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${planningView === 'chrono' ? 'rgba(79,110,247,0.4)' : '#3a3d50'}`,
+                  borderRadius: 8, padding: '6px 14px',
+                  color: planningView === 'chrono' ? '#6b87ff' : '#555870',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <List size={12} /> Chronologique
+              </button>
+              <button
+                onClick={() => setPlanningView('week')}
+                style={{
+                  background: planningView === 'week' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${planningView === 'week' ? 'rgba(34,197,94,0.4)' : '#3a3d50'}`,
+                  borderRadius: 8, padding: '6px 14px',
+                  color: planningView === 'week' ? '#22c55e' : '#555870',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <Calendar size={12} /> Par semaine
+              </button>
+            </div>
+          )}
+
           {myRdvsLoading && myRdvs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#555870' }}>
               <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
@@ -695,6 +738,130 @@ export default function TeleproClient({
               </div>
             </div>
 
+          ) : planningView === 'chrono' ? (
+            /* ── Vue chronologique ──────────────────────────────────── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {allChronoGroups.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#555870' }}>
+                  <Calendar size={28} style={{ marginBottom: 10, opacity: 0.4 }} />
+                  <div style={{ fontSize: 14 }}>Aucun RDV</div>
+                </div>
+              ) : allChronoGroups.map(({ date, rdvs: dayRdvs }) => {
+                const isPast = date < today && !isSameDay(date, today)
+                const isToday = isSameDay(date, today)
+                return (
+                  <div key={date.toISOString()}>
+                    {/* En-tête jour */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', marginBottom: 4 }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+                        color: isToday ? '#6b87ff' : isPast ? '#3d4060' : '#555870',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        {isToday && <span style={{ background: '#6b87ff', borderRadius: 4, padding: '1px 6px', color: 'white', fontSize: 9, fontWeight: 800, letterSpacing: 0 }}>AUJOURD&apos;HUI</span>}
+                        {isPast && !isToday && <span style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 4, padding: '1px 5px', color: '#3d4060', fontSize: 9, fontWeight: 700, letterSpacing: 0 }}>PASSÉ</span>}
+                        {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
+                      </div>
+                      <div style={{ flex: 1, height: 1, background: isToday ? 'rgba(79,110,247,0.3)' : '#1e2130' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#555870' }}>{dayRdvs.length} rdv</span>
+                    </div>
+                    {/* Cartes RDV */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                      {dayRdvs.map(rdv => {
+                        const expanded = expandedRdv === rdv.id
+                        const canReplan = REPLAN_STATUSES.includes(rdv.status)
+                        const isRebooking = rebookLoading === rdv.id
+                        return (
+                          <div key={rdv.id} style={{
+                            background: '#1e2130',
+                            border: `1px solid ${isToday ? 'rgba(79,110,247,0.25)' : isPast ? '#252840' : '#2a2d3e'}`,
+                            borderRadius: 10, overflow: 'hidden', opacity: isPast ? 0.8 : 1,
+                          }}>
+                            <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: isToday ? '#6b87ff' : isPast ? '#3d4060' : '#8b8fa8', minWidth: 44, flexShrink: 0 }}>
+                                {format(new Date(rdv.start_at), 'HH:mm')}
+                              </div>
+                              <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: rdv.meeting_type === 'visio' ? 'rgba(79,110,247,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+                              }}>
+                                {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#6b87ff' }} />
+                                  : rdv.meeting_type === 'telephone' ? <PhoneCall size={11} style={{ color: '#22c55e' }} />
+                                  : <MapPin size={11} style={{ color: '#f59e0b' }} />}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {rdv.prospect_name}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#555870', display: 'flex', gap: 8 }}>
+                                  {rdv.formation_type && <span>{rdv.formation_type}</span>}
+                                  {rdv.prospect_phone && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={9} />{rdv.prospect_phone}</span>}
+                                </div>
+                              </div>
+                              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                                {rdv.rdv_users ? (
+                                  <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <User size={10} /> {rdv.rdv_users.name}
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize: 11, color: '#555870' }}>Non assigné</div>
+                                )}
+                                <StatusBadge status={rdv.status} />
+                                {canReplan && (
+                                  <button
+                                    onClick={() => handleReprendre(rdv)}
+                                    disabled={isRebooking}
+                                    style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 7, padding: '3px 8px', color: '#6b87ff', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                                  >
+                                    <RotateCcw size={9} />
+                                    {isRebooking ? '…' : 'Reprendre'}
+                                  </button>
+                                )}
+                              </div>
+                              <button onClick={() => setExpandedRdv(expanded ? null : rdv.id)}
+                                style={{ background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 7, padding: '4px 8px', color: '#555870', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+                                {expanded ? '▲' : '▼'}
+                              </button>
+                            </div>
+                            {expanded && (
+                              <div style={{ padding: '0 16px 14px', borderTop: '1px solid #2a2d3e' }}>
+                                {rdv.prospect_email && (
+                                  <div style={{ marginTop: 10, fontSize: 12, color: '#8b8fa8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Mail size={11} /> {rdv.prospect_email}
+                                  </div>
+                                )}
+                                {rdv.meeting_type === 'visio' && rdv.meeting_link && (
+                                  <div style={{ marginTop: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Video size={11} style={{ color: '#6b87ff' }} />
+                                    <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer" style={{ color: '#6b87ff', textDecoration: 'none' }}>
+                                      {rdv.meeting_link}
+                                    </a>
+                                  </div>
+                                )}
+                                {rdv.report_summary && (
+                                  <div style={{ marginTop: 12 }}>
+                                    <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé (closer)</div>
+                                    <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
+                                  </div>
+                                )}
+                                {rdv.report_telepro_advice && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
+                                    <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
+                                  </div>
+                                )}
+                                {!rdv.report_summary && !rdv.report_telepro_advice && (
+                                  <div style={{ marginTop: 12, fontSize: 13, color: '#555870', fontStyle: 'italic' }}>Pas encore de rapport du closer.</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           ) : (
             /* ── Vue semaine ────────────────────────────────────────── */
             <>
