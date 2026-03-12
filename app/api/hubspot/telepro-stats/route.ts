@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (!ownerId) return NextResponse.json({ error: 'hubspot_owner_id requis' }, { status: 400 })
 
   const baseFilters = [
-    { propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId },
+    { propertyName: 'teleprospecteur', operator: 'EQ', value: ownerId },
     { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
   ]
 
