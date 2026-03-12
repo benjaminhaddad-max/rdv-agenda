@@ -137,9 +137,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
       const data = await res.json()
       if (!res.ok) { alert(data.error || 'Erreur sync'); return }
       setSyncResult(data)
-      if (data.created.length > 0 || data.banned?.length > 0 || data.unbanned?.length > 0) {
-        await load()
-      }
+      await load()
     } finally {
       setSyncing(false)
     }
