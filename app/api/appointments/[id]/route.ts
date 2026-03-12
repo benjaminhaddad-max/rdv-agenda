@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { createDeal, updateDealStage, updateDealOwner, STAGES } from '@/lib/hubspot'
+import { createDeal, updateDealStage, updateDealOwner, addNoteToEngagements, STAGES } from '@/lib/hubspot'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Sync HubSpot stage
+  // Sync HubSpot stage + note
   if (appointment.hubspot_deal_id && status !== 'non_assigne') {
     const stageMap: Record<string, keyof typeof STAGES> = {
       confirme: 'rdvPris',
@@ -143,12 +143,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       va_reflechir: 'delaiReflexion',
       preinscription: 'preinscription',
     }
-    if (stageMap[status]) {
-      try {
+    const statusLabel: Record<string, string> = {
+      no_show: '❌ No-show — à replanifier',
+      annule: '🚫 RDV annulé — à replanifier',
+      a_travailler: '📧 À travailler — mail PI + brochure',
+      pre_positif: '🔥 Pré-positif — mail PI + brochure',
+      positif: '🎉 POSITIF — pré-inscription HubSpot',
+      negatif: '💀 Négatif — rien à faire',
+      confirme: '✅ RDV confirmé',
+    }
+    try {
+      if (stageMap[status]) {
         await updateDealStage(appointment.hubspot_deal_id, stageMap[status])
-      } catch (e) {
-        console.error('HubSpot update failed:', e)
       }
+      // Ajouter une note avec le statut + rapport closer
+      const noteLines = [
+        `📋 Statut mis à jour : ${statusLabel[status] || status}`,
+        report_summary ? `\n📝 Résumé du RDV :\n${report_summary}` : '',
+        report_telepro_advice ? `\n💬 Conseil télépro :\n${report_telepro_advice}` : '',
+      ].filter(Boolean).join('\n')
+
+      await addNoteToEngagements({
+        dealId: appointment.hubspot_deal_id,
+        contactId: appointment.hubspot_contact_id || null,
+        body: noteLines,
+      })
+    } catch (e) {
+      console.error('HubSpot update failed:', e)
     }
   }
 
