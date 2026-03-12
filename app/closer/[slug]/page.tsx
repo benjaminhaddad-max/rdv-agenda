@@ -9,7 +9,7 @@ export default async function CloserPage({ params }: { params: Promise<{ slug: s
     .from('rdv_users')
     .select('*')
     .eq('slug', slug)
-    .in('role', ['commercial', 'admin'])
+    .in('role', ['commercial', 'admin', 'closer'])
     .single()
 
   if (!user) {

@@ -7,6 +7,7 @@ type Closer = {
   id: string
   name: string
   email: string
+  slug: string
   avatar_color: string
   auth_id: string | null
   hubspot_user_id: string | null
@@ -490,7 +491,7 @@ function CloserRow({
   }
 
   function handleImpersonate() {
-    window.open(`/closer/${cl.id}?preview_as=${cl.id}`, '_blank')
+    window.open(`/closer/${cl.slug}`, '_blank')
   }
 
   return (
