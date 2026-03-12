@@ -17,6 +17,8 @@ type Appointment = {
   source?: string
   formation_type?: string | null
   hubspot_deal_id: string | null
+  hubspot_contact_id?: string | null
+  classe_actuelle?: string | null
   notes: string | null
   meeting_type?: string | null
   meeting_link?: string | null
@@ -39,6 +41,8 @@ const SOURCE_LABEL: Record<string, string> = {
   prospect: '🌐 Réservé en ligne',
   admin: '⚙️ Placé en admin',
 }
+
+const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 
 const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
   visio:       { icon: Video,     label: 'Visio',       color: '#6b87ff' },
@@ -246,16 +250,52 @@ export default function AppointmentModal({
                 )}
               </div>
             )}
+            {appointment.classe_actuelle && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <span style={{ color: '#f59e0b', flexShrink: 0, fontSize: 14 }}>🎓</span>
+                <span>Classe actuelle : <strong style={{ color: '#e8eaf0' }}>{appointment.classe_actuelle}</strong></span>
+              </div>
+            )}
             {appointment.users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
                 <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
                 <span>Closer : <strong style={{ color: '#e8eaf0' }}>{appointment.users.name}</strong></span>
               </div>
             )}
-            {appointment.hubspot_deal_id && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <ExternalLink size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
-                <span>Deal HubSpot : <code style={{ color: '#6b87ff', fontSize: 12 }}>{appointment.hubspot_deal_id}</code></span>
+            {(appointment.hubspot_contact_id || appointment.hubspot_deal_id) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {appointment.hubspot_contact_id && (
+                  <a
+                    href={`https://app.hubspot.com/contacts/${HS_PORTAL_ID}/contact/${appointment.hubspot_contact_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                      borderRadius: 6, padding: '4px 10px',
+                      color: '#f59e0b', fontSize: 12, fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <ExternalLink size={11} /> Contact HubSpot
+                  </a>
+                )}
+                {appointment.hubspot_deal_id && (
+                  <a
+                    href={`https://app.hubspot.com/contacts/${HS_PORTAL_ID}/deal/${appointment.hubspot_deal_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.3)',
+                      borderRadius: 6, padding: '4px 10px',
+                      color: '#6b87ff', fontSize: 12, fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <ExternalLink size={11} /> Transaction HubSpot
+                  </a>
+                )}
               </div>
             )}
           </div>

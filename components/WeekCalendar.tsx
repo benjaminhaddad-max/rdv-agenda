@@ -18,6 +18,8 @@ type Appointment = {
   source?: string
   formation_type?: string | null
   hubspot_deal_id: string | null
+  hubspot_contact_id?: string | null
+  classe_actuelle?: string | null
   notes: string | null
   meeting_type?: string | null
   meeting_link?: string | null
