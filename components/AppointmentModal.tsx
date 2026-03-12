@@ -71,11 +71,13 @@ export default function AppointmentModal({
   const meetingInfo = appointment.meeting_type ? MEETING_TYPE_LABEL[appointment.meeting_type] : null
 
   const reportFilled = reportSummary.trim().length > 0 && reportTelepro.trim().length > 0
+  // Rapport déjà sauvegardé en base (pas besoin de le re-remplir pour changer de statut)
+  const reportAlreadySaved = !!(appointment.report_summary?.trim() && appointment.report_telepro_advice?.trim())
 
   async function updateStatus(newStatus: AppointmentStatus) {
     if (newStatus === status) return
-    // Le rapport est obligatoire pour changer le statut (sauf confirme)
-    if (!reportFilled && newStatus !== 'confirme') {
+    // Le rapport est obligatoire pour changer le statut (sauf confirme et si déjà sauvegardé)
+    if (!reportFilled && !reportAlreadySaved && newStatus !== 'confirme') {
       setPendingStatus(newStatus)
       setReportError(true)
       return
@@ -99,8 +101,7 @@ export default function AppointmentModal({
         setStatus(newStatus)
         setPendingStatus(null)
         onUpdate(updated)
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
+        setTimeout(() => onClose(), 600)
       } else {
         setPendingStatus(null)
       }
