@@ -240,6 +240,8 @@ export async function updateDealOwner(dealId: string, ownerId: string) {
 }
 
 // ─── Chercher les deals d'un télépro (pour l'historique) ──────────────────
+// Utilise la propriété custom "teleprospecteur" (conservée même quand le deal
+// est réassigné à un closer) — identique à l'approche de telepro-stats
 export async function searchDealsByOwner(
   ownerId: string,
   pipelineId: string,
@@ -254,13 +256,16 @@ export async function searchDealsByOwner(
       body: JSON.stringify({
         filterGroups: [{
           filters: [
-            { propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId },
+            { propertyName: 'teleprospecteur', operator: 'EQ', value: ownerId },
             { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
-            { propertyName: 'createdate', operator: 'GTE', value: String(sinceMs) },
+            // closedate = date du RDV ; on filtre les RDVs depuis sinceMs
+            ...(sinceMs > 0 ? [{ propertyName: 'closedate', operator: 'GTE', value: String(sinceMs) }] : []),
+            // Seulement les RDVs passés (closedate <= maintenant)
+            { propertyName: 'closedate', operator: 'LTE', value: String(Date.now()) },
           ],
         }],
         properties: ['dealname', 'dealstage', 'closedate', 'createdate'],
-        sorts: [{ propertyName: 'createdate', direction: 'DESCENDING' }],
+        sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
         limit: 200,
       }),
     })
