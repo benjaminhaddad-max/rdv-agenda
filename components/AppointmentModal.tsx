@@ -29,7 +29,6 @@ type Appointment = {
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
   { status: 'no_show',      label: 'No-show',       icon: '❌', hint: '→ A replanifier' },
-  { status: 'annule',       label: 'Annuler le RDV', icon: '🚫', hint: '→ A replanifier' },
   { status: 'a_travailler', label: 'A travailler',   icon: '📧', hint: '→ Mail PI + brochure' },
   { status: 'pre_positif',  label: 'Pré-positif',    icon: '🔥', hint: '→ Mail PI + brochure' },
   { status: 'positif',      label: 'POSITIF',        icon: '🎉', hint: '→ Pré-inscription HubSpot' },
@@ -135,6 +134,29 @@ export default function AppointmentModal({
       }
     } finally {
       setConfirmingProspect(false)
+    }
+  }
+
+  async function cancelProspect() {
+    setPendingStatus('annule')
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'annule' }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setStatus('annule')
+        setPendingStatus(null)
+        onUpdate(updated)
+        setTimeout(() => onClose(), 600)
+      } else {
+        setPendingStatus(null)
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -329,26 +351,46 @@ export default function AppointmentModal({
           </div>
         </div>
 
-        {/* Confirmation prospect — visible si assigné */}
-        {(status === 'confirme' || status === 'confirme_prospect') && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Confirmation prospect — visible si assigné (confirme / confirme_prospect / annule) */}
+        {(status === 'confirme' || status === 'confirme_prospect' || status === 'annule') && (
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              Retour prospect
+            </div>
             {status === 'confirme' ? (
-              <button
-                onClick={confirmProspect}
-                disabled={confirmingProspect}
-                style={{
-                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
-                  borderRadius: 8, padding: '8px 18px',
-                  color: '#10b981', fontSize: 13, fontWeight: 700,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                  opacity: confirmingProspect ? 0.7 : 1,
-                }}
-              >
-                ✅ {confirmingProspect ? 'Confirmation…' : 'Le prospect a confirmé le RDV'}
-              </button>
-            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={confirmProspect}
+                  disabled={confirmingProspect || saving}
+                  style={{
+                    flex: 1, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)',
+                    borderRadius: 8, padding: '9px 14px', color: '#10b981', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: confirmingProspect ? 0.7 : 1,
+                  }}
+                >
+                  ✅ {confirmingProspect ? 'Confirmation…' : 'Prospect confirmé'}
+                </button>
+                <button
+                  onClick={cancelProspect}
+                  disabled={saving || confirmingProspect}
+                  style={{
+                    flex: 1, background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)',
+                    borderRadius: 8, padding: '9px 14px', color: '#6b7280', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  🚫 {saving ? 'Annulation…' : 'Prospect a annulé'}
+                </button>
+              </div>
+            ) : status === 'confirme_prospect' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
                 ✅ Prospect confirmé
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', fontWeight: 600 }}>
+                🚫 Prospect a annulé
               </div>
             )}
           </div>

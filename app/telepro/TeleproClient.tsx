@@ -117,7 +117,7 @@ function generateJitsiLink() {
 
 // ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────
 function TeleproRdvModal({
-  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming,
+  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming, onCancel, cancelling,
 }: {
   rdv: MyAppointment
   noteValue: string
@@ -128,6 +128,8 @@ function TeleproRdvModal({
   onClose: () => void
   onConfirm?: () => void
   confirming?: boolean
+  onCancel?: () => void
+  cancelling?: boolean
 }) {
   const start = new Date(rdv.start_at)
   const end = new Date(rdv.end_at)
@@ -230,20 +232,40 @@ function TeleproRdvModal({
           </div>
         </div>
 
-        {/* Bouton confirmation prospect */}
-        {(rdv.status === 'confirme' || rdv.status === 'confirme_prospect') && onConfirm && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Retour prospect */}
+        {(rdv.status === 'confirme' || rdv.status === 'confirme_prospect' || rdv.status === 'annule') && (
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              Retour prospect
+            </div>
             {rdv.status === 'confirme' ? (
-              <button
-                onClick={onConfirm}
-                disabled={confirming}
-                style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 8, padding: '8px 18px', color: '#10b981', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                ✅ {confirming ? 'Confirmation…' : 'Le prospect a confirmé le RDV'}
-              </button>
-            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {onConfirm && (
+                  <button
+                    onClick={onConfirm}
+                    disabled={confirming || cancelling}
+                    style={{ flex: 1, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: 8, padding: '9px 14px', color: '#10b981', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: confirming ? 0.7 : 1 }}
+                  >
+                    ✅ {confirming ? 'Confirmation…' : 'Prospect confirmé'}
+                  </button>
+                )}
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    disabled={cancelling || confirming}
+                    style={{ flex: 1, background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)', borderRadius: 8, padding: '9px 14px', color: '#6b7280', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: cancelling ? 0.7 : 1 }}
+                  >
+                    🚫 {cancelling ? 'Annulation…' : 'Prospect a annulé'}
+                  </button>
+                )}
+              </div>
+            ) : rdv.status === 'confirme_prospect' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
                 ✅ Prospect confirmé
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', fontWeight: 600 }}>
+                🚫 Prospect a annulé
               </div>
             )}
           </div>
@@ -403,6 +425,7 @@ export default function TeleproClient({
   const [savedNote, setSavedNote] = useState<string | null>(null)
   const [selectedRdv, setSelectedRdv] = useState<MyAppointment | null>(null)
   const [confirmingRdv, setConfirmingRdv] = useState<string | null>(null)
+  const [cancellingRdv, setCancellingRdv] = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -459,6 +482,23 @@ export default function TeleproClient({
       }
     } finally {
       setConfirmingRdv(null)
+    }
+  }
+
+  async function cancelRdv(rdvId: string) {
+    setCancellingRdv(rdvId)
+    try {
+      const res = await fetch(`/api/appointments/${rdvId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'annule' }),
+      })
+      if (res.ok) {
+        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'annule' } : r))
+        setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'annule' } : prev)
+      }
+    } finally {
+      setCancellingRdv(null)
     }
   }
 
@@ -779,6 +819,8 @@ export default function TeleproClient({
           onClose={() => setSelectedRdv(null)}
           onConfirm={() => confirmRdv(selectedRdv.id)}
           confirming={confirmingRdv === selectedRdv.id}
+          onCancel={() => cancelRdv(selectedRdv.id)}
+          cancelling={cancellingRdv === selectedRdv.id}
         />
       )}
 
