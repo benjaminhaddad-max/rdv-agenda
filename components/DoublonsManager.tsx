@@ -11,6 +11,10 @@ interface ContactInfo {
     lastname?: string
     phone?: string
     mobilephone?: string
+    createdate?: string
+    hs_last_activity_date?: string
+    notes_last_contacted?: string
+    num_associated_deals?: string
   }
   teleproName: string
   teleproColor: string
@@ -355,6 +359,34 @@ function DuplicateGroupCard({
               <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 8 }}>
                 {contact.properties.phone || contact.properties.mobilephone || '—'}
               </div>
+
+              {/* Activité */}
+              {(() => {
+                const lastActivity = contact.properties.hs_last_activity_date || contact.properties.notes_last_contacted
+                const deals = contact.properties.num_associated_deals
+                const created = contact.properties.createdate
+                return (
+                  <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {lastActivity && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                        <span style={{ color: '#555870' }}>⚡</span>
+                        <span>Dernière activité : <span style={{ color: '#e8eaf0' }}>{new Date(lastActivity).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
+                      </div>
+                    )}
+                    {deals && deals !== '0' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                        <span style={{ color: '#555870' }}>📋</span>
+                        <span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {created && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870' }}>
+                        <span>Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Télépro */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>

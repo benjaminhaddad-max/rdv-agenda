@@ -29,6 +29,10 @@ interface HubSpotContact {
     phone?: string
     mobilephone?: string
     hubspot_owner_id?: string
+    createdate?: string
+    hs_last_activity_date?: string
+    notes_last_contacted?: string
+    num_associated_deals?: string
   }
 }
 
@@ -68,7 +72,7 @@ async function fetchContactsForOwner(ownerId: string): Promise<HubSpotContact[]>
   for (let page = 0; page < 5; page++) {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters: [{ propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId }] }],
-      properties: ['email', 'firstname', 'lastname', 'phone', 'mobilephone', 'hubspot_owner_id'],
+      properties: ['email', 'firstname', 'lastname', 'phone', 'mobilephone', 'hubspot_owner_id', 'createdate', 'hs_last_activity_date', 'notes_last_contacted', 'num_associated_deals'],
       limit: 200,
     }
     if (after) body.after = after
