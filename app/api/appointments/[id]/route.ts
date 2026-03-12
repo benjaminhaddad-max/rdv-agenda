@@ -144,22 +144,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       preinscription: 'preinscription',
     }
     const statusLabel: Record<string, string> = {
-      no_show: '❌ No-show — à replanifier',
-      annule: '🚫 RDV annulé — à replanifier',
-      a_travailler: '📧 À travailler — mail PI + brochure',
-      pre_positif: '🔥 Pré-positif — mail PI + brochure',
-      positif: '🎉 POSITIF — pré-inscription HubSpot',
-      negatif: '💀 Négatif — rien à faire',
-      confirme: '✅ RDV confirmé',
+      no_show: '❌ NO-SHOW — À REPLANIFIER',
+      annule: '🚫 RDV ANNULÉ — À REPLANIFIER',
+      a_travailler: '📧 À TRAVAILLER — Mail PI + brochure',
+      pre_positif: '🔥 PRÉ-POSITIF — Mail PI + brochure',
+      positif: '🎉 POSITIF — Pré-inscription HubSpot',
+      negatif: '💀 NÉGATIF — Rien à faire',
+      confirme: '✅ RDV CONFIRMÉ',
     }
     try {
       if (stageMap[status]) {
         await updateDealStage(appointment.hubspot_deal_id, stageMap[status])
       }
-      // Ajouter une note avec le statut + rapport closer
+      // Ajouter une note avec le statut bien visible + rapport closer
       const noteLines = [
-        `📋 Statut mis à jour : ${statusLabel[status] || status}`,
-        report_summary ? `\n📝 Résumé du RDV :\n${report_summary}` : '',
+        `${statusLabel[status] || status.toUpperCase()}`,
+        '─────────────────────────',
+        report_summary ? `📝 Résumé du RDV :\n${report_summary}` : '',
         report_telepro_advice ? `\n💬 Conseil télépro :\n${report_telepro_advice}` : '',
       ].filter(Boolean).join('\n')
 
