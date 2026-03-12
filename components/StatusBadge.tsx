@@ -2,7 +2,8 @@
 
 const STATUS_CONFIG = {
   non_assigne:   { label: 'Non assigné',   color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' },
-  confirme:      { label: 'Assigné / Non confirmé', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.3)' },
+  confirme:           { label: 'Assigné / Non confirmé', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.3)' },
+  confirme_prospect:  { label: 'Assigné / Confirmé',     color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)' },
   no_show:       { label: 'No-show',       color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)' },
   annule:        { label: 'Annulé',        color: '#6b7280', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)' },
   a_travailler:  { label: 'A travailler',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },

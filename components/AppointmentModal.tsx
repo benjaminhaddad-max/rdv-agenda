@@ -68,6 +68,7 @@ export default function AppointmentModal({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [reportError, setReportError] = useState(false)
+  const [confirmingProspect, setConfirmingProspect] = useState(false)
 
   // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
   // et que la souris glisse légèrement sur le backdrop avant le mouseup
@@ -116,6 +117,24 @@ export default function AppointmentModal({
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function confirmProspect() {
+    setConfirmingProspect(true)
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirme_prospect' }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setStatus('confirme_prospect')
+        onUpdate(updated)
+      }
+    } finally {
+      setConfirmingProspect(false)
     }
   }
 
@@ -309,6 +328,31 @@ export default function AppointmentModal({
             )}
           </div>
         </div>
+
+        {/* Confirmation prospect — visible si assigné */}
+        {(status === 'confirme' || status === 'confirme_prospect') && (
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {status === 'confirme' ? (
+              <button
+                onClick={confirmProspect}
+                disabled={confirmingProspect}
+                style={{
+                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
+                  borderRadius: 8, padding: '8px 18px',
+                  color: '#10b981', fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  opacity: confirmingProspect ? 0.7 : 1,
+                }}
+              >
+                ✅ {confirmingProspect ? 'Confirmation…' : 'Le prospect a confirmé le RDV'}
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
+                ✅ Prospect confirmé
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Status actions — masqué si non-assigné */}
         {!isNonAssigne && (

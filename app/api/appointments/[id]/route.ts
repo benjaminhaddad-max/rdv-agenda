@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // === CAS 2 : MISE À JOUR STATUT ===
   const validStatuses = [
-    'non_assigne', 'confirme',
+    'non_assigne', 'confirme', 'confirme_prospect',
     'no_show', 'annule',
     'a_travailler', 'pre_positif', 'positif', 'negatif',
     // Legacy
