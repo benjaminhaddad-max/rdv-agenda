@@ -362,26 +362,28 @@ function DuplicateGroupCard({
 
               {/* Activité */}
               {(() => {
-                const lastActivity = contact.properties.hs_last_activity_date || contact.properties.notes_last_contacted
+                const lastContacted = contact.properties.notes_last_contacted
                 const deals = contact.properties.num_associated_deals
                 const created = contact.properties.createdate
                 return (
                   <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {lastActivity && (
+                    {lastContacted ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
-                        <span style={{ color: '#555870' }}>⚡</span>
-                        <span>Dernière activité : <span style={{ color: '#e8eaf0' }}>{new Date(lastActivity).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
+                        <span>📞</span>
+                        <span>Dernier contact : <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
                       </div>
+                    ) : (
+                      <div style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>Jamais contacté</div>
                     )}
                     {deals && deals !== '0' && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
-                        <span style={{ color: '#555870' }}>📋</span>
+                        <span>📋</span>
                         <span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
                       </div>
                     )}
                     {created && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870' }}>
-                        <span>Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <div style={{ fontSize: 10, color: '#555870' }}>
+                        Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                     )}
                   </div>
