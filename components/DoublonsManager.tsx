@@ -189,9 +189,9 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
               {([
                 { key: 'all', label: `Tous (${groups.length})`, color: '#8b8fa8', bg: '#252840' },
-                { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`, ...REASON_CONFIG.same_phone },
-                { key: 'same_email', label: `Email (${countByReason.same_email})`, ...REASON_CONFIG.same_email },
-                { key: 'same_name', label: `Nom (${countByReason.same_name})`, ...REASON_CONFIG.same_name },
+                { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`, color: REASON_CONFIG.same_phone.color, bg: REASON_CONFIG.same_phone.bg },
+                { key: 'same_email', label: `Email (${countByReason.same_email})`, color: REASON_CONFIG.same_email.color, bg: REASON_CONFIG.same_email.bg },
+                { key: 'same_name', label: `Nom (${countByReason.same_name})`, color: REASON_CONFIG.same_name.color, bg: REASON_CONFIG.same_name.bg },
               ] as const).map(f => (
                 <button
                   key={f.key}
