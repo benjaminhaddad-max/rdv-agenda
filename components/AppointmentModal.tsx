@@ -110,21 +110,26 @@ export default function AppointmentModal({
   }
 
   async function saveAll() {
+    const effectiveStatus = pendingStatus && reportFilled ? pendingStatus : status
     setSaving(true)
     try {
       const res = await fetch(`/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status,
+          status: effectiveStatus,
           notes,
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
         }),
       })
       if (res.ok) {
+        const updated = await res.json()
+        setStatus(effectiveStatus)
+        setPendingStatus(null)
+        setReportError(false)
         setSaved(true)
-        onUpdate({ notes, report_summary: reportSummary.trim() || null, report_telepro_advice: reportTelepro.trim() || null })
+        onUpdate(updated)
         setTimeout(() => setSaved(false), 2000)
       }
     } finally {
