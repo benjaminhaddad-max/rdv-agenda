@@ -239,6 +239,37 @@ export async function updateDealOwner(dealId: string, ownerId: string) {
   })
 }
 
+// ─── Chercher les deals d'un télépro (pour l'historique) ──────────────────
+export async function searchDealsByOwner(
+  ownerId: string,
+  pipelineId: string,
+  sinceMs: number
+): Promise<Array<{
+  id: string
+  properties: { dealname: string; dealstage: string; closedate: string; createdate: string }
+}>> {
+  try {
+    const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+      method: 'POST',
+      body: JSON.stringify({
+        filterGroups: [{
+          filters: [
+            { propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId },
+            { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
+            { propertyName: 'createdate', operator: 'GTE', value: String(sinceMs) },
+          ],
+        }],
+        properties: ['dealname', 'dealstage', 'closedate', 'createdate'],
+        sorts: [{ propertyName: 'createdate', direction: 'DESCENDING' }],
+        limit: 200,
+      }),
+    })
+    return data.results ?? []
+  } catch {
+    return []
+  }
+}
+
 // ─── Lire un deal HubSpot ─────────────────────────────────────────────────
 export async function getDeal(dealId: string): Promise<{
   dealname: string; dealstage: string; closedate: string; pipeline: string

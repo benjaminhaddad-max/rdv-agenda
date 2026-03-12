@@ -503,17 +503,21 @@ export default function TeleproClient({
   const [cancellingRdv, setCancellingRdv] = useState<string | null>(null)
 
   // ── Historique HubSpot ────────────────────────────────────────────────
-  type DealInfo = {
-    stage: string; stageLabel: string; stageColor: string
-    pipeline: string; isCorrectPipeline: boolean
-    closedate: string
+  type HistRdv = MyAppointment & {
+    hs_stage: string | null
+    hs_stage_label: string | null
+    hs_stage_color: string | null
+  }
+  type EngInfo = {
     engagements: Array<{
       id: number; type: string; createdAt: number
       body: string | null; direction: string | null
     }>
   }
-  const [dealData, setDealData]           = useState<Record<string, DealInfo>>({})
-  const [loadingDeals, setLoadingDeals]   = useState(false)
+  const [histRdvs, setHistRdvs]           = useState<HistRdv[]>([])
+  const [histLoading, setHistLoading]     = useState(false)
+  const [engData, setEngData]             = useState<Record<string, EngInfo>>({})
+  const [loadingEng, setLoadingEng]       = useState<Record<string, boolean>>({})
   const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
@@ -613,53 +617,46 @@ export default function TeleproClient({
     if (previewMode) { fetchMyRdvs(); fetchHsStats() }
   }, [previewMode, fetchMyRdvs, fetchHsStats])
 
-  // ── Historique : RDVs passés depuis le 1er oct. 2025 ─────────────────
-  const HISTORIQUE_START = '2025-10-01T00:00:00.000Z'
-  const pastRdvs = useMemo(() =>
-    myRdvs
-      .filter(r => r.start_at < new Date().toISOString() && r.start_at >= HISTORIQUE_START)
-      .sort((a, b) => b.start_at.localeCompare(a.start_at)),
-    [myRdvs]
-  )
-
-  const fetchAllDeals = useCallback(async () => {
-    const toFetch = pastRdvs.filter(r => r.hubspot_deal_id && !dealData[r.id])
-    if (toFetch.length === 0) return
-    setLoadingDeals(true)
-    for (let i = 0; i < toFetch.length; i += 5) {
-      const batch = toFetch.slice(i, i + 5)
-      const results = await Promise.allSettled(
-        batch.map(async r => {
-          const res = await fetch(`/api/hubspot/deal/${r.hubspot_deal_id}`)
-          if (!res.ok) return null
-          return { id: r.id, data: await res.json() as DealInfo }
-        })
+  // ── Historique : fetch via HubSpot owner → Supabase hubspot_deal_id ──
+  const fetchHistorique = useCallback(async () => {
+    if (!teleproUser.hubspot_owner_id) return
+    setHistLoading(true)
+    try {
+      const res = await fetch(
+        `/api/appointments/historique?hubspot_owner_id=${teleproUser.hubspot_owner_id}`
       )
-      const updates: Record<string, DealInfo> = {}
-      results.forEach(r => {
-        if (r.status === 'fulfilled' && r.value) updates[r.value.id] = r.value.data
-      })
-      setDealData(prev => ({ ...prev, ...updates }))
+      if (res.ok) setHistRdvs(await res.json())
+    } finally {
+      setHistLoading(false)
     }
-    setLoadingDeals(false)
-  }, [pastRdvs, dealData]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [teleproUser.hubspot_owner_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchEngagements = useCallback(async (rdv: HistRdv) => {
+    if (!rdv.hubspot_deal_id || engData[rdv.id]) return
+    setLoadingEng(p => ({ ...p, [rdv.id]: true }))
+    try {
+      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setEngData(p => ({ ...p, [rdv.id]: { engagements: data.engagements ?? [] } }))
+      }
+    } finally {
+      setLoadingEng(p => ({ ...p, [rdv.id]: false }))
+    }
+  }, [engData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (activeTab === 'historique') { fetchMyRdvs(); fetchAllDeals() }
+    if (activeTab === 'historique') fetchHistorique()
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const REPRISE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
-  const hasReprise = (data: DealInfo) => {
+  const hasReprise = (data: EngInfo) => {
     const cutoff = Date.now() - REPRISE_WINDOW_MS
     return data.engagements.some(e =>
       e.createdAt > cutoff && ['CALL', 'INCOMING_EMAIL', 'EMAIL'].includes(e.type)
     )
   }
-
-  const visiblePastRdvs = pastRdvs.filter(r =>
-    !r.hubspot_deal_id || !dealData[r.id] || dealData[r.id].isCorrectPipeline
-  )
-  const repriseCount = visiblePastRdvs.filter(r => dealData[r.id] && hasReprise(dealData[r.id])).length
+  const repriseCount = histRdvs.filter(r => engData[r.id] && hasReprise(engData[r.id])).length
 
   // ── Computed stats ────────────────────────────────────────────────────
   const now = new Date()
@@ -955,9 +952,9 @@ export default function TeleproClient({
                 fontFamily: 'inherit',
               }}>
                 <Clock size={12} /> Historique
-                {pastRdvs.length > 0 && (
+                {histRdvs.length > 0 && (
                   <span style={{ background: 'rgba(245,158,11,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                    {pastRdvs.length}
+                    {histRdvs.length}
                   </span>
                 )}
                 {repriseCount > 0 && (
@@ -1655,27 +1652,34 @@ export default function TeleproClient({
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {loadingDeals && (
+              {histLoading && (
                 <span style={{ fontSize: 12, color: '#555870', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement HubSpot…
+                  <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
                 </span>
               )}
-              <span style={{ fontSize: 12, color: '#555870' }}>
-                {visiblePastRdvs.length} RDV{visiblePastRdvs.length > 1 ? 's' : ''}
-              </span>
+              <button onClick={fetchHistorique} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
+              </button>
+              {!histLoading && (
+                <span style={{ fontSize: 12, color: '#555870' }}>
+                  {histRdvs.length} RDV{histRdvs.length > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
           </div>
 
-          {visiblePastRdvs.length === 0 && !loadingDeals && (
+          {!histLoading && histRdvs.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555870', fontSize: 13 }}>
-              Aucun RDV passé depuis le 1er octobre 2025.
+              {teleproUser.hubspot_owner_id
+                ? 'Aucun RDV trouvé depuis le 1er octobre 2025 sur la pipeline Diploma Santé 2026-2027.'
+                : 'Aucun hubspot_owner_id configuré pour ce télépro.'}
             </div>
           )}
 
-          {visiblePastRdvs.map(rdv => {
-            const deal = dealData[rdv.id]
+          {histRdvs.map(rdv => {
+            const eng = engData[rdv.id]
             const isExpanded = expandedHistRdv === rdv.id
-            const isReprise = deal && hasReprise(deal)
+            const isReprise = eng && hasReprise(eng)
 
             return (
               <div key={rdv.id} style={{
@@ -1685,7 +1689,11 @@ export default function TeleproClient({
               }}>
                 {/* En-tête carte */}
                 <div
-                  onClick={() => setExpandedHistRdv(isExpanded ? null : rdv.id)}
+                  onClick={() => {
+                    const next = isExpanded ? null : rdv.id
+                    setExpandedHistRdv(next)
+                    if (next) fetchEngagements(rdv)
+                  }}
                   style={{ padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
                 >
                   <div style={{ minWidth: 80, fontSize: 11, color: '#555870', flexShrink: 0 }}>
@@ -1699,17 +1707,14 @@ export default function TeleproClient({
                       </span>
                     )}
                   </div>
-                  {deal && (
+                  {rdv.hs_stage_label && rdv.hs_stage_color && (
                     <span style={{
-                      background: `${deal.stageColor}22`, border: `1px solid ${deal.stageColor}66`,
-                      color: deal.stageColor, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                      background: `${rdv.hs_stage_color}22`, border: `1px solid ${rdv.hs_stage_color}66`,
+                      color: rdv.hs_stage_color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
                       flexShrink: 0,
                     }}>
-                      {deal.stageLabel}
+                      {rdv.hs_stage_label}
                     </span>
-                  )}
-                  {!deal && !rdv.hubspot_deal_id && (
-                    <span style={{ fontSize: 11, color: '#3a3d50', flexShrink: 0 }}>Sans deal HubSpot</span>
                   )}
                   {isReprise && (
                     <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600, flexShrink: 0 }}>🔔 Reprise</span>
@@ -1731,7 +1736,7 @@ export default function TeleproClient({
                           <p style={{ fontSize: 13, color: '#c8cadb', margin: 0 }}>{rdv.report_summary}</p>
                         )}
                         {rdv.report_telepro_advice && (
-                          <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 6, margin: '6px 0 0' }}>💡 {rdv.report_telepro_advice}</p>
+                          <p style={{ fontSize: 12, color: '#f59e0b', margin: '6px 0 0' }}>💡 {rdv.report_telepro_advice}</p>
                         )}
                       </div>
                     )}
@@ -1740,12 +1745,15 @@ export default function TeleproClient({
                     <HistoriqueNoteEditor rdvId={rdv.id} initialNote={rdv.notes ?? ''} />
 
                     {/* Activité HubSpot */}
-                    {deal && deal.engagements.length > 0 && (
+                    {loadingEng[rdv.id] && (
+                      <p style={{ fontSize: 12, color: '#555870', margin: 0 }}>⏳ Chargement activité HubSpot…</p>
+                    )}
+                    {eng && eng.engagements.length > 0 && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           Activité HubSpot
                         </div>
-                        {deal.engagements.slice(0, 8).map(e => (
+                        {eng.engagements.slice(0, 8).map(e => (
                           <div key={e.id} style={{ display: 'flex', gap: 10, marginBottom: 6, fontSize: 12 }}>
                             <span style={{ color: '#555870', minWidth: 90, flexShrink: 0 }}>
                               {new Date(e.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
@@ -1765,7 +1773,7 @@ export default function TeleproClient({
                         ))}
                       </div>
                     )}
-                    {deal && deal.engagements.length === 0 && (
+                    {eng && eng.engagements.length === 0 && !loadingEng[rdv.id] && (
                       <p style={{ fontSize: 12, color: '#555870', margin: 0 }}>Aucune activité HubSpot enregistrée.</p>
                     )}
                   </div>
