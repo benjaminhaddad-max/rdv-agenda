@@ -238,16 +238,20 @@ export async function GET(_req: NextRequest) {
       const chunkArray = <T,>(arr: T[], size: number): T[][] =>
         Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size))
 
-      // Step 1: associations contact→deal via v3 (to[].id)
+      // Step 1: associations contact→deal via v4 batch (to[].toObjectId)
       const contactDealMap = new Map<string, string[]>()
       for (const chunk of chunkArray(contactIdsInGroups, 100)) {
         try {
-          const assocRes = await hubspotFetch('/crm/v3/associations/contacts/deals/batch/read', {
+          const assocRes = await hubspotFetch('/crm/v4/associations/contacts/deals/batch/read', {
             method: 'POST',
             body: JSON.stringify({ inputs: chunk.map(id => ({ id })) }),
           })
           for (const result of (assocRes.results || [])) {
-            const dealIds = (result.to || []).map((t: { id: string }) => String(t.id))
+            // v4: to[].toObjectId (number), on accepte aussi to[].id en fallback
+            const dealIds = (result.to || [])
+              .map((t: { toObjectId?: string | number; id?: string }) =>
+                String(t.toObjectId ?? t.id ?? ''))
+              .filter((id: string) => id && id !== 'undefined' && id !== 'null')
             if (dealIds.length > 0) contactDealMap.set(String(result.from.id), dealIds)
           }
         } catch { /* chunk échoué, on continue */ }

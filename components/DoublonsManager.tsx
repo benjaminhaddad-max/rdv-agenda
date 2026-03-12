@@ -67,6 +67,17 @@ const DEAL_STAGES: Record<string, { label: string; color: string }> = {
   '3165428985': { label: 'Fermé perdu',           color: '#ef4444' },
 }
 
+const LIFECYCLE_STAGES: Record<string, { label: string; color: string }> = {
+  subscriber:              { label: 'Abonné',           color: '#8b8fa8' },
+  lead:                    { label: 'Lead',              color: '#6b87ff' },
+  marketingqualifiedlead:  { label: 'Lead MQL',         color: '#6b87ff' },
+  salesqualifiedlead:      { label: 'Lead SQL',         color: '#f59e0b' },
+  opportunity:             { label: 'Opportunité',      color: '#f59e0b' },
+  customer:                { label: 'Client',           color: '#22c55e' },
+  evangelist:              { label: 'Évangéliste',      color: '#22c55e' },
+  other:                   { label: 'Autre',            color: '#555870' },
+}
+
 const REASON_CONFIG = {
   same_phone: { label: 'Même téléphone', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   same_email: { label: 'Même email', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
@@ -443,29 +454,37 @@ function DuplicateGroupCard({
                     ) : (
                       <div style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>Jamais contacté</div>
                     )}
-                    {deals && deals !== '0' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
-                        <span>📋</span>
-                        <span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
+                    {/* Nb deals */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                      <span>📋</span>
+                      {deals && deals !== '0'
+                        ? <span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
+                        : <span style={{ color: '#555870', fontStyle: 'italic' }}>Aucun deal</span>
+                      }
+                    </div>
                     {created && (
                       <div style={{ fontSize: 10, color: '#555870' }}>
                         Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                     )}
-                    {/* Statut du lead */}
-                    {contact.properties.hs_lead_status && (() => {
-                      const ls = LEAD_STATUS[contact.properties.hs_lead_status!]
-                      return ls ? (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${ls.color}18`, color: ls.color, border: `1px solid ${ls.color}40`, marginTop: 2, alignSelf: 'flex-start' }}>
-                          {ls.label}
+                    {/* Statut lead hs_lead_status, ou lifecycle stage en fallback */}
+                    {(() => {
+                      const ls = contact.properties.hs_lead_status
+                        ? LEAD_STATUS[contact.properties.hs_lead_status]
+                        : null
+                      const lc = contact.properties.lifecyclestage
+                        ? LIFECYCLE_STAGES[contact.properties.lifecyclestage]
+                        : null
+                      const badge = ls || lc
+                      return badge ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${badge.color}18`, color: badge.color, border: `1px solid ${badge.color}40`, marginTop: 2, alignSelf: 'flex-start' }}>
+                          {badge.label}
                         </div>
                       ) : null
                     })()}
 
                     {/* Stade du deal dans le pipeline principal */}
-                    {contact.dealStage && (() => {
+                    {contact.dealStage ? (() => {
                       const ds = DEAL_STAGES[contact.dealStage!]
                       return ds ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
@@ -478,7 +497,12 @@ function DuplicateGroupCard({
                           <span>{contact.dealStage}</span>
                         </div>
                       )
-                    })()}
+                    })() : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870', fontStyle: 'italic' }}>
+                        <span>🏷️</span>
+                        <span>Aucun deal pipeline</span>
+                      </div>
+                    )}
                   </div>
                 )
               })()}
