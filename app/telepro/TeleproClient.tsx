@@ -507,6 +507,8 @@ export default function TeleproClient({
     hs_stage: string | null
     hs_stage_label: string | null
     hs_stage_color: string | null
+    telepro_suivi: string | null
+    telepro_suivi_at: string | null
   }
   type EngInfo = {
     engagements: Array<{
@@ -520,6 +522,8 @@ export default function TeleproClient({
   const [loadingEng, setLoadingEng]       = useState<Record<string, boolean>>({})
   const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
   const [closingDeal, setClosingDeal]     = useState<string | null>(null)
+  const [stageFilter, setStageFilter]     = useState<string | null>(null)
+  const [savingSuivi, setSavingSuivi]     = useState<string | null>(null)
 
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
@@ -671,6 +675,27 @@ export default function TeleproClient({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const saveSuivi = useCallback(async (rdv: HistRdv, suivi: string | null) => {
+    if (rdv.id === rdv.hubspot_deal_id) return // entrée HubSpot-only, pas de Supabase
+    setSavingSuivi(rdv.id)
+    try {
+      const res = await fetch(`/api/appointments/${rdv.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telepro_suivi: suivi }),
+      })
+      if (res.ok) {
+        setHistRdvs(prev => prev.map(r =>
+          r.id === rdv.id
+            ? { ...r, telepro_suivi: suivi, telepro_suivi_at: suivi ? new Date().toISOString() : null }
+            : r
+        ))
+      }
+    } finally {
+      setSavingSuivi(null)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const REPRISE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
   const hasReprise = (data: EngInfo) => {
     const cutoff = Date.now() - REPRISE_WINDOW_MS
@@ -679,6 +704,28 @@ export default function TeleproClient({
     )
   }
   const repriseCount = histRdvs.filter(r => engData[r.id] && hasReprise(engData[r.id])).length
+
+  const uniqueStages = useMemo(() => {
+    const map = new Map<string, { color: string; count: number }>()
+    histRdvs.forEach(r => {
+      if (!r.hs_stage_label || !r.hs_stage_color) return
+      const e = map.get(r.hs_stage_label)
+      if (e) e.count++
+      else map.set(r.hs_stage_label, { color: r.hs_stage_color, count: 1 })
+    })
+    return [...map.entries()].map(([label, { color, count }]) => ({ label, color, count }))
+  }, [histRdvs])
+
+  const filteredHistRdvs = useMemo(() =>
+    stageFilter ? histRdvs.filter(r => r.hs_stage_label === stageFilter) : histRdvs,
+    [histRdvs, stageFilter]
+  )
+
+  const SUIVI_OPTIONS = [
+    { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
+    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#f59e0b' },
+    { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
+  ]
 
   // ── Computed stats ────────────────────────────────────────────────────
   const now = new Date()
@@ -1690,6 +1737,35 @@ export default function TeleproClient({
             </div>
           </div>
 
+          {/* Filtres par stage */}
+          {uniqueStages.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+              {stageFilter && (
+                <button
+                  onClick={() => setStageFilter(null)}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid #3a3d50', borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#8b8fa8', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  ✕ Tous ({histRdvs.length})
+                </button>
+              )}
+              {uniqueStages.map(s => (
+                <button
+                  key={s.label}
+                  onClick={() => setStageFilter(stageFilter === s.label ? null : s.label)}
+                  style={{
+                    background: stageFilter === s.label ? `${s.color}22` : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${stageFilter === s.label ? `${s.color}66` : '#3a3d50'}`,
+                    borderRadius: 20, padding: '3px 10px',
+                    color: stageFilter === s.label ? s.color : '#8b8fa8',
+                    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                  }}
+                >
+                  {s.label} <span style={{ opacity: 0.7 }}>{s.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {!histLoading && histRdvs.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555870', fontSize: 13 }}>
               {teleproUser.hubspot_owner_id
@@ -1698,11 +1774,19 @@ export default function TeleproClient({
             </div>
           )}
 
-          {histRdvs.map(rdv => {
+          {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
+            <div style={{ textAlign: 'center', padding: '30px 20px', color: '#555870', fontSize: 13 }}>
+              Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
+            </div>
+          )}
+
+          {filteredHistRdvs.map(rdv => {
             const eng = engData[rdv.id]
             const isExpanded = expandedHistRdv === rdv.id
             const isReprise = eng && hasReprise(eng)
             const isAReplanifier = rdv.hs_stage_label === 'À replanifier'
+            const isDelaiReflexion = rdv.hs_stage_label === 'Délai de réflexion'
+            const isSupabaseBacked = rdv.id !== rdv.hubspot_deal_id
 
             return (
               <div key={rdv.id} style={{
@@ -1805,17 +1889,73 @@ export default function TeleproClient({
                 {isExpanded && (
                   <div style={{ borderTop: '1px solid #2a2d3e', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                    {/* Rapport closer (lecture seule) */}
-                    {(rdv.report_summary || rdv.report_telepro_advice) && (
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          Rapport du closer
-                        </div>
-                        {rdv.report_summary && (
-                          <p style={{ fontSize: 13, color: '#c8cadb', margin: 0 }}>{rdv.report_summary}</p>
+                    {/* ── Fiche du closer ─────────────────────────────── */}
+                    <div style={{ background: '#0f1117', border: '1px solid #2a2d3e', borderRadius: 10, padding: '12px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        Fiche RDV
+                      </div>
+                      {/* Statut du RDV + type de meeting */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        {rdv.status && (
+                          <StatusBadge status={rdv.status as AppointmentStatus} />
                         )}
-                        {rdv.report_telepro_advice && (
-                          <p style={{ fontSize: 12, color: '#f59e0b', margin: '6px 0 0' }}>💡 {rdv.report_telepro_advice}</p>
+                        {rdv.meeting_type && (
+                          <span style={{ fontSize: 11, color: '#8b8fa8', background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 5, padding: '2px 8px' }}>
+                            {rdv.meeting_type === 'visio' ? '🎥 Visio' : rdv.meeting_type === 'telephone' ? '📞 Téléphone' : '🤝 Présentiel'}
+                          </span>
+                        )}
+                        {rdv.rdv_users && (
+                          <span style={{ fontSize: 11, color: '#8b8fa8' }}>Closer : <strong style={{ color: '#c8cadb' }}>{rdv.rdv_users.name}</strong></span>
+                        )}
+                      </div>
+                      {/* Rapport closer */}
+                      {(rdv.report_summary || rdv.report_telepro_advice) ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {rdv.report_summary && (
+                            <p style={{ fontSize: 13, color: '#c8cadb', margin: 0, lineHeight: 1.5 }}>{rdv.report_summary}</p>
+                          )}
+                          {rdv.report_telepro_advice && (
+                            <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>💡 {rdv.report_telepro_advice}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>
+                          {rdv.rdv_users ? 'Aucun rapport laissé par le closer.' : 'RDV non encore assigné à un closer.'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* ── Suivi post-RDV (Délai de réflexion uniquement) ── */}
+                    {isDelaiReflexion && isSupabaseBacked && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Suivi post-RDV
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {SUIVI_OPTIONS.map(opt => {
+                            const isActive = rdv.telepro_suivi === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
+                                disabled={savingSuivi === rdv.id}
+                                style={{
+                                  background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
+                                  border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
+                                  borderRadius: 7, padding: '5px 12px',
+                                  color: isActive ? opt.color : '#8b8fa8',
+                                  fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                          <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
+                            Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </p>
                         )}
                       </div>
                     )}

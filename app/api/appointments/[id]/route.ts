@@ -6,7 +6,7 @@ import { createDeal, updateDealStage, updateDealOwner, updateContact, addNoteToE
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { status, notes, commercial_id, report_summary, report_telepro_advice } = body
+  const { status, notes, commercial_id, report_summary, report_telepro_advice, telepro_suivi } = body
 
   const db = createServiceClient()
 
@@ -101,6 +101,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     return NextResponse.json(updated)
+  }
+
+  // === CAS 2c : SUIVI TÉLÉPRO SEULEMENT ===
+  if (telepro_suivi !== undefined && status === undefined && notes === undefined) {
+    const validSuivi = ['ne_repond_plus', 'a_travailler', 'pre_positif', null]
+    if (!validSuivi.includes(telepro_suivi)) {
+      return NextResponse.json({ error: 'Valeur suivi invalide' }, { status: 400 })
+    }
+    const { data, error } = await db
+      .from('rdv_appointments')
+      .update({
+        telepro_suivi: telepro_suivi || null,
+        telepro_suivi_at: telepro_suivi ? new Date().toISOString() : null,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
   }
 
   // === CAS 2b : NOTE INTERNE SEULEMENT (pas de statut) ===
