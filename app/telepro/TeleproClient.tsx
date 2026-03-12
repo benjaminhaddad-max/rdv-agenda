@@ -111,7 +111,7 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs'>(previewMode ? 'rdvs' : 'form')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs'>('rdvs')
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
