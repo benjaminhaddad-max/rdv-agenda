@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { LayoutDashboard, Calendar, Clock, Users } from 'lucide-react'
+import { LayoutDashboard, Calendar, Clock, Users, Briefcase } from 'lucide-react'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
+import CloserManager from '@/components/CloserManager'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminPage() {
   const [calendarKey, setCalendarKey] = useState(0)
   const [showAvailability, setShowAvailability] = useState(false)
   const [showTelepros, setShowTelepros] = useState(false)
+  const [showClosers, setShowClosers] = useState(false)
 
   // Quand un RDV est assigné, on rafraîchit le calendrier
   const handleAssigned = useCallback(() => {
@@ -55,6 +57,19 @@ export default function AdminPage() {
           >
             <Users size={13} />
             Télépros
+          </button>
+          <button
+            onClick={() => setShowClosers(true)}
+            style={{
+              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#f59e0b', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            <Briefcase size={13} />
+            Closers
           </button>
           <button
             onClick={() => setShowAvailability(true)}
@@ -130,6 +145,10 @@ export default function AdminPage() {
       {/* Panel télépros */}
       {showTelepros && (
         <TeleproManager onClose={() => setShowTelepros(false)} />
+      )}
+      {/* Panel closers */}
+      {showClosers && (
+        <CloserManager onClose={() => setShowClosers(false)} />
       )}
     </div>
   )
