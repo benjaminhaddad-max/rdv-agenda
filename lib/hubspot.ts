@@ -272,6 +272,7 @@ export async function searchDealsByOwner(
 }
 
 // ─── Chercher les deals passés encore en "RDV Pris" (pour l'audit admin) ──
+// Utilise la pagination HubSpot (cursor `after`) pour dépasser la limite de 200
 export async function searchPastRdvPrisDeals(pipelineId: string): Promise<Array<{
   id: string
   properties: {
@@ -283,10 +284,15 @@ export async function searchPastRdvPrisDeals(pipelineId: string): Promise<Array<
     teleprospecteur: string
   }
 }>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allResults: any[] = []
+  const now = Date.now()
+  let after: string | undefined = undefined
+
   try {
-    const data = await hubspotFetch('/crm/v3/objects/deals/search', {
-      method: 'POST',
-      body: JSON.stringify({
+    do {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: any = {
         filterGroups: [{
           filters: [
             { propertyName: 'pipeline',  operator: 'EQ', value: pipelineId },
@@ -296,16 +302,26 @@ export async function searchPastRdvPrisDeals(pipelineId: string): Promise<Array<
         properties: ['dealname', 'dealstage', 'closedate', 'createdate', 'hubspot_owner_id', 'teleprospecteur'],
         sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
         limit: 200,
-      }),
-    })
-    const now = Date.now()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data.results ?? []).filter((d: any) => {
+      }
+      if (after) body.after = after
+
+      const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: any[] = data.results ?? []
+      allResults.push(...results)
+      after = data.paging?.next?.after ?? undefined
+    } while (after)
+
+    return allResults.filter(d => {
       if (!d.properties.closedate) return false
       return new Date(d.properties.closedate).getTime() <= now
     })
   } catch {
-    return []
+    return allResults
   }
 }
 

@@ -29,7 +29,7 @@ const FILTERS: { value: Filter; label: string; icon: React.ReactNode; color: str
     label: 'Closer assigné',
     icon: <UserCheck size={13} />,
     color: '#22c55e',
-    desc: 'Un closer est propriétaire mais n\'a pas mis à jour le stage',
+    desc: "Un closer est propriétaire mais n'a pas mis à jour le stage",
   },
   {
     value: 'unknown_telepro',
@@ -58,6 +58,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const [deals, setDeals] = useState<RdvPrisAuditDeal[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
+  const [actioning, setActioning] = useState<Record<string, 'aReplanifier' | 'delaiReflexion'>>({})
 
   const load = async () => {
     setLoading(true)
@@ -70,6 +71,23 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   }
 
   useEffect(() => { load() }, [])
+
+  const updateStage = async (deal: RdvPrisAuditDeal, stage: 'aReplanifier' | 'delaiReflexion') => {
+    setActioning(prev => ({ ...prev, [deal.id]: stage }))
+    try {
+      const res = await fetch(`/api/hubspot/deal/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage }),
+      })
+      if (res.ok) {
+        // Retirer le deal de la liste (il n'est plus en RDV Pris)
+        setDeals(prev => prev.filter(d => d.id !== deal.id))
+      }
+    } finally {
+      setActioning(prev => { const n = { ...prev }; delete n[deal.id]; return n })
+    }
+  }
 
   const filtered = activeFilter === 'all'
     ? deals
@@ -91,7 +109,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
       onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
       onClick={e => { if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose(); mouseDownOnBackdrop.current = false }}
     >
-      <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 860, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 960, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
 
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -101,7 +119,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
               Check RDV Closer
             </div>
             <div style={{ fontSize: 12, color: '#555870', marginTop: 3 }}>
-              RDVs passés encore en &quot;RDV Pris&quot; dans la pipeline 2026-2027
+              RDVs passés encore en &quot;RDV Pris&quot; — pipeline 2026-2027
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -160,10 +178,10 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
         </div>
 
         {/* Liste */}
-        <div style={{ padding: '16px 24px', maxHeight: '60vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 24px', maxHeight: '62vh', overflowY: 'auto' }}>
           {loading && (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#555870', fontSize: 13 }}>
-              ⏳ Chargement depuis HubSpot…
+              ⏳ Chargement depuis HubSpot… (peut prendre quelques secondes pour 600+ deals)
             </div>
           )}
           {!loading && filtered.length === 0 && (
@@ -176,97 +194,132 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             const date = deal.closedate
               ? new Date(deal.closedate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })
               : '—'
+            const isActioning = !!actioning[deal.id]
+
+            const catColors: Record<RdvPrisAuditDeal['category'], { label: string; color: string }> = {
+              same_person:     { label: 'Même personne',   color: '#6b87ff' },
+              closer_assigned: { label: 'Closer assigné',  color: '#22c55e' },
+              unknown_telepro: { label: 'Télépro inconnu', color: '#a855f7' },
+              other:           { label: 'Autre',           color: '#8b8fa8' },
+            }
+            const cat = catColors[deal.category]
 
             return (
               <div key={deal.id} style={{
                 background: '#151823',
                 border: '1px solid #2a2d3e',
-                borderRadius: 10, padding: '12px 16px',
-                marginBottom: 8,
-                display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                borderRadius: 10, padding: '10px 14px',
+                marginBottom: 7,
               }}>
-                {/* Date */}
-                <div style={{ minWidth: 75, fontSize: 11, color: '#555870', flexShrink: 0 }}>
-                  {date}
-                </div>
+                {/* Ligne principale */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
 
-                {/* Nom prospect */}
-                <div style={{ flex: 1, minWidth: 140, fontWeight: 700, fontSize: 14, color: '#e8eaf0' }}>
-                  {prospectName}
-                </div>
+                  {/* Date */}
+                  <div style={{ minWidth: 75, fontSize: 11, color: '#555870', flexShrink: 0 }}>
+                    {date}
+                  </div>
 
-                {/* Télépro */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 130 }}>
-                  <span style={{ fontSize: 10, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Télépro</span>
-                  {deal.telepro_user ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Avatar name={deal.telepro_user.name} color={deal.telepro_user.avatar_color} />
-                      <span style={{ fontSize: 12, color: '#c8cadb', fontWeight: 600 }}>{deal.telepro_user.name}</span>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 12, color: '#555870', fontStyle: 'italic' }}>
-                      {deal.teleprospecteur ? `ID: ${deal.teleprospecteur.slice(0, 8)}…` : 'Inconnu'}
-                    </span>
-                  )}
-                </div>
+                  {/* Nom prospect */}
+                  <div style={{ flex: 1, minWidth: 130, fontWeight: 700, fontSize: 13, color: '#e8eaf0' }}>
+                    {prospectName}
+                  </div>
 
-                {/* Propriétaire / Closer */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 130 }}>
-                  <span style={{ fontSize: 10, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Propriétaire</span>
-                  {deal.owner_user ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Avatar name={deal.owner_user.name} color={deal.owner_user.avatar_color} />
-                      <div>
-                        <span style={{ fontSize: 12, color: '#c8cadb', fontWeight: 600 }}>{deal.owner_user.name}</span>
-                        <span style={{ fontSize: 10, color: '#555870', marginLeft: 4 }}>({deal.owner_user.role})</span>
+                  {/* Télépro */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120 }}>
+                    <span style={{ fontSize: 10, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Télépro</span>
+                    {deal.telepro_user ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Avatar name={deal.telepro_user.name} color={deal.telepro_user.avatar_color} size={20} />
+                        <span style={{ fontSize: 12, color: '#c8cadb', fontWeight: 600 }}>{deal.telepro_user.name}</span>
                       </div>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 12, color: '#555870', fontStyle: 'italic' }}>
-                      {deal.hubspot_owner_id ? `ID: ${deal.hubspot_owner_id.slice(0, 8)}…` : 'Inconnu'}
-                    </span>
-                  )}
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#555870', fontStyle: 'italic' }}>
+                        {deal.teleprospecteur ? `…${deal.teleprospecteur.slice(-6)}` : 'Inconnu'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Propriétaire */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120 }}>
+                    <span style={{ fontSize: 10, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Propriétaire</span>
+                    {deal.owner_user ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Avatar name={deal.owner_user.name} color={deal.owner_user.avatar_color} size={20} />
+                        <div>
+                          <span style={{ fontSize: 12, color: '#c8cadb', fontWeight: 600 }}>{deal.owner_user.name}</span>
+                          <span style={{ fontSize: 10, color: '#555870', marginLeft: 4 }}>({deal.owner_user.role})</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#555870', fontStyle: 'italic' }}>
+                        {deal.hubspot_owner_id ? `…${deal.hubspot_owner_id.slice(-6)}` : 'Inconnu'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Badge catégorie */}
+                  <span style={{
+                    background: `${cat.color}18`, border: `1px solid ${cat.color}55`,
+                    color: cat.color, borderRadius: 6, padding: '2px 8px',
+                    fontSize: 11, fontWeight: 600, flexShrink: 0,
+                  }}>
+                    {cat.label}
+                  </span>
+
+                  {/* Lien HubSpot */}
+                  <a
+                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${deal.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)',
+                      borderRadius: 6, padding: '4px 9px', color: '#6b87ff',
+                      fontSize: 11, fontWeight: 600, textDecoration: 'none', flexShrink: 0,
+                    }}
+                  >
+                    <ExternalLink size={10} /> HubSpot
+                  </a>
                 </div>
 
-                {/* Badge catégorie */}
-                {(() => {
-                  const catColors: Record<RdvPrisAuditDeal['category'], { label: string; color: string }> = {
-                    same_person:      { label: 'Même personne',     color: '#6b87ff' },
-                    closer_assigned:  { label: 'Closer assigné',    color: '#22c55e' },
-                    unknown_telepro:  { label: 'Télépro inconnu',   color: '#a855f7' },
-                    other:            { label: 'Autre',             color: '#8b8fa8' },
-                  }
-                  const cat = catColors[deal.category]
-                  return (
-                    <span style={{
-                      background: `${cat.color}18`, border: `1px solid ${cat.color}55`,
-                      color: cat.color, borderRadius: 6, padding: '2px 8px',
-                      fontSize: 11, fontWeight: 600, flexShrink: 0,
-                    }}>
-                      {cat.label}
-                    </span>
-                  )
-                })()}
-
-                {/* Lien HubSpot */}
-                <a
-                  href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${deal.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)',
-                    borderRadius: 6, padding: '4px 10px', color: '#6b87ff',
-                    fontSize: 11, fontWeight: 600, textDecoration: 'none', flexShrink: 0,
-                  }}
-                >
-                  <ExternalLink size={10} /> HubSpot
-                </a>
+                {/* Boutons d'action */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2130' }}>
+                  <button
+                    onClick={() => updateStage(deal, 'aReplanifier')}
+                    disabled={isActioning}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: actioning[deal.id] === 'aReplanifier' ? 'rgba(249,115,22,0.2)' : 'rgba(249,115,22,0.08)',
+                      border: '1px solid rgba(249,115,22,0.3)',
+                      borderRadius: 6, padding: '4px 11px', color: '#f97316',
+                      fontSize: 11, fontWeight: 600, cursor: isActioning ? 'default' : 'pointer',
+                      fontFamily: 'inherit', opacity: isActioning ? 0.7 : 1,
+                    }}
+                  >
+                    {actioning[deal.id] === 'aReplanifier' ? '⏳' : '🔄'} À replanifier
+                  </button>
+                  <button
+                    onClick={() => updateStage(deal, 'delaiReflexion')}
+                    disabled={isActioning}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: actioning[deal.id] === 'delaiReflexion' ? 'rgba(234,179,8,0.2)' : 'rgba(234,179,8,0.08)',
+                      border: '1px solid rgba(234,179,8,0.3)',
+                      borderRadius: 6, padding: '4px 11px', color: '#eab308',
+                      fontSize: 11, fontWeight: 600, cursor: isActioning ? 'default' : 'pointer',
+                      fontFamily: 'inherit', opacity: isActioning ? 0.7 : 1,
+                    }}
+                  >
+                    {actioning[deal.id] === 'delaiReflexion' ? '⏳' : '⏰'} Délai de réflexion
+                  </button>
+                </div>
               </div>
             )
           })}
         </div>
       </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
