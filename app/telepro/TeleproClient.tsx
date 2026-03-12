@@ -117,7 +117,7 @@ function generateJitsiLink() {
 
 // ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────
 function TeleproRdvModal({
-  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming, onCancel, cancelling,
+  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming, onCancel, cancelling, onReset,
 }: {
   rdv: MyAppointment
   noteValue: string
@@ -130,6 +130,7 @@ function TeleproRdvModal({
   confirming?: boolean
   onCancel?: () => void
   cancelling?: boolean
+  onReset?: () => void
 }) {
   const start = new Date(rdv.start_at)
   const end = new Date(rdv.end_at)
@@ -278,6 +279,20 @@ function TeleproRdvModal({
                 </button>
               )}
             </div>
+            {(rdv.status === 'confirme_prospect' || rdv.status === 'annule') && onReset && (
+              <button
+                onClick={onReset}
+                disabled={confirming || cancelling}
+                style={{
+                  marginTop: 8, background: 'none', border: 'none',
+                  color: '#555870', fontSize: 11, cursor: 'pointer',
+                  textDecoration: 'underline', padding: 0,
+                  opacity: (confirming || cancelling) ? 0.5 : 1,
+                }}
+              >
+                ⏳ Remettre en attente de confirmation
+              </button>
+            )}
           </div>
         )}
 
@@ -510,6 +525,20 @@ export default function TeleproClient({
     } finally {
       setCancellingRdv(null)
     }
+  }
+
+  async function resetRdv(rdvId: string) {
+    try {
+      const res = await fetch(`/api/appointments/${rdvId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirme' }),
+      })
+      if (res.ok) {
+        setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'confirme' } : r))
+        setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'confirme' } : prev)
+      }
+    } catch (_e) { /* silent */ }
   }
 
   useEffect(() => {
@@ -831,6 +860,7 @@ export default function TeleproClient({
           confirming={confirmingRdv === selectedRdv.id}
           onCancel={() => cancelRdv(selectedRdv.id)}
           cancelling={cancellingRdv === selectedRdv.id}
+          onReset={() => resetRdv(selectedRdv.id)}
         />
       )}
 

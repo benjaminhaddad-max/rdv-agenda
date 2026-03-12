@@ -137,6 +137,24 @@ export default function AppointmentModal({
     }
   }
 
+  async function resetToConfirme() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirme' }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setStatus('confirme')
+        onUpdate(updated)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function cancelProspect() {
     setPendingStatus('annule')
     setSaving(true)
@@ -392,6 +410,20 @@ export default function AppointmentModal({
                 {status === 'annule' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
               </button>
             </div>
+            {(status === 'confirme_prospect' || status === 'annule') && (
+              <button
+                onClick={resetToConfirme}
+                disabled={saving || confirmingProspect}
+                style={{
+                  marginTop: 8, background: 'none', border: 'none',
+                  color: '#555870', fontSize: 11, cursor: 'pointer',
+                  textDecoration: 'underline', padding: 0,
+                  opacity: saving ? 0.5 : 1,
+                }}
+              >
+                ⏳ Remettre en attente de confirmation
+              </button>
+            )}
           </div>
         )}
 
