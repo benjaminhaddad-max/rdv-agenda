@@ -228,9 +228,8 @@ function TeleproRdvModal({
           </div>
         </div>
 
-        {/* Suivi statut (lecture seule) */}
-        {rdv.status !== 'confirme' && rdv.status !== 'non_assigne' && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+        {/* Suivi statut (lecture seule — toujours visible) */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
               Résultat du RDV
             </div>
@@ -261,8 +260,7 @@ function TeleproRdvModal({
                 )
               })}
             </div>
-          </div>
-        )}
+        </div>
 
         {/* Rapport closer (lecture seule) */}
         {(rdv.report_summary || rdv.report_telepro_advice) && (
