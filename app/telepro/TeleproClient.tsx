@@ -34,6 +34,7 @@ type TeleproUser = {
   role: string
   slug: string
   avatar_color: string
+  hubspot_owner_id?: string | null
 }
 
 type MyAppointment = {
@@ -168,6 +169,17 @@ export default function TeleproClient({
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null)
   const [rebookLoading, setRebookLoading] = useState<string | null>(null)
 
+  // ── HubSpot stats ─────────────────────────────────────────────────────
+  const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
+
+  const fetchHsStats = useCallback(async () => {
+    if (!teleproUser.hubspot_owner_id) return
+    try {
+      const res = await fetch(`/api/hubspot/telepro-stats?hubspot_owner_id=${teleproUser.hubspot_owner_id}`)
+      if (res.ok) setHsStats(await res.json())
+    } catch (_e) { /* silencieux */ }
+  }, [teleproUser.hubspot_owner_id])
+
   const fetchMyRdvs = useCallback(async () => {
     if (isAdmin) return
     setMyRdvsLoading(true)
@@ -180,12 +192,12 @@ export default function TeleproClient({
   }, [teleproUser.id, isAdmin])
 
   useEffect(() => {
-    if (activeTab === 'rdvs') fetchMyRdvs()
-  }, [activeTab, fetchMyRdvs])
+    if (activeTab === 'rdvs') { fetchMyRdvs(); fetchHsStats() }
+  }, [activeTab, fetchMyRdvs, fetchHsStats])
 
   useEffect(() => {
-    if (previewMode) fetchMyRdvs()
-  }, [previewMode, fetchMyRdvs])
+    if (previewMode) { fetchMyRdvs(); fetchHsStats() }
+  }, [previewMode, fetchMyRdvs, fetchHsStats])
 
   // ── Computed stats ────────────────────────────────────────────────────
   const now = new Date()
@@ -492,13 +504,13 @@ export default function TeleproClient({
             </button>
           </div>
 
-          {/* Stats KPI — ligne du haut */}
+          {/* Stats KPI — données HubSpot (toutes périodes) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
             {[
-              { label: 'Total placés', value: myRdvs.length, color: '#6b87ff', bg: 'rgba(79,110,247,0.1)' },
-              { label: 'Ce mois', value: rdvsThisMonth.length, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-              { label: 'Positifs 🎉', value: rdvsPositifs.length, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
-              { label: 'À venir', value: rdvsAVenir.length, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+              { label: 'Total placés', value: hsStats?.total ?? myRdvs.length, color: '#6b87ff', bg: 'rgba(79,110,247,0.1)' },
+              { label: 'Ce mois', value: hsStats?.thisMonth ?? rdvsThisMonth.length, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+              { label: 'Positifs 🎉', value: hsStats?.positifs ?? rdvsPositifs.length, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
+              { label: 'À venir', value: hsStats?.aVenir ?? rdvsAVenir.length, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
             ].map(stat => (
               <div key={stat.label} style={{ background: stat.bg, border: `1px solid ${stat.color}25`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: 26, fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
@@ -506,6 +518,11 @@ export default function TeleproClient({
               </div>
             ))}
           </div>
+          {hsStats && (
+            <div style={{ fontSize: 11, color: '#555870', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: '#f59e0b' }}>●</span> Stats issues de HubSpot (historique complet)
+            </div>
+          )}
 
           {/* Filtre par statut */}
           {myRdvs.length > 0 && (
