@@ -151,8 +151,15 @@ export async function POST() {
         const { data: authList } = await db.auth.admin.listUsers({ perPage: 1000 })
         const existingAuth = (authList?.users ?? []).find(u => u.email === email)
         if (existingAuth) {
+          // Ne pas écraser le rôle si l'utilisateur est déjà admin ou a un rôle différent
+          const { data: existingDbUser } = await db
+            .from('rdv_users')
+            .select('role')
+            .eq('email', email)
+            .single()
+          const roleToSet = existingDbUser?.role === 'admin' ? 'admin' : 'closer'
           await db.from('rdv_users').upsert({
-            email, name, role: 'closer',
+            email, name, role: roleToSet,
             slug: email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-'),
             avatar_color: AVATAR_COLORS[i % AVATAR_COLORS.length],
             auth_id: existingAuth.id,
