@@ -271,6 +271,44 @@ export async function searchDealsByOwner(
   }
 }
 
+// ─── Chercher les deals passés encore en "RDV Pris" (pour l'audit admin) ──
+export async function searchPastRdvPrisDeals(pipelineId: string): Promise<Array<{
+  id: string
+  properties: {
+    dealname: string
+    dealstage: string
+    closedate: string
+    createdate: string
+    hubspot_owner_id: string
+    teleprospecteur: string
+  }
+}>> {
+  try {
+    const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+      method: 'POST',
+      body: JSON.stringify({
+        filterGroups: [{
+          filters: [
+            { propertyName: 'pipeline',  operator: 'EQ', value: pipelineId },
+            { propertyName: 'dealstage', operator: 'EQ', value: STAGES.rdvPris },
+          ],
+        }],
+        properties: ['dealname', 'dealstage', 'closedate', 'createdate', 'hubspot_owner_id', 'teleprospecteur'],
+        sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
+        limit: 200,
+      }),
+    })
+    const now = Date.now()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data.results ?? []).filter((d: any) => {
+      if (!d.properties.closedate) return false
+      return new Date(d.properties.closedate).getTime() <= now
+    })
+  } catch {
+    return []
+  }
+}
+
 // ─── Lire un deal HubSpot ─────────────────────────────────────────────────
 export async function getDeal(dealId: string): Promise<{
   dealname: string; dealstage: string; closedate: string; pipeline: string

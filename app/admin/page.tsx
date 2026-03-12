@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { LayoutDashboard, Calendar, Clock, Users, Briefcase, GitMerge } from 'lucide-react'
+import { LayoutDashboard, Calendar, Clock, Users, Briefcase, GitMerge, AlertTriangle } from 'lucide-react'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
 import DoublonsManager from '@/components/DoublonsManager'
+import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminPage() {
@@ -16,6 +17,7 @@ export default function AdminPage() {
   const [showTelepros, setShowTelepros] = useState(false)
   const [showClosers, setShowClosers] = useState(false)
   const [showDoublons, setShowDoublons] = useState(false)
+  const [showCheckRdv, setShowCheckRdv] = useState(false)
 
   // Quand un RDV est assigné, on rafraîchit le calendrier
   const handleAssigned = useCallback(() => {
@@ -72,6 +74,19 @@ export default function AdminPage() {
           >
             <Briefcase size={13} />
             Closers
+          </button>
+          <button
+            onClick={() => setShowCheckRdv(true)}
+            style={{
+              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#f59e0b', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            <AlertTriangle size={13} />
+            Check RDV Closer
           </button>
           <button
             onClick={() => setShowDoublons(true)}
@@ -168,6 +183,10 @@ export default function AdminPage() {
       {/* Panel doublons */}
       {showDoublons && (
         <DoublonsManager onClose={() => setShowDoublons(false)} />
+      )}
+      {/* Panel check RDV closer */}
+      {showCheckRdv && (
+        <CheckRdvCloserPanel onClose={() => setShowCheckRdv(false)} />
       )}
     </div>
   )
