@@ -25,6 +25,7 @@ interface DuplicateGroup {
   contacts: ContactInfo[]
   reason: 'same_phone' | 'same_email' | 'same_name'
   confidence: 'high' | 'medium'
+  crossTelepro: boolean
 }
 
 interface Stats {
@@ -50,7 +51,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'same_phone' | 'same_email' | 'same_name'>('all')
+  const [filter, setFilter] = useState<'cross' | 'all' | 'same_phone' | 'same_email' | 'same_name'>('cross')
   const [mergingId, setMergingId] = useState<string | null>(null)
   const [ignoringId, setIgnoringId] = useState<string | null>(null)
 
@@ -110,7 +111,10 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const filtered = filter === 'all' ? groups : groups.filter(g => g.reason === filter)
+  const crossCount = groups.filter(g => g.crossTelepro).length
+  const filtered = filter === 'all' ? groups
+    : filter === 'cross' ? groups.filter(g => g.crossTelepro)
+    : groups.filter(g => g.reason === filter)
   const countByReason = {
     same_phone: groups.filter(g => g.reason === 'same_phone').length,
     same_email: groups.filter(g => g.reason === 'same_email').length,
@@ -192,10 +196,11 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
           {!loading && !error && groups.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
               {([
-                { key: 'all', label: `Tous (${groups.length})`, color: '#8b8fa8', bg: '#252840' },
-                { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`, color: REASON_CONFIG.same_phone.color, bg: REASON_CONFIG.same_phone.bg },
-                { key: 'same_email', label: `Email (${countByReason.same_email})`, color: REASON_CONFIG.same_email.color, bg: REASON_CONFIG.same_email.bg },
-                { key: 'same_name', label: `Nom (${countByReason.same_name})`, color: REASON_CONFIG.same_name.color, bg: REASON_CONFIG.same_name.bg },
+                { key: 'cross',      label: `⚡ Télépros différents (${crossCount})`,   color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+                { key: 'all',        label: `Tous (${groups.length})`,                  color: '#8b8fa8', bg: '#252840' },
+                { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`,       color: REASON_CONFIG.same_phone.color, bg: REASON_CONFIG.same_phone.bg },
+                { key: 'same_email', label: `Email (${countByReason.same_email})`,      color: REASON_CONFIG.same_email.color, bg: REASON_CONFIG.same_email.bg },
+                { key: 'same_name',  label: `Nom (${countByReason.same_name})`,         color: REASON_CONFIG.same_name.color,  bg: REASON_CONFIG.same_name.bg },
               ] as const).map(f => (
                 <button
                   key={f.key}
@@ -304,11 +309,17 @@ function DuplicateGroupCard({
 
   return (
     <div style={{
-      background: '#1e2130', border: '1px solid #2a2d3e',
+      background: '#1e2130',
+      border: `1px solid ${group.crossTelepro ? 'rgba(239,68,68,0.35)' : '#2a2d3e'}`,
       borderRadius: 12, padding: '14px',
     }}>
       {/* Badges */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        {group.crossTelepro && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)' }}>
+            ⚡ Télépros différents
+          </span>
+        )}
         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: rc.bg, color: rc.color, border: `1px solid ${rc.color}40` }}>
           {rc.label}
         </span>

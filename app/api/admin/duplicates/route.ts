@@ -47,6 +47,7 @@ interface DuplicateGroup {
   contacts: EnrichedContact[]
   reason: 'same_phone' | 'same_email' | 'same_name'
   confidence: 'high' | 'medium'
+  crossTelepro: boolean
 }
 
 function normalizePhone(phone: string): string {
@@ -155,6 +156,7 @@ export async function GET(_req: NextRequest) {
           contacts: [contacts[i], contacts[j]],
           reason,
           confidence,
+          crossTelepro: contacts[i].teleproId !== contacts[j].teleproId,
         })
       }
     }
@@ -206,6 +208,13 @@ export async function GET(_req: NextRequest) {
     if (emails.size < 2) continue
     addGroup(members, 'same_name', 'medium')
   }
+
+  // Trier : cross-télépro en premier, puis par raison (phone > email > name)
+  const reasonOrder = { same_phone: 0, same_email: 1, same_name: 2 }
+  groups.sort((a, b) => {
+    if (a.crossTelepro !== b.crossTelepro) return a.crossTelepro ? -1 : 1
+    return reasonOrder[a.reason] - reasonOrder[b.reason]
+  })
 
   return NextResponse.json({
     groups,
