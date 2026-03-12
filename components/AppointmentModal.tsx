@@ -110,7 +110,12 @@ export default function AppointmentModal({
   }
 
   async function saveAll() {
-    const effectiveStatus = pendingStatus && reportFilled ? pendingStatus : status
+    // Si un statut est en attente mais le rapport n'est pas complet, bloquer
+    if (pendingStatus && !reportFilled) {
+      setReportError(true)
+      return
+    }
+    const effectiveStatus = pendingStatus ?? status
     setSaving(true)
     try {
       const res = await fetch(`/api/appointments/${appointment.id}`, {
