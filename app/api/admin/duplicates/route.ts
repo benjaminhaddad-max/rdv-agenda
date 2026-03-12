@@ -234,36 +234,48 @@ export async function GET(_req: NextRequest) {
   const contactIdsInGroups = [...new Set(groups.flatMap(g => g.contacts.map(c => c.id)))]
   if (contactIdsInGroups.length > 0) {
     try {
-      // Step 1: récupérer les associations contact→deal en batch
-      const assocRes = await hubspotFetch('/crm/v4/associations/contacts/deals/batch/read', {
-        method: 'POST',
-        body: JSON.stringify({ inputs: contactIdsInGroups.map(id => ({ id })) }),
-      })
+      // Chunker les IDs par 100 (limite HubSpot batch)
+      const chunkArray = <T,>(arr: T[], size: number): T[][] =>
+        Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size))
+
+      // Step 1: associations contact→deal via v3 (to[].id)
       const contactDealMap = new Map<string, string[]>()
-      for (const result of (assocRes.results || [])) {
-        const dealIds = (result.to || []).map((t: { toObjectId: string }) => String(t.toObjectId))
-        if (dealIds.length > 0) contactDealMap.set(String(result.from.id), dealIds)
+      for (const chunk of chunkArray(contactIdsInGroups, 100)) {
+        try {
+          const assocRes = await hubspotFetch('/crm/v3/associations/contacts/deals/batch/read', {
+            method: 'POST',
+            body: JSON.stringify({ inputs: chunk.map(id => ({ id })) }),
+          })
+          for (const result of (assocRes.results || [])) {
+            const dealIds = (result.to || []).map((t: { id: string }) => String(t.id))
+            if (dealIds.length > 0) contactDealMap.set(String(result.from.id), dealIds)
+          }
+        } catch { /* chunk échoué, on continue */ }
       }
 
-      // Step 2: récupérer les propriétés des deals en batch
+      // Step 2: propriétés des deals en batch (chunks de 100)
       const allDealIds = [...new Set([...contactDealMap.values()].flat())]
       if (allDealIds.length > 0) {
-        const dealsRes = await hubspotFetch('/crm/v3/objects/deals/batch/read', {
-          method: 'POST',
-          body: JSON.stringify({
-            inputs: allDealIds.map(id => ({ id })),
-            properties: ['dealstage', 'pipeline', 'closedate'],
-          }),
-        })
         const dealStageMap = new Map<string, { stage: string; pipeline: string }>()
-        for (const deal of (dealsRes.results || [])) {
-          dealStageMap.set(deal.id, {
-            stage: deal.properties.dealstage,
-            pipeline: deal.properties.pipeline,
-          })
+        for (const chunk of chunkArray(allDealIds, 100)) {
+          try {
+            const dealsRes = await hubspotFetch('/crm/v3/objects/deals/batch/read', {
+              method: 'POST',
+              body: JSON.stringify({
+                inputs: chunk.map(id => ({ id })),
+                properties: ['dealstage', 'pipeline', 'closedate'],
+              }),
+            })
+            for (const deal of (dealsRes.results || [])) {
+              dealStageMap.set(deal.id, {
+                stage: deal.properties.dealstage,
+                pipeline: deal.properties.pipeline,
+              })
+            }
+          } catch { /* chunk échoué, on continue */ }
         }
 
-        // Enrichir les contacts des groupes avec le stade du deal le plus récent dans le pipeline principal
+        // Enrichir les contacts des groupes avec le stade du deal dans le pipeline principal
         const PIPELINE = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
         for (const group of groups) {
           for (const contact of group.contacts) {
