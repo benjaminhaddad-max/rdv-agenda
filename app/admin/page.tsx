@@ -115,7 +115,7 @@ export default function AdminPage() {
             Disponibilités
           </button>
           <a
-            href="/closer/pascal"
+            href="/closer"
             style={{
               background: '#252840', border: '1px solid #2a2d3e',
               borderRadius: 8, padding: '6px 14px',

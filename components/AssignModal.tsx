@@ -120,10 +120,10 @@ export default function AssignModal({
           // Un seul closer dispo → le sélectionner
           setSelected(available[0].id)
         } else if (available.length > 1) {
-          // Pascal dispo + autres → Pascal par défaut
-          const pascal = available.find(c => c.slug === 'pascal')
-          if (pascal) {
-            setSelected(pascal.id)
+          // Admin dispo → le sélectionner par défaut
+          const admin = available.find(c => c.role === 'admin')
+          if (admin) {
+            setSelected(admin.id)
           }
         }
       })
