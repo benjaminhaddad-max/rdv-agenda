@@ -72,7 +72,8 @@ export async function GET() {
       const body: any = {
         filterGroups: [{
           filters: [
-            { propertyName: 'num_associated_deals', operator: 'EQ', value: '0' },
+            // num_associated_deals is null (not "0") when contact has no deals
+            { propertyName: 'num_associated_deals', operator: 'NOT_HAS_PROPERTY' },
             { propertyName: 'recent_conversion_date', operator: 'HAS_PROPERTY' },
             { propertyName: 'first_conversion_date', operator: 'HAS_PROPERTY' },
           ],
