@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { searchDealsByCloser, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
+import { searchDealsByCloser, getDealContactInfo, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
@@ -61,15 +61,42 @@ export async function GET(req: NextRequest) {
     return match ? match[1].trim() : null
   }
 
+  // Récupérer les contacts HubSpot pour enrichir les données prospect
+  // On fetch en parallèle pour tous les deals (max 200)
+  const contactByDealId = new Map<string, { email?: string; phone?: string; firstname?: string; lastname?: string; classe_actuelle?: string; departement?: string; formation?: string }>()
+  const contactPromises = hsDeals.map(async (deal) => {
+    try {
+      const contact = await getDealContactInfo(deal.id)
+      if (contact) {
+        contactByDealId.set(deal.id, {
+          email: contact.properties.email,
+          phone: contact.properties.phone,
+          firstname: contact.properties.firstname,
+          lastname: contact.properties.lastname,
+          classe_actuelle: contact.properties.classe_actuelle,
+          departement: contact.properties.departement,
+          formation: contact.properties.diploma_sante___formation_demandee,
+        })
+      }
+    } catch { /* ignore */ }
+  })
+  await Promise.all(contactPromises)
+
   // Construire les résultats
   const result = hsDeals.map(deal => {
     const stageInfo = STAGE_LABELS[deal.properties.dealstage]
       ?? { label: deal.properties.dealstage ?? '—', color: '#8b8fa8' }
     const appt = apptByDealId.get(deal.id)
+    const hsContact = contactByDealId.get(deal.id)
 
     if (appt) {
       return {
         ...appt,
+        // Enrichir les champs manquants avec les données HubSpot
+        prospect_email: appt.prospect_email || hsContact?.email || '',
+        prospect_phone: appt.prospect_phone || hsContact?.phone || null,
+        classe_actuelle: appt.classe_actuelle || hsContact?.classe_actuelle || null,
+        departement: appt.departement || hsContact?.departement || null,
         formation_type: HS_FORMATION_MAP[appt.formation_type] ?? appt.formation_type ?? getFormation(deal),
         hs_stage: deal.properties.dealstage ?? null,
         hs_stage_label: stageInfo.label,
@@ -79,7 +106,9 @@ export async function GET(req: NextRequest) {
 
     // Pas de match Supabase : données HubSpot seules
     const dealname = deal.properties.dealname ?? ''
-    const prospectName = dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
+    const prospectName = hsContact
+      ? [hsContact.firstname, hsContact.lastname].filter(Boolean).join(' ') || dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
+      : dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
     const closedateStr = deal.properties.closedate
     const startAt = closedateStr
       ? (closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`)
@@ -88,8 +117,8 @@ export async function GET(req: NextRequest) {
     return {
       id: deal.id,
       prospect_name: prospectName,
-      prospect_email: '',
-      prospect_phone: null,
+      prospect_email: hsContact?.email || '',
+      prospect_phone: hsContact?.phone || null,
       start_at: startAt,
       end_at: startAt,
       status: 'confirme' as const,
@@ -98,12 +127,12 @@ export async function GET(req: NextRequest) {
       notes: null,
       report_summary: null,
       report_telepro_advice: null,
-      formation_type: getFormation(deal),
+      formation_type: hsContact?.formation ? (HS_FORMATION_MAP[hsContact.formation] ?? hsContact.formation) : getFormation(deal),
       meeting_type: null,
       meeting_link: null,
       source: 'closer',
-      classe_actuelle: null,
-      departement: null,
+      classe_actuelle: hsContact?.classe_actuelle || null,
+      departement: hsContact?.departement || null,
       telepro: null,
       users: null,
       hs_stage: deal.properties.dealstage ?? null,
