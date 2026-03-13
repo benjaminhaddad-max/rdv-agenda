@@ -62,11 +62,16 @@ const HS_FORMATION_MAP: Record<string, string> = {
 
 export async function GET() {
   // 1. Search contacts with no deals and at least one form submission
+  // Only look at repops from the last 30 days to keep the list manageable
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allContacts: any[] = []
   let after: string | undefined = undefined
+  const MAX_PAGES = 5 // Max 500 contacts
 
   try {
+    let page = 0
     do {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: any = {
@@ -74,7 +79,7 @@ export async function GET() {
           filters: [
             // num_associated_deals is null (not "0") when contact has no deals
             { propertyName: 'num_associated_deals', operator: 'NOT_HAS_PROPERTY' },
-            { propertyName: 'recent_conversion_date', operator: 'HAS_PROPERTY' },
+            { propertyName: 'recent_conversion_date', operator: 'GTE', value: thirtyDaysAgo },
             { propertyName: 'first_conversion_date', operator: 'HAS_PROPERTY' },
           ],
         }],
@@ -91,7 +96,8 @@ export async function GET() {
 
       allContacts.push(...(data?.results ?? []))
       after = data?.paging?.next?.after ?? undefined
-    } while (after)
+      page++
+    } while (after && page < MAX_PAGES)
   } catch (e) {
     console.error('Orphan repop search error:', e)
   }
