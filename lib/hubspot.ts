@@ -271,6 +271,37 @@ export async function searchDealsByOwner(
   }
 }
 
+// ─── Chercher les deals d'un closer (pour l'historique closer) ────────────
+// Filtre par hubspot_owner_id (le propriétaire du deal = le closer)
+export async function searchDealsByCloser(
+  ownerId: string,
+  pipelineId: string,
+  sinceMs: number
+): Promise<Array<{
+  id: string
+  properties: { dealname: string; dealstage: string; closedate: string; createdate: string; description?: string; diploma_sante___formation?: string }
+}>> {
+  try {
+    const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+      method: 'POST',
+      body: JSON.stringify({
+        filterGroups: [{
+          filters: [
+            { propertyName: 'hubspot_owner_id', operator: 'EQ', value: ownerId },
+            { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
+          ],
+        }],
+        properties: ['dealname', 'dealstage', 'closedate', 'createdate', 'description', 'diploma_sante___formation'],
+        sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
+        limit: 200,
+      }),
+    })
+    return data.results ?? []
+  } catch {
+    return []
+  }
+}
+
 // ─── Chercher les deals passés encore en "RDV Pris" (pour l'audit admin) ──
 // Utilise la pagination HubSpot (cursor `after`) pour dépasser la limite de 200
 export async function searchPastRdvPrisDeals(pipelineId: string): Promise<Array<{
