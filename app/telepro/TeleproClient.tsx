@@ -113,7 +113,7 @@ const labelStyle: React.CSSProperties = {
 function generateJitsiLink() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   const rand = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `https://meet.jit.si/DiplomaSanteRDV${rand}`
+  return `https://meet.ffmuc.net/DiplomaSanteRDV${rand}`
 }
 
 // ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────

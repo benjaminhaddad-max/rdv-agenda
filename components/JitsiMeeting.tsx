@@ -41,7 +41,7 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
       const url = new URL(link)
       return { domain: url.host, roomName: url.pathname.slice(1) }
     } catch {
-      return { domain: 'meet.jit.si', roomName: link }
+      return { domain: 'meet.ffmuc.net', roomName: link }
     }
   }
 
