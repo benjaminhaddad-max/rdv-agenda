@@ -33,10 +33,14 @@ export async function POST(req: NextRequest) {
     return new Date(d.properties.closedate) <= cutoff
   })
 
-  // 3. Passer chaque deal en "À replanifier"
+  // 3. Passer chaque deal en "À replanifier" (avec délai pour respecter le rate limit HubSpot)
   const results: { id: string; dealname: string; status: 'ok' | 'error'; error?: string }[] = []
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-  for (const deal of toUpdate) {
+  for (let i = 0; i < toUpdate.length; i++) {
+    const deal = toUpdate[i]
+    // Pause 200ms entre chaque appel (max ~5/sec, bien sous la limite de 10/sec)
+    if (i > 0) await delay(200)
     try {
       await updateDealStage(deal.id, 'aReplanifier')
       results.push({ id: deal.id, dealname: deal.properties.dealname, status: 'ok' })
