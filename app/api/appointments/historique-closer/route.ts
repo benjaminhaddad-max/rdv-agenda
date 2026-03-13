@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
     .from('rdv_appointments')
     .select(`
       *,
-      telepro:telepro_id (id, name)
+      telepro:telepro_id (id, name),
+      users:commercial_id (id, name, avatar_color, slug)
     `)
     .in('hubspot_deal_id', dealIds)
 
@@ -104,6 +105,7 @@ export async function GET(req: NextRequest) {
       classe_actuelle: null,
       departement: null,
       telepro: null,
+      users: null,
       hs_stage: deal.properties.dealstage ?? null,
       hs_stage_label: stageInfo.label,
       hs_stage_color: stageInfo.color,

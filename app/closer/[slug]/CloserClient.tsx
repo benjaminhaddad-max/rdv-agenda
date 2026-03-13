@@ -7,11 +7,12 @@ import {
   Calendar, Clock, Save, X, Plus, ChevronLeft, ChevronRight,
   Ban, CheckCircle, AlertCircle, User, Search, Phone, Tag,
   FileText, Video, PhoneCall, Copy, Check, Link, Mail,
-  GraduationCap, MapPin, PlusCircle, RefreshCw, ExternalLink,
+  GraduationCap, MapPin, PlusCircle, RefreshCw,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
+import AppointmentModal from '@/components/AppointmentModal'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -42,15 +43,12 @@ type HistRdv = {
   classe_actuelle: string | null
   departement: string | null
   telepro: { id: string; name: string } | null
+  users?: { id: string; name: string; avatar_color: string; slug: string } | null
   hs_stage: string | null
   hs_stage_label: string | null
   hs_stage_color: string | null
 }
 
-type EngagementData = {
-  contact?: { email?: string; phone?: string; formation?: string; classe_actuelle?: string }
-  engagements: Array<{ id: string; type: string; createdAt: string; body?: string }>
-}
 
 type AvailabilityRule = {
   id?: string
@@ -156,13 +154,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // ── Historique ──
   const [histRdvs, setHistRdvs] = useState<HistRdv[]>([])
   const [histLoading, setHistLoading] = useState(false)
-  const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
-  const [engData, setEngData] = useState<Record<string, EngagementData>>({})
-  const [loadingEng, setLoadingEng] = useState<Record<string, boolean>>({})
   const [stageFilter, setStageFilter] = useState<string | null>(null)
-
-  const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
-  const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
+  const [selectedHistRdv, setSelectedHistRdv] = useState<HistRdv | null>(null)
 
   const fetchHistorique = useCallback(async () => {
     if (!user.hubspot_owner_id) return
@@ -174,24 +167,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     } catch { /* ignore */ }
     setHistLoading(false)
   }, [user.hubspot_owner_id])
-
-  const fetchEngagements = useCallback(async (rdv: HistRdv) => {
-    if (!rdv.hubspot_deal_id || engData[rdv.id]) return
-    setLoadingEng(p => ({ ...p, [rdv.id]: true }))
-    try {
-      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`)
-      const data = await res.json()
-      setEngData(p => ({ ...p, [rdv.id]: data }))
-    } catch { /* ignore */ }
-    setLoadingEng(p => ({ ...p, [rdv.id]: false }))
-  }, [engData])
-
-  const hasReprise = (data: EngagementData) => {
-    if (!data.engagements || data.engagements.length === 0) return false
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    return data.engagements.some(e => new Date(e.createdAt) > sevenDaysAgo)
-  }
 
   useEffect(() => {
     if (activeTab === 'historique' && histRdvs.length === 0 && !histLoading) {
@@ -1032,27 +1007,24 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             {filteredHistRdvs.map(rdv => {
-              const eng = engData[rdv.id]
-              const isExpanded = expandedHistRdv === rdv.id
-              const isReprise = eng && hasReprise(eng)
               const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
               const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
 
               return (
-                <div key={rdv.id} style={{
-                  background: '#1a1d27',
-                  border: `1px solid ${isReprise ? '#f97316' : '#2a2d3e'}`,
-                  borderRadius: 12, marginBottom: 10, overflow: 'hidden',
-                }}>
+                <div
+                  key={rdv.id}
+                  onClick={() => setSelectedHistRdv(rdv)}
+                  style={{
+                    background: '#1a1d27',
+                    border: '1px solid #2a2d3e',
+                    borderRadius: 12, marginBottom: 10, overflow: 'hidden',
+                    cursor: 'pointer', transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = user.avatar_color)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2d3e')}
+                >
                   {/* Ligne principale */}
-                  <div
-                    onClick={() => {
-                      const next = isExpanded ? null : rdv.id
-                      setExpandedHistRdv(next)
-                      if (next) fetchEngagements(rdv)
-                    }}
-                    style={{ padding: '14px 20px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
-                  >
+                  <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ minWidth: 80, fontSize: 11, color: '#555870', flexShrink: 0 }}>
                       {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
                     </div>
@@ -1073,22 +1045,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         {rdv.hs_stage_label}
                       </span>
                     )}
-                    {isReprise && (
-                      <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600, flexShrink: 0 }}>🔔 Reprise</span>
-                    )}
-                    <span style={{ color: '#555870', fontSize: 12, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
 
-                  {/* Infos prospect (toujours visible) */}
+                  {/* Infos prospect */}
                   <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {rdv.prospect_phone && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
                         <Phone size={10} /> {rdv.prospect_phone}
-                      </span>
-                    )}
-                    {rdv.prospect_email && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                        <Mail size={10} /> {rdv.prospect_email}
                       </span>
                     )}
                     {rdv.formation_type && (
@@ -1097,138 +1060,32 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong>
                       </span>
                     )}
-                    {rdv.classe_actuelle && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                        <GraduationCap size={10} /> {rdv.classe_actuelle}
-                      </span>
-                    )}
                     {resultCfg && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, borderRadius: 5, padding: '2px 8px', fontWeight: 600 }}>
-                        Résultat : {resultCfg.label}
+                        {resultCfg.label}
                       </span>
                     )}
                   </div>
-
-                  {/* Détails expansibles */}
-                  {isExpanded && (
-                    <div style={{ borderTop: '1px solid #2a2d3e', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                      {/* Fiche RDV complète */}
-                      <div style={{ background: '#0f1117', border: '1px solid #2a2d3e', borderRadius: 10, overflow: 'hidden' }}>
-                        {/* Statut */}
-                        <div style={{ padding: '10px 16px', borderBottom: '1px solid #1a1d27', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <StatusBadge status={rdv.status as AppointmentStatus} />
-                          {rdv.telepro && (
-                            <span style={{ fontSize: 12, color: '#8b8fa8' }}>
-                              Télépro : <strong style={{ color: '#c8cadb' }}>{rdv.telepro.name}</strong>
-                            </span>
-                          )}
-                        </div>
-                        {/* Infos prospect */}
-                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7, borderBottom: '1px solid #1a1d27' }}>
-                          {(rdv.prospect_email || eng?.contact?.email) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
-                              <Mail size={13} style={{ color: user.avatar_color, flexShrink: 0 }} />
-                              <span>{rdv.prospect_email || eng?.contact?.email}</span>
-                            </div>
-                          )}
-                          {(rdv.prospect_phone || eng?.contact?.phone) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
-                              <Phone size={13} style={{ color: user.avatar_color, flexShrink: 0 }} />
-                              <span>{rdv.prospect_phone || eng?.contact?.phone}</span>
-                            </div>
-                          )}
-                          {(rdv.formation_type || eng?.contact?.formation) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
-                              <Tag size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                              <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type || eng?.contact?.formation}</strong></span>
-                            </div>
-                          )}
-                          {(rdv.classe_actuelle || eng?.contact?.classe_actuelle) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b8fa8' }}>
-                              <GraduationCap size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                              <span>Classe : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle || eng?.contact?.classe_actuelle}</strong></span>
-                            </div>
-                          )}
-                          {rdv.meeting_type && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                              {rdv.meeting_type === 'visio'
-                                ? <Video size={13} style={{ color: '#6b87ff', flexShrink: 0 }} />
-                                : rdv.meeting_type === 'telephone'
-                                  ? <PhoneCall size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
-                                  : <MapPin size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />}
-                              <span style={{ color: rdv.meeting_type === 'visio' ? '#6b87ff' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>
-                                {rdv.meeting_type === 'visio' ? 'Visio' : rdv.meeting_type === 'telephone' ? 'Téléphone' : 'Présentiel'}
-                              </span>
-                            </div>
-                          )}
-                          {rdv.hubspot_deal_id && (
-                            <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${rdv.hubspot_deal_id}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 6, padding: '3px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 600, textDecoration: 'none', alignSelf: 'flex-start' }}>
-                              <ExternalLink size={10} /> Transaction HubSpot
-                            </a>
-                          )}
-                        </div>
-                        {/* Rapport closer */}
-                        <div style={{ padding: '12px 16px' }}>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            Mon rapport
-                          </div>
-                          {(rdv.report_summary || rdv.report_telepro_advice) ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {rdv.report_summary && (
-                                <p style={{ fontSize: 13, color: '#c8cadb', margin: 0, lineHeight: 1.5 }}>{rdv.report_summary}</p>
-                              )}
-                              {rdv.report_telepro_advice && (
-                                <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>💡 {rdv.report_telepro_advice}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <p style={{ fontSize: 12, color: '#555870', margin: 0, fontStyle: 'italic' }}>Aucun rapport.</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Activité HubSpot */}
-                      {loadingEng[rdv.id] && (
-                        <p style={{ fontSize: 12, color: '#555870', margin: 0 }}>⏳ Chargement activité HubSpot…</p>
-                      )}
-                      {eng && eng.engagements.length > 0 && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            Activité HubSpot
-                          </div>
-                          {eng.engagements.slice(0, 8).map(e => (
-                            <div key={e.id} style={{ display: 'flex', gap: 10, marginBottom: 6, fontSize: 12 }}>
-                              <span style={{ color: '#555870', minWidth: 90, flexShrink: 0 }}>
-                                {new Date(e.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                              </span>
-                              <span style={{ color: '#8b8fa8', minWidth: 75, flexShrink: 0 }}>
-                                {e.type === 'NOTE' ? '📝 Note'
-                                  : e.type === 'CALL' ? '📞 Appel'
-                                  : (e.type === 'EMAIL' || e.type === 'INCOMING_EMAIL') ? '✉️ Email'
-                                  : e.type}
-                              </span>
-                              {e.body && (
-                                <span style={{ color: '#c8cadb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                                  {e.body.replace(/<[^>]+>/g, '').slice(0, 150)}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {eng && eng.engagements.length === 0 && !loadingEng[rdv.id] && (
-                        <p style={{ fontSize: 12, color: '#555870', margin: 0 }}>Aucune activité HubSpot enregistrée.</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )
             })}
           </div>
         </div>
+      )}
+
+      {/* Modal AppointmentModal pour l'historique */}
+      {selectedHistRdv && (
+        <AppointmentModal
+          appointment={{
+            ...selectedHistRdv,
+            status: selectedHistRdv.status as AppointmentStatus,
+            users: selectedHistRdv.users || undefined,
+          }}
+          onClose={() => setSelectedHistRdv(null)}
+          onUpdate={(updated) => {
+            setHistRdvs(prev => prev.map(r => r.id === selectedHistRdv.id ? { ...r, ...updated } : r))
+          }}
+        />
       )}
 
     </div>
