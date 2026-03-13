@@ -97,14 +97,14 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      // Check if this closer has a booking at this time
-      const isBooked = booked?.some(b =>
+      // Check how many bookings this closer has at this time (max 3 simultaneous)
+      const bookingCount = booked?.filter(b =>
         b.commercial_id === closerId &&
         new Date(b.start_at) < slotEndTime &&
         new Date(b.end_at) > current
-      ) || false
+      ).length || 0
 
-      if (!isBooked) {
+      if (bookingCount < 3) {
         const key = current.toISOString()
         const existing = slotMap.get(key)
         if (existing) {

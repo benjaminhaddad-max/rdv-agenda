@@ -94,11 +94,11 @@ export async function GET(req: NextRequest) {
 
       if (slotEndTime > slotEnd) break
 
-      const isBooked = booked?.some(b => {
+      const bookingCount = booked?.filter(b => {
         const bStart = new Date(b.start_at)
         const bEnd = new Date(b.end_at)
         return bStart < slotEndTime && bEnd > current
-      }) || false
+      }).length || 0
 
       // Don't show past slots
       const now = new Date()
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
         slots.push({
           start: current.toISOString(),
           end: slotEndTime.toISOString(),
-          available: !isBooked,
+          available: bookingCount < 3,
         })
       }
 
