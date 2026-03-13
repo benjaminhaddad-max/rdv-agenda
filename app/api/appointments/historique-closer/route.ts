@@ -43,6 +43,13 @@ export async function GET(req: NextRequest) {
 
   const apptByDealId = new Map((appointments ?? []).map(a => [a.hubspot_deal_id as string, a]))
 
+  // Charger le suivi des entrées HubSpot-only (table rdv_hist_suivi)
+  const hubspotOnlyIds = hsDeals.filter(d => !apptByDealId.has(d.id)).map(d => d.id)
+  const { data: histSuiviRows } = hubspotOnlyIds.length > 0
+    ? await db.from('rdv_hist_suivi').select('*').in('hubspot_deal_id', hubspotOnlyIds)
+    : { data: [] as Array<{ hubspot_deal_id: string; telepro_suivi: string | null; telepro_suivi_at: string | null }> }
+  const histSuiviMap = new Map((histSuiviRows ?? []).map(s => [s.hubspot_deal_id, s]))
+
   // Mapping clés HubSpot → labels lisibles
   const HS_FORMATION_MAP: Record<string, string> = {
     'PAS': 'PASS', 'LAS': 'LAS', 'P-1': 'P-1', 'P-2': 'P-2',
@@ -114,6 +121,8 @@ export async function GET(req: NextRequest) {
       ? (closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`)
       : new Date(parseInt(deal.properties.createdate ?? '0')).toISOString()
 
+    const suivi = histSuiviMap.get(deal.id)
+
     return {
       id: deal.id,
       prospect_name: prospectName,
@@ -138,6 +147,8 @@ export async function GET(req: NextRequest) {
       hs_stage: deal.properties.dealstage ?? null,
       hs_stage_label: stageInfo.label,
       hs_stage_color: stageInfo.color,
+      telepro_suivi: suivi?.telepro_suivi ?? null,
+      telepro_suivi_at: suivi?.telepro_suivi_at ?? null,
     }
   })
 

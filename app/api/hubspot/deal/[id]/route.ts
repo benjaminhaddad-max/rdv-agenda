@@ -70,6 +70,17 @@ export async function PATCH(
     }
     try {
       await updateDealStage(id, stage)
+
+      if (stage === 'fermePerdu') {
+        const now = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+        const contactInfo = await getDealContactInfo(id)
+        await addNoteToEngagements({
+          dealId: id,
+          contactId: contactInfo?.id ?? null,
+          body: `💀 MARQUÉ COMME PERDU — ${now}`,
+        })
+      }
+
       const stageInfo = STAGE_LABELS[STAGES[stage]] ?? { label: String(stage), color: '#8b8fa8' }
       return NextResponse.json({ ok: true, stageLabel: stageInfo.label, stageColor: stageInfo.color })
     } catch (e) {

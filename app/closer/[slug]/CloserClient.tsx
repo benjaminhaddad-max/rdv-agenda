@@ -7,7 +7,7 @@ import {
   Calendar, Clock, Save, X, Plus, ChevronLeft, ChevronRight,
   Ban, CheckCircle, AlertCircle, User, Search, Phone, Tag,
   FileText, Video, PhoneCall, Copy, Check, Link, Mail,
-  GraduationCap, MapPin, PlusCircle, RefreshCw,
+  GraduationCap, MapPin, PlusCircle, RefreshCw, RotateCcw,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import LogoutButton from '@/components/LogoutButton'
@@ -44,6 +44,8 @@ type HistRdv = {
   departement: string | null
   telepro: { id: string; name: string } | null
   users?: { id: string; name: string; avatar_color: string; slug: string } | null
+  telepro_suivi?: string | null
+  telepro_suivi_at?: string | null
   hs_stage: string | null
   hs_stage_label: string | null
   hs_stage_color: string | null
@@ -156,6 +158,15 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [histLoading, setHistLoading] = useState(false)
   const [stageFilter, setStageFilter] = useState<string | null>(null)
   const [selectedHistRdv, setSelectedHistRdv] = useState<HistRdv | null>(null)
+  const [savingSuivi, setSavingSuivi] = useState<string | null>(null)
+  const [closingDeal, setClosingDeal] = useState<string | null>(null)
+  const [rebookLoading, setRebookLoading] = useState<string | null>(null)
+
+  const SUIVI_OPTIONS = [
+    { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
+    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#f59e0b' },
+    { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
+  ]
 
   const fetchHistorique = useCallback(async () => {
     if (!user.hubspot_owner_id) return
@@ -182,6 +193,75 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   }, [])
 
   const filteredHistRdvs = stageFilter ? histRdvs.filter(r => r.hs_stage_label === stageFilter) : histRdvs
+
+  const saveSuivi = useCallback(async (rdv: HistRdv, suivi: string | null) => {
+    setSavingSuivi(rdv.id)
+    try {
+      const res = await fetch('/api/closer-suivi', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointment_id: rdv.id,
+          deal_id: rdv.hubspot_deal_id,
+          suivi,
+          closer_name: user.name,
+        }),
+      })
+      if (res.ok) {
+        setHistRdvs(prev => prev.map(r =>
+          r.id === rdv.id
+            ? { ...r, telepro_suivi: suivi, telepro_suivi_at: suivi ? new Date().toISOString() : null }
+            : r
+        ))
+      }
+    } finally {
+      setSavingSuivi(null)
+    }
+  }, [user.name])
+
+  const marquerPerdu = useCallback(async (rdv: HistRdv) => {
+    if (!rdv.hubspot_deal_id) return
+    setClosingDeal(rdv.id)
+    try {
+      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'fermePerdu' }),
+      })
+      if (res.ok) {
+        setHistRdvs(prev => prev.map(r =>
+          r.id === rdv.id
+            ? { ...r, hs_stage_label: 'Fermé / Perdu', hs_stage_color: '#ef4444' }
+            : r
+        ))
+      }
+    } finally {
+      setClosingDeal(null)
+    }
+  }, [])
+
+  async function handleReprendre(rdv: HistRdv) {
+    resetContact()
+    if (rdv.hubspot_contact_id) {
+      setRebookLoading(rdv.id)
+      try {
+        const res = await fetch(`/api/hubspot/contact?url=${rdv.hubspot_contact_id}`)
+        const data = await res.json()
+        if (res.ok && data.results?.length > 0) {
+          const c = data.results[0]; setContact(c)
+          const p = c.properties
+          const ev = p.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
+          if (p.phone) setPhone(p.phone)
+          if (p.departement) setDepartement(String(p.departement))
+          if (p.classe_actuelle) setClasseActuelle(p.classe_actuelle)
+          if (p.diploma_sante___formation_demandee) setFormation(p.diploma_sante___formation_demandee)
+        }
+      } finally {
+        setRebookLoading(null)
+      }
+    }
+    setActiveTab('rdv')
+  }
 
   // ── Availability rules ──
   const [rules, setRules] = useState<AvailabilityRule[]>(
@@ -1066,6 +1146,73 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       </span>
                     )}
                   </div>
+
+                  {/* Boutons d'action pour "À replanifier" */}
+                  {rdv.hs_stage_label === 'À replanifier' && (
+                    <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}
+                        disabled={rebookLoading === rdv.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.35)',
+                          borderRadius: 7, padding: '5px 12px', color: '#6b87ff',
+                          fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        <RotateCcw size={12} />
+                        {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}
+                        disabled={closingDeal === rdv.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                          borderRadius: 7, padding: '5px 12px', color: '#ef4444',
+                          fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        <X size={12} />
+                        {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Suivi post-RDV pour "Délai de réflexion" */}
+                  {rdv.hs_stage_label === 'Délai de réflexion' && (
+                    <div style={{ padding: '0 20px 14px' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#555870', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        Suivi post-RDV
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {SUIVI_OPTIONS.map(opt => {
+                          const isActive = rdv.telepro_suivi === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
+                              disabled={savingSuivi === rdv.id}
+                              style={{
+                                background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
+                                border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
+                                borderRadius: 7, padding: '5px 12px',
+                                color: isActive ? opt.color : '#8b8fa8',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                        <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
+                          Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
