@@ -37,11 +37,13 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
 
   // ── Extract room name from Jitsi link ──────────────────────────────
   const parseJitsiLink = (link: string) => {
+    const FORCED_DOMAIN = 'meet.ffmuc.net'
     try {
       const url = new URL(link)
-      return { domain: url.host, roomName: url.pathname.slice(1) }
+      // Always use meet.ffmuc.net (no lobby) regardless of original domain
+      return { domain: FORCED_DOMAIN, roomName: url.pathname.slice(1) }
     } catch {
-      return { domain: 'meet.ffmuc.net', roomName: link }
+      return { domain: FORCED_DOMAIN, roomName: link }
     }
   }
 
