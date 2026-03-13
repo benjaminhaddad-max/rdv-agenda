@@ -1799,6 +1799,8 @@ export default function TeleproClient({
             const isAReplanifier = rdv.hs_stage_label === 'À replanifier'
             const isDelaiReflexion = rdv.hs_stage_label === 'Délai de réflexion'
             const isSupabaseBacked = rdv.id !== rdv.hubspot_deal_id
+            const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
+            const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
 
             return (
               <div key={rdv.id} style={{
@@ -1855,12 +1857,18 @@ export default function TeleproClient({
                   )}
                   {rdv.formation_type && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                      <GraduationCap size={10} /> {rdv.formation_type}
+                      <Tag size={10} style={{ color: '#f59e0b' }} />
+                      Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong>
                     </span>
                   )}
                   {rdv.classe_actuelle && (
-                    <span style={{ fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                      {rdv.classe_actuelle}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      <GraduationCap size={10} /> {rdv.classe_actuelle}
+                    </span>
+                  )}
+                  {resultCfg && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, borderRadius: 5, padding: '2px 8px', fontWeight: 600 }}>
+                      Résultat : {resultCfg.label}
                     </span>
                   )}
                 </div>

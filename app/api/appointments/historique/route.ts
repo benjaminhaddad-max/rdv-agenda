@@ -53,6 +53,13 @@ export async function GET(req: NextRequest) {
     : { data: [] as Array<{ hubspot_deal_id: string; telepro_suivi: string | null; telepro_suivi_at: string | null }> }
   const histSuiviMap = new Map((histSuiviRows ?? []).map(s => [s.hubspot_deal_id, s]))
 
+  // Extraire la formation depuis la description du deal (format: "Formation souhaitée : LAS")
+  function parseFormationFromDesc(desc: string | undefined): string | null {
+    if (!desc) return null
+    const match = desc.match(/Formation souhait[ée]+\s*:\s*([^\n]+)/i)
+    return match ? match[1].trim() : null
+  }
+
   // 3. Construire les résultats : préférer la data Supabase, sinon data HubSpot seule
   const result = hsDeals.map(deal => {
     const stageInfo = STAGE_LABELS[deal.properties.dealstage]
@@ -61,8 +68,10 @@ export async function GET(req: NextRequest) {
 
     if (appt) {
       // Appointment trouvé en Supabase : enrichir avec le stage HubSpot actuel
+      // Si formation_type absent en base, tenter de la récupérer depuis la description HubSpot
       return {
         ...appt,
+        formation_type: appt.formation_type ?? parseFormationFromDesc(deal.properties.description),
         hs_stage: deal.properties.dealstage ?? null,
         hs_stage_label: stageInfo.label,
         hs_stage_color: stageInfo.color,
@@ -93,7 +102,7 @@ export async function GET(req: NextRequest) {
       notes: null,
       report_summary: null,
       report_telepro_advice: null,
-      formation_type: null,
+      formation_type: parseFormationFromDesc(deal.properties.description),
       meeting_type: null,
       meeting_link: null,
       source: 'telepro',

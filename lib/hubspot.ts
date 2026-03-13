@@ -248,7 +248,7 @@ export async function searchDealsByOwner(
   sinceMs: number
 ): Promise<Array<{
   id: string
-  properties: { dealname: string; dealstage: string; closedate: string; createdate: string }
+  properties: { dealname: string; dealstage: string; closedate: string; createdate: string; description?: string }
 }>> {
   try {
     const data = await hubspotFetch('/crm/v3/objects/deals/search', {
@@ -260,7 +260,7 @@ export async function searchDealsByOwner(
             { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
           ],
         }],
-        properties: ['dealname', 'dealstage', 'closedate', 'createdate'],
+        properties: ['dealname', 'dealstage', 'closedate', 'createdate', 'description'],
         sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
         limit: 200,
       }),
