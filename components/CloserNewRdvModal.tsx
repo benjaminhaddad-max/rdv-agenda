@@ -57,8 +57,9 @@ for (let h = 8; h <= 18; h++) {
 }
 
 function generateJitsiLink() {
-  const id = Math.random().toString(36).slice(2, 10)
-  return `https://meet.jit.si/DiplomaRDV-${id}`
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const rand = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  return `https://meet.jit.si/DiplomaSanteRDV${rand}`
 }
 
 // ─── Shared styles ───────────────────────────────────────────────────────────

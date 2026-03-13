@@ -144,9 +144,9 @@ const labelStyle: React.CSSProperties = {
 }
 
 function generateJitsiLink() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `https://meet.jit.si/diploma-sante-${rand}`
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const rand = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  return `https://meet.jit.si/DiplomaSanteRDV${rand}`
 }
 
 // ─── Composant principal ────────────────────────────────────────────────
