@@ -190,7 +190,14 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
           startWithAudioMuted: false,
           startWithVideoMuted: false,
           prejoinPageEnabled: false,
+          prejoinConfig: { enabled: false },
           disableDeepLinking: true,
+          lobby: { autoKnock: true, enableChat: false },
+          requireDisplayName: false,
+          enableLobbyChat: false,
+          hideLobbyButton: true,
+          autoKnockLobby: true,
+          enableInsecureRoomNameWarning: false,
           toolbarButtons: [
             'camera', 'chat', 'closedcaptions', 'desktop', 'fullscreen',
             'hangup', 'microphone', 'raisehand', 'tileview', 'toggle-camera',
@@ -200,6 +207,7 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
           SHOW_JITSI_WATERMARK: false,
           SHOW_BRAND_WATERMARK: false,
           TOOLBAR_ALWAYS_VISIBLE: true,
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
         },
       })
 
