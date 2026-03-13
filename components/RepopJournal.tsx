@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX } from 'lucide-react'
+import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
   hubspot_deal_id: string
@@ -28,10 +29,13 @@ type Props = {
   scopeId?: string
 }
 
+type Filter = 'all' | 'a_replanifier' | 'delai_reflexion' | 'orphans'
+
 export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) {
   const [entries, setEntries] = useState<RepopEntry[]>([])
+  const [orphans, setOrphans] = useState<OrphanRepopEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'a_replanifier' | 'delai_reflexion'>('all')
+  const [activeFilter, setActiveFilter] = useState<Filter>('all')
 
   const fetchRepops = useCallback(async () => {
     setLoading(true)
@@ -47,11 +51,13 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         if (hubspotOwnerId) params.set('hubspot_owner_id', hubspotOwnerId)
       }
 
-      const res = await fetch(`/api/repop?${params.toString()}`)
-      if (res.ok) {
-        const data = await res.json()
-        setEntries(data)
-      }
+      const [repopRes, orphansRes] = await Promise.all([
+        fetch(`/api/repop?${params.toString()}`),
+        fetch('/api/repop/orphans'),
+      ])
+
+      if (repopRes.ok) setEntries(await repopRes.json())
+      if (orphansRes.ok) setOrphans(await orphansRes.json())
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
@@ -64,13 +70,17 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
     if (activeFilter === 'all') return true
     if (activeFilter === 'a_replanifier') return e.hs_stage_label === 'À replanifier'
     if (activeFilter === 'delai_reflexion') return e.hs_stage_label === 'Délai de réflexion'
-    return true
+    return false // orphans tab → hide deal entries
   })
+
+  const showOrphans = activeFilter === 'all' || activeFilter === 'orphans'
 
   const countByStage = {
     a_replanifier: entries.filter(e => e.hs_stage_label === 'À replanifier').length,
     delai_reflexion: entries.filter(e => e.hs_stage_label === 'Délai de réflexion').length,
   }
+
+  const totalCount = entries.length + orphans.length
 
   if (loading) {
     return (
@@ -90,7 +100,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
           <div style={{ fontSize: 16, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18 }}>🔁</span>
             Journal des Repop
-            {entries.length > 0 && (
+            {totalCount > 0 && (
               <span style={{
                 background: 'rgba(251,146,60,0.2)',
                 border: '1px solid rgba(251,146,60,0.4)',
@@ -100,12 +110,12 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 fontWeight: 700,
                 color: '#fb923c',
               }}>
-                {entries.length}
+                {totalCount}
               </span>
             )}
           </div>
           <div style={{ fontSize: 12, color: '#555870', marginTop: 3 }}>
-            Prospects ayant resoumis un formulaire après la date de leur RDV
+            Prospects ayant resoumis un formulaire après la date de leur RDV ou sans transaction
           </div>
         </div>
         <button
@@ -120,13 +130,14 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       </div>
 
       {/* Filtres par stage */}
-      {entries.length > 0 && (
+      {totalCount > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           {([
-            { key: 'all', label: 'Tous', count: entries.length, color: '#8b8fa8', activeColor: '#e8eaf0' },
-            { key: 'a_replanifier', label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
-            { key: 'delai_reflexion', label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
-          ] as const).map(f => {
+            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#8b8fa8', activeColor: '#e8eaf0' },
+            { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
+            { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
+            { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
+          ]).map(f => {
             const isActive = activeFilter === f.key
             return (
               <button
@@ -158,7 +169,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       )}
 
       {/* Vide */}
-      {entries.length === 0 && (
+      {totalCount === 0 && (
         <div style={{
           textAlign: 'center', padding: '48px 24px',
           background: '#1e2130', borderRadius: 14, border: '1px solid #2a2d3e',
@@ -174,12 +185,32 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         </div>
       )}
 
-      {/* Liste */}
+      {/* Liste deals repop */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.map(entry => (
           <RepopCard key={entry.hubspot_deal_id} entry={entry} showCloser={scope === 'admin' || scope === 'telepro'} />
         ))}
       </div>
+
+      {/* Liste orphelins */}
+      {showOrphans && orphans.length > 0 && (
+        <>
+          {activeFilter === 'all' && filtered.length > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px',
+              fontSize: 13, fontWeight: 700, color: '#a855f7',
+            }}>
+              <UserX size={14} />
+              Sans transaction ({orphans.length})
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {orphans.map(entry => (
+              <OrphanCard key={entry.contact_id} entry={entry} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -254,6 +285,94 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
           display: 'flex', alignItems: 'center', gap: 5,
           fontSize: 12, color: '#fb923c', fontWeight: 600,
           background: 'rgba(251,146,60,0.08)',
+          borderRadius: 6, padding: '2px 8px',
+        }}>
+          <FileText size={12} />
+          {entry.repop_form_name
+            ? `"${entry.repop_form_name}" — resoumis le ${entry.repop_form_date_label}`
+            : `Formulaire resoumis le ${entry.repop_form_date_label}`
+          }
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
+  return (
+    <div style={{
+      background: '#1e2130',
+      border: '1px solid rgba(168,85,247,0.2)',
+      borderLeft: '3px solid #a855f7',
+      borderRadius: 12,
+      padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+
+      {/* Ligne 1 : badge + nom */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            background: 'rgba(168,85,247,0.15)',
+            border: '1px solid rgba(168,85,247,0.4)',
+            borderRadius: 6, padding: '2px 8px',
+            fontSize: 11, fontWeight: 700, color: '#a855f7',
+          }}>
+            👻 Sans transaction
+          </span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>
+            {entry.prospect_name}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {entry.classe && (
+            <span style={{
+              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+            }}>
+              {entry.classe}
+            </span>
+          )}
+          {entry.formation && (
+            <span style={{
+              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+            }}>
+              {entry.formation}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Ligne 2 : téléphone + email */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        {entry.prospect_phone && (
+          <a
+            href={`tel:${entry.prospect_phone}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#6b87ff', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+          >
+            <Phone size={13} />
+            {entry.prospect_phone}
+          </a>
+        )}
+        {entry.prospect_email && (
+          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+            {entry.prospect_email}
+          </span>
+        )}
+      </div>
+
+      {/* Ligne 3 : 1er formulaire + repop */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555870' }}>
+          <Calendar size={12} />
+          1er formulaire le {entry.first_form_date_label}
+          {entry.first_form_name && <span style={{ color: '#555870' }}>({entry.first_form_name})</span>}
+        </span>
+        <span style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          fontSize: 12, color: '#a855f7', fontWeight: 600,
+          background: 'rgba(168,85,247,0.08)',
           borderRadius: 6, padding: '2px 8px',
         }}>
           <FileText size={12} />
