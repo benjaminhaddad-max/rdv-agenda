@@ -104,7 +104,9 @@ export async function GET(req: NextRequest) {
 
     // ── Calcul repop ──────────────────────────────────────────────────────
     // Si le contact a soumis un formulaire APRÈS la date du RDV → repop détectée
-    const repopMs = hsContact?.recent_conversion_date ? Number(hsContact.recent_conversion_date) : null
+    // Fix: recent_conversion_date est une ISO string, pas un ms timestamp
+    const _repopRaw = hsContact?.recent_conversion_date
+    const repopMs = _repopRaw ? (() => { const ms = new Date(_repopRaw).getTime(); return isNaN(ms) ? null : ms })() : null
 
     function calcRepop(startAt: string) {
       if (!repopMs) return { repop_form_date: null, repop_form_name: null }

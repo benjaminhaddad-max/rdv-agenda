@@ -10,8 +10,12 @@
  *   ?scope=admin                             → tous les deals (Pascal)
  *
  * Seuls les deals en "À replanifier" ou "Délai de réflexion" sont retournés.
- * Les stages Pré-inscription / Finalisation / Inscription confirmée sont exclus
- * (ils ne peuvent pas être dans les stages cibles — sécurité supplémentaire).
+ *
+ * Fix : recent_conversion_date est une ISO string, pas un ms timestamp.
+ *       La date de référence est le start_at Supabase (date réelle du RDV),
+ *       avec fallback sur createdate HubSpot (date création du deal).
+ *       Le closedate HubSpot vaut l'année académique (2027) et N'EST PAS
+ *       la date du RDV passé.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -57,7 +61,18 @@ export async function GET(req: NextRequest) {
 
   if (deals.length === 0) return NextResponse.json([])
 
-  // 2. Récupérer les contacts en parallèle pour chaque deal
+  // 2. Récupérer les appointments Supabase pour TOUS les deals (date réelle du RDV)
+  //    NOTE: closedate HubSpot = date académique (2027), pas la date du RDV passé
+  const db = createServiceClient()
+  const allDealIds = deals.map(d => d.id)
+  const { data: appointments } = await db
+    .from('rdv_appointments')
+    .select('hubspot_deal_id, commercial_id, telepro_id, start_at, users:commercial_id(name), telepro:telepro_id(name)')
+    .in('hubspot_deal_id', allDealIds)
+
+  const apptByDealId = new Map((appointments ?? []).map(a => [a.hubspot_deal_id as string, a]))
+
+  // 3. Récupérer les contacts en parallèle pour chaque deal
   const contactByDealId = new Map<string, {
     email?: string; phone?: string; firstname?: string; lastname?: string
     recent_conversion_date?: string; recent_conversion_event_name?: string
@@ -79,33 +94,33 @@ export async function GET(req: NextRequest) {
     } catch { /* ignore */ }
   }))
 
-  // 3. Filtrer : garder uniquement les deals où recent_conversion_date > closedate
+  // 4. Filtrer : garder les deals où recent_conversion_date > date réelle du RDV
+  //
+  //    Référence de date (par ordre de priorité) :
+  //    1. start_at Supabase (date du RDV exact)
+  //    2. createdate HubSpot (date de création du deal, proche de la date de pose RDV)
+  //
+  //    Fix bug: recent_conversion_date est une ISO string → new Date().getTime()
+  //    (Number("2026-03-07T...") = NaN — ancienne approche incorrecte)
   const repopDeals = deals.filter(deal => {
     const contact = contactByDealId.get(deal.id)
     if (!contact?.recent_conversion_date) return false
 
-    const repopMs = Number(contact.recent_conversion_date)
-    const closedateStr = deal.properties.closedate
-    if (!closedateStr) return false
+    const repopMs = new Date(contact.recent_conversion_date).getTime()
+    if (isNaN(repopMs)) return false
 
-    const closedateMs = new Date(
-      closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`
-    ).getTime()
+    // Date de référence = start_at Supabase si dispo, sinon createdate deal
+    const appt = apptByDealId.get(deal.id)
+    const referenceDate = appt?.start_at ?? deal.properties.createdate
+    if (!referenceDate) return false
 
-    return repopMs > closedateMs
+    const referenceMs = new Date(referenceDate).getTime()
+    if (isNaN(referenceMs)) return false
+
+    return repopMs > referenceMs
   })
 
   if (repopDeals.length === 0) return NextResponse.json([])
-
-  // 4. Enrichir avec les données Supabase (nom du closer, nom du télépro)
-  const db = createServiceClient()
-  const dealIds = repopDeals.map(d => d.id)
-  const { data: appointments } = await db
-    .from('rdv_appointments')
-    .select('hubspot_deal_id, commercial_id, telepro_id, start_at, users:commercial_id(name), telepro:telepro_id(name)')
-    .in('hubspot_deal_id', dealIds)
-
-  const apptByDealId = new Map((appointments ?? []).map(a => [a.hubspot_deal_id as string, a]))
 
   // 5. Construire le résultat final
   const result = repopDeals.map(deal => {
@@ -113,9 +128,15 @@ export async function GET(req: NextRequest) {
     const appt = apptByDealId.get(deal.id)
     const stageInfo = STAGE_LABELS[deal.properties.dealstage] ?? { label: '—', color: '#8b8fa8' }
 
-    const repopMs = Number(contact.recent_conversion_date!)
-    const closedateStr = deal.properties.closedate!
-    const rdvDate = closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`
+    const repopMs = new Date(contact.recent_conversion_date!).getTime()
+
+    // Date du RDV affiché = start_at Supabase → closedate HubSpot → createdate
+    const rdvDate = appt?.start_at
+      ?? (deal.properties.closedate
+        ? (deal.properties.closedate.includes('T')
+          ? deal.properties.closedate
+          : `${deal.properties.closedate}T00:00:00.000Z`)
+        : new Date(deal.properties.createdate ?? '').toISOString())
 
     const dealname = deal.properties.dealname ?? ''
     const prospectName = contact.firstname || contact.lastname
