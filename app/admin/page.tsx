@@ -9,6 +9,7 @@ import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
 import DoublonsManager from '@/components/DoublonsManager'
 import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
+import RepopJournal from '@/components/RepopJournal'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminPage() {
@@ -18,6 +19,7 @@ export default function AdminPage() {
   const [showClosers, setShowClosers] = useState(false)
   const [showDoublons, setShowDoublons] = useState(false)
   const [showCheckRdv, setShowCheckRdv] = useState(false)
+  const [showRepop, setShowRepop] = useState(false)
 
   // Quand un RDV est assigné, on rafraîchit le calendrier
   const handleAssigned = useCallback(() => {
@@ -100,6 +102,18 @@ export default function AdminPage() {
           >
             <GitMerge size={13} />
             Doublons
+          </button>
+          <button
+            onClick={() => setShowRepop(true)}
+            style={{
+              background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#fb923c', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            🔁 Repop
           </button>
           <button
             onClick={() => setShowAvailability(true)}
@@ -187,6 +201,23 @@ export default function AdminPage() {
       {/* Panel check RDV closer */}
       {showCheckRdv && (
         <CheckRdvCloserPanel onClose={() => setShowCheckRdv(false)} />
+      )}
+      {/* Panel Journal Repop */}
+      {showRepop && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
+        >
+          <div style={{ background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button
+              onClick={() => setShowRepop(false)}
+              style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}
+            >
+              ✕
+            </button>
+            <RepopJournal scope="admin" />
+          </div>
+        </div>
       )}
     </div>
   )

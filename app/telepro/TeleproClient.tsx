@@ -12,6 +12,7 @@ import {
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
+import RepopJournal from '@/components/RepopJournal'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -438,7 +439,7 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop'>('rdvs')
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
@@ -510,6 +511,8 @@ export default function TeleproClient({
     hs_stage_color: string | null
     telepro_suivi: string | null
     telepro_suivi_at: string | null
+    repop_form_date?: string | null
+    repop_form_name?: string | null
   }
   type EngInfo = {
     engagements: Array<{
@@ -1044,6 +1047,15 @@ export default function TeleproClient({
                     🔔 {repriseCount}
                   </span>
                 )}
+              </button>
+              <button onClick={() => setActiveTab('repop')} style={{
+                background: activeTab === 'repop' ? 'rgba(251,146,60,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'repop' ? 'rgba(251,146,60,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'repop' ? '#fb923c' : '#8b8fa8',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}>
+                🔁 Repop
               </button>
             </>
           )}
@@ -1832,6 +1844,15 @@ export default function TeleproClient({
                       {rdv.hs_stage_label}
                     </span>
                   )}
+                  {rdv.repop_form_date && (
+                    <span style={{
+                      background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)',
+                      color: '#fb923c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                      flexShrink: 0,
+                    }}>
+                      🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
+                    </span>
+                  )}
                 </div>
 
                 {/* Infos prospect */}
@@ -1924,6 +1945,15 @@ export default function TeleproClient({
             )
           })}
         </div>
+      )}
+
+      {/* ── Onglet Repop ────────────────────────────────────────────── */}
+      {activeTab === 'repop' && !isAdmin && (
+        <RepopJournal
+          hubspotOwnerId={teleproUser.hubspot_owner_id ?? undefined}
+          scope="telepro"
+          scopeId={teleproUser.id}
+        />
       )}
 
       {/* Modal AppointmentModal pour l'historique */}

@@ -1,0 +1,156 @@
+/**
+ * GET /api/repop
+ *
+ * Retourne la liste des prospects qui ont resoumis un formulaire HubSpot
+ * APRÈS la date de leur rendez-vous (signal "repop").
+ *
+ * Scope :
+ *   ?commercial_id=xxx&hubspot_owner_id=xxx  → deals du closer
+ *   ?telepro_id=xxx&hubspot_owner_id=xxx     → deals placés par le télépro
+ *   ?scope=admin                             → tous les deals (Pascal)
+ *
+ * Seuls les deals en "À replanifier" ou "Délai de réflexion" sont retournés.
+ * Les stages Pré-inscription / Finalisation / Inscription confirmée sont exclus
+ * (ils ne peuvent pas être dans les stages cibles — sécurité supplémentaire).
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase'
+import {
+  searchDealsByStages,
+  getDealContactInfo,
+  PIPELINE_2026_2027,
+  STAGES,
+} from '@/lib/hubspot'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+
+const STAGE_LABELS: Record<string, { label: string; color: string }> = {
+  [STAGES.aReplanifier]:   { label: 'À replanifier',      color: '#f97316' },
+  [STAGES.delaiReflexion]: { label: 'Délai de réflexion', color: '#eab308' },
+  [STAGES.fermePerdu]:     { label: 'Fermé / Perdu',      color: '#ef4444' },
+}
+
+const HS_FORMATION_MAP: Record<string, string> = {
+  'PAS': 'PASS', 'LAS': 'LAS', 'P-1': 'P-1', 'P-2': 'P-2',
+  'APES0': 'APES0', 'LAS 2 UPEC': 'LAS 2 UPEC', 'LAS 3 UPEC': 'LAS 3 UPEC',
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl
+  const scope = searchParams.get('scope')            // 'admin'
+  const hubspotOwnerId = searchParams.get('hubspot_owner_id')
+
+  // Déterminer le scope (closer / telepro / admin)
+  const isAdmin = scope === 'admin'
+  const ownerType = searchParams.has('telepro_id') ? 'telepro' : 'closer'
+
+  // Stages cibles : À replanifier + Délai de réflexion
+  const targetStages = [STAGES.aReplanifier, STAGES.delaiReflexion]
+
+  // 1. Chercher les deals HubSpot dans les stages cibles
+  const deals = await searchDealsByStages(
+    PIPELINE_2026_2027,
+    targetStages,
+    isAdmin ? undefined : (hubspotOwnerId ? { ownerId: hubspotOwnerId, ownerType } : undefined)
+  )
+
+  if (deals.length === 0) return NextResponse.json([])
+
+  // 2. Récupérer les contacts en parallèle pour chaque deal
+  const contactByDealId = new Map<string, {
+    email?: string; phone?: string; firstname?: string; lastname?: string
+    recent_conversion_date?: string; recent_conversion_event_name?: string
+  }>()
+
+  await Promise.all(deals.map(async (deal) => {
+    try {
+      const contact = await getDealContactInfo(deal.id)
+      if (contact) {
+        contactByDealId.set(deal.id, {
+          email: contact.properties.email,
+          phone: contact.properties.phone,
+          firstname: contact.properties.firstname,
+          lastname: contact.properties.lastname,
+          recent_conversion_date: contact.properties.recent_conversion_date,
+          recent_conversion_event_name: contact.properties.recent_conversion_event_name,
+        })
+      }
+    } catch { /* ignore */ }
+  }))
+
+  // 3. Filtrer : garder uniquement les deals où recent_conversion_date > closedate
+  const repopDeals = deals.filter(deal => {
+    const contact = contactByDealId.get(deal.id)
+    if (!contact?.recent_conversion_date) return false
+
+    const repopMs = Number(contact.recent_conversion_date)
+    const closedateStr = deal.properties.closedate
+    if (!closedateStr) return false
+
+    const closedateMs = new Date(
+      closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`
+    ).getTime()
+
+    return repopMs > closedateMs
+  })
+
+  if (repopDeals.length === 0) return NextResponse.json([])
+
+  // 4. Enrichir avec les données Supabase (nom du closer, nom du télépro)
+  const db = createServiceClient()
+  const dealIds = repopDeals.map(d => d.id)
+  const { data: appointments } = await db
+    .from('rdv_appointments')
+    .select('hubspot_deal_id, commercial_id, telepro_id, start_at, users:commercial_id(name), telepro:telepro_id(name)')
+    .in('hubspot_deal_id', dealIds)
+
+  const apptByDealId = new Map((appointments ?? []).map(a => [a.hubspot_deal_id as string, a]))
+
+  // 5. Construire le résultat final
+  const result = repopDeals.map(deal => {
+    const contact = contactByDealId.get(deal.id)!
+    const appt = apptByDealId.get(deal.id)
+    const stageInfo = STAGE_LABELS[deal.properties.dealstage] ?? { label: '—', color: '#8b8fa8' }
+
+    const repopMs = Number(contact.recent_conversion_date!)
+    const closedateStr = deal.properties.closedate!
+    const rdvDate = closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`
+
+    const dealname = deal.properties.dealname ?? ''
+    const prospectName = contact.firstname || contact.lastname
+      ? [contact.firstname, contact.lastname].filter(Boolean).join(' ')
+      : dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
+
+    const rawFormation = deal.properties.diploma_sante___formation
+    const formationType = rawFormation ? (HS_FORMATION_MAP[rawFormation] ?? rawFormation) : null
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const commercialName = (appt as any)?.users?.name ?? null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teleproName = (appt as any)?.telepro?.name ?? null
+
+    return {
+      hubspot_deal_id: deal.id,
+      prospect_name: prospectName,
+      prospect_phone: contact.phone ?? null,
+      prospect_email: contact.email ?? '',
+      rdv_date: rdvDate,
+      rdv_date_label: format(new Date(rdvDate), "d MMM yyyy 'à' HH'h'mm", { locale: fr }),
+      hs_stage: deal.properties.dealstage,
+      hs_stage_label: stageInfo.label,
+      hs_stage_color: stageInfo.color,
+      formation_type: formationType,
+      commercial_name: commercialName,
+      telepro_name: teleproName,
+      repop_form_date: new Date(repopMs).toISOString(),
+      repop_form_date_label: format(new Date(repopMs), "d MMM 'à' HH'h'mm", { locale: fr }),
+      repop_form_name: contact.recent_conversion_event_name ?? null,
+    }
+  })
+
+  // Trier par repop_form_date décroissant (plus récent en premier)
+  result.sort((a, b) => b.repop_form_date.localeCompare(a.repop_form_date))
+
+  return NextResponse.json(result)
+}

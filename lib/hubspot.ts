@@ -30,7 +30,7 @@ export const STAGES = {
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
 export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
-const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,diploma_sante___formation_demandee,hubspot_owner_id'
+const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,diploma_sante___formation_demandee,hubspot_owner_id,recent_conversion_date,recent_conversion_event_name'
 
 export interface HubSpotContact {
   id: string
@@ -43,6 +43,10 @@ export interface HubSpotContact {
     classe_actuelle?: string
     diploma_sante___formation_demandee?: string
     hubspot_owner_id?: string
+    /** ms timestamp en string — date de la dernière soumission de formulaire */
+    recent_conversion_date?: string
+    /** Nom du formulaire HubSpot soumis en dernier */
+    recent_conversion_event_name?: string
   }
 }
 
@@ -394,6 +398,75 @@ export async function getDealContactInfo(dealId: string): Promise<HubSpotContact
     return getContact(String(contactId))
   } catch {
     return null
+  }
+}
+
+// ─── Chercher des deals par étapes (pour le Journal des Repop) ────────────
+// Retourne les deals d'un pipeline dont le stage est dans la liste fournie.
+// Optionnellement filtré par owner (hubspot_owner_id pour les closers,
+// teleprospecteur pour les télépros). Sans option = tous les deals (admin).
+export async function searchDealsByStages(
+  pipelineId: string,
+  stages: string[],
+  options?: {
+    ownerId?: string
+    ownerType?: 'closer' | 'telepro'
+  }
+): Promise<Array<{
+  id: string
+  properties: {
+    dealname: string
+    dealstage: string
+    closedate: string
+    createdate: string
+    hubspot_owner_id?: string
+    teleprospecteur?: string
+    description?: string
+    diploma_sante___formation?: string
+  }
+}>> {
+  // Construire les filterGroups : OR entre les stages, AND avec le pipeline et l'owner éventuel
+  const stageFilters = stages.map(stage => ({
+    filters: [
+      { propertyName: 'pipeline',   operator: 'EQ', value: pipelineId },
+      { propertyName: 'dealstage',  operator: 'EQ', value: stage },
+      ...(options?.ownerId ? [{
+        propertyName: options.ownerType === 'telepro' ? 'teleprospecteur' : 'hubspot_owner_id',
+        operator: 'EQ',
+        value: options.ownerId,
+      }] : []),
+    ],
+  }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allResults: any[] = []
+  let after: string | undefined = undefined
+
+  try {
+    do {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: any = {
+        filterGroups: stageFilters,
+        properties: ['dealname', 'dealstage', 'closedate', 'createdate', 'hubspot_owner_id', 'teleprospecteur', 'description', 'diploma_sante___formation'],
+        sorts: [{ propertyName: 'closedate', direction: 'DESCENDING' }],
+        limit: 100,
+      }
+      if (after) body.after = after
+
+      const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: any[] = data.results ?? []
+      allResults.push(...results)
+      after = data.paging?.next?.after ?? undefined
+    } while (after)
+
+    return allResults
+  } catch {
+    return allResults
   }
 }
 

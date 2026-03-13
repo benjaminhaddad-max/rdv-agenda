@@ -68,9 +68,13 @@ export async function GET(req: NextRequest) {
     return match ? match[1].trim() : null
   }
 
-  // Récupérer les contacts HubSpot pour enrichir les données prospect
+  // Récupérer les contacts HubSpot pour enrichir les données prospect + détecter les repops
   // On fetch en parallèle pour tous les deals (max 200)
-  const contactByDealId = new Map<string, { email?: string; phone?: string; firstname?: string; lastname?: string; classe_actuelle?: string; departement?: string; formation?: string }>()
+  const contactByDealId = new Map<string, {
+    email?: string; phone?: string; firstname?: string; lastname?: string
+    classe_actuelle?: string; departement?: string; formation?: string
+    recent_conversion_date?: string; recent_conversion_event_name?: string
+  }>()
   const contactPromises = hsDeals.map(async (deal) => {
     try {
       const contact = await getDealContactInfo(deal.id)
@@ -83,6 +87,8 @@ export async function GET(req: NextRequest) {
           classe_actuelle: contact.properties.classe_actuelle,
           departement: contact.properties.departement,
           formation: contact.properties.diploma_sante___formation_demandee,
+          recent_conversion_date: contact.properties.recent_conversion_date,
+          recent_conversion_event_name: contact.properties.recent_conversion_event_name,
         })
       }
     } catch { /* ignore */ }
@@ -96,6 +102,19 @@ export async function GET(req: NextRequest) {
     const appt = apptByDealId.get(deal.id)
     const hsContact = contactByDealId.get(deal.id)
 
+    // ── Calcul repop ──────────────────────────────────────────────────────
+    // Si le contact a soumis un formulaire APRÈS la date du RDV → repop détectée
+    const repopMs = hsContact?.recent_conversion_date ? Number(hsContact.recent_conversion_date) : null
+
+    function calcRepop(startAt: string) {
+      if (!repopMs) return { repop_form_date: null, repop_form_name: null }
+      const hasRepop = repopMs > new Date(startAt).getTime()
+      return {
+        repop_form_date: hasRepop ? new Date(repopMs).toISOString() : null,
+        repop_form_name: hasRepop ? (hsContact?.recent_conversion_event_name ?? null) : null,
+      }
+    }
+
     if (appt) {
       return {
         ...appt,
@@ -108,6 +127,7 @@ export async function GET(req: NextRequest) {
         hs_stage: deal.properties.dealstage ?? null,
         hs_stage_label: stageInfo.label,
         hs_stage_color: stageInfo.color,
+        ...calcRepop(appt.start_at),
       }
     }
 
@@ -149,6 +169,7 @@ export async function GET(req: NextRequest) {
       hs_stage_color: stageInfo.color,
       telepro_suivi: suivi?.telepro_suivi ?? null,
       telepro_suivi_at: suivi?.telepro_suivi_at ?? null,
+      ...calcRepop(startAt),
     }
   })
 

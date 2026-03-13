@@ -13,6 +13,7 @@ import WeekCalendar from '@/components/WeekCalendar'
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
+import RepopJournal from '@/components/RepopJournal'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -49,6 +50,8 @@ type HistRdv = {
   hs_stage: string | null
   hs_stage_label: string | null
   hs_stage_color: string | null
+  repop_form_date?: string | null
+  repop_form_name?: string | null
 }
 
 
@@ -151,7 +154,7 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
-  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique'>('planning')
+  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop'>('planning')
 
   // ── Historique ──
   const [histRdvs, setHistRdvs] = useState<HistRdv[]>([])
@@ -613,6 +616,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
             { key: 'historique' as const, label: 'Historique', icon: <Clock size={13} /> },
+            { key: 'repop' as const, label: '🔁 Repop', icon: null },
             { key: 'dispos' as const, label: 'Mes dispos', icon: <Clock size={13} /> },
           ]).map(tab => (
             <button
@@ -1125,6 +1129,15 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         {rdv.hs_stage_label}
                       </span>
                     )}
+                    {rdv.repop_form_date && (
+                      <span style={{
+                        background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)',
+                        color: '#fb923c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        flexShrink: 0,
+                      }}>
+                        🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
+                      </span>
+                    )}
                   </div>
 
                   {/* Infos prospect */}
@@ -1217,6 +1230,17 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Tab: Repop ───────────────────────────────────────────────── */}
+      {activeTab === 'repop' && (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <RepopJournal
+            hubspotOwnerId={user.hubspot_owner_id}
+            scope="closer"
+            scopeId={user.id}
+          />
         </div>
       )}
 

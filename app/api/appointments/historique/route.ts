@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { searchDealsByOwner, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
+import { searchDealsByOwner, getDealContactInfo, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
@@ -71,28 +71,66 @@ export async function GET(req: NextRequest) {
     return match ? match[1].trim() : null
   }
 
-  // 3. Construire les résultats : préférer la data Supabase, sinon data HubSpot seule
+  // 3. Récupérer les contacts HubSpot pour enrichir + détecter les repops
+  const contactByDealId = new Map<string, {
+    email?: string; phone?: string; firstname?: string; lastname?: string
+    recent_conversion_date?: string; recent_conversion_event_name?: string
+  }>()
+  const contactPromises = hsDeals.map(async (deal) => {
+    try {
+      const contact = await getDealContactInfo(deal.id)
+      if (contact) {
+        contactByDealId.set(deal.id, {
+          email: contact.properties.email,
+          phone: contact.properties.phone,
+          firstname: contact.properties.firstname,
+          lastname: contact.properties.lastname,
+          recent_conversion_date: contact.properties.recent_conversion_date,
+          recent_conversion_event_name: contact.properties.recent_conversion_event_name,
+        })
+      }
+    } catch { /* ignore */ }
+  })
+  await Promise.all(contactPromises)
+
+  // 4. Construire les résultats : préférer la data Supabase, sinon data HubSpot seule
   const result = hsDeals.map(deal => {
     const stageInfo = STAGE_LABELS[deal.properties.dealstage]
       ?? { label: deal.properties.dealstage ?? '—', color: '#8b8fa8' }
     const appt = apptByDealId.get(deal.id)
+    const hsContact = contactByDealId.get(deal.id)
+
+    // ── Calcul repop ──────────────────────────────────────────────────────
+    const repopMs = hsContact?.recent_conversion_date ? Number(hsContact.recent_conversion_date) : null
+
+    function calcRepop(startAt: string) {
+      if (!repopMs) return { repop_form_date: null, repop_form_name: null }
+      const hasRepop = repopMs > new Date(startAt).getTime()
+      return {
+        repop_form_date: hasRepop ? new Date(repopMs).toISOString() : null,
+        repop_form_name: hasRepop ? (hsContact?.recent_conversion_event_name ?? null) : null,
+      }
+    }
 
     if (appt) {
-      // Appointment trouvé en Supabase : enrichir avec le stage HubSpot actuel
+      // Appointment trouvé en Supabase : enrichir avec le stage HubSpot actuel + repop
       return {
         ...appt,
+        prospect_phone: appt.prospect_phone || hsContact?.phone || null,
         formation_type: HS_FORMATION_MAP[appt.formation_type] ?? appt.formation_type ?? getFormation(deal),
         hs_stage: deal.properties.dealstage ?? null,
         hs_stage_label: stageInfo.label,
         hs_stage_color: stageInfo.color,
+        ...calcRepop(appt.start_at),
       }
     }
 
     // Pas de match Supabase : retourner les données HubSpot seules
-    // Le nom du deal est "RDV Découverte — Prénom Nom"
     const dealname = deal.properties.dealname ?? ''
-    const prospectName = dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
-    const closedateStr = deal.properties.closedate // "YYYY-MM-DD" ou ISO
+    const prospectName = hsContact
+      ? [hsContact.firstname, hsContact.lastname].filter(Boolean).join(' ') || dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
+      : dealname.replace(/^RDV Découverte — /i, '').trim() || dealname
+    const closedateStr = deal.properties.closedate
     const startAt = closedateStr
       ? (closedateStr.includes('T') ? closedateStr : `${closedateStr}T00:00:00.000Z`)
       : new Date(parseInt(deal.properties.createdate ?? '0')).toISOString()
@@ -102,8 +140,8 @@ export async function GET(req: NextRequest) {
     return {
       id: deal.id,
       prospect_name: prospectName,
-      prospect_email: '',
-      prospect_phone: null,
+      prospect_email: hsContact?.email || '',
+      prospect_phone: hsContact?.phone || null,
       start_at: startAt,
       end_at: startAt,
       status: 'confirme' as const,
@@ -124,6 +162,7 @@ export async function GET(req: NextRequest) {
       hs_stage_color: stageInfo.color,
       telepro_suivi: suivi?.telepro_suivi ?? null,
       telepro_suivi_at: suivi?.telepro_suivi_at ?? null,
+      ...calcRepop(startAt),
     }
   })
 
