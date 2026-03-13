@@ -72,27 +72,32 @@ export async function GET(req: NextRequest) {
 
   const apptByDealId = new Map((appointments ?? []).map(a => [a.hubspot_deal_id as string, a]))
 
-  // 3. Récupérer les contacts en parallèle pour chaque deal
+  // 3. Récupérer les contacts en BATCHES de 15 pour éviter le rate-limit HubSpot
+  //    (738 appels en parallèle → certains échouent → résultats inconsistants)
   const contactByDealId = new Map<string, {
     email?: string; phone?: string; firstname?: string; lastname?: string
     recent_conversion_date?: string; recent_conversion_event_name?: string
   }>()
 
-  await Promise.all(deals.map(async (deal) => {
-    try {
-      const contact = await getDealContactInfo(deal.id)
-      if (contact) {
-        contactByDealId.set(deal.id, {
-          email: contact.properties.email,
-          phone: contact.properties.phone,
-          firstname: contact.properties.firstname,
-          lastname: contact.properties.lastname,
-          recent_conversion_date: contact.properties.recent_conversion_date,
-          recent_conversion_event_name: contact.properties.recent_conversion_event_name,
-        })
-      }
-    } catch { /* ignore */ }
-  }))
+  const BATCH_SIZE = 15
+  for (let i = 0; i < deals.length; i += BATCH_SIZE) {
+    const batch = deals.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(async (deal) => {
+      try {
+        const contact = await getDealContactInfo(deal.id)
+        if (contact) {
+          contactByDealId.set(deal.id, {
+            email: contact.properties.email,
+            phone: contact.properties.phone,
+            firstname: contact.properties.firstname,
+            lastname: contact.properties.lastname,
+            recent_conversion_date: contact.properties.recent_conversion_date,
+            recent_conversion_event_name: contact.properties.recent_conversion_event_name,
+          })
+        }
+      } catch { /* ignore */ }
+    }))
+  }
 
   // 4. Filtrer : garder les deals où recent_conversion_date > date réelle du RDV
   //

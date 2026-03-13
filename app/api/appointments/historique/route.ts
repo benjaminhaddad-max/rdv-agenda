@@ -76,22 +76,25 @@ export async function GET(req: NextRequest) {
     email?: string; phone?: string; firstname?: string; lastname?: string
     recent_conversion_date?: string; recent_conversion_event_name?: string
   }>()
-  const contactPromises = hsDeals.map(async (deal) => {
-    try {
-      const contact = await getDealContactInfo(deal.id)
-      if (contact) {
-        contactByDealId.set(deal.id, {
-          email: contact.properties.email,
-          phone: contact.properties.phone,
-          firstname: contact.properties.firstname,
-          lastname: contact.properties.lastname,
-          recent_conversion_date: contact.properties.recent_conversion_date,
-          recent_conversion_event_name: contact.properties.recent_conversion_event_name,
-        })
-      }
-    } catch { /* ignore */ }
-  })
-  await Promise.all(contactPromises)
+  // Batches de 15 pour éviter le rate-limit HubSpot
+  const BATCH_SIZE = 15
+  for (let i = 0; i < hsDeals.length; i += BATCH_SIZE) {
+    await Promise.all(hsDeals.slice(i, i + BATCH_SIZE).map(async (deal) => {
+      try {
+        const contact = await getDealContactInfo(deal.id)
+        if (contact) {
+          contactByDealId.set(deal.id, {
+            email: contact.properties.email,
+            phone: contact.properties.phone,
+            firstname: contact.properties.firstname,
+            lastname: contact.properties.lastname,
+            recent_conversion_date: contact.properties.recent_conversion_date,
+            recent_conversion_event_name: contact.properties.recent_conversion_event_name,
+          })
+        }
+      } catch { /* ignore */ }
+    }))
+  }
 
   // 4. Construire les résultats : préférer la data Supabase, sinon data HubSpot seule
   const result = hsDeals.map(deal => {
