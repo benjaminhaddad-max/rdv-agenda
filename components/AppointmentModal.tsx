@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw } from 'lucide-react'
+import { useState, useRef, lazy, Suspense } from 'react'
+import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw, Sparkles } from 'lucide-react'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import AssignModal from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+
+const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
 type Appointment = {
   id: string
@@ -82,6 +84,8 @@ export default function AppointmentModal({
   const [reportError, setReportError] = useState(false)
   const [confirmingProspect, setConfirmingProspect] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
+  const [showJitsi, setShowJitsi] = useState(false)
+  const [aiGenerated, setAiGenerated] = useState(false)
 
   // New closer report fields
   const [negatifReason, setNegatifReason] = useState<string | null>(appointment.negatif_reason || null)
@@ -372,19 +376,18 @@ export default function AppointmentModal({
                 <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0 }} />
                 <span style={{ color: meetingInfo.color, fontWeight: 600 }}>{meetingInfo.label}</span>
                 {appointment.meeting_type === 'visio' && appointment.meeting_link && (
-                  <a
-                    href={appointment.meeting_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setShowJitsi(true)}
                     style={{
                       background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)',
                       borderRadius: 6, padding: '2px 10px',
                       color: '#6b87ff', fontSize: 12, fontWeight: 600,
-                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontFamily: 'inherit',
                     }}
                   >
-                    <Video size={11} /> Rejoindre
-                  </a>
+                    <Video size={11} /> Rejoindre (IA activée)
+                  </button>
                 )}
               </div>
             )}
@@ -849,6 +852,18 @@ export default function AppointmentModal({
                 </span>
               )}
             </div>
+            {aiGenerated && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+                background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
+                borderRadius: 8, padding: '6px 12px',
+              }}>
+                <Sparkles size={14} style={{ color: '#8b5cf6' }} />
+                <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>
+                  Rapport pré-rempli par l&apos;IA — vous pouvez le modifier avant de valider
+                </span>
+              </div>
+            )}
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 4, fontWeight: 600 }}>Résumé du RDV</div>
               <textarea
@@ -928,6 +943,22 @@ export default function AppointmentModal({
         reassign={!!appointment.users}
         currentCloserId={appointment.users?.id ?? null}
       />
+    )}
+
+    {showJitsi && appointment.meeting_link && (
+      <Suspense fallback={null}>
+        <JitsiMeeting
+          meetingLink={appointment.meeting_link}
+          appointmentId={appointment.id}
+          onClose={() => setShowJitsi(false)}
+          onReportGenerated={(summary, advice) => {
+            setReportSummary(summary)
+            setReportTelepro(advice)
+            setAiGenerated(true)
+            onUpdate({ report_summary: summary, report_telepro_advice: advice })
+          }}
+        />
+      </Suspense>
     )}
     </>
   )
