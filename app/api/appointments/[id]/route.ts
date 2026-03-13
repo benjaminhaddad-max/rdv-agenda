@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
   const {
-    status, notes, commercial_id, report_summary, report_telepro_advice, telepro_suivi,
+    status, notes, commercial_id, report_summary, report_telepro_advice, telepro_suivi, reassign,
     negatif_reason, negatif_reason_detail, interlocuteur_principal,
     consigne_text, consigne_echeance, consigne_rien_a_faire,
     contexte_concurrence, financement, jpo_invitation,
@@ -31,28 +31,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'RDV introuvable' }, { status: 404 })
   }
 
-  // === CAS 1 : ASSIGNATION (Pascal assigne à un closer) ===
+  // === CAS 1 : ASSIGNATION / RÉASSIGNATION (Pascal assigne à un closer) ===
   if (commercial_id !== undefined) {
-    // Vérifier disponibilité du closer au créneau
-    const { data: conflict } = await db
-      .from('rdv_appointments')
-      .select('id')
-      .eq('commercial_id', commercial_id)
-      .neq('status', 'annule')
-      .neq('id', id)
-      .lt('start_at', appointment.start_at)
-      .gt('end_at', appointment.start_at)
-      .limit(1)
+    // Vérifier disponibilité du closer au créneau (sauf en mode réassignation forcée)
+    if (!reassign) {
+      const { data: conflict } = await db
+        .from('rdv_appointments')
+        .select('id')
+        .eq('commercial_id', commercial_id)
+        .neq('status', 'annule')
+        .neq('id', id)
+        .lt('start_at', appointment.start_at)
+        .gt('end_at', appointment.start_at)
+        .limit(1)
 
-    if (conflict && conflict.length > 0) {
-      return NextResponse.json({ error: 'Le closer a déjà un RDV à ce créneau' }, { status: 409 })
+      if (conflict && conflict.length > 0) {
+        return NextResponse.json({ error: 'Le closer a déjà un RDV à ce créneau' }, { status: 409 })
+      }
     }
+
+    // En réassignation : garder le statut actuel ; en assignation initiale : forcer 'confirme'
+    const newStatus = reassign ? appointment.status : 'confirme'
 
     const { data: updated, error: updateErr } = await db
       .from('rdv_appointments')
       .update({
         commercial_id,
-        status: 'confirme',
+        status: newStatus,
       })
       .eq('id', id)
       .select()
@@ -72,6 +77,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (appointment.hubspot_deal_id) {
           // Deal existe déjà → mettre à jour le propriétaire
           await updateDealOwner(appointment.hubspot_deal_id, closer.hubspot_owner_id)
+          // En réassignation : ajouter une note dans HubSpot
+          if (reassign) {
+            await addNoteToEngagements({
+              dealId: appointment.hubspot_deal_id,
+              contactId: appointment.hubspot_contact_id || null,
+              body: `🔄 RDV RÉASSIGNÉ\nNouveau closer : ${closer.name}\n(Réassignation manuelle par Pascal)`,
+            })
+          }
         } else {
           // Deal pas encore créé → le créer maintenant
           const enrichedNotes = [

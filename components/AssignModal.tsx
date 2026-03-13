@@ -44,10 +44,14 @@ export default function AssignModal({
   appointment,
   onClose,
   onAssigned,
+  reassign = false,
+  currentCloserId,
 }: {
   appointment: Appointment
   onClose: () => void
   onAssigned: (updatedAppointment: Record<string, unknown>) => void
+  reassign?: boolean
+  currentCloserId?: string | null
 }) {
   const [closers, setClosers] = useState<Commercial[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -137,7 +141,7 @@ export default function AssignModal({
       const res = await fetch(`/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commercial_id: selected }),
+        body: JSON.stringify({ commercial_id: selected, ...(reassign ? { reassign: true } : {}) }),
       })
       if (res.ok) {
         const updated = await res.json()
@@ -207,8 +211,8 @@ export default function AssignModal({
           flexShrink: 0,
         }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
-              Assigner le RDV
+            <div style={{ fontSize: 11, fontWeight: 600, color: reassign ? '#6b87ff' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+              {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0' }}>
               {appointment.prospect_name}
@@ -263,6 +267,7 @@ export default function AssignModal({
             {closers.map((closer, idx) => {
               const color = COLORS[idx % COLORS.length]
               const isSelected = selected === closer.id
+              const isCurrent = reassign && currentCloserId === closer.id
               const load = closer.rdv_count || 0
               const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#f59e0b' : '#ef4444'
               const available = closer.is_available
@@ -299,6 +304,15 @@ export default function AssignModal({
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 600, fontSize: 14, color: '#e8eaf0' }}>{closer.name}</span>
+                      {isCurrent && (
+                        <span style={{
+                          background: 'rgba(107,135,255,0.15)', color: '#6b87ff',
+                          borderRadius: 6, padding: '1px 8px',
+                          fontSize: 10, fontWeight: 700,
+                        }}>
+                          Actuel
+                        </span>
+                      )}
                       {available && (
                         <span style={{
                           background: 'rgba(34,197,94,0.15)', color: '#22c55e',
@@ -439,7 +453,7 @@ export default function AssignModal({
               }}
             >
               <User size={16} />
-              {assigning ? 'Assignation…' : 'Assigner ce closer'}
+              {assigning ? (reassign ? 'Réassignation…' : 'Assignation…') : (reassign ? 'Réassigner ce closer' : 'Assigner ce closer')}
             </button>
           </div>
         </div>

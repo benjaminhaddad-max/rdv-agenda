@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ExternalLink, RefreshCw, AlertTriangle, Users, UserCheck, UserX } from 'lucide-react'
+import { X, ExternalLink, RefreshCw, AlertTriangle, Users, UserCheck, UserX, UserCog } from 'lucide-react'
 import type { RdvPrisAuditDeal } from '@/app/api/admin/check-rdv-closer/route'
+
+type Closer = { id: string; name: string; role: string; avatar_color: string }
 
 const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
@@ -59,6 +61,11 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
   const [actioning, setActioning] = useState<Record<string, 'aReplanifier' | 'delaiReflexion'>>({})
+  const [reassigningDeal, setReassigningDeal] = useState<RdvPrisAuditDeal | null>(null)
+  const [closers, setClosers] = useState<Closer[]>([])
+  const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null)
+  const [reassigning, setReassigning] = useState(false)
+  const [reassignError, setReassignError] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -71,6 +78,41 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   }
 
   useEffect(() => { load() }, [])
+
+  const openReassign = async (deal: RdvPrisAuditDeal) => {
+    setReassigningDeal(deal)
+    setSelectedCloserId(null)
+    setReassignError(null)
+    if (closers.length === 0) {
+      const res = await fetch('/api/users')
+      if (res.ok) {
+        const users: Closer[] = await res.json()
+        setClosers(users.filter(u => u.role === 'commercial' || u.role === 'admin'))
+      }
+    }
+  }
+
+  const doReassign = async () => {
+    if (!reassigningDeal || !selectedCloserId) return
+    setReassigning(true)
+    setReassignError(null)
+    try {
+      const res = await fetch(`/api/hubspot/deal/${reassigningDeal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ closerId: selectedCloserId }),
+      })
+      if (res.ok) {
+        setReassigningDeal(null)
+        setSelectedCloserId(null)
+      } else {
+        const data = await res.json()
+        setReassignError(data.error || 'Erreur lors de la réassignation')
+      }
+    } finally {
+      setReassigning(false)
+    }
+  }
 
   const updateStage = async (deal: RdvPrisAuditDeal, stage: 'aReplanifier' | 'delaiReflexion') => {
     setActioning(prev => ({ ...prev, [deal.id]: stage }))
@@ -104,6 +146,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const mouseDownOnBackdrop = { current: false }
 
   return (
+    <>
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', overflowY: 'auto' }}
       onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
@@ -283,7 +326,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                 </div>
 
                 {/* Boutons d'action */}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2130' }}>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2130', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => updateStage(deal, 'aReplanifier')}
                     disabled={isActioning}
@@ -312,6 +355,19 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                   >
                     {actioning[deal.id] === 'delaiReflexion' ? '⏳' : '⏰'} Délai de réflexion
                   </button>
+                  <button
+                    onClick={() => openReassign(deal)}
+                    disabled={isActioning}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: 'rgba(107,135,255,0.08)', border: '1px solid rgba(107,135,255,0.3)',
+                      borderRadius: 6, padding: '4px 11px', color: '#6b87ff',
+                      fontSize: 11, fontWeight: 600, cursor: isActioning ? 'default' : 'pointer',
+                      fontFamily: 'inherit', opacity: isActioning ? 0.7 : 1, marginLeft: 'auto',
+                    }}
+                  >
+                    <UserCog size={11} /> Réassigner closer
+                  </button>
                 </div>
               </div>
             )
@@ -321,5 +377,110 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
+
+    {/* Modal réassignation closer */}
+    {reassigningDeal && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1100,
+        background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      }}
+        onClick={e => e.target === e.currentTarget && setReassigningDeal(null)}
+      >
+        <div style={{
+          background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16,
+          width: '100%', maxWidth: 480, boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b87ff', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                🔄 Réassigner le closer
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf0' }}>
+                {reassigningDeal.dealname.replace(/^RDV Découverte — /i, '').trim() || reassigningDeal.dealname}
+              </div>
+            </div>
+            <button onClick={() => setReassigningDeal(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4 }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ padding: '12px 24px 16px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+              Choisir le nouveau closer
+            </div>
+            {closers.length === 0 && <div style={{ color: '#555870', fontSize: 13 }}>Chargement…</div>}
+            {closers.map((closer, idx) => {
+              const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#a855f7','#06b6d4','#ef4444','#f97316']
+              const color = COLORS[idx % COLORS.length]
+              const isSelected = selectedCloserId === closer.id
+              const isCurrent = reassigningDeal.owner_user?.id === closer.id
+              return (
+                <div
+                  key={closer.id}
+                  onClick={() => setSelectedCloserId(closer.id)}
+                  style={{
+                    background: isSelected ? `${color}12` : '#252840',
+                    border: `1px solid ${isSelected ? color : '#2a2d3e'}`,
+                    borderRadius: 10, padding: '10px 14px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9,
+                    background: `${color}20`, border: `1px solid ${color}40`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 700, color, flexShrink: 0,
+                  }}>
+                    {closer.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: '#e8eaf0' }}>{closer.name}</span>
+                      {isCurrent && (
+                        <span style={{ background: 'rgba(107,135,255,0.15)', color: '#6b87ff', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                          Actuel
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isSelected && <span style={{ color, fontSize: 16 }}>✓</span>}
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #2a2d3e' }}>
+            {reassignError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{reassignError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setReassigningDeal(null)}
+                style={{ flex: 1, background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 8, padding: '9px', color: '#8b8fa8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={doReassign}
+                disabled={!selectedCloserId || reassigning}
+                style={{
+                  flex: 2, background: selectedCloserId ? '#4f6ef7' : '#252840',
+                  border: 'none', borderRadius: 8, padding: '9px',
+                  color: selectedCloserId ? 'white' : '#555870', fontSize: 13,
+                  cursor: selectedCloserId ? 'pointer' : 'default', fontWeight: 700,
+                  fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <UserCog size={14} />
+                {reassigning ? 'Réassignation…' : 'Réassigner ce closer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

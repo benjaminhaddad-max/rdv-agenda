@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall } from 'lucide-react'
+import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw } from 'lucide-react'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
+import AssignModal from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -63,10 +64,12 @@ export default function AppointmentModal({
   appointment,
   onClose,
   onUpdate,
+  adminMode = false,
 }: {
   appointment: Appointment
   onClose: () => void
   onUpdate: (updated: Partial<Appointment>) => void
+  adminMode?: boolean
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appointment.status)
   const [pendingStatus, setPendingStatus] = useState<AppointmentStatus | null>(null)
@@ -77,6 +80,7 @@ export default function AppointmentModal({
   const [saved, setSaved] = useState(false)
   const [reportError, setReportError] = useState(false)
   const [confirmingProspect, setConfirmingProspect] = useState(false)
+  const [showReassignModal, setShowReassignModal] = useState(false)
 
   // New closer report fields
   const [negatifReason, setNegatifReason] = useState<string | null>(appointment.negatif_reason || null)
@@ -268,6 +272,7 @@ export default function AppointmentModal({
   }
 
   return (
+    <>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
@@ -379,6 +384,42 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
                 <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
                 <span>Closer : <strong style={{ color: '#e8eaf0' }}>{appointment.users.name}</strong></span>
+                {adminMode && (
+                  <button
+                    onClick={() => setShowReassignModal(true)}
+                    style={{
+                      marginLeft: 4,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
+                      borderRadius: 6, padding: '2px 8px',
+                      color: '#6b87ff', fontSize: 11, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    <RefreshCw size={10} />
+                    Réassigner
+                  </button>
+                )}
+              </div>
+            )}
+            {adminMode && !appointment.users && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
+                <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <span style={{ color: '#555870' }}>Aucun closer assigné</span>
+                <button
+                  onClick={() => setShowReassignModal(true)}
+                  style={{
+                    marginLeft: 4,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                    borderRadius: 6, padding: '2px 8px',
+                    color: '#f59e0b', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <User size={10} />
+                  Assigner
+                </button>
               </div>
             )}
             {(appointment.hubspot_contact_id || appointment.hubspot_deal_id) && (
@@ -861,5 +902,19 @@ export default function AppointmentModal({
         </div>
       </div>
     </div>
+
+    {showReassignModal && (
+      <AssignModal
+        appointment={appointment}
+        onClose={() => setShowReassignModal(false)}
+        onAssigned={(updated) => {
+          onUpdate(updated)
+          setShowReassignModal(false)
+        }}
+        reassign={!!appointment.users}
+        currentCloserId={appointment.users?.id ?? null}
+      />
+    )}
+    </>
   )
 }

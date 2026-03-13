@@ -590,6 +590,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         <AppointmentModal
           appointment={selectedAppointment}
           onClose={() => setSelectedAppointment(null)}
+          adminMode={adminMode}
           onUpdate={(updated) => {
             setAppointments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             setSelectedAppointment(prev => prev ? { ...prev, ...updated } : null)
