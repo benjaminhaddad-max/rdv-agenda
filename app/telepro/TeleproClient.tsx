@@ -527,7 +527,6 @@ export default function TeleproClient({
   const [histLoading, setHistLoading]     = useState(false)
   const [engData, setEngData]             = useState<Record<string, EngInfo>>({})
   const [loadingEng, setLoadingEng]       = useState<Record<string, boolean>>({})
-  const [expandedHistRdv, setExpandedHistRdv] = useState<string | null>(null)
   const [selectedHistRdv, setSelectedHistRdv] = useState<HistRdv | null>(null)
   const [closingDeal, setClosingDeal]     = useState<string | null>(null)
   const [stageFilter, setStageFilter]     = useState<string | null>(null)
@@ -1931,8 +1930,23 @@ export default function TeleproClient({
       {selectedHistRdv && (
         <AppointmentModal
           appointment={{
-            ...selectedHistRdv,
+            id: selectedHistRdv.id,
+            prospect_name: selectedHistRdv.prospect_name,
+            prospect_email: selectedHistRdv.prospect_email,
+            prospect_phone: selectedHistRdv.prospect_phone,
+            start_at: selectedHistRdv.start_at,
+            end_at: selectedHistRdv.end_at,
             status: selectedHistRdv.status as AppointmentStatus,
+            source: selectedHistRdv.source || undefined,
+            formation_type: selectedHistRdv.formation_type,
+            hubspot_deal_id: selectedHistRdv.hubspot_deal_id ?? null,
+            hubspot_contact_id: selectedHistRdv.hubspot_contact_id,
+            classe_actuelle: selectedHistRdv.classe_actuelle,
+            notes: selectedHistRdv.notes ?? null,
+            meeting_type: selectedHistRdv.meeting_type,
+            meeting_link: selectedHistRdv.meeting_link,
+            report_summary: selectedHistRdv.report_summary,
+            report_telepro_advice: selectedHistRdv.report_telepro_advice,
             users: selectedHistRdv.rdv_users || undefined,
           }}
           onClose={() => setSelectedHistRdv(null)}
