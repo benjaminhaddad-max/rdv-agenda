@@ -40,7 +40,12 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // ── Public routes ──────────────────────────────────────────────
-  if (pathname.startsWith('/book/') || pathname.startsWith('/api/')) {
+  if (
+    pathname.startsWith('/book/') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/confirm/') ||
+    pathname.startsWith('/reschedule/')
+  ) {
     return response
   }
 

@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
   const targetDate = new Date(date)
   const dayOfWeek = targetDate.getDay() // 0=Sun, 1=Mon...
 
-  // 1. Get ALL active closers (role=commercial or admin)
+  // 1. Get ALL active closers (role=closer or admin)
   const { data: closers } = await db
     .from('rdv_users')
     .select('id')
-    .in('role', ['commercial', 'admin'])
+    .in('role', ['closer', 'admin'])
 
   if (!closers || closers.length === 0) {
     return NextResponse.json([])
