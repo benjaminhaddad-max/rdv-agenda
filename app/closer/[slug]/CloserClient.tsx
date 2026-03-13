@@ -61,12 +61,13 @@ const DAYS = [
   { value: 4, label: 'Jeudi' },
   { value: 5, label: 'Vendredi' },
   { value: 6, label: 'Samedi' },
+  { value: 0, label: 'Dimanche' },
 ]
 
 const TIME_OPTIONS: string[] = []
-for (let h = 7; h <= 21; h++) {
+for (let h = 7; h <= 22; h++) {
   TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 21) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
+  if (h < 22) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
 }
 
 const FORMATIONS: { value: string; label: string }[] = [
@@ -805,7 +806,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <div key={dateStr} style={{ position: 'relative' }}>
                       <button
                         onClick={() => {
-                          if (isPast || isSunday) return
+                          if (isPast) return
                           if (isBlocked) {
                             const blocked = blockedDates.find(b => b.blocked_date === dateStr)
                             if (blocked) unblockDate(blocked.id)
@@ -813,8 +814,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                             setBlockingDate(isConfirming ? null : dateStr)
                           }
                         }}
-                        disabled={isPast || isSunday}
-                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(245,158,11,0.15)' : '#252840', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(245,158,11,0.4)' : '#2a2d3e'}`, borderRadius: 8, color: isPast || isSunday ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#f59e0b' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                        disabled={isPast}
+                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(245,158,11,0.15)' : '#252840', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(245,158,11,0.4)' : '#2a2d3e'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#f59e0b' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                         {format(day, 'd')}
                       </button>
                     </div>

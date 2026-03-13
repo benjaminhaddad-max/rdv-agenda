@@ -40,12 +40,13 @@ const DAYS = [
   { value: 4, label: 'Jeu' },
   { value: 5, label: 'Ven' },
   { value: 6, label: 'Sam' },
+  { value: 0, label: 'Dim' },
 ]
 
 const TIME_OPTIONS: string[] = []
-for (let h = 7; h <= 21; h++) {
+for (let h = 7; h <= 22; h++) {
   TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 21) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
+  if (h < 22) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
 }
 
 const selectStyle: React.CSSProperties = {
