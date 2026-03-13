@@ -2,28 +2,27 @@
  * GET /api/cron/sms-reminder
  *
  * Appelé chaque matin à 8h UTC (= 9h/10h Paris) par Vercel Cron.
- * Envoie un SMS de rappel J-1 à chaque prospect dont le RDV est demain.
+ * Envoie un SMS de rappel J-1 avec lien de confirmation OUI/NON.
  *
- * Sécurisé par le header Vercel `Authorization: Bearer CRON_SECRET`
- * (configuré dans vercel.json + variables d'env Vercel).
+ * Sécurisé par le header `Authorization: Bearer CRON_SECRET`.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms } from '@/lib/smsfactor'
+import { sendSms, buildReminderSms } from '@/lib/smsfactor'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { randomUUID } from 'crypto'
 
 export async function GET(req: NextRequest) {
-  // ── Sécurité : vérifier le secret Vercel Cron ─────────────────────────
+  // ── Sécurité Vercel Cron ──────────────────────────────────────────────
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // ── Calculer la plage "demain" en UTC ──────────────────────────────────
-  // Le cron tourne à 8h UTC. On cherche les RDV du lendemain (J+1).
+  // ── Plage "demain" en UTC ─────────────────────────────────────────────
   const now = new Date()
   const tomorrowStart = new Date(now)
   tomorrowStart.setUTCDate(now.getUTCDate() + 1)
@@ -32,11 +31,11 @@ export async function GET(req: NextRequest) {
   const tomorrowEnd = new Date(tomorrowStart)
   tomorrowEnd.setUTCHours(23, 59, 59, 999)
 
-  // ── Récupérer les RDV confirmés de demain avec numéro de téléphone ─────
+  // ── RDV confirmés de demain avec numéro ───────────────────────────────
   const db = createServiceClient()
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, sms_reminder_sent_at')
+    .select('id, prospect_name, prospect_phone, start_at, meeting_type, sms_reminder_sent_at, confirmation_token')
     .eq('status', 'confirme')
     .not('prospect_phone', 'is', null)
     .gte('start_at', tomorrowStart.toISOString())
@@ -59,7 +58,7 @@ export async function GET(req: NextRequest) {
   }[] = []
 
   for (const appt of appointments) {
-    // Éviter d'envoyer deux fois si déjà envoyé
+    // Déjà envoyé → skip
     if (appt.sms_reminder_sent_at) {
       results.push({ id: appt.id, name: appt.prospect_name, status: 'skipped', reason: 'déjà envoyé' })
       continue
@@ -70,24 +69,31 @@ export async function GET(req: NextRequest) {
       continue
     }
 
-    // Formatter la date/heure (les timestamps sont stockés en UTC dans Supabase)
+    // Générer un token de confirmation si pas encore présent
+    const token: string = appt.confirmation_token ?? randomUUID()
+
+    if (!appt.confirmation_token) {
+      await db
+        .from('rdv_appointments')
+        .update({ confirmation_token: token })
+        .eq('id', appt.id)
+    }
+
+    // Formater la date en heure de Paris
     const startDate = new Date(appt.start_at)
-    // Convertir en heure Paris (+1h hiver / +2h été)
-    const parisMsOffset = getParisMsOffset(startDate)
-    const startParis = new Date(startDate.getTime() + parisMsOffset)
+    const parisOffset = getParisMsOffset(startDate)
+    const startParis = new Date(startDate.getTime() + parisOffset)
     const dateStr = format(startParis, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
 
-    // Construire le message
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
-    const message =
-      `Bonjour ${firstName}, votre rendez-vous Diploma Santé est confirmé pour demain ${dateStr}. ` +
-      `À très bientôt !`
 
-    // Envoyer le SMS
+    // Construire le SMS selon le type de RDV
+    const message = buildReminderSms(firstName, dateStr, appt.meeting_type, token)
+
+    // Envoyer
     const smsResult = await sendSms(appt.prospect_phone, message)
 
     if (smsResult.ok) {
-      // Marquer comme envoyé en base
       await db
         .from('rdv_appointments')
         .update({ sms_reminder_sent_at: new Date().toISOString() })
@@ -106,13 +112,10 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Retourne l'offset en millisecondes pour Paris (UTC+1 hiver, UTC+2 été).
- * Approximation via Intl.DateTimeFormat — pas besoin de date-fns-tz.
+ * Retourne l'offset ms Paris par rapport à UTC (gère le DST).
  */
 function getParisMsOffset(date: Date): number {
   const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' })
   const parisStr = date.toLocaleString('en-US', { timeZone: 'Europe/Paris' })
-  const utcDate = new Date(utcStr)
-  const parisDate = new Date(parisStr)
-  return parisDate.getTime() - utcDate.getTime()
+  return new Date(parisStr).getTime() - new Date(utcStr).getTime()
 }

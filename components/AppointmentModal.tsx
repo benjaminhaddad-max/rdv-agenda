@@ -35,6 +35,7 @@ type Appointment = {
   financement?: string | null
   jpo_invitation?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
+  sms_confirmed_at?: string | null
 }
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
@@ -351,6 +352,19 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
                 <Zap size={14} style={{ color: '#6b87ff', flexShrink: 0 }} />
                 <span>{SOURCE_LABEL[appointment.source] || appointment.source}</span>
+              </div>
+            )}
+            {appointment.sms_confirmed_at && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  background: 'rgba(16,185,129,0.15)',
+                  border: '1px solid rgba(16,185,129,0.35)',
+                  borderRadius: 8, padding: '3px 10px',
+                  fontSize: 12, fontWeight: 700, color: '#10b981',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                }}>
+                  📱 Confirmé via SMS — {format(new Date(appointment.sms_confirmed_at), "d MMM 'à' HH'h'mm", { locale: fr })}
+                </span>
               </div>
             )}
             {meetingInfo && (

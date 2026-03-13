@@ -4,35 +4,61 @@
  *
  * Endpoint : GET https://api.smsfactor.com/send
  * Auth     : Bearer token via Authorization header
- * Fuseau   : Europe/Paris pour le paramètre `delay`
+ * Sender   : "DiploSante" (10 chars)
+ *
+ * Encoding : UCS-2 (accents français) → 67 chars par segment concaténé
+ *            Nos textes visent ~130 chars = 2 SMS
  */
 
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
+const SENDER = 'DiploSante'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 
 /**
  * Formate un numéro de téléphone au format attendu par SMS Factor.
- * Exemples :
- *   "0612345678"  → "33612345678"
- *   "+33612345678" → "33612345678"
- *   "33612345678" → "33612345678"
+ * "0612345678"   → "33612345678"
+ * "+33612345678" → "33612345678"
  */
 export function formatPhoneForSms(phone: string): string | null {
-  // Supprimer espaces, tirets, points
   const cleaned = phone.replace(/[\s\-\.]/g, '')
-
   if (cleaned.startsWith('+33')) return '33' + cleaned.slice(3)
   if (cleaned.startsWith('0033')) return '33' + cleaned.slice(4)
   if (cleaned.startsWith('33') && cleaned.length === 11) return cleaned
   if (cleaned.startsWith('0') && cleaned.length === 10) return '33' + cleaned.slice(1)
+  return null
+}
 
-  return null // numéro non reconnu
+/**
+ * Construit le texte du SMS de rappel J-1 selon le type de RDV.
+ *
+ * @param firstName   Prénom du prospect
+ * @param dateStr     Date formatée, ex: "lundi 14 mars à 10h00"
+ * @param meetingType 'presentiel' | 'visio' | 'telephone' | null
+ * @param token       Token de confirmation (pour le lien)
+ */
+export function buildReminderSms(
+  firstName: string,
+  dateStr: string,
+  meetingType: string | null,
+  token: string
+): string {
+  const link = `${SITE_URL}/confirm/${token}`
+
+  if (meetingType === 'visio') {
+    return `Bonjour ${firstName}, votre rendez-vous en visioconférence avec Diploma Santé est prévu le ${dateStr}. Merci de confirmer votre présence : ${link}`
+  }
+
+  if (meetingType === 'telephone') {
+    return `Bonjour ${firstName}, votre entretien téléphonique avec Diploma Santé est prévu le ${dateStr}. Merci de confirmer votre présence : ${link}`
+  }
+
+  // Défaut : présentiel Paris
+  return `Bonjour ${firstName}, votre rendez-vous Diploma Santé est prévu le ${dateStr} dans nos locaux à Paris. Merci de confirmer votre présence : ${link}`
 }
 
 /**
  * Envoie un SMS via SMS Factor.
- * @param to    Numéro destinataire (format libre, normalisé automatiquement)
- * @param text  Contenu du message (max ~160 caractères pour un SMS simple)
- * @returns     { ok: boolean; ticket?: string; error?: string }
  */
 export async function sendSms(
   to: string,
@@ -52,6 +78,7 @@ export async function sendSms(
   const params = new URLSearchParams({
     text,
     to: formatted,
+    sender: SENDER,
     pushtype: 'alert',
   })
 
