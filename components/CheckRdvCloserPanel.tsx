@@ -60,7 +60,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const [deals, setDeals] = useState<RdvPrisAuditDeal[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
-  const [actioning, setActioning] = useState<Record<string, 'aReplanifier' | 'delaiReflexion'>>({})
+  const [actioning, setActioning] = useState<Record<string, 'aReplanifier' | 'delaiReflexion' | 'fermePerdu'>>({})
   const [reassigningDeal, setReassigningDeal] = useState<RdvPrisAuditDeal | null>(null)
   const [closers, setClosers] = useState<Closer[]>([])
   const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null)
@@ -114,7 +114,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
     }
   }
 
-  const updateStage = async (deal: RdvPrisAuditDeal, stage: 'aReplanifier' | 'delaiReflexion') => {
+  const updateStage = async (deal: RdvPrisAuditDeal, stage: 'aReplanifier' | 'delaiReflexion' | 'fermePerdu') => {
     setActioning(prev => ({ ...prev, [deal.id]: stage }))
     try {
       const res = await fetch(`/api/hubspot/deal/${deal.id}`, {
@@ -354,6 +354,24 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                     }}
                   >
                     {actioning[deal.id] === 'delaiReflexion' ? '⏳' : '⏰'} Délai de réflexion
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Marquer "${prospectName}" comme Fermé / Perdu ?`)) {
+                        updateStage(deal, 'fermePerdu')
+                      }
+                    }}
+                    disabled={isActioning}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: actioning[deal.id] === 'fermePerdu' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      borderRadius: 6, padding: '4px 11px', color: '#ef4444',
+                      fontSize: 11, fontWeight: 600, cursor: isActioning ? 'default' : 'pointer',
+                      fontFamily: 'inherit', opacity: isActioning ? 0.7 : 1,
+                    }}
+                  >
+                    {actioning[deal.id] === 'fermePerdu' ? '⏳' : '💀'} Fermé / Perdu
                   </button>
                   <button
                     onClick={() => openReassign(deal)}

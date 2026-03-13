@@ -14,6 +14,7 @@ async function hubspotFetch(path: string, options: RequestInit = {}) {
     const err = await res.text()
     throw new Error(`HubSpot ${res.status}: ${err}`)
   }
+  if (res.status === 204) return null
   return res.json()
 }
 
@@ -230,6 +231,13 @@ export async function updateDealStage(dealId: string, stage: keyof typeof STAGES
     body: JSON.stringify({
       properties: { dealstage: STAGES[stage] },
     }),
+  })
+}
+
+// ─── Supprimer un deal HubSpot ────────────────────────────────────────────
+export async function deleteDeal(dealId: string) {
+  return hubspotFetch(`/crm/v3/objects/deals/${dealId}`, {
+    method: 'DELETE',
   })
 }
 
