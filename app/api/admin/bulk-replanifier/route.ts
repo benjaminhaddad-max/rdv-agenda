@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < toUpdate.length; i++) {
     const deal = toUpdate[i]
-    // Pause 200ms entre chaque appel (max ~5/sec, bien sous la limite de 10/sec)
-    if (i > 0) await delay(200)
+    // Pause 1.5s entre chaque appel pour respecter le rate limit HubSpot (10 req/10s)
+    if (i > 0) await delay(1500)
     try {
       await updateDealStage(deal.id, 'aReplanifier')
       results.push({ id: deal.id, dealname: deal.properties.dealname, status: 'ok' })
