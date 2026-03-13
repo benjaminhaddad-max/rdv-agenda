@@ -24,6 +24,15 @@ type Appointment = {
   meeting_link?: string | null
   report_summary?: string | null
   report_telepro_advice?: string | null
+  negatif_reason?: string | null
+  negatif_reason_detail?: string | null
+  interlocuteur_principal?: string | null
+  consigne_text?: string | null
+  consigne_echeance?: string | null
+  consigne_rien_a_faire?: boolean | null
+  contexte_concurrence?: string | null
+  financement?: string | null
+  jpo_invitation?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
 }
 
@@ -69,6 +78,24 @@ export default function AppointmentModal({
   const [reportError, setReportError] = useState(false)
   const [confirmingProspect, setConfirmingProspect] = useState(false)
 
+  // New closer report fields
+  const [negatifReason, setNegatifReason] = useState<string | null>(appointment.negatif_reason || null)
+  const [negatifReasonDetail, setNegatifReasonDetail] = useState<string[]>(
+    appointment.negatif_reason === 'inscrit_autre_prepa' && appointment.negatif_reason_detail
+      ? JSON.parse(appointment.negatif_reason_detail) : []
+  )
+  const [negatifAutreText, setNegatifAutreText] = useState(
+    appointment.negatif_reason === 'autre' ? (appointment.negatif_reason_detail || '') : ''
+  )
+  const [negatifError, setNegatifError] = useState(false)
+  const [interlocuteur, setInterlocuteur] = useState<string | null>(appointment.interlocuteur_principal || null)
+  const [consigneText, setConsigneText] = useState(appointment.consigne_text || '')
+  const [consigneEcheance, setConsigneEcheance] = useState(appointment.consigne_echeance || '')
+  const [consigneRienAFaire, setConsigneRienAFaire] = useState(appointment.consigne_rien_a_faire || false)
+  const [contexteConcurrence, setContexteConcurrence] = useState<string | null>(appointment.contexte_concurrence || null)
+  const [financement, setFinancement] = useState<string | null>(appointment.financement || null)
+  const [jpoInvitation, setJpoInvitation] = useState<string | null>(appointment.jpo_invitation || null)
+
   // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
   // et que la souris glisse légèrement sur le backdrop avant le mouseup
   const mouseDownOnBackdrop = useRef(false)
@@ -83,6 +110,22 @@ export default function AppointmentModal({
   // Rapport déjà sauvegardé en base (pas besoin de le re-remplir pour changer de statut)
   const reportAlreadySaved = !!(appointment.report_summary?.trim() && appointment.report_telepro_advice?.trim())
 
+  function buildExtraFields() {
+    return {
+      negatif_reason: negatifReason,
+      negatif_reason_detail: negatifReason === 'inscrit_autre_prepa'
+        ? JSON.stringify(negatifReasonDetail)
+        : negatifReason === 'autre' ? negatifAutreText : null,
+      interlocuteur_principal: interlocuteur,
+      consigne_text: consigneText.trim() || null,
+      consigne_echeance: consigneRienAFaire ? null : consigneEcheance || null,
+      consigne_rien_a_faire: consigneRienAFaire,
+      contexte_concurrence: contexteConcurrence,
+      financement,
+      jpo_invitation: jpoInvitation,
+    }
+  }
+
   async function updateStatus(newStatus: AppointmentStatus) {
     if (newStatus === status) return
     // Le rapport est obligatoire pour changer le statut (sauf confirme et si déjà sauvegardé)
@@ -91,7 +134,14 @@ export default function AppointmentModal({
       setReportError(true)
       return
     }
+    // Raison négatif obligatoire
+    if (newStatus === 'negatif' && !negatifReason) {
+      setPendingStatus(newStatus)
+      setNegatifError(true)
+      return
+    }
     setReportError(false)
+    setNegatifError(false)
     setPendingStatus(newStatus)
     setSaving(true)
     try {
@@ -103,6 +153,7 @@ export default function AppointmentModal({
           notes,
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
+          ...buildExtraFields(),
         }),
       })
       if (res.ok) {
@@ -194,6 +245,7 @@ export default function AppointmentModal({
           notes,
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
+          ...buildExtraFields(),
         }),
       })
       if (res.ok) {
@@ -498,6 +550,234 @@ export default function AppointmentModal({
               fontSize: 13, color: '#f59e0b',
             }}>
               Ce RDV n&apos;est pas encore assigné à un closer. Allez dans la vue Admin pour l&apos;assigner.
+            </div>
+          </div>
+        )}
+
+        {/* Section: Raison négatif — visible si statut négatif ou en attente */}
+        {!isNonAssigne && (status === 'negatif' || pendingStatus === 'negatif') && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: negatifError ? '#ef4444' : '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+              💀 Raison du négatif *
+              {negatifError && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — Obligatoire</span>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {([
+                { value: 'inscrit_autre_prepa', label: 'Inscrit autre prépa' },
+                { value: 'pas_les_moyens', label: 'Pas les moyens (potentiel medibox)' },
+                { value: 'reorientation', label: 'Réorientation' },
+                { value: 'autre', label: 'Autre (préciser)' },
+              ] as const).map(opt => {
+                const selected = negatifReason === opt.value
+                return (
+                  <div key={opt.value}>
+                    <button
+                      onClick={() => { setNegatifReason(opt.value); setNegatifError(false) }}
+                      style={{
+                        width: '100%', textAlign: 'left',
+                        background: selected ? 'rgba(239,68,68,0.1)' : 'transparent',
+                        border: `1px solid ${selected ? 'rgba(239,68,68,0.4)' : negatifError ? 'rgba(239,68,68,0.3)' : '#2a2d3e'}`,
+                        borderRadius: 8, padding: '9px 14px',
+                        color: selected ? '#ef4444' : '#8b8fa8',
+                        fontSize: 13, fontWeight: selected ? 600 : 400,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                    {/* Sub-options: autre prépa checkboxes */}
+                    {selected && opt.value === 'inscrit_autre_prepa' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 12 }}>
+                        {['Stan/Laennec', 'Antemed-Epsilon', 'Medisup Sciences', 'CPCM'].map(prepa => {
+                          const checked = negatifReasonDetail.includes(prepa)
+                          return (
+                            <button key={prepa} onClick={() => {
+                              setNegatifReasonDetail(prev => checked ? prev.filter(p => p !== prepa) : [...prev, prepa])
+                            }} style={{
+                              background: checked ? 'rgba(239,68,68,0.15)' : '#252840',
+                              border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : '#2a2d3e'}`,
+                              borderRadius: 6, padding: '5px 10px',
+                              color: checked ? '#ef4444' : '#8b8fa8',
+                              fontSize: 11, fontWeight: checked ? 600 : 400, cursor: 'pointer',
+                            }}>
+                              {checked ? '✓ ' : ''}{prepa}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {/* Sub-option: autre texte libre */}
+                    {selected && opt.value === 'autre' && (
+                      <input
+                        value={negatifAutreText}
+                        onChange={e => setNegatifAutreText(e.target.value)}
+                        placeholder="Préciser la raison…"
+                        style={{
+                          width: '100%', marginTop: 6, background: '#252840', border: '1px solid #2a2d3e',
+                          borderRadius: 8, padding: '8px 12px', color: '#e8eaf0', fontSize: 13,
+                          outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+                        }}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Section: Interlocuteur principal */}
+        {!isNonAssigne && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              👤 Interlocuteur principal
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: interlocuteur ? 10 : 0 }}>
+              {(['parent', 'etudiant'] as const).map(val => {
+                const selected = interlocuteur === val
+                return (
+                  <button key={val} onClick={() => setInterlocuteur(val)} style={{
+                    flex: 1, background: selected ? 'rgba(79,110,247,0.12)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: selected ? '#6b87ff' : '#8b8fa8',
+                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
+                  }}>
+                    {val === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Étudiant'}
+                  </button>
+                )
+              })}
+            </div>
+            {interlocuteur && (
+              <div style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 6, fontWeight: 600 }}>
+                  {interlocuteur === 'parent' ? 'Consigne pour Pascal' : 'Consigne pour le télépro'}
+                </div>
+                <input
+                  value={consigneText}
+                  onChange={e => setConsigneText(e.target.value)}
+                  placeholder="Décrire la consigne…"
+                  style={{
+                    width: '100%', background: '#1e2130', border: '1px solid #2a2d3e',
+                    borderRadius: 8, padding: '8px 12px', color: '#e8eaf0', fontSize: 13,
+                    outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 8,
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {!consigneRienAFaire && (
+                    <>
+                      <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600 }}>Échéance :</div>
+                      <input
+                        type="date"
+                        value={consigneEcheance}
+                        onChange={e => setConsigneEcheance(e.target.value)}
+                        style={{
+                          background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 8,
+                          padding: '6px 10px', color: '#e8eaf0', fontSize: 12, outline: 'none',
+                          fontFamily: 'inherit', colorScheme: 'dark',
+                        }}
+                      />
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setConsigneRienAFaire(!consigneRienAFaire); if (!consigneRienAFaire) setConsigneEcheance('') }}
+                    style={{
+                      background: consigneRienAFaire ? 'rgba(107,114,128,0.2)' : 'transparent',
+                      border: `1px solid ${consigneRienAFaire ? 'rgba(107,114,128,0.4)' : '#2a2d3e'}`,
+                      borderRadius: 6, padding: '5px 10px',
+                      color: consigneRienAFaire ? '#9ca3af' : '#555870',
+                      fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    {consigneRienAFaire ? '✓ ' : ''}Rien à faire
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Section: Contexte concurrence */}
+        {!isNonAssigne && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              🏆 Contexte concurrence
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {([
+                { value: 'bien_renseignee', label: 'Bien renseignée ou va le faire' },
+                { value: 'peu_renseignee', label: 'Peu renseignée ou va pas trop regarder' },
+                { value: 'pas_renseignee', label: 'Pas renseignée' },
+              ] as const).map(opt => {
+                const selected = contexteConcurrence === opt.value
+                return (
+                  <button key={opt.value} onClick={() => setContexteConcurrence(opt.value)} style={{
+                    textAlign: 'left', background: selected ? 'rgba(245,158,11,0.1)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : '#2a2d3e'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: selected ? '#f59e0b' : '#8b8fa8',
+                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
+                  }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Section: Financement */}
+        {!isNonAssigne && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              💰 Financement
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { value: 'pas_de_probleme', label: 'Pas de problème' },
+                { value: 'potentiel_blocage', label: 'Potentiel blocage financier' },
+              ] as const).map(opt => {
+                const selected = financement === opt.value
+                return (
+                  <button key={opt.value} onClick={() => setFinancement(opt.value)} style={{
+                    flex: 1, background: selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)') : 'transparent',
+                    border: `1px solid ${selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') : '#2a2d3e'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: selected ? (opt.value === 'pas_de_probleme' ? '#22c55e' : '#ef4444') : '#8b8fa8',
+                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
+                  }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Section: JPO */}
+        {!isNonAssigne && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              🎓 Inviter à la prochaine JPO
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { value: 'oui', label: 'Oui' },
+                { value: 'pas_besoin', label: 'Pas besoin' },
+              ] as const).map(opt => {
+                const selected = jpoInvitation === opt.value
+                return (
+                  <button key={opt.value} onClick={() => setJpoInvitation(opt.value)} style={{
+                    flex: 1, background: selected ? 'rgba(79,110,247,0.12)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                    borderRadius: 8, padding: '9px 14px',
+                    color: selected ? '#6b87ff' : '#8b8fa8',
+                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
+                  }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

@@ -6,7 +6,12 @@ import { createDeal, updateDealStage, updateDealOwner, updateContact, addNoteToE
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { status, notes, commercial_id, report_summary, report_telepro_advice, telepro_suivi } = body
+  const {
+    status, notes, commercial_id, report_summary, report_telepro_advice, telepro_suivi,
+    negatif_reason, negatif_reason_detail, interlocuteur_principal,
+    consigne_text, consigne_echeance, consigne_rien_a_faire,
+    contexte_concurrence, financement, jpo_invitation,
+  } = body
 
   const db = createServiceClient()
 
@@ -150,6 +155,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (notes !== undefined) updatePayload.notes = notes || null
   if (report_summary !== undefined) updatePayload.report_summary = report_summary || null
   if (report_telepro_advice !== undefined) updatePayload.report_telepro_advice = report_telepro_advice || null
+  if (negatif_reason !== undefined) updatePayload.negatif_reason = negatif_reason || null
+  if (negatif_reason_detail !== undefined) updatePayload.negatif_reason_detail = negatif_reason_detail || null
+  if (interlocuteur_principal !== undefined) updatePayload.interlocuteur_principal = interlocuteur_principal || null
+  if (consigne_text !== undefined) updatePayload.consigne_text = consigne_text || null
+  if (consigne_echeance !== undefined) updatePayload.consigne_echeance = consigne_echeance || null
+  if (consigne_rien_a_faire !== undefined) updatePayload.consigne_rien_a_faire = consigne_rien_a_faire
+  if (contexte_concurrence !== undefined) updatePayload.contexte_concurrence = contexte_concurrence || null
+  if (financement !== undefined) updatePayload.financement = financement || null
+  if (jpo_invitation !== undefined) updatePayload.jpo_invitation = jpo_invitation || null
 
   const { data, error } = await db
     .from('rdv_appointments')
@@ -206,11 +220,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
 
       // Ajouter une note avec le statut bien visible + rapport closer
+      const negatifReasonLabels: Record<string, string> = {
+        inscrit_autre_prepa: 'Inscrit autre prépa',
+        pas_les_moyens: 'Pas les moyens (potentiel medibox)',
+        reorientation: 'Réorientation',
+        autre: 'Autre',
+      }
+      const concurrenceLabels: Record<string, string> = {
+        bien_renseignee: 'Bien renseignée ou va le faire',
+        peu_renseignee: 'Peu renseignée ou va pas trop regarder',
+        pas_renseignee: 'Pas renseignée',
+      }
       const noteLines = [
         `${statusLabel[status] || status.toUpperCase()}`,
         '─────────────────────────',
         report_summary ? `📝 Résumé du RDV :\n${report_summary}` : '',
         report_telepro_advice ? `\n💬 Conseil télépro :\n${report_telepro_advice}` : '',
+        negatif_reason ? `\n❌ Raison négatif : ${negatifReasonLabels[negatif_reason] || negatif_reason}${negatif_reason_detail ? ` (${negatif_reason_detail})` : ''}` : '',
+        interlocuteur_principal ? `\n👤 Interlocuteur : ${interlocuteur_principal === 'parent' ? 'Parent' : 'Étudiant'}` : '',
+        consigne_text ? `📋 Consigne : ${consigne_text}${consigne_echeance ? ` — Échéance : ${consigne_echeance}` : ''}${consigne_rien_a_faire ? ' — Rien à faire' : ''}` : '',
+        contexte_concurrence ? `\n🏆 Concurrence : ${concurrenceLabels[contexte_concurrence] || contexte_concurrence}` : '',
+        financement ? `\n💰 Financement : ${financement === 'pas_de_probleme' ? 'Pas de problème' : 'Potentiel blocage financier'}` : '',
+        jpo_invitation ? `\n🎓 JPO : ${jpo_invitation === 'oui' ? 'À inviter' : 'Pas besoin'}` : '',
       ].filter(Boolean).join('\n')
 
       await addNoteToEngagements({
