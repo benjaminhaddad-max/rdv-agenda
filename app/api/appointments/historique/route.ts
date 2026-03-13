@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       // Appointment trouvé en Supabase : enrichir avec le stage HubSpot actuel
       return {
         ...appt,
-        formation_type: appt.formation_type ?? getFormation(deal),
+        formation_type: HS_FORMATION_MAP[appt.formation_type] ?? appt.formation_type ?? getFormation(deal),
         hs_stage: deal.properties.dealstage ?? null,
         hs_stage_label: stageInfo.label,
         hs_stage_color: stageInfo.color,
