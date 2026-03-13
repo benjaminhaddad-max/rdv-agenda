@@ -53,11 +53,16 @@ export async function GET(req: NextRequest) {
     : { data: [] as Array<{ hubspot_deal_id: string; telepro_suivi: string | null; telepro_suivi_at: string | null }> }
   const histSuiviMap = new Map((histSuiviRows ?? []).map(s => [s.hubspot_deal_id, s]))
 
+  // Mapping clés HubSpot → labels lisibles
+  const HS_FORMATION_MAP: Record<string, string> = {
+    'PAS': 'PASS', 'LAS': 'LAS', 'P-1': 'P-1', 'P-2': 'P-2',
+    'APES0': 'APES0', 'LAS 2 UPEC': 'LAS 2 UPEC', 'LAS 3 UPEC': 'LAS 3 UPEC',
+  }
   // Extraire la formation : priorité deal property > description fallback
   function getFormation(deal: typeof hsDeals[0]): string | null {
-    return deal.properties.diploma_sante___formation
-      || parseFormationFromDesc(deal.properties.description)
-      || null
+    const raw = deal.properties.diploma_sante___formation
+    if (raw) return HS_FORMATION_MAP[raw] ?? raw
+    return parseFormationFromDesc(deal.properties.description) || null
   }
 
   function parseFormationFromDesc(desc: string | undefined): string | null {
