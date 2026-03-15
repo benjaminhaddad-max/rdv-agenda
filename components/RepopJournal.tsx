@@ -373,6 +373,22 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {entry.classe && (
+            <span style={{
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
+            }}>
+              {entry.classe}
+            </span>
+          )}
+          {entry.zone_localite && (
+            <span style={{
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
+            }}>
+              {entry.zone_localite}
+            </span>
+          )}
           {entry.formation_type && (
             <span style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
