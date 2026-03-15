@@ -1634,23 +1634,54 @@ export default function CRMPage() {
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
         {/* Compteur contacts */}
-        <div style={{ padding: '8px 20px 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '10px 20px 6px' }}>
           {loading ? (
-            <span style={{ fontSize: 12, color: '#3a5070' }}>Chargement…</span>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(58,80,112,0.15)', borderRadius: 20,
+              padding: '5px 12px',
+            }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #2d4a6b', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontSize: 12, color: '#3a5070' }}>Chargement…</span>
+            </div>
           ) : (
-            <>
-              <span style={{ fontSize: 20, fontWeight: 700, color: '#e8eaf0', lineHeight: 1 }}>
-                {total.toLocaleString('fr')}
-              </span>
-              <span style={{ fontSize: 12, color: '#555870', fontWeight: 500 }}>
-                contact{total !== 1 ? 's' : ''}
-              </span>
-              {(formation || classe || period) && displayed.length !== contacts.length && (
-                <span style={{ fontSize: 11, color: '#3a5070', marginLeft: 4 }}>
-                  · {displayed.length} affiché{displayed.length !== 1 ? 's' : ''}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 5,
+                background: 'rgba(76,171,219,0.07)',
+                border: '1px solid rgba(76,171,219,0.18)',
+                borderRadius: '10px 0 0 10px',
+                padding: '5px 14px',
+              }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: '#4cabdb', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.5px' }}>
+                  {total.toLocaleString('fr')}
                 </span>
+                <span style={{ fontSize: 11, color: '#4a6a8a', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  contact{total !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {(formation || classe || period) && displayed.length !== contacts.length ? (
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', gap: 4,
+                  background: 'rgba(58,80,112,0.12)',
+                  border: '1px solid rgba(58,80,112,0.25)',
+                  borderLeft: 'none',
+                  borderRadius: '0 10px 10px 0',
+                  padding: '5px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8' }}>{displayed.length}</span>
+                  <span style={{ fontSize: 10, color: '#3a5070' }}>affiché{displayed.length !== 1 ? 's' : ''}</span>
+                </div>
+              ) : (
+                <div style={{
+                  width: 10, height: '100%',
+                  background: 'rgba(76,171,219,0.07)',
+                  border: '1px solid rgba(76,171,219,0.18)',
+                  borderLeft: 'none',
+                  borderRadius: '0 10px 10px 0',
+                }} />
               )}
-            </>
+            </div>
           )}
         </div>
 
