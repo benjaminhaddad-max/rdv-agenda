@@ -1457,8 +1457,8 @@ export default function CRMPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
-          <FilterSelect value={formation} onChange={setFormation} options={FORMATION_OPTIONS} />
-          <FilterSelect value={classe} onChange={setClasse} options={CLASSE_OPTIONS} />
+          <FilterMultiSelect value={formation} onChange={setFormation} options={FORMATION_OPTIONS} />
+          <FilterMultiSelect value={classe} onChange={setClasse} options={CLASSE_OPTIONS} />
           <FilterMultiSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
           <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
@@ -1478,8 +1478,8 @@ export default function CRMPage() {
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
             {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
             {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
-            {formation && <FilterPill label={formation} onRemove={() => setFormation('')} />}
-            {classe && <FilterPill label={classe} onRemove={() => setClasse('')} />}
+            {formation && <FilterPill label={formation.includes(',') ? `${formation.split(',').length} formations` : formation} onRemove={() => setFormation('')} />}
+            {classe && <FilterPill label={classe.includes(',') ? `${classe.split(',').length} classes` : classe} onRemove={() => setClasse('')} />}
             {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
             {ownerExclude && <FilterPill label={`Excl. ${ownerExcludeOptions.find(o => o.id === ownerExclude)?.label ?? 'propriétaire'}`} onRemove={() => { setOwnerExclude(''); scheduleRefetch() }} />}
