@@ -687,13 +687,16 @@ export async function getAllDealsForSync(after?: string): Promise<{
 export async function getContactsByPriorityClass(
   after?: string,
 ): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
+  // Utilise l'opérateur IN (un seul filterGroup) — plus stable que 3 EQ séparés
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
-    filterGroups: [
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Terminale' }] },
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Première' }] },
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Seconde' }] },
-    ],
+    filterGroups: [{
+      filters: [{
+        propertyName: 'classe_actuelle',
+        operator: 'IN',
+        values: ['Terminale', 'Premi\u00e8re', 'Seconde'],
+      }],
+    }],
     properties: CONTACT_PROPS.split(','),
     sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
     limit: 100,
@@ -705,8 +708,8 @@ export async function getContactsByPriorityClass(
     body: JSON.stringify(body),
   })
   return {
-    contacts: data.results ?? [],
-    nextCursor: data.paging?.next?.after,
+    contacts: (data as { results?: HubSpotContact[]; paging?: { next?: { after?: string } } }).results ?? [],
+    nextCursor: (data as { results?: HubSpotContact[]; paging?: { next?: { after?: string } } }).paging?.next?.after,
   }
 }
 
