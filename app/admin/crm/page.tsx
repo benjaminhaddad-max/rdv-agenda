@@ -23,7 +23,7 @@ const STAGE_OPTIONS = [
 ]
 
 const FORMATION_OPTIONS = [
-  { id: '',              label: 'Toutes formations demandées' },
+  { id: '',              label: 'Toutes formations souhaitées' },
   { id: 'PASS',          label: 'PASS' },
   { id: 'LSPS',          label: 'LSPS' },
   { id: 'LAS',           label: 'LAS' },
@@ -80,7 +80,7 @@ interface CRMFilterGroup {
 
 const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
   { key: 'stage',              label: 'Étape de transaction',          type: 'select' },
-  { key: 'formation',          label: 'Formation demandée',            type: 'select' },
+  { key: 'formation',          label: 'Formation souhaitée',           type: 'select' },
   { key: 'classe',             label: 'Classe actuelle',               type: 'select' },
   { key: 'closer',             label: 'Propriétaire du contact',       type: 'select' },
   { key: 'telepro',            label: 'Télépro',                       type: 'select' },

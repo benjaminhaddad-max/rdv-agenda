@@ -827,7 +827,7 @@ type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
   phone:                'Téléphone',
-  formation_souhaitee:  'Formation demandée',
+  formation_souhaitee:  'Formation souhaitée',
   classe:               'Classe actuelle',
   zone:                 'Zone / Localité',
   departement:          'Département',
