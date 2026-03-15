@@ -214,8 +214,6 @@ interface CRMSavedView {
 
 const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
   { id: 'all',         name: 'Tous les leads',       groups: [], isDefault: true },
-  { id: 'a_attribuer', name: 'À attribuer',          groups: [], presetFlags: { noTelepro: true }, isDefault: true },
-  { id: 'recents',     name: 'Formulaires récents',  groups: [], presetFlags: { recentFormMonths: 3 }, isDefault: true },
 ]
 
 function loadCRMViews(): CRMSavedView[] {
@@ -1611,20 +1609,6 @@ export default function CRMPage() {
           Filtres auto
         </span>
         <button
-          onClick={() => { setAllClasses(v => !v); scheduleRefetch() }}
-          style={{
-            background: allClasses ? 'rgba(76,171,219,0.1)' : 'rgba(204,172,113,0.1)',
-            border: `1px solid ${allClasses ? 'rgba(76,171,219,0.3)' : 'rgba(204,172,113,0.35)'}`,
-            borderRadius: 20, padding: '3px 10px',
-            color: allClasses ? '#4cabdb' : '#ccac71',
-            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <span style={{ fontSize: 9 }}>●</span>
-          {allClasses ? 'Toutes classes' : 'Terminale · Première · Seconde + récents'}
-        </button>
-        <button
           onClick={() => { setShowExternal(v => !v); scheduleRefetch() }}
           style={{
             background: showExternal ? 'rgba(239,68,68,0.1)' : 'rgba(76,171,219,0.1)',
@@ -1678,20 +1662,9 @@ export default function CRMPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
-          <FilterMultiSelect value={formation} onChange={setFormation} options={FORMATION_OPTIONS} />
-          <FilterMultiSelect value={classe} onChange={setClasse} options={CLASSE_OPTIONS} />
           <FilterMultiSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
           <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
-          <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
-          <FilterMultiSelect value={leadStatus} onChange={v => { setLeadStatus(v); scheduleRefetch() }} options={leadStatusOptions} />
-          <FilterMultiSelect value={source} onChange={v => { setSource(v); scheduleRefetch() }} options={sourceOptions} />
-          {ownerExcludeOptions.length > 1 && (
-            <>
-              <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
-              <FilterSelect value={ownerExclude} onChange={v => { setOwnerExclude(v); scheduleRefetch() }} options={ownerExcludeOptions} placeholder="Exclure propriétaire" />
-            </>
-          )}
         </div>
         {hasActiveFilters && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -1699,14 +1672,9 @@ export default function CRMPage() {
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
             {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
             {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
-            {formation && <FilterPill label={formation.includes(',') ? `${formation.split(',').length} formations` : formation} onRemove={() => setFormation('')} />}
-            {classe && <FilterPill label={classe.includes(',') ? `${classe.split(',').length} classes` : classe} onRemove={() => setClasse('')} />}
             {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
-            {ownerExclude && <FilterPill label={`Excl. ${ownerExcludeOptions.find(o => o.id === ownerExclude)?.label ?? 'propriétaire'}`} onRemove={() => { setOwnerExclude(''); scheduleRefetch() }} />}
             {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
-            {leadStatus && <FilterPill label={leadStatus.includes(',') ? `${leadStatus.split(',').length} statuts` : leadStatusOptions.find(o => o.id === leadStatus)?.label ?? leadStatus} onRemove={() => { setLeadStatus(''); scheduleRefetch() }} />}
-            {source && <FilterPill label={source.includes(',') ? `${source.split(',').length} origines` : sourceOptions.find(o => o.id === source)?.label ?? source} onRemove={() => { setSource(''); scheduleRefetch() }} />}
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
         )}
