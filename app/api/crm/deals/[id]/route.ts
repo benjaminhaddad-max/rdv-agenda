@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { updateDealStage, updateDealOwner, addNoteToEngagements, STAGES } from '@/lib/hubspot'
+import { updateDealStage, updateDealOwner, addNoteToEngagements, STAGES, hubspotFetch } from '@/lib/hubspot'
 
 // PATCH /api/crm/deals/[id]
 // Met à jour un deal depuis le CRM interne → sync HubSpot
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: dealId } = await params
   const body = await req.json()
-  const { dealstage, hubspot_owner_id, teleprospecteur, note } = body
+  const { dealstage, hubspot_owner_id, teleprospecteur, note, dealname, formation, closedate, description } = body
 
   const db = createServiceClient()
 
@@ -27,6 +27,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (dealstage !== undefined) updatePayload.dealstage = dealstage
   if (hubspot_owner_id !== undefined) updatePayload.hubspot_owner_id = hubspot_owner_id
   if (teleprospecteur !== undefined) updatePayload.teleprospecteur = teleprospecteur
+  if (dealname !== undefined) updatePayload.dealname = dealname
+  if (formation !== undefined) updatePayload.formation = formation
+  if (closedate !== undefined) updatePayload.closedate = closedate
+  if (description !== undefined) updatePayload.description = description
 
   // Mise à jour Supabase
   const { data: updated, error: updateErr } = await db
@@ -87,6 +91,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   } catch (e) {
     errors.push(`note: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  // Sync des propriétés texte vers HubSpot (best-effort)
+  try {
+    const hsProps: Record<string, string> = {}
+    if (dealname !== undefined) hsProps.dealname = dealname
+    if (formation !== undefined) hsProps['diploma_sante___formation'] = formation
+    if (closedate !== undefined) hsProps.closedate = closedate
+    if (description !== undefined) hsProps.description = description
+    if (Object.keys(hsProps).length > 0) {
+      await hubspotFetch(`/crm/v3/objects/deals/${dealId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ properties: hsProps }),
+      })
+    }
+  } catch (e) {
+    errors.push(`properties: ${e instanceof Error ? e.message : String(e)}`)
   }
 
   return NextResponse.json({

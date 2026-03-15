@@ -3,23 +3,21 @@ import { createServiceClient } from '@/lib/supabase'
 
 // GET /api/crm/transactions
 //
-// Vue deal-centric : liste les transactions de la pipeline 2026-2027
-// avec les infos contact associées (classe, zone, formation).
+// Vue deal-centric : liste les transactions de la pipeline 2026-2027.
 //
-// Paramètres :
-//   search          — recherche texte (dealname, firstname, lastname, email, phone)
-//   stage           — filtrer par dealstage ID
-//   formation       — filtrer par formation
-//   classe          — filtrer par classe_actuelle du contact
-//   closer_hs_id    — filtrer par closer (deal owner)
-//   telepro_hs_id   — filtrer par télépro
-//   sort            — colonne de tri (dealname, formation, classe, zone, stage, created) [default: created]
-//   order           — asc | desc [default: desc]
-//   page / limit
+// Modes :
+//   view=board  → retourne TOUTES les transactions groupées par stage (pour Kanban)
+//   (default)   → retourne paginé pour la vue liste
+//
+// Paramètres communs :
+//   search, stage, formation, classe, closer_hs_id, telepro_hs_id
+// Paramètres vue liste :
+//   sort (dealname|formation|classe|zone|stage|created), order (asc|desc), page, limit
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
 
+  const viewMode     = searchParams.get('view') ?? 'list'
   const search       = searchParams.get('search') ?? ''
   const stage        = searchParams.get('stage') ?? ''
   const formation    = searchParams.get('formation') ?? ''
@@ -42,24 +40,35 @@ export async function GET(req: NextRequest) {
     if (u.hubspot_user_id)  userByUserId[u.hubspot_user_id]  = u
   }
 
-  // ── Requête Supabase : deals pipeline 2026-2027 ──────────────────────────
-  const { data: deals, error: dealsErr } = await db
-    .from('crm_deals')
-    .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, description')
-    .eq('pipeline', '2313043166')
-    .order('createdate', { ascending: false, nullsFirst: false })
-    .limit(3000)
+  // ── Charger TOUS les deals pipeline 2026-2027 (pas de limit) ─────────────
+  // On pagine côté Supabase pour contourner la limite max_rows (1000 par défaut)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allDeals: any[] = []
+  const PAGE_SIZE = 1000
+  let from = 0
+  let hasMore = true
 
-  if (dealsErr) return NextResponse.json({ error: dealsErr.message }, { status: 500 })
+  while (hasMore) {
+    const { data: batch, error } = await db
+      .from('crm_deals')
+      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, description')
+      .eq('pipeline', '2313043166')
+      .order('createdate', { ascending: false, nullsFirst: false })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    allDeals.push(...(batch ?? []))
+    hasMore = (batch?.length ?? 0) === PAGE_SIZE
+    from += PAGE_SIZE
+  }
 
   // ── Charger les contacts associés en batch ────────────────────────────────
-  const contactIds = [...new Set((deals ?? []).map(d => d.hubspot_contact_id).filter(Boolean))]
-
+  const contactIds = [...new Set(allDeals.map(d => d.hubspot_contact_id).filter(Boolean))]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contactMap: Record<string, any> = {}
 
   if (contactIds.length > 0) {
-    // Supabase limite .in() à ~300 éléments, on batch
     const BATCH = 300
     for (let i = 0; i < contactIds.length; i += BATCH) {
       const batch = contactIds.slice(i, i + BATCH)
@@ -75,7 +84,7 @@ export async function GET(req: NextRequest) {
 
   // ── Merge deals + contacts ────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rows = (deals ?? []).map((d: any) => ({
+  let rows = allDeals.map((d: any) => ({
     ...d,
     _contact: d.hubspot_contact_id ? contactMap[d.hubspot_contact_id] ?? null : null,
   }))
@@ -84,20 +93,13 @@ export async function GET(req: NextRequest) {
   rows = rows.filter(d => {
     const contact = d._contact
 
-    // Recherche textuelle
     if (search) {
       const s = search.toLowerCase()
-      const haystack = [
-        d.dealname,
-        contact?.firstname,
-        contact?.lastname,
-        contact?.email,
-        contact?.phone,
-      ].filter(Boolean).join(' ').toLowerCase()
+      const haystack = [d.dealname, contact?.firstname, contact?.lastname, contact?.email, contact?.phone]
+        .filter(Boolean).join(' ').toLowerCase()
       if (!haystack.includes(s)) return false
     }
 
-    // Filtres
     if (stage      && d.dealstage !== stage)                   return false
     if (formation  && d.formation !== formation)               return false
     if (closerHsId && d.hubspot_owner_id !== closerHsId)       return false
@@ -107,51 +109,7 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  // ── Tri ───────────────────────────────────────────────────────────────────
-  const sortCol = searchParams.get('sort') ?? 'created'
-  const sortOrder = searchParams.get('order') === 'asc' ? 1 : -1
-
-  rows.sort((a, b) => {
-    let va: string, vb: string
-    const ca = a._contact
-    const cb = b._contact
-
-    switch (sortCol) {
-      case 'dealname':
-        va = (a.dealname ?? '').toLowerCase()
-        vb = (b.dealname ?? '').toLowerCase()
-        break
-      case 'formation':
-        va = (a.formation ?? '').toLowerCase()
-        vb = (b.formation ?? '').toLowerCase()
-        break
-      case 'classe':
-        va = (ca?.classe_actuelle ?? '').toLowerCase()
-        vb = (cb?.classe_actuelle ?? '').toLowerCase()
-        break
-      case 'zone':
-        va = (ca?.zone_localite ?? ca?.departement ?? '').toLowerCase()
-        vb = (cb?.zone_localite ?? cb?.departement ?? '').toLowerCase()
-        break
-      case 'stage':
-        va = a.dealstage ?? ''
-        vb = b.dealstage ?? ''
-        break
-      default: // created
-        va = a.createdate ?? ''
-        vb = b.createdate ?? ''
-    }
-    if (va < vb) return -1 * sortOrder
-    if (va > vb) return  1 * sortOrder
-    return 0
-  })
-
-  // ── Pagination ────────────────────────────────────────────────────────────
-  const totalFiltered = rows.length
-  const offset = page * limit
-  const paginatedRows = rows.slice(offset, offset + limit)
-
-  // ── Stats rapides ─────────────────────────────────────────────────────────
+  // ── Stats ─────────────────────────────────────────────────────────────────
   const stageStats: Record<string, number> = {}
   const formationStats: Record<string, number> = {}
   for (const d of rows) {
@@ -159,20 +117,22 @@ export async function GET(req: NextRequest) {
     if (d.formation) formationStats[d.formation] = (formationStats[d.formation] ?? 0) + 1
   }
 
-  // ── Enrichissement ────────────────────────────────────────────────────────
-  const enriched = paginatedRows.map(d => {
+  // ── Enrichir un deal ──────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function enrichDeal(d: any) {
     const contact = d._contact
     const closer  = d.hubspot_owner_id ? userByOwnerId[d.hubspot_owner_id] ?? null : null
     const telepro = d.teleprospecteur  ? userByUserId[d.teleprospecteur]   ?? null : null
-
     return {
-      hubspot_deal_id:  d.hubspot_deal_id,
-      dealname:         d.dealname,
-      dealstage:        d.dealstage,
-      formation:        d.formation,
-      closedate:        d.closedate,
-      createdate:       d.createdate,
-      description:      d.description,
+      hubspot_deal_id: d.hubspot_deal_id,
+      dealname:        d.dealname,
+      dealstage:       d.dealstage,
+      formation:       d.formation,
+      closedate:       d.closedate,
+      createdate:      d.createdate,
+      description:     d.description,
+      hubspot_owner_id: d.hubspot_owner_id,
+      teleprospecteur: d.teleprospecteur,
       closer,
       telepro,
       contact: contact ? {
@@ -186,10 +146,57 @@ export async function GET(req: NextRequest) {
         departement:        contact.departement,
       } : null,
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MODE BOARD : retourner toutes les transactions groupées par stage
+  // ══════════════════════════════════════════════════════════════════════════
+  if (viewMode === 'board') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const columns: Record<string, any[]> = {}
+    for (const d of rows) {
+      const stageId = d.dealstage ?? 'unknown'
+      if (!columns[stageId]) columns[stageId] = []
+      columns[stageId].push(enrichDeal(d))
+    }
+
+    return NextResponse.json({
+      columns,
+      total: rows.length,
+      stats: { stages: stageStats, formations: formationStats },
+    })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MODE LIST : tri + pagination
+  // ══════════════════════════════════════════════════════════════════════════
+  const sortCol = searchParams.get('sort') ?? 'created'
+  const sortOrder = searchParams.get('order') === 'asc' ? 1 : -1
+
+  rows.sort((a, b) => {
+    let va: string, vb: string
+    const ca = a._contact
+    const cb = b._contact
+
+    switch (sortCol) {
+      case 'dealname':  va = (a.dealname ?? '').toLowerCase(); vb = (b.dealname ?? '').toLowerCase(); break
+      case 'formation': va = (a.formation ?? '').toLowerCase(); vb = (b.formation ?? '').toLowerCase(); break
+      case 'classe':    va = (ca?.classe_actuelle ?? '').toLowerCase(); vb = (cb?.classe_actuelle ?? '').toLowerCase(); break
+      case 'zone':      va = (ca?.zone_localite ?? ca?.departement ?? '').toLowerCase(); vb = (cb?.zone_localite ?? cb?.departement ?? '').toLowerCase(); break
+      case 'stage':     va = a.dealstage ?? ''; vb = b.dealstage ?? ''; break
+      default:          va = a.createdate ?? ''; vb = b.createdate ?? ''
+    }
+    if (va < vb) return -1 * sortOrder
+    if (va > vb) return  1 * sortOrder
+    return 0
   })
 
+  const totalFiltered = rows.length
+  const offset = page * limit
+  const paginatedRows = rows.slice(offset, offset + limit)
+
   return NextResponse.json({
-    data: enriched,
+    data: paginatedRows.map(enrichDeal),
     total: totalFiltered,
     page,
     limit,
