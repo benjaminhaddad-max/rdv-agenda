@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
@@ -765,6 +765,25 @@ export default function CRMPage() {
   type PipelineData = { id: string; label: string; stages: { id: string; label: string; displayOrder: number }[] }
   const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
   const [pipelinesData,   setPipelinesData]   = useState<PipelineData[]>([])
+
+  // Toutes les options de stages : pipeline actuel (labels courts) + anciens pipelines (préfixés par l'année)
+  const allStageOptions = useMemo<SelectOption[]>(() => {
+    const current = STAGE_OPTIONS.filter(o => o.id) // stages actuels sans l'option vide
+    const currentIds = new Set(current.map(o => o.id))
+    const extra: SelectOption[] = []
+    for (const p of pipelinesData) {
+      if (p.id === CURRENT_PIPELINE_ID) continue
+      // Extraire l'année depuis le label ex: "Diploma Santé 2024-2025" → "2024-25"
+      const yearMatch = p.label.match(/(\d{4})[^\d]*(\d{2,4})/)
+      const yearTag = yearMatch ? `${yearMatch[1]}-${String(yearMatch[2]).slice(-2)}` : p.label
+      for (const s of p.stages) {
+        if (!currentIds.has(s.id)) {
+          extra.push({ id: s.id, label: `[${yearTag}] ${s.label}` })
+        }
+      }
+    }
+    return [...current, ...extra]
+  }, [pipelinesData])
 
   // Empty / not-empty filters (is_empty / is_not_empty)
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
@@ -2009,7 +2028,7 @@ export default function CRMPage() {
                     const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
                     let valueOptions: SelectOption[] = []
                     switch (rule.field) {
-                      case 'stage':       valueOptions = STAGE_OPTIONS.filter(o => o.id); break
+                      case 'stage':       valueOptions = allStageOptions; break
                       case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                       case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
                       case 'closer':      valueOptions = closerOptions.filter(o => o.id); break
