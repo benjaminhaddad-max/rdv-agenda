@@ -462,6 +462,8 @@ interface Props {
   leadStatusOptions?: { id: string; label: string }[]
   sourceOptions?: { id: string; label: string }[]
   formationOptions?: { id: string; label: string }[]
+  closerSelectOptions?: { id: string; label: string }[]
+  teleproSelectOptions?: { id: string; label: string }[]
 }
 
 // ── Formatage numéro de téléphone ─────────────────────────────────────────────
@@ -857,6 +859,8 @@ export default function CRMContactsTable({
   leadStatusOptions,
   sourceOptions,
   formationOptions,
+  closerSelectOptions,
+  teleproSelectOptions,
 }: Props) {
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
@@ -866,6 +870,7 @@ export default function CRMContactsTable({
   } | null>(null)
   const [savingStage,       setSavingStage]        = useState<string | null>(null)
   const [savingContactField,setSavingContactField] = useState<string | null>(null)
+  const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
   const [hovered,           setHovered]            = useState<string | null>(null)
 
   // ── Select-all page ──────────────────────────────────────────────────────
@@ -918,6 +923,20 @@ export default function CRMContactsTable({
       onRefresh?.()
     } finally {
       setSavingContactField(null)
+    }
+  }
+
+  async function handleDealFieldChange(dealId: string, field: string, value: string) {
+    setSavingDealField(`${dealId}:${field}`)
+    try {
+      await fetch(`/api/crm/deals/${dealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      })
+      onRefresh?.()
+    } finally {
+      setSavingDealField(null)
     }
   }
 
@@ -1058,27 +1077,46 @@ export default function CRMContactsTable({
         )
 
       case 'closer':
-        return deal?.closer ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <Avatar name={deal.closer.name} color={deal.closer.avatar_color} size={22} />
-            <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deal.closer.name}</span>
-          </div>
-        ) : mode === 'admin' && deal ? (
-          <button
-            onClick={e => { e.stopPropagation(); setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur }) }}
-            style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6, padding: '3px 8px', color: GOLD, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}
-          >
-            + Assigner
-          </button>
-        ) : <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+        if (!deal) return <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+        return (
+          <InlineCellSelect
+            value={deal.hubspot_owner_id || ''}
+            options={closerSelectOptions ?? []}
+            onSelect={v => handleDealFieldChange(deal.hubspot_deal_id, 'hubspot_owner_id', v)}
+            saving={savingDealField === `${deal.hubspot_deal_id}:hubspot_owner_id`}
+            renderValue={v => {
+              const opt = (closerSelectOptions ?? []).find(o => o.id === v)
+              if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ContactAvatar name={opt.label} size={22} />
+                  <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                </div>
+              )
+            }}
+          />
+        )
 
       case 'telepro':
-        return deal?.telepro ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <Avatar name={deal.telepro.name} color={deal.telepro.avatar_color} size={22} />
-            <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deal.telepro.name}</span>
-          </div>
-        ) : <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+        if (!deal) return <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+        return (
+          <InlineCellSelect
+            value={deal.teleprospecteur || ''}
+            options={teleproSelectOptions ?? []}
+            onSelect={v => handleDealFieldChange(deal.hubspot_deal_id, 'teleprospecteur', v)}
+            saving={savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`}
+            renderValue={v => {
+              const opt = (teleproSelectOptions ?? []).find(o => o.id === v)
+              if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ContactAvatar name={opt.label} size={22} />
+                  <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                </div>
+              )
+            }}
+          />
+        )
 
       case 'createdat': {
         const rawDate  = deal?.createdate ?? contact.contact_createdate

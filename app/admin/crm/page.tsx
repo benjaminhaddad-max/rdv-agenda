@@ -1017,6 +1017,8 @@ export default function CRMPage() {
           leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
           sourceOptions={sourceOptions.filter(o => o.id !== '')}
           formationOptions={formationDemOptions}
+          closerSelectOptions={closerOptions.filter(o => o.id !== '')}
+          teleproSelectOptions={teleproOptions.filter(o => o.id !== '')}
         /></div>
 
         {/* Pagination */}
