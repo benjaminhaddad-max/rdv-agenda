@@ -21,8 +21,8 @@ type CreatedCredentials = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#252840',
-  border: '1px solid #2a2d3e',
+  background: '#243d5c',
+  border: '1px solid #2d4a6b',
   borderRadius: 8,
   padding: '10px 13px',
   color: '#e8eaf0',
@@ -157,39 +157,39 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
 
       <div style={{
         width: 480, height: '100vh', background: '#13151f',
-        borderLeft: '1px solid #2a2d3e', display: 'flex', flexDirection: 'column',
+        borderLeft: '1px solid #2d4a6b', display: 'flex', flexDirection: 'column',
         animation: 'slideIn 0.2s ease',
         overflowY: 'auto',
       }}>
 
         {/* Header */}
         <div style={{
-          padding: '18px 20px', background: '#1a1d27',
-          borderBottom: '1px solid #2a2d3e', flexShrink: 0,
+          padding: '18px 20px', background: '#1d2f4b',
+          borderBottom: '1px solid #2d4a6b', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 10,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 8,
-              background: 'rgba(79,110,247,0.15)',
+              background: 'rgba(204,172,113,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Phone size={15} style={{ color: '#6b87ff' }} />
+              <Phone size={15} style={{ color: '#ccac71' }} />
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#e8eaf0' }}>Équipe Télépros</div>
               <div style={{ fontSize: 11, color: '#555870', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ExternalLink size={10} style={{ color: '#6b87ff' }} />
+                <ExternalLink size={10} style={{ color: '#ccac71' }} />
                 Synchronisé avec HubSpot
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={load} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+            <button onClick={load} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
               <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
-            <button onClick={onClose} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+            <button onClick={onClose} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
               <X size={14} />
             </button>
           </div>
@@ -199,8 +199,8 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
 
           {/* Résultat sync HubSpot */}
           {syncResult && (
-            <div style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#6b87ff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Download size={14} /> Sync HubSpot terminé
               </div>
               {syncResult.created.length === 0 && (
@@ -213,18 +213,18 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {syncResult.created.map(c => (
-                      <div key={c.email} style={{ background: '#1e2130', borderRadius: 8, padding: '10px 14px' }}>
+                      <div key={c.email} style={{ background: '#152438', borderRadius: 8, padding: '10px 14px' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#e8eaf0', marginBottom: 4 }}>{c.name}</div>
                         <div style={{ fontSize: 11, color: '#555870', marginBottom: 6 }}>{c.email}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#6b87ff', flex: 1 }}>{c.password}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#ccac71', flex: 1 }}>{c.password}</div>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(`Email : ${c.email}\nMot de passe : ${c.password}`)
                               setSyncPwdCopied(c.email)
                               setTimeout(() => setSyncPwdCopied(null), 2000)
                             }}
-                            style={{ background: syncPwdCopied === c.email ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 6, padding: '4px 10px', color: syncPwdCopied === c.email ? '#22c55e' : '#6b87ff', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                            style={{ background: syncPwdCopied === c.email ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 10px', color: syncPwdCopied === c.email ? '#22c55e' : '#ccac71', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                           >
                             {syncPwdCopied === c.email ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
                           </button>
@@ -267,7 +267,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
               <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 6 }}>
                 Une invitation HubSpot a été envoyée à <span style={{ color: '#e8eaf0' }}>{createdCredentials.email}</span>
               </div>
-              <div style={{ background: '#1e2130', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ background: '#152438', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 10, color: '#555870', marginBottom: 3 }}>MOT DE PASSE PLATEFORME RDV</div>
                   <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#e8eaf0', letterSpacing: '0.08em' }}>
@@ -280,7 +280,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                     setPwdCopied(true)
                     setTimeout(() => setPwdCopied(false), 2000)
                   }}
-                  style={{ background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 6, padding: '6px 12px', color: pwdCopied ? '#22c55e' : '#6b87ff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+                  style={{ background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '6px 12px', color: pwdCopied ? '#22c55e' : '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
                 >
                   {pwdCopied ? <><Check size={11} /> Copié</> : <><Copy size={11} /> Copier</>}
                 </button>
@@ -300,10 +300,10 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
           {/* Formulaire ajout */}
           {showAddForm && (
             <div style={{
-              background: '#1e2130', border: '1px solid rgba(79,110,247,0.3)',
+              background: '#152438', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 12, padding: '16px', marginBottom: 20,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#6b87ff', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Plus size={13} /> Nouveau télépro
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -336,7 +336,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                   onClick={handleAdd}
                   disabled={adding || !addFirstName.trim() || !addLastName.trim() || !addEmail.trim()}
                   style={{
-                    flex: 1, background: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? '#4f6ef7' : '#252840',
+                    flex: 1, background: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? '#b89450' : '#243d5c',
                     color: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? 'white' : '#555870',
                     border: 'none', borderRadius: 8, padding: '10px', fontSize: 13, fontWeight: 700,
                     cursor: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? 'pointer' : 'default',
@@ -346,7 +346,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                 </button>
                 <button
                   onClick={() => { setShowAddForm(false); setAddError(null); setAddFirstName(''); setAddLastName(''); setAddEmail('') }}
-                  style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, padding: '10px 14px', color: '#8b8fa8', fontSize: 13, cursor: 'pointer' }}
+                  style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '10px 14px', color: '#8b8fa8', fontSize: 13, cursor: 'pointer' }}
                 >
                   Annuler
                 </button>
@@ -413,12 +413,12 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
 
         {/* Footer — Actions */}
         {!showAddForm && (
-          <div style={{ padding: '16px 20px', borderTop: '1px solid #2a2d3e', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '16px 20px', borderTop: '1px solid #2d4a6b', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               onClick={handleSync}
               disabled={syncing}
               style={{
-                width: '100%', background: syncing ? '#1e2130' : 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+                width: '100%', background: syncing ? '#152438' : 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
                 borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
                 color: syncing ? '#555870' : '#22c55e', cursor: syncing ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
@@ -430,9 +430,9 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
             <button
               onClick={() => { setShowAddForm(true); setCreatedCredentials(null) }}
               style={{
-                width: '100%', background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)',
+                width: '100%', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
                 borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
-                color: '#6b87ff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                color: '#ccac71', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               }}
             >
               <Plus size={14} /> Ajouter manuellement
@@ -496,8 +496,8 @@ function TeleproRow({
 
   return (
     <div style={{
-      background: '#1e2130',
-      border: `1px solid ${tp.is_banned ? 'rgba(239,68,68,0.15)' : '#2a2d3e'}`,
+      background: '#152438',
+      border: `1px solid ${tp.is_banned ? 'rgba(239,68,68,0.15)' : '#2d4a6b'}`,
       borderRadius: 10, padding: '12px 14px',
       opacity: tp.is_banned ? 0.7 : 1,
     }}>
@@ -512,7 +512,7 @@ function TeleproRow({
             >
               {isLoading ? '…' : 'Confirmer'}
             </button>
-            <button onClick={onConfirmCancel} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 7, padding: '8px 14px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer' }}>
+            <button onClick={onConfirmCancel} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 7, padding: '8px 14px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer' }}>
               Annuler
             </button>
           </div>
@@ -557,7 +557,7 @@ function TeleproRow({
                   onClick={handleResetPassword}
                   disabled={resetLoading}
                   title="Voir / réinitialiser le mot de passe"
-                  style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', cursor: 'pointer' }}
+                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccac71', cursor: 'pointer' }}
                 >
                   <Key size={12} />
                 </button>
@@ -566,7 +566,7 @@ function TeleproRow({
                 <button
                   onClick={handleImpersonate}
                   title="Se connecter en tant que ce télépro"
-                  style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b87ff', cursor: 'pointer' }}
+                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccac71', cursor: 'pointer' }}
                 >
                   <LogIn size={12} />
                 </button>
@@ -589,9 +589,9 @@ function TeleproRow({
 
           {/* Identifiants */}
           {shownPassword && (
-            <div style={{ marginTop: 10, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ marginTop: 10, background: 'rgba(204,172,113,0.06)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ fontSize: 11, color: '#ccac71', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Key size={11} /> Identifiants de connexion
                 </div>
                 <button onClick={() => setShownPassword(null)} style={{ background: 'transparent', border: 'none', color: '#555870', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
@@ -603,7 +603,7 @@ function TeleproRow({
                 </div>
                 <div style={{ background: '#13151f', borderRadius: 7, padding: '8px 12px' }}>
                   <div style={{ fontSize: 10, color: '#555870', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mot de passe (nouveau)</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.05em' }}>{shownPassword}</div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#ccac71', letterSpacing: '0.05em' }}>{shownPassword}</div>
                 </div>
               </div>
               <button
@@ -612,7 +612,7 @@ function TeleproRow({
                   setPwdCopied(true)
                   setTimeout(() => setPwdCopied(false), 2000)
                 }}
-                style={{ width: '100%', background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', border: `1px solid ${pwdCopied ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 7, padding: '8px', color: pwdCopied ? '#22c55e' : '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                style={{ width: '100%', background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: `1px solid ${pwdCopied ? 'rgba(34,197,94,0.3)' : 'rgba(204,172,113,0.3)'}`, borderRadius: 7, padding: '8px', color: pwdCopied ? '#22c55e' : '#ccac71', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 {pwdCopied ? <><Check size={12} /> Copié !</> : <><Copy size={12} /> Copier Email + Mot de passe</>}
               </button>

@@ -32,15 +32,15 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0f1117',
+      background: '#0b1624',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: 'system-ui, -apple-system, sans-serif',
     }}>
       <form onSubmit={handleLogin} style={{
-        background: '#1e2130',
-        border: '1px solid #2a2d3e',
+        background: '#152438',
+        border: '1px solid #2d4a6b',
         borderRadius: 16,
         padding: '40px 36px',
         width: 380,
@@ -69,8 +69,8 @@ export default function LoginPage() {
             autoFocus
             style={{
               width: '100%',
-              background: '#252840',
-              border: '1px solid #2a2d3e',
+              background: '#243d5c',
+              border: '1px solid #2d4a6b',
               borderRadius: 10,
               padding: '12px 14px',
               color: '#e8eaf0',
@@ -97,8 +97,8 @@ export default function LoginPage() {
             required
             style={{
               width: '100%',
-              background: '#252840',
-              border: '1px solid #2a2d3e',
+              background: '#243d5c',
+              border: '1px solid #2d4a6b',
               borderRadius: 10,
               padding: '12px 14px',
               color: '#e8eaf0',
@@ -130,7 +130,7 @@ export default function LoginPage() {
           disabled={loading}
           style={{
             width: '100%',
-            background: '#4f6ef7',
+            background: '#b89450',
             color: 'white',
             border: 'none',
             borderRadius: 10,

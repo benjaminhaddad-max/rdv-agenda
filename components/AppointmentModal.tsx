@@ -59,9 +59,9 @@ const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 
 const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
-  visio:       { icon: Video,     label: 'Visio',       color: '#6b87ff' },
+  visio:       { icon: Video,     label: 'Visio',       color: '#ccac71' },
   telephone:   { icon: PhoneCall, label: 'Téléphone',   color: '#22c55e' },
-  presentiel:  { icon: MapPin,    label: 'Présentiel',  color: '#f59e0b' },
+  presentiel:  { icon: MapPin,    label: 'Présentiel',  color: '#ccac71' },
 }
 
 export default function AppointmentModal({
@@ -295,8 +295,8 @@ export default function AppointmentModal({
       }}
     >
       <div style={{
-        background: '#1e2130',
-        border: '1px solid #2a2d3e',
+        background: '#152438',
+        border: '1px solid #2d4a6b',
         borderRadius: 16,
         width: '100%', maxWidth: 580,
         overflow: 'hidden',
@@ -307,7 +307,7 @@ export default function AppointmentModal({
         {/* Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid #2a2d3e',
+          borderBottom: '1px solid #2d4a6b',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
         }}>
           <div>
@@ -337,15 +337,15 @@ export default function AppointmentModal({
         </div>
 
         {/* Prospect info */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-              <Mail size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+              <Mail size={14} style={{ color: '#b89450', flexShrink: 0 }} />
               <span>{appointment.prospect_email}</span>
             </div>
             {appointment.prospect_phone && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <Phone size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <Phone size={14} style={{ color: '#b89450', flexShrink: 0 }} />
                 <span>{appointment.prospect_phone}</span>
               </div>
             )}
@@ -359,20 +359,20 @@ export default function AppointmentModal({
                 placeholder="Email parent (facultatif)"
                 style={{
                   flex: 1, background: 'transparent', border: 'none',
-                  borderBottom: '1px solid #2a2d3e', color: emailParent ? '#c4b5fd' : '#555870',
+                  borderBottom: '1px solid #2d4a6b', color: emailParent ? '#c4b5fd' : '#555870',
                   fontSize: 13, padding: '2px 0', outline: 'none', fontFamily: 'inherit',
                 }}
               />
             </div>
             {appointment.formation_type && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <Tag size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                <Tag size={14} style={{ color: '#ccac71', flexShrink: 0 }} />
                 <span>Filière : <strong style={{ color: '#e8eaf0' }}>{appointment.formation_type}</strong></span>
               </div>
             )}
             {appointment.source && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <Zap size={14} style={{ color: '#6b87ff', flexShrink: 0 }} />
+                <Zap size={14} style={{ color: '#ccac71', flexShrink: 0 }} />
                 <span>{SOURCE_LABEL[appointment.source] || appointment.source}</span>
               </div>
             )}
@@ -397,9 +397,9 @@ export default function AppointmentModal({
                   <button
                     onClick={() => setShowJitsi(true)}
                     style={{
-                      background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)',
+                      background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
                       borderRadius: 6, padding: '2px 10px',
-                      color: '#6b87ff', fontSize: 12, fontWeight: 600,
+                      color: '#ccac71', fontSize: 12, fontWeight: 600,
                       cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
                       fontFamily: 'inherit',
                     }}
@@ -411,13 +411,13 @@ export default function AppointmentModal({
             )}
             {appointment.classe_actuelle && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <span style={{ color: '#f59e0b', flexShrink: 0, fontSize: 14 }}>🎓</span>
+                <span style={{ color: '#ccac71', flexShrink: 0, fontSize: 14 }}>🎓</span>
                 <span>Classe actuelle : <strong style={{ color: '#e8eaf0' }}>{appointment.classe_actuelle}</strong></span>
               </div>
             )}
             {appointment.users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <User size={14} style={{ color: '#b89450', flexShrink: 0 }} />
                 <span>Closer : <strong style={{ color: '#e8eaf0' }}>{appointment.users.name}</strong></span>
                 {adminMode && (
                   <button
@@ -425,9 +425,9 @@ export default function AppointmentModal({
                     style={{
                       marginLeft: 4,
                       display: 'flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
+                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
                       borderRadius: 6, padding: '2px 8px',
-                      color: '#6b87ff', fontSize: 11, fontWeight: 600,
+                      color: '#ccac71', fontSize: 11, fontWeight: 600,
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
@@ -439,16 +439,16 @@ export default function AppointmentModal({
             )}
             {adminMode && !appointment.users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <User size={14} style={{ color: '#b89450', flexShrink: 0 }} />
                 <span style={{ color: '#555870' }}>Aucun closer assigné</span>
                 <button
                   onClick={() => setShowReassignModal(true)}
                   style={{
                     marginLeft: 4,
                     display: 'flex', alignItems: 'center', gap: 4,
-                    background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                    background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
                     borderRadius: 6, padding: '2px 8px',
-                    color: '#f59e0b', fontSize: 11, fontWeight: 600,
+                    color: '#ccac71', fontSize: 11, fontWeight: 600,
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
@@ -466,9 +466,9 @@ export default function AppointmentModal({
                     rel="noopener noreferrer"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
                       borderRadius: 6, padding: '4px 10px',
-                      color: '#f59e0b', fontSize: 12, fontWeight: 600,
+                      color: '#ccac71', fontSize: 12, fontWeight: 600,
                       textDecoration: 'none',
                     }}
                   >
@@ -482,9 +482,9 @@ export default function AppointmentModal({
                     rel="noopener noreferrer"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.3)',
+                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
                       borderRadius: 6, padding: '4px 10px',
-                      color: '#6b87ff', fontSize: 12, fontWeight: 600,
+                      color: '#ccac71', fontSize: 12, fontWeight: 600,
                       textDecoration: 'none',
                     }}
                   >
@@ -498,7 +498,7 @@ export default function AppointmentModal({
 
         {/* Retour prospect — visible si assigné, toujours réversible */}
         {(status === 'confirme' || status === 'confirme_prospect' || status === 'annule') && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               Retour prospect
             </div>
@@ -509,7 +509,7 @@ export default function AppointmentModal({
                 style={{
                   flex: 1,
                   background: status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'transparent',
-                  border: `1px solid ${status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#2a2d3e'}`,
+                  border: `1px solid ${status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#2d4a6b'}`,
                   borderRadius: 8, padding: '9px 14px',
                   color: status === 'confirme_prospect' ? '#10b981' : '#555870',
                   fontSize: 13, fontWeight: status === 'confirme_prospect' ? 700 : 400,
@@ -526,7 +526,7 @@ export default function AppointmentModal({
                 style={{
                   flex: 1,
                   background: status === 'annule' ? 'rgba(107,114,128,0.18)' : 'transparent',
-                  border: `1px solid ${status === 'annule' ? 'rgba(107,114,128,0.5)' : '#2a2d3e'}`,
+                  border: `1px solid ${status === 'annule' ? 'rgba(107,114,128,0.5)' : '#2d4a6b'}`,
                   borderRadius: 8, padding: '9px 14px',
                   color: status === 'annule' ? '#9ca3af' : '#555870',
                   fontSize: 13, fontWeight: status === 'annule' ? 700 : 400,
@@ -557,7 +557,7 @@ export default function AppointmentModal({
 
         {/* Status actions — masqué si non-assigné */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
               Mettre à jour le statut
             </div>
@@ -574,7 +574,7 @@ export default function AppointmentModal({
                     disabled={saving}
                     style={{
                       background: isHighlighted ? cfg.bg : 'transparent',
-                      border: `1px solid ${isHighlighted ? cfg.border : '#2a2d3e'}`,
+                      border: `1px solid ${isHighlighted ? cfg.border : '#2d4a6b'}`,
                       borderRadius: 10,
                       padding: '10px 12px',
                       cursor: 'pointer',
@@ -619,11 +619,11 @@ export default function AppointmentModal({
 
         {/* Message si non assigné */}
         {isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{
-              background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
               borderRadius: 10, padding: '12px 16px',
-              fontSize: 13, color: '#f59e0b',
+              fontSize: 13, color: '#ccac71',
             }}>
               Ce RDV n&apos;est pas encore assigné à un closer. Allez dans la vue Admin pour l&apos;assigner.
             </div>
@@ -632,7 +632,7 @@ export default function AppointmentModal({
 
         {/* Section: Raison négatif — visible si statut négatif ou en attente */}
         {!isNonAssigne && (status === 'negatif' || pendingStatus === 'negatif') && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: negatifError ? '#ef4444' : '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
               💀 Raison du négatif *
               {negatifError && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — Obligatoire</span>}
@@ -652,7 +652,7 @@ export default function AppointmentModal({
                       style={{
                         width: '100%', textAlign: 'left',
                         background: selected ? 'rgba(239,68,68,0.1)' : 'transparent',
-                        border: `1px solid ${selected ? 'rgba(239,68,68,0.4)' : negatifError ? 'rgba(239,68,68,0.3)' : '#2a2d3e'}`,
+                        border: `1px solid ${selected ? 'rgba(239,68,68,0.4)' : negatifError ? 'rgba(239,68,68,0.3)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '9px 14px',
                         color: selected ? '#ef4444' : '#8b8fa8',
                         fontSize: 13, fontWeight: selected ? 600 : 400,
@@ -670,8 +670,8 @@ export default function AppointmentModal({
                             <button key={prepa} onClick={() => {
                               setNegatifReasonDetail(prev => checked ? prev.filter(p => p !== prepa) : [...prev, prepa])
                             }} style={{
-                              background: checked ? 'rgba(239,68,68,0.15)' : '#252840',
-                              border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : '#2a2d3e'}`,
+                              background: checked ? 'rgba(239,68,68,0.15)' : '#243d5c',
+                              border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : '#2d4a6b'}`,
                               borderRadius: 6, padding: '5px 10px',
                               color: checked ? '#ef4444' : '#8b8fa8',
                               fontSize: 11, fontWeight: checked ? 600 : 400, cursor: 'pointer',
@@ -689,7 +689,7 @@ export default function AppointmentModal({
                         onChange={e => setNegatifAutreText(e.target.value)}
                         placeholder="Préciser la raison…"
                         style={{
-                          width: '100%', marginTop: 6, background: '#252840', border: '1px solid #2a2d3e',
+                          width: '100%', marginTop: 6, background: '#243d5c', border: '1px solid #2d4a6b',
                           borderRadius: 8, padding: '8px 12px', color: '#e8eaf0', fontSize: 13,
                           outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
                         }}
@@ -704,7 +704,7 @@ export default function AppointmentModal({
 
         {/* Section: Interlocuteur principal */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               👤 Interlocuteur principal
             </div>
@@ -713,10 +713,10 @@ export default function AppointmentModal({
                 const selected = interlocuteur === val
                 return (
                   <button key={val} onClick={() => setInterlocuteur(val)} style={{
-                    flex: 1, background: selected ? 'rgba(79,110,247,0.12)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                    flex: 1, background: selected ? 'rgba(204,172,113,0.12)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#6b87ff' : '#8b8fa8',
+                    color: selected ? '#ccac71' : '#8b8fa8',
                     fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
                   }}>
                     {val === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Étudiant'}
@@ -725,7 +725,7 @@ export default function AppointmentModal({
               })}
             </div>
             {interlocuteur && (
-              <div style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 6, fontWeight: 600 }}>
                   {interlocuteur === 'parent' ? 'Consigne pour Pascal' : 'Consigne pour le télépro'}
                 </div>
@@ -734,7 +734,7 @@ export default function AppointmentModal({
                   onChange={e => setConsigneText(e.target.value)}
                   placeholder="Décrire la consigne…"
                   style={{
-                    width: '100%', background: '#1e2130', border: '1px solid #2a2d3e',
+                    width: '100%', background: '#152438', border: '1px solid #2d4a6b',
                     borderRadius: 8, padding: '8px 12px', color: '#e8eaf0', fontSize: 13,
                     outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 8,
                   }}
@@ -748,7 +748,7 @@ export default function AppointmentModal({
                         value={consigneEcheance}
                         onChange={e => setConsigneEcheance(e.target.value)}
                         style={{
-                          background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 8,
+                          background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8,
                           padding: '6px 10px', color: '#e8eaf0', fontSize: 12, outline: 'none',
                           fontFamily: 'inherit', colorScheme: 'dark',
                         }}
@@ -759,7 +759,7 @@ export default function AppointmentModal({
                     onClick={() => { setConsigneRienAFaire(!consigneRienAFaire); if (!consigneRienAFaire) setConsigneEcheance('') }}
                     style={{
                       background: consigneRienAFaire ? 'rgba(107,114,128,0.2)' : 'transparent',
-                      border: `1px solid ${consigneRienAFaire ? 'rgba(107,114,128,0.4)' : '#2a2d3e'}`,
+                      border: `1px solid ${consigneRienAFaire ? 'rgba(107,114,128,0.4)' : '#2d4a6b'}`,
                       borderRadius: 6, padding: '5px 10px',
                       color: consigneRienAFaire ? '#9ca3af' : '#555870',
                       fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -775,7 +775,7 @@ export default function AppointmentModal({
 
         {/* Section: Contexte concurrence */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               🏆 Contexte concurrence
             </div>
@@ -788,10 +788,10 @@ export default function AppointmentModal({
                 const selected = contexteConcurrence === opt.value
                 return (
                   <button key={opt.value} onClick={() => setContexteConcurrence(opt.value)} style={{
-                    textAlign: 'left', background: selected ? 'rgba(245,158,11,0.1)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : '#2a2d3e'}`,
+                    textAlign: 'left', background: selected ? 'rgba(204,172,113,0.1)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#f59e0b' : '#8b8fa8',
+                    color: selected ? '#ccac71' : '#8b8fa8',
                     fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
                   }}>
                     {opt.label}
@@ -804,7 +804,7 @@ export default function AppointmentModal({
 
         {/* Section: Financement */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               💰 Financement
             </div>
@@ -817,7 +817,7 @@ export default function AppointmentModal({
                 return (
                   <button key={opt.value} onClick={() => setFinancement(opt.value)} style={{
                     flex: 1, background: selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)') : 'transparent',
-                    border: `1px solid ${selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') : '#2a2d3e'}`,
+                    border: `1px solid ${selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
                     color: selected ? (opt.value === 'pas_de_probleme' ? '#22c55e' : '#ef4444') : '#8b8fa8',
                     fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
@@ -832,7 +832,7 @@ export default function AppointmentModal({
 
         {/* Section: JPO */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               🎓 Inviter à la prochaine JPO
             </div>
@@ -844,10 +844,10 @@ export default function AppointmentModal({
                 const selected = jpoInvitation === opt.value
                 return (
                   <button key={opt.value} onClick={() => setJpoInvitation(opt.value)} style={{
-                    flex: 1, background: selected ? 'rgba(79,110,247,0.12)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                    flex: 1, background: selected ? 'rgba(204,172,113,0.12)' : 'transparent',
+                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#6b87ff' : '#8b8fa8',
+                    color: selected ? '#ccac71' : '#8b8fa8',
                     fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
                   }}>
                     {opt.label}
@@ -860,7 +860,7 @@ export default function AppointmentModal({
 
         {/* Rapport closer — obligatoire */}
         {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: reportError ? '#ef4444' : '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileText size={12} />
               Rapport du RDV *
@@ -890,8 +890,8 @@ export default function AppointmentModal({
                 placeholder="Comment s'est passé le RDV ? Motivations du prospect, objections, situation…"
                 rows={4}
                 style={{
-                  width: '100%', background: '#252840',
-                  border: `1px solid ${reportError && !reportSummary.trim() ? 'rgba(239,68,68,0.5)' : '#2a2d3e'}`,
+                  width: '100%', background: '#243d5c',
+                  border: `1px solid ${reportError && !reportSummary.trim() ? 'rgba(239,68,68,0.5)' : '#2d4a6b'}`,
                   borderRadius: 8, padding: '12px 14px', color: '#e8eaf0',
                   fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
                   outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
@@ -906,8 +906,8 @@ export default function AppointmentModal({
                 placeholder="Retour pour le télépro : qualité du lead, axes d'amélioration, infos manquantes…"
                 rows={3}
                 style={{
-                  width: '100%', background: '#252840',
-                  border: `1px solid ${reportError && !reportTelepro.trim() ? 'rgba(239,68,68,0.5)' : '#2a2d3e'}`,
+                  width: '100%', background: '#243d5c',
+                  border: `1px solid ${reportError && !reportTelepro.trim() ? 'rgba(239,68,68,0.5)' : '#2d4a6b'}`,
                   borderRadius: 8, padding: '12px 14px', color: '#e8eaf0',
                   fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
                   outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
@@ -929,7 +929,7 @@ export default function AppointmentModal({
             placeholder="Notes libres sur ce RDV..."
             rows={4}
             style={{
-              width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+              width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
               borderRadius: 8, padding: '12px 14px', color: '#e8eaf0',
               fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
               outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
@@ -939,7 +939,7 @@ export default function AppointmentModal({
             onClick={saveAll}
             disabled={saving}
             style={{
-              marginTop: 8, background: '#4f6ef7', color: 'white',
+              marginTop: 8, background: '#b89450', color: 'white',
               border: 'none', borderRadius: 8, padding: '8px 16px',
               cursor: 'pointer', fontSize: 13, fontWeight: 600,
             }}

@@ -254,12 +254,12 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: '#0f1117', display: 'flex', flexDirection: 'column',
+      background: '#0b1624', display: 'flex', flexDirection: 'column',
     }}>
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px', background: '#1a1d27', borderBottom: '1px solid #2a2d3e',
+        padding: '8px 16px', background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
         minHeight: 48,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -288,11 +288,11 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
           {processing && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.4)',
+              background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
               borderRadius: 8, padding: '4px 12px',
             }}>
-              <Loader2 size={14} style={{ color: '#6b87ff', animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 12, color: '#6b87ff', fontWeight: 600 }}>
+              <Loader2 size={14} style={{ color: '#ccac71', animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: 12, color: '#ccac71', fontWeight: 600 }}>
                 {processingStep}
               </span>
             </div>
@@ -305,8 +305,8 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
               onClick={stopRecordingAndProcess}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)',
-                borderRadius: 8, padding: '4px 12px', color: '#f59e0b',
+                background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
+                borderRadius: 8, padding: '4px 12px', color: '#ccac71',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -355,7 +355,7 @@ export default function JitsiMeeting({ meetingLink, appointmentId, onClose, onRe
           background: 'rgba(15,17,23,0.9)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
         }}>
-          <Loader2 size={40} style={{ color: '#6b87ff', animation: 'spin 1s linear infinite' }} />
+          <Loader2 size={40} style={{ color: '#ccac71', animation: 'spin 1s linear infinite' }} />
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0' }}>
             {processingStep}
           </div>

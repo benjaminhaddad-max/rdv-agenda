@@ -14,7 +14,7 @@ export default async function BookingPage({ params }: { params: Promise<{ slug: 
   if (!commercial) {
     return (
       <div style={{
-        minHeight: '100vh', background: '#0f1117',
+        minHeight: '100vh', background: '#0b1624',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#8b8fa8', fontSize: 16,
       }}>

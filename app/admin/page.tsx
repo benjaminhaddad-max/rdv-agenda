@@ -29,23 +29,23 @@ export default function AdminPage() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f1117' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624' }}>
       {/* Top bar admin */}
       <div style={{
         padding: '0 24px',
         height: 56,
-        background: '#1a1d27',
-        borderBottom: '1px solid #2a2d3e',
+        background: '#1d2f4b',
+        borderBottom: '1px solid #2d4a6b',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: 'rgba(245,158,11,0.15)',
+            background: 'rgba(204,172,113,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <LayoutDashboard size={16} style={{ color: '#f59e0b' }} />
+            <LayoutDashboard size={16} style={{ color: '#ccac71' }} />
           </div>
           <div>
             <span style={{ fontWeight: 700, fontSize: 15, color: '#e8eaf0' }}>Admin</span>
@@ -56,9 +56,9 @@ export default function AdminPage() {
           <button
             onClick={() => setShowTelepros(true)}
             style={{
-              background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)',
+              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#6b87ff', fontSize: 12, cursor: 'pointer',
+              color: '#ccac71', fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
               fontWeight: 600, fontFamily: 'inherit',
             }}
@@ -69,9 +69,9 @@ export default function AdminPage() {
           <button
             onClick={() => setShowClosers(true)}
             style={{
-              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#f59e0b', fontSize: 12, cursor: 'pointer',
+              color: '#ccac71', fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
               fontWeight: 600, fontFamily: 'inherit',
             }}
@@ -82,9 +82,9 @@ export default function AdminPage() {
           <button
             onClick={() => setShowCheckRdv(true)}
             style={{
-              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#f59e0b', fontSize: 12, cursor: 'pointer',
+              color: '#ccac71', fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
               fontWeight: 600, fontFamily: 'inherit',
             }}
@@ -120,9 +120,9 @@ export default function AdminPage() {
           <button
             onClick={() => setShowRepop(true)}
             style={{
-              background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.25)',
+              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#fb923c', fontSize: 12, cursor: 'pointer',
+              color: '#ccac71', fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
               fontWeight: 600, fontFamily: 'inherit',
             }}
@@ -145,7 +145,7 @@ export default function AdminPage() {
           <a
             href="/closer"
             style={{
-              background: '#252840', border: '1px solid #2a2d3e',
+              background: '#243d5c', border: '1px solid #2d4a6b',
               borderRadius: 8, padding: '6px 14px',
               color: '#8b8fa8', fontSize: 12, cursor: 'pointer',
               textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6,
@@ -157,9 +157,9 @@ export default function AdminPage() {
           <a
             href="/telepro"
             style={{
-              background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)',
+              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#6b87ff', fontSize: 12, cursor: 'pointer',
+              color: '#ccac71', fontSize: 12, cursor: 'pointer',
               textDecoration: 'none',
             }}
           >
@@ -173,8 +173,8 @@ export default function AdminPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* File d'attente non-assignés */}
         <div style={{
-          background: '#1a1d27',
-          borderBottom: '2px solid #f59e0b',
+          background: '#1d2f4b',
+          borderBottom: '2px solid #ccac71',
           flexShrink: 0,
         }}>
           <UnassignedQueue onAssigned={handleAssigned} />
@@ -184,8 +184,8 @@ export default function AdminPage() {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{
             padding: '10px 24px',
-            background: '#1a1d27',
-            borderBottom: '1px solid #2a2d3e',
+            background: '#1d2f4b',
+            borderBottom: '1px solid #2d4a6b',
             fontSize: 12, fontWeight: 600, color: '#555870',
             textTransform: 'uppercase', letterSpacing: '0.08em',
           }}>
@@ -226,7 +226,7 @@ export default function AdminPage() {
           style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
           onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
         >
-          <div style={{ background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+          <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
             <button
               onClick={() => setShowRepop(false)}
               style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}

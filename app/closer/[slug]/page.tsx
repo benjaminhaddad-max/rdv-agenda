@@ -15,7 +15,7 @@ export default async function CloserPage({ params }: { params: Promise<{ slug: s
   if (!user) {
     return (
       <div style={{
-        minHeight: '100vh', background: '#0f1117', color: '#e8eaf0',
+        minHeight: '100vh', background: '#0b1624', color: '#e8eaf0',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{ textAlign: 'center' }}>

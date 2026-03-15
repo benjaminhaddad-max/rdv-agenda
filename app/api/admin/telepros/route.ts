@@ -5,7 +5,7 @@ const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 const TEAM_NAME = 'Télépros'
 
 const AVATAR_COLORS = [
-  '#6b87ff', '#22c55e', '#f59e0b', '#a855f7',
+  '#ccac71', '#22c55e', '#ccac71', '#a855f7',
   '#06b6d4', '#ef4444', '#f97316', '#14b8a6',
   '#ec4899', '#8b5cf6', '#10b981', '#3b82f6',
 ]

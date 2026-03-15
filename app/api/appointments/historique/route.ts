@@ -4,7 +4,7 @@ import { searchDealsByOwner, getDealContactInfo, PIPELINE_2026_2027, STAGES } fr
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
-  [STAGES.rdvPris]:              { label: 'RDV Pris',             color: '#6b87ff' },
+  [STAGES.rdvPris]:              { label: 'RDV Pris',             color: '#ccac71' },
   [STAGES.delaiReflexion]:       { label: 'Délai de réflexion',   color: '#eab308' },
   [STAGES.preinscription]:       { label: 'Pré-inscription',      color: '#a855f7' },
   [STAGES.finalisation]:         { label: 'Finalisation',         color: '#14b8a6' },

@@ -88,14 +88,14 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
 
   return (
     <div style={{
-      minHeight: '100vh', background: '#0f1117',
+      minHeight: '100vh', background: '#0b1624',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '24px 16px',
     }}>
       <div style={{
         width: '100%', maxWidth: 560,
-        background: '#1a1d27',
-        border: '1px solid #2a2d3e',
+        background: '#1d2f4b',
+        border: '1px solid #2d4a6b',
         borderRadius: 20,
         overflow: 'hidden',
         boxShadow: '0 24px 60px rgba(0,0,0,0.4)',
@@ -103,7 +103,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
         {/* Header */}
         <div style={{
           padding: '28px 28px 24px',
-          borderBottom: '1px solid #2a2d3e',
+          borderBottom: '1px solid #2d4a6b',
           display: 'flex', alignItems: 'center', gap: 16,
         }}>
           <div style={{
@@ -146,7 +146,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
             </div>
             <div style={{ fontSize: 14, color: '#8b8fa8', lineHeight: 1.6 }}>
               Votre rendez-vous avec <strong style={{ color: '#e8eaf0' }}>{commercial.name}</strong> est confirmé pour le{' '}
-              <strong style={{ color: '#6b87ff' }}>
+              <strong style={{ color: '#ccac71' }}>
                 {selectedDate && selectedSlot && `${format(selectedDate, 'EEEE d MMMM', { locale: fr })} à ${format(new Date(selectedSlot.start), 'HH:mm')}`}
               </strong>.
             </div>
@@ -170,7 +170,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                     onClick={() => setWeekStart(subDays(weekStart, 7))}
                     disabled={weekStart <= startOfDay(new Date())}
                     style={{
-                      background: '#252840', border: '1px solid #2a2d3e',
+                      background: '#243d5c', border: '1px solid #2d4a6b',
                       borderRadius: 8, width: 30, height: 30,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', color: '#8b8fa8',
@@ -182,7 +182,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                   <button
                     onClick={() => setWeekStart(addDays(weekStart, 7))}
                     style={{
-                      background: '#252840', border: '1px solid #2a2d3e',
+                      background: '#243d5c', border: '1px solid #2d4a6b',
                       borderRadius: 8, width: 30, height: 30,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', color: '#8b8fa8',
@@ -205,8 +205,8 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                       onClick={() => { setSelectedDate(day); setStep('slot') }}
                       disabled={isPast}
                       style={{
-                        background: isSelected ? '#4f6ef7' : today ? 'rgba(79,110,247,0.1)' : '#252840',
-                        border: `1px solid ${isSelected ? '#4f6ef7' : today ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                        background: isSelected ? '#b89450' : today ? 'rgba(204,172,113,0.1)' : '#243d5c',
+                        border: `1px solid ${isSelected ? '#b89450' : today ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                         borderRadius: 10, padding: '10px 4px',
                         cursor: isPast ? 'not-allowed' : 'pointer',
                         opacity: isPast ? 0.3 : 1,
@@ -217,7 +217,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                       <div style={{ fontSize: 10, color: isSelected ? 'rgba(255,255,255,0.7)' : '#555870', textTransform: 'uppercase', fontWeight: 600 }}>
                         {format(day, 'EEE', { locale: fr })}
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? 'white' : today ? '#6b87ff' : '#e8eaf0', marginTop: 2 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? 'white' : today ? '#ccac71' : '#e8eaf0', marginTop: 2 }}>
                         {format(day, 'd')}
                       </div>
                     </button>
@@ -250,8 +250,8 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                           key={slot.start}
                           onClick={() => { setSelectedSlot(slot); setStep('form') }}
                           style={{
-                            background: isSelected ? '#4f6ef7' : '#252840',
-                            border: `1px solid ${isSelected ? '#4f6ef7' : '#2a2d3e'}`,
+                            background: isSelected ? '#b89450' : '#243d5c',
+                            border: `1px solid ${isSelected ? '#b89450' : '#2d4a6b'}`,
                             borderRadius: 10, padding: '10px',
                             cursor: 'pointer',
                             color: isSelected ? 'white' : '#e8eaf0',
@@ -272,9 +272,9 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
             {step === 'form' && selectedSlot && (
               <div>
                 <div style={{
-                  background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)',
+                  background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
                   borderRadius: 10, padding: '12px 14px', marginBottom: 20,
-                  fontSize: 13, color: '#6b87ff',
+                  fontSize: 13, color: '#ccac71',
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}>
                   <Clock size={14} />
@@ -294,7 +294,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="Jean Dupont"
                       style={{
-                        width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+                        width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
                         borderRadius: 10, padding: '10px 14px', color: '#e8eaf0',
                         fontSize: 14, outline: 'none', fontFamily: 'inherit',
                       }}
@@ -310,7 +310,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                       placeholder="jean@exemple.com"
                       style={{
-                        width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+                        width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
                         borderRadius: 10, padding: '10px 14px', color: '#e8eaf0',
                         fontSize: 14, outline: 'none', fontFamily: 'inherit',
                       }}
@@ -326,7 +326,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                       onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                       placeholder="+33 6 00 00 00 00"
                       style={{
-                        width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+                        width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
                         borderRadius: 10, padding: '10px 14px', color: '#e8eaf0',
                         fontSize: 14, outline: 'none', fontFamily: 'inherit',
                       }}
@@ -336,7 +336,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
                     onClick={handleBook}
                     disabled={submitting || !form.name || !form.email}
                     style={{
-                      background: '#4f6ef7', color: 'white',
+                      background: '#b89450', color: 'white',
                       border: 'none', borderRadius: 12,
                       padding: '14px', fontSize: 15, fontWeight: 700,
                       cursor: submitting || !form.name || !form.email ? 'not-allowed' : 'pointer',

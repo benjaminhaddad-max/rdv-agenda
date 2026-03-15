@@ -38,7 +38,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
   // Sub-filters for orphans tab
   const [orphanClasse, setOrphanClasse] = useState<string>('')
-  const [orphanZone, setOrphanZone] = useState<string>('')
+  const [orphanDept, setOrphanDept] = useState<string>('')
   const [orphanCandidatureOnly, setOrphanCandidatureOnly] = useState(false)
 
   const fetchRepops = useCallback(async () => {
@@ -82,10 +82,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   // Sub-filter orphans
   const filteredOrphans = orphans.filter(o => {
     if (orphanClasse && o.classe !== orphanClasse) return false
-    if (orphanZone && o.zone_localite !== orphanZone) return false
+    if (orphanDept && o.departement !== orphanDept) return false
     if (orphanCandidatureOnly) {
       const hasCandidature = [o.first_form_name, o.repop_form_name].some(
-        n => n && /candidat/i.test(n)
+        n => n && /candidature/i.test(n)
       )
       if (!hasCandidature) return false
     }
@@ -94,7 +94,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   // Unique values for sub-filter dropdowns
   const uniqueClasses = [...new Set(orphans.map(o => o.classe).filter(Boolean) as string[])].sort()
-  const uniqueZones = [...new Set(orphans.map(o => o.zone_localite).filter(Boolean) as string[])].sort()
+  const uniqueDepts = [...new Set(orphans.map(o => o.departement).filter(Boolean) as string[])].sort()
 
   const countByStage = {
     a_replanifier: entries.filter(e => e.hs_stage_label === 'À replanifier').length,
@@ -123,13 +123,13 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             Journal des Repop
             {totalCount > 0 && (
               <span style={{
-                background: 'rgba(251,146,60,0.2)',
-                border: '1px solid rgba(251,146,60,0.4)',
+                background: 'rgba(204,172,113,0.2)',
+                border: '1px solid rgba(204,172,113,0.4)',
                 borderRadius: 20,
                 padding: '1px 10px',
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#fb923c',
+                color: '#ccac71',
               }}>
                 {totalCount}
               </span>
@@ -142,7 +142,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         <button
           onClick={fetchRepops}
           style={{
-            background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8,
+            background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8,
             padding: '6px 10px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
           }}
         >
@@ -165,8 +165,8 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 key={f.key}
                 onClick={() => setActiveFilter(f.key)}
                 style={{
-                  background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.15)` : '#1e2130',
-                  border: `1px solid ${isActive ? `rgba(${hexToRgb(f.activeColor)},0.4)` : '#2a2d3e'}`,
+                  background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.15)` : '#152438',
+                  border: `1px solid ${isActive ? `rgba(${hexToRgb(f.activeColor)},0.4)` : '#2d4a6b'}`,
                   borderRadius: 8, padding: '5px 12px',
                   color: isActive ? f.activeColor : '#8b8fa8',
                   fontSize: 12, fontWeight: isActive ? 700 : 400,
@@ -176,7 +176,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 {f.label}
                 {f.count > 0 && (
                   <span style={{
-                    background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.25)` : '#252840',
+                    background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.25)` : '#243d5c',
                     borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700,
                     color: isActive ? f.activeColor : '#555870',
                   }}>
@@ -193,7 +193,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {totalCount === 0 && (
         <div style={{
           textAlign: 'center', padding: '48px 24px',
-          background: '#1e2130', borderRadius: 14, border: '1px solid #2a2d3e',
+          background: '#152438', borderRadius: 14, border: '1px solid #2d4a6b',
         }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🔁</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0', marginBottom: 8 }}>
@@ -241,18 +241,18 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <select
-                value={orphanZone}
-                onChange={e => setOrphanZone(e.target.value)}
+                value={orphanDept}
+                onChange={e => setOrphanDept(e.target.value)}
                 style={subFilterSelectStyle}
               >
-                <option value="">Zone / Localité</option>
-                {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
+                <option value="">Département</option>
+                {uniqueDepts.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               <button
                 onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
                 style={{
-                  background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#1e2130',
-                  border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2a2d3e'}`,
+                  background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#152438',
+                  border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2d4a6b'}`,
                   borderRadius: 8, padding: '5px 12px',
                   color: orphanCandidatureOnly ? '#a855f7' : '#8b8fa8',
                   fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
@@ -261,7 +261,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
               >
                 Formulaire candidature
               </button>
-              {(orphanClasse || orphanZone || orphanCandidatureOnly) && (
+              {(orphanClasse || orphanDept || orphanCandidatureOnly) && (
                 <span style={{ fontSize: 11, color: '#555870' }}>
                   {filteredOrphans.length} résultat{filteredOrphans.length !== 1 ? 's' : ''}
                 </span>
@@ -283,22 +283,22 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boolean }) {
   return (
     <div style={{
-      background: '#1e2130',
-      border: '1px solid rgba(251,146,60,0.2)',
-      borderLeft: '3px solid #fb923c',
+      background: '#152438',
+      border: '1px solid rgba(204,172,113,0.2)',
+      borderLeft: '3px solid #ccac71',
       borderRadius: 12,
       padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 10,
+      display: 'flex', flexDirection: 'column', gap: 8,
     }}>
 
       {/* Ligne 1 : badge repop + nom + stage */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
-            background: 'rgba(251,146,60,0.15)',
-            border: '1px solid rgba(251,146,60,0.4)',
+            background: 'rgba(204,172,113,0.15)',
+            border: '1px solid rgba(204,172,113,0.4)',
             borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: '#fb923c',
+            fontSize: 11, fontWeight: 700, color: '#ccac71',
           }}>
             🔁 Repop
           </span>
@@ -306,40 +306,30 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
             {entry.prospect_name}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {entry.formation_type && (
-            <span style={{
-              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
-            }}>
-              {entry.formation_type}
-            </span>
-          )}
-          <span style={{
-            background: `rgba(${hexToRgb(entry.hs_stage_color)},0.12)`,
-            border: `1px solid rgba(${hexToRgb(entry.hs_stage_color)},0.3)`,
-            borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: entry.hs_stage_color,
-          }}>
-            {entry.hs_stage_label}
-          </span>
-        </div>
+        <span style={{
+          background: `rgba(${hexToRgb(entry.hs_stage_color)},0.12)`,
+          border: `1px solid rgba(${hexToRgb(entry.hs_stage_color)},0.3)`,
+          borderRadius: 6, padding: '2px 8px',
+          fontSize: 11, fontWeight: 700, color: entry.hs_stage_color,
+        }}>
+          {entry.hs_stage_label}
+        </span>
       </div>
 
-      {/* Ligne 2 : téléphone + email + closer/telepro */}
+      {/* Ligne 2 : téléphone + formation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         {entry.prospect_phone && (
           <a
             href={`tel:${entry.prospect_phone}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#6b87ff', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ccac71', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
           >
             <Phone size={13} />
             {entry.prospect_phone}
           </a>
         )}
-        {entry.prospect_email && (
+        {entry.formation_type && (
           <span style={{ fontSize: 12, color: '#8b8fa8' }}>
-            {entry.prospect_email}
+            {entry.formation_type}
           </span>
         )}
         {showCloser && (entry.commercial_name || entry.telepro_name) && (
@@ -350,38 +340,24 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
         )}
       </div>
 
-      {/* Ligne 3 : timeline RDV → formulaire repop */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 6,
-        background: '#151823', borderRadius: 8, padding: '10px 12px',
-      }}>
-        {/* Date du RDV */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#555870', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
-            <strong style={{ color: '#c8cadb' }}>RDV le {entry.rdv_date_label}</strong>
-          </span>
-        </div>
-
-        {/* Flèche */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#2a2d3e', marginLeft: 0 }} />
-          <ArrowRight size={10} style={{ color: '#555870' }} />
-        </div>
-
-        {/* Formulaire repop */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#fb923c', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600 }}>
-            <strong>{entry.repop_form_date_label}</strong>
-            {' — '}
-            {entry.repop_form_name || 'Nouveau formulaire soumis'}
-          </span>
-        </div>
+      {/* Ligne 3 : date RDV + formulaire */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555870' }}>
+          <Calendar size={12} />
+          RDV le {entry.rdv_date_label}
+        </span>
+        <span style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          fontSize: 12, color: '#ccac71', fontWeight: 600,
+          background: 'rgba(204,172,113,0.08)',
+          borderRadius: 6, padding: '2px 8px',
+        }}>
+          <FileText size={12} />
+          {entry.repop_form_name
+            ? `"${entry.repop_form_name}" — resoumis le ${entry.repop_form_date_label}`
+            : `Formulaire resoumis le ${entry.repop_form_date_label}`
+          }
+        </span>
       </div>
     </div>
   )
@@ -393,7 +369,7 @@ const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
   return (
     <div style={{
-      background: '#1e2130',
+      background: '#152438',
       border: '1px solid rgba(168,85,247,0.2)',
       borderLeft: '3px solid #a855f7',
       borderRadius: 12,
@@ -419,26 +395,26 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {entry.classe && (
             <span style={{
-              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
             }}>
               {entry.classe}
             </span>
           )}
           {entry.formation && (
             <span style={{
-              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
             }}>
               {entry.formation}
             </span>
           )}
-          {entry.zone_localite && (
+          {entry.departement && (
             <span style={{
-              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
             }}>
-              {entry.zone_localite}
+              Dpt {entry.departement}
             </span>
           )}
           <a
@@ -447,8 +423,8 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
             rel="noopener noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#6b87ff',
+              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
+              borderRadius: 6, padding: '3px 9px', color: '#ccac71',
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
@@ -462,7 +438,7 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
         {entry.prospect_phone && (
           <a
             href={`tel:${entry.prospect_phone}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#6b87ff', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ccac71', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
           >
             <Phone size={13} />
             {entry.prospect_phone}
@@ -494,7 +470,7 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
 
         {/* Flèche */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#2a2d3e', marginLeft: 0 }} />
+          <div style={{ width: 2, height: 12, background: '#2d4a6b', marginLeft: 0 }} />
           <ArrowRight size={10} style={{ color: '#555870' }} />
         </div>
 
@@ -515,7 +491,7 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
 }
 
 const subFilterSelectStyle: React.CSSProperties = {
-  background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 8,
+  background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8,
   padding: '5px 10px', color: '#8b8fa8', fontSize: 12, cursor: 'pointer',
   appearance: 'auto' as const,
 }

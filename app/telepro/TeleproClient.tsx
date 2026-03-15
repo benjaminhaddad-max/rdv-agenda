@@ -100,7 +100,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 // ─── Styles partagés ───────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+  width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
   borderRadius: 10, padding: '11px 14px', color: '#e8eaf0',
   fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
 }
@@ -136,7 +136,7 @@ function TeleproRdvModal({
 }) {
   const start = new Date(rdv.start_at)
   const end = new Date(rdv.end_at)
-  const meetingColor = rdv.meeting_type === 'visio' ? '#6b87ff' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#f59e0b'
+  const meetingColor = rdv.meeting_type === 'visio' ? '#ccac71' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#ccac71'
   const meetingLabel = rdv.meeting_type === 'visio' ? 'Visio' : rdv.meeting_type === 'telephone' ? 'Téléphone' : 'Présentiel'
   const mouseDownOnBackdrop = { current: false }
 
@@ -146,9 +146,9 @@ function TeleproRdvModal({
       onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
       onClick={e => { if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose(); mouseDownOnBackdrop.current = false }}
     >
-      <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0', marginBottom: 4 }}>{rdv.prospect_name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8b8fa8', fontSize: 14 }}>
@@ -165,21 +165,21 @@ function TeleproRdvModal({
         </div>
 
         {/* Infos prospect */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-              <Mail size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+              <Mail size={14} style={{ color: '#b89450', flexShrink: 0 }} />
               <span>{rdv.prospect_email}</span>
             </div>
             {rdv.prospect_phone && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <Phone size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <Phone size={14} style={{ color: '#b89450', flexShrink: 0 }} />
                 <span>{rdv.prospect_phone}</span>
               </div>
             )}
             {rdv.formation_type && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <Tag size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                <Tag size={14} style={{ color: '#ccac71', flexShrink: 0 }} />
                 <span>Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong></span>
               </div>
             )}
@@ -196,7 +196,7 @@ function TeleproRdvModal({
                 <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
                 {rdv.meeting_type === 'visio' && rdv.meeting_link && (
                   <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
-                    style={{ background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6, padding: '2px 10px', color: '#6b87ff', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 10px', color: '#ccac71', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <Video size={11} /> Rejoindre
                   </a>
                 )}
@@ -204,13 +204,13 @@ function TeleproRdvModal({
             )}
             {rdv.classe_actuelle && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <span style={{ color: '#f59e0b', flexShrink: 0 }}>🎓</span>
+                <span style={{ color: '#ccac71', flexShrink: 0 }}>🎓</span>
                 <span>Classe actuelle : <strong style={{ color: '#e8eaf0' }}>{rdv.classe_actuelle}</strong></span>
               </div>
             )}
             {rdv.rdv_users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
-                <User size={14} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                <User size={14} style={{ color: '#b89450', flexShrink: 0 }} />
                 <span>Closer : <strong style={{ color: '#e8eaf0' }}>{rdv.rdv_users.name}</strong></span>
               </div>
             )}
@@ -219,14 +219,14 @@ function TeleproRdvModal({
                 {rdv.hubspot_contact_id && (
                   <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${rdv.hubspot_contact_id}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, padding: '4px 10px', color: '#f59e0b', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#ccac71', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                     <ExternalLink size={11} /> Contact HubSpot
                   </a>
                 )}
                 {rdv.hubspot_deal_id && (
                   <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${rdv.hubspot_deal_id}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6, padding: '4px 10px', color: '#6b87ff', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#ccac71', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                     <ExternalLink size={11} /> Transaction HubSpot
                   </a>
                 )}
@@ -237,7 +237,7 @@ function TeleproRdvModal({
 
         {/* Retour prospect */}
         {(rdv.status === 'confirme' || rdv.status === 'confirme_prospect' || rdv.status === 'annule') && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
               Retour prospect
             </div>
@@ -249,7 +249,7 @@ function TeleproRdvModal({
                   style={{
                     flex: 1,
                     background: rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'transparent',
-                    border: `1px solid ${rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#2a2d3e'}`,
+                    border: `1px solid ${rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
                     color: rdv.status === 'confirme_prospect' ? '#10b981' : '#555870',
                     fontSize: 13, fontWeight: rdv.status === 'confirme_prospect' ? 700 : 400,
@@ -268,7 +268,7 @@ function TeleproRdvModal({
                   style={{
                     flex: 1,
                     background: rdv.status === 'annule' ? 'rgba(107,114,128,0.18)' : 'transparent',
-                    border: `1px solid ${rdv.status === 'annule' ? 'rgba(107,114,128,0.5)' : '#2a2d3e'}`,
+                    border: `1px solid ${rdv.status === 'annule' ? 'rgba(107,114,128,0.5)' : '#2d4a6b'}`,
                     borderRadius: 8, padding: '9px 14px',
                     color: rdv.status === 'annule' ? '#9ca3af' : '#555870',
                     fontSize: 13, fontWeight: rdv.status === 'annule' ? 700 : 400,
@@ -299,7 +299,7 @@ function TeleproRdvModal({
         )}
 
         {/* Suivi statut (lecture seule — toujours visible) */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
               Résultat du RDV
             </div>
@@ -317,7 +317,7 @@ function TeleproRdvModal({
                 return (
                   <div key={action.status} style={{
                     background: isActive ? cfg.bg : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isActive ? cfg.border : '#2a2d3e'}`,
+                    border: `1px solid ${isActive ? cfg.border : '#2d4a6b'}`,
                     borderRadius: 10, padding: '10px 14px',
                     opacity: isActive ? 1 : 0.35,
                   }}>
@@ -334,14 +334,14 @@ function TeleproRdvModal({
 
         {/* Rapport closer (lecture seule) */}
         {(rdv.report_summary || rdv.report_telepro_advice) && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
               Rapport du RDV
             </div>
             {rdv.report_summary && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#6b87ff', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé du RDV</div>
-                <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#252840', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
+                <div style={{ fontSize: 11, color: '#ccac71', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé du RDV</div>
+                <div style={{ fontSize: 13, color: '#e8eaf0', lineHeight: 1.5, background: '#243d5c', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
               </div>
             )}
             {rdv.report_telepro_advice && (
@@ -355,7 +355,7 @@ function TeleproRdvModal({
 
         {/* Note interne — ÉDITABLE */}
         <div style={{ padding: '16px 24px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#ccac71', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
             <FileText size={12} /> Note interne
           </div>
           <textarea
@@ -363,12 +363,12 @@ function TeleproRdvModal({
             onChange={e => onNoteChange(e.target.value)}
             placeholder="Tes notes d'appel…"
             rows={4}
-            style={{ width: '100%', background: '#252840', border: '1px solid #2a2d3e', borderRadius: 10, padding: '11px 14px', color: '#e8eaf0', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+            style={{ width: '100%', background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 10, padding: '11px 14px', color: '#e8eaf0', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
           />
           <button
             onClick={onNoteSave}
             disabled={saving}
-            style={{ marginTop: 10, background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.12)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 8, padding: '8px 18px', color: saved ? '#22c55e' : '#f59e0b', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+            style={{ marginTop: 10, background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.12)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(204,172,113,0.3)'}`, borderRadius: 8, padding: '8px 18px', color: saved ? '#22c55e' : '#ccac71', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
           >
             <Check size={13} /> {saved ? 'Sauvegardé !' : saving ? 'Sauvegarde…' : 'Sauvegarder la note'}
           </button>
@@ -407,7 +407,7 @@ function HistoriqueNoteEditor({ rdvId, initialNote }: { rdvId: string; initialNo
         onChange={e => setNote(e.target.value)}
         rows={3}
         style={{
-          width: '100%', background: '#0f1117', border: '1px solid #2a2d3e',
+          width: '100%', background: '#0b1624', border: '1px solid #2d4a6b',
           borderRadius: 8, color: '#c8cadb', fontSize: 13, padding: '8px 12px',
           resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
         }}
@@ -417,9 +417,9 @@ function HistoriqueNoteEditor({ rdvId, initialNote }: { rdvId: string; initialNo
         onClick={save}
         disabled={saving}
         style={{
-          marginTop: 6, background: 'rgba(79,110,247,0.15)',
-          border: '1px solid rgba(79,110,247,0.3)', borderRadius: 6,
-          padding: '4px 12px', color: '#6b87ff', fontSize: 12,
+          marginTop: 6, background: 'rgba(204,172,113,0.15)',
+          border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
+          padding: '4px 12px', color: '#ccac71', fontSize: 12,
           cursor: 'pointer', fontFamily: 'inherit',
         }}
       >
@@ -740,7 +740,7 @@ export default function TeleproClient({
 
   const SUIVI_OPTIONS = [
     { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
-    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#f59e0b' },
+    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#ccac71' },
     { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
   ]
 
@@ -941,8 +941,8 @@ export default function TeleproClient({
   // ─── Success screen ────────────────────────────────────────────────────
   if (success) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e8eaf0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: '#1e2130', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
+      <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#152438', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
           <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
           <div style={{ fontSize: 15, color: '#8b8fa8', marginBottom: 4 }}>{contactName}</div>
@@ -950,21 +950,21 @@ export default function TeleproClient({
             {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
           </div>
           {meetingType === 'visio' && meetingLink && (
-            <div style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Video size={14} style={{ color: '#6b87ff', flexShrink: 0 }} />
-              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#6b87ff', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
+            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Video size={14} style={{ color: '#ccac71', flexShrink: 0 }} />
+              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#ccac71', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
               <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#6b87ff', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#ccac71', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
               </button>
             </div>
           )}
-          <div style={{ fontSize: 12, color: '#555870', marginBottom: 28, marginTop: 12, padding: '10px 16px', background: 'rgba(79,110,247,0.08)', borderRadius: 8, border: '1px solid rgba(79,110,247,0.15)' }}>
+          <div style={{ fontSize: 12, color: '#555870', marginBottom: 28, marginTop: 12, padding: '10px 16px', background: 'rgba(204,172,113,0.08)', borderRadius: 8, border: '1px solid rgba(204,172,113,0.15)' }}>
             Le RDV est dans la file d&apos;attente.<br />Pascal va l&apos;assigner à un closer.<br />
-            <span style={{ color: '#6b87ff' }}>Les notes sont enregistrées sur la transaction HubSpot.</span>
+            <span style={{ color: '#ccac71' }}>Les notes sont enregistrées sur la transaction HubSpot.</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={reset} style={{ flex: 1, background: '#4f6ef7', color: 'white', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={reset} style={{ flex: 1, background: '#b89450', color: 'white', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
               + Nouveau RDV
             </button>
             <button onClick={() => { reset(); setActiveTab('rdvs'); fetchMyRdvs() }}
@@ -979,26 +979,26 @@ export default function TeleproClient({
 
   // ─── Main UI ───────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e8eaf0' }}>
+    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0' }}>
 
       {/* Preview banner */}
       {previewMode && adminUser && (
-        <div style={{ background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-          <span style={{ color: '#f59e0b', fontWeight: 700 }}>👁 Mode aperçu</span>
+        <div style={{ background: 'rgba(204,172,113,0.12)', borderBottom: '1px solid rgba(204,172,113,0.3)', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+          <span style={{ color: '#ccac71', fontWeight: 700 }}>👁 Mode aperçu</span>
           <span style={{ color: '#8b8fa8' }}>Tu vois la plateforme telle que</span>
           <span style={{ color: '#e8eaf0', fontWeight: 700 }}>{teleproUser.name}</span>
           <span style={{ color: '#8b8fa8' }}>la voit.</span>
-          <a href="/admin" style={{ marginLeft: 'auto', color: '#f59e0b', fontSize: 11, textDecoration: 'none', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 600 }}>
+          <a href="/admin" style={{ marginLeft: 'auto', color: '#ccac71', fontSize: 11, textDecoration: 'none', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 600 }}>
             ← Retour Admin
           </a>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ background: '#1a1d27', borderBottom: '1px solid #2a2d3e', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: '#1d2f4b', borderBottom: '1px solid #2d4a6b', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: teleproUser.avatar_color ? `${teleproUser.avatar_color}25` : 'rgba(79,110,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${teleproUser.avatar_color || '#6b87ff'}50` }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: teleproUser.avatar_color || '#6b87ff' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: teleproUser.avatar_color ? `${teleproUser.avatar_color}25` : 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${teleproUser.avatar_color || '#ccac71'}50` }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: teleproUser.avatar_color || '#ccac71' }}>
               {teleproUser.name.charAt(0).toUpperCase()}
             </span>
           </div>
@@ -1011,9 +1011,9 @@ export default function TeleproClient({
           {!isAdmin && (
             <>
               <button onClick={() => setActiveTab('form')} style={{
-                background: activeTab === 'form' ? 'rgba(79,110,247,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'form' ? 'rgba(79,110,247,0.4)' : '#3a3d50'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#6b87ff' : '#8b8fa8',
+                background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#ccac71' : '#8b8fa8',
                 fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
               }}>
                 <PlusCircle size={12} /> Nouveau RDV
@@ -1032,15 +1032,15 @@ export default function TeleproClient({
                 )}
               </button>
               <button onClick={() => setActiveTab('historique')} style={{
-                background: activeTab === 'historique' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'historique' ? 'rgba(245,158,11,0.4)' : '#3a3d50'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'historique' ? '#f59e0b' : '#8b8fa8',
+                background: activeTab === 'historique' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'historique' ? 'rgba(204,172,113,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'historique' ? '#ccac71' : '#8b8fa8',
                 fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                 fontFamily: 'inherit',
               }}>
                 <Clock size={12} /> Historique
                 {histRdvs.length > 0 && (
-                  <span style={{ background: 'rgba(245,158,11,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ background: 'rgba(204,172,113,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                     {histRdvs.length}
                   </span>
                 )}
@@ -1051,9 +1051,9 @@ export default function TeleproClient({
                 )}
               </button>
               <button onClick={() => setActiveTab('repop')} style={{
-                background: activeTab === 'repop' ? 'rgba(251,146,60,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'repop' ? 'rgba(251,146,60,0.4)' : '#3a3d50'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'repop' ? '#fb923c' : '#8b8fa8',
+                background: activeTab === 'repop' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'repop' ? 'rgba(204,172,113,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'repop' ? '#ccac71' : '#8b8fa8',
                 fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                 fontFamily: 'inherit',
               }}>
@@ -1062,7 +1062,7 @@ export default function TeleproClient({
             </>
           )}
           {isAdmin && !previewMode && (
-            <a href="/admin" style={{ background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 8, padding: '6px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <a href="/admin" style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
               <ArrowLeft size={12} /> Admin
             </a>
           )}
@@ -1103,7 +1103,7 @@ export default function TeleproClient({
                 Suivi de tous tes RDVs placés
               </div>
             </div>
-            <button onClick={fetchMyRdvs} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+            <button onClick={fetchMyRdvs} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
               <RefreshCw size={14} style={{ animation: myRdvsLoading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
           </div>
@@ -1111,10 +1111,10 @@ export default function TeleproClient({
           {/* Stats KPI — données HubSpot (toutes périodes) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
             {[
-              { label: 'Total placés', value: hsStats?.total ?? myRdvs.length, color: '#6b87ff', bg: 'rgba(79,110,247,0.1)' },
+              { label: 'Total placés', value: hsStats?.total ?? myRdvs.length, color: '#ccac71', bg: 'rgba(204,172,113,0.1)' },
               { label: 'Ce mois', value: hsStats?.thisMonth ?? rdvsThisMonth.length, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
               { label: 'Positifs 🎉', value: hsStats?.positifs ?? rdvsPositifs.length, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
-              { label: 'À venir', value: hsStats?.aVenir ?? rdvsAVenir.length, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+              { label: 'À venir', value: hsStats?.aVenir ?? rdvsAVenir.length, color: '#ccac71', bg: 'rgba(204,172,113,0.1)' },
             ].map(stat => (
               <div key={stat.label} style={{ background: stat.bg, border: `1px solid ${stat.color}25`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: 26, fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
@@ -1124,13 +1124,13 @@ export default function TeleproClient({
           </div>
           {hsStats && (
             <div style={{ fontSize: 11, color: '#555870', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#f59e0b' }}>●</span> Stats issues de HubSpot (historique complet)
+              <span style={{ color: '#ccac71' }}>●</span> Stats issues de HubSpot (historique complet)
             </div>
           )}
 
           {/* Filtre par statut */}
           {myRdvs.length > 0 && (
-            <div style={{ background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
+            <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
               <div style={{ fontSize: 11, color: '#555870', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
                 Suivi par statut — clique pour filtrer
               </div>
@@ -1140,7 +1140,7 @@ export default function TeleproClient({
                   onClick={() => setStatusFilter(null)}
                   style={{
                     background: statusFilter === null ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: `1px solid ${statusFilter === null ? 'rgba(255,255,255,0.3)' : '#2a2d3e'}`,
+                    border: `1px solid ${statusFilter === null ? 'rgba(255,255,255,0.3)' : '#2d4a6b'}`,
                     borderRadius: 20, padding: '4px 12px', color: statusFilter === null ? '#e8eaf0' : '#555870',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   }}
@@ -1159,7 +1159,7 @@ export default function TeleproClient({
                       onClick={() => setStatusFilter(active ? null : status)}
                       style={{
                         background: active ? `${cfg.bg}` : 'transparent',
-                        border: `1px solid ${active ? cfg.border : '#2a2d3e'}`,
+                        border: `1px solid ${active ? cfg.border : '#2d4a6b'}`,
                         borderRadius: 20, padding: '4px 12px',
                         color: active ? cfg.color : '#8b8fa8',
                         fontSize: 12, fontWeight: active ? 700 : 600, cursor: 'pointer',
@@ -1180,10 +1180,10 @@ export default function TeleproClient({
               <button
                 onClick={() => setPlanningView('chrono')}
                 style={{
-                  background: planningView === 'chrono' ? 'rgba(79,110,247,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${planningView === 'chrono' ? 'rgba(79,110,247,0.4)' : '#3a3d50'}`,
+                  background: planningView === 'chrono' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${planningView === 'chrono' ? 'rgba(204,172,113,0.4)' : '#3a3d50'}`,
                   borderRadius: 8, padding: '6px 14px',
-                  color: planningView === 'chrono' ? '#6b87ff' : '#555870',
+                  color: planningView === 'chrono' ? '#ccac71' : '#555870',
                   fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
@@ -1234,12 +1234,12 @@ export default function TeleproClient({
                   const canReplan = REPLAN_STATUSES.includes(rdv.status)
                   const isRebooking = rebookLoading === rdv.id
                   return (
-                    <div key={rdv.id} style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 12, overflow: 'hidden' }}>
+                    <div key={rdv.id} style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, overflow: 'hidden' }}>
                       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
 
                         {/* Date */}
                         <div style={{ minWidth: 70, flexShrink: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#6b87ff' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71' }}>
                             {format(new Date(rdv.start_at), 'd MMM', { locale: fr })}
                           </div>
                           <div style={{ fontSize: 12, color: '#555870' }}>
@@ -1274,14 +1274,14 @@ export default function TeleproClient({
                               <button
                                 onClick={() => handleReprendre(rdv)}
                                 disabled={isRebooking}
-                                style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 7, padding: '4px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 7, padding: '4px 10px', color: '#ccac71', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                               >
                                 <RotateCcw size={10} />
                                 {isRebooking ? 'Chargement…' : 'Reprendre RDV'}
                               </button>
                             )}
                             <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                              style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '4px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '4px 10px', color: '#ccac71', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                               Voir fiche
                             </button>
                           </div>
@@ -1310,14 +1310,14 @@ export default function TeleproClient({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', marginBottom: 4 }}>
                       <div style={{
                         fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                        color: isToday ? '#6b87ff' : isPast ? '#3d4060' : '#555870',
+                        color: isToday ? '#ccac71' : isPast ? '#3d4060' : '#555870',
                         display: 'flex', alignItems: 'center', gap: 6,
                       }}>
-                        {isToday && <span style={{ background: '#6b87ff', borderRadius: 4, padding: '1px 6px', color: 'white', fontSize: 9, fontWeight: 800, letterSpacing: 0 }}>AUJOURD&apos;HUI</span>}
+                        {isToday && <span style={{ background: '#ccac71', borderRadius: 4, padding: '1px 6px', color: 'white', fontSize: 9, fontWeight: 800, letterSpacing: 0 }}>AUJOURD&apos;HUI</span>}
                         {isPast && !isToday && <span style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 4, padding: '1px 5px', color: '#3d4060', fontSize: 9, fontWeight: 700, letterSpacing: 0 }}>PASSÉ</span>}
                         {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
                       </div>
-                      <div style={{ flex: 1, height: 1, background: isToday ? 'rgba(79,110,247,0.3)' : '#1e2130' }} />
+                      <div style={{ flex: 1, height: 1, background: isToday ? 'rgba(204,172,113,0.3)' : '#152438' }} />
                       <span style={{ fontSize: 10, fontWeight: 700, color: '#555870' }}>{dayRdvs.length} rdv</span>
                     </div>
                     {/* Cartes RDV */}
@@ -1328,20 +1328,20 @@ export default function TeleproClient({
                         const isRebooking = rebookLoading === rdv.id
                         return (
                           <div key={rdv.id} style={{
-                            background: '#1e2130',
-                            border: `1px solid ${isToday ? 'rgba(79,110,247,0.25)' : isPast ? '#252840' : '#2a2d3e'}`,
+                            background: '#152438',
+                            border: `1px solid ${isToday ? 'rgba(204,172,113,0.25)' : isPast ? '#243d5c' : '#2d4a6b'}`,
                             borderRadius: 10, overflow: 'hidden', opacity: isPast ? 0.8 : 1,
                           }}>
                             <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <div style={{ fontSize: 15, fontWeight: 800, color: isToday ? '#6b87ff' : isPast ? '#3d4060' : '#8b8fa8', minWidth: 44, flexShrink: 0 }}>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: isToday ? '#ccac71' : isPast ? '#3d4060' : '#8b8fa8', minWidth: 44, flexShrink: 0 }}>
                                 {format(new Date(rdv.start_at), 'HH:mm')}
                               </div>
                               <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: rdv.meeting_type === 'visio' ? 'rgba(79,110,247,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+                                background: rdv.meeting_type === 'visio' ? 'rgba(204,172,113,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)',
                               }}>
-                                {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#6b87ff' }} />
+                                {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#ccac71' }} />
                                   : rdv.meeting_type === 'telephone' ? <PhoneCall size={11} style={{ color: '#22c55e' }} />
-                                  : <MapPin size={11} style={{ color: '#f59e0b' }} />}
+                                  : <MapPin size={11} style={{ color: '#ccac71' }} />}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1365,7 +1365,7 @@ export default function TeleproClient({
                                   <button
                                     onClick={() => handleReprendre(rdv)}
                                     disabled={isRebooking}
-                                    style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', borderRadius: 7, padding: '3px 8px', color: '#6b87ff', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                                    style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 7, padding: '3px 8px', color: '#ccac71', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
                                   >
                                     <RotateCcw size={9} />
                                     {isRebooking ? '…' : 'Reprendre'}
@@ -1373,7 +1373,7 @@ export default function TeleproClient({
                                 )}
                               </div>
                               <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                                style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '4px 10px', color: '#6b87ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '4px 10px', color: '#ccac71', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                                 Voir fiche
                               </button>
                             </div>
@@ -1389,9 +1389,9 @@ export default function TeleproClient({
             /* ── Vue semaine ────────────────────────────────────────── */
             <>
               {/* Navigation semaine */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
                 <button onClick={() => setPlanningWeekStart(w => subWeeks(w, 1))}
-                  style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                  style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                   <ChevronLeft size={16} />
                 </button>
                 <div style={{ textAlign: 'center' }}>
@@ -1403,7 +1403,7 @@ export default function TeleproClient({
                   </div>
                 </div>
                 <button onClick={() => setPlanningWeekStart(w => addWeeks(w, 1))}
-                  style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                  style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -1418,40 +1418,40 @@ export default function TeleproClient({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
                         <div style={{
                           fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                          color: isSameDay(day, today) ? '#6b87ff' : isPast ? '#3d4060' : '#555870',
+                          color: isSameDay(day, today) ? '#ccac71' : isPast ? '#3d4060' : '#555870',
                           minWidth: 120,
                         }}>
-                          {isSameDay(day, today) && <span style={{ color: '#6b87ff' }}>Aujourd&apos;hui · </span>}
+                          {isSameDay(day, today) && <span style={{ color: '#ccac71' }}>Aujourd&apos;hui · </span>}
                           {format(day, 'EEEE d MMM', { locale: fr })}
                         </div>
-                        <div style={{ flex: 1, height: 1, background: isSameDay(day, today) ? 'rgba(79,110,247,0.3)' : '#1e2130' }} />
+                        <div style={{ flex: 1, height: 1, background: isSameDay(day, today) ? 'rgba(204,172,113,0.3)' : '#152438' }} />
                         {dayRdvs.length > 0 && (
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#555870' }}>{dayRdvs.length} rdv</span>
                         )}
                       </div>
 
                       {dayRdvs.length === 0 ? (
-                        <div style={{ paddingLeft: 12, paddingBottom: 6, fontSize: 12, color: '#2a2d3e', fontStyle: 'italic' }}>—</div>
+                        <div style={{ paddingLeft: 12, paddingBottom: 6, fontSize: 12, color: '#2d4a6b', fontStyle: 'italic' }}>—</div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
                           {dayRdvs.map(rdv => {
                             const expanded = expandedRdv === rdv.id
                             return (
                               <div key={rdv.id} style={{
-                                background: '#1e2130',
-                                border: `1px solid ${isSameDay(day, today) ? 'rgba(79,110,247,0.25)' : '#2a2d3e'}`,
+                                background: '#152438',
+                                border: `1px solid ${isSameDay(day, today) ? 'rgba(204,172,113,0.25)' : '#2d4a6b'}`,
                                 borderRadius: 10, overflow: 'hidden',
                               }}>
                                 <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                                  <div style={{ fontSize: 15, fontWeight: 800, color: '#6b87ff', minWidth: 44, flexShrink: 0 }}>
+                                  <div style={{ fontSize: 15, fontWeight: 800, color: '#ccac71', minWidth: 44, flexShrink: 0 }}>
                                     {format(new Date(rdv.start_at), 'HH:mm')}
                                   </div>
                                   <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: rdv.meeting_type === 'visio' ? 'rgba(79,110,247,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+                                    background: rdv.meeting_type === 'visio' ? 'rgba(204,172,113,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)',
                                   }}>
-                                    {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#6b87ff' }} />
+                                    {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#ccac71' }} />
                                       : rdv.meeting_type === 'telephone' ? <PhoneCall size={11} style={{ color: '#22c55e' }} />
-                                      : <MapPin size={11} style={{ color: '#f59e0b' }} />}
+                                      : <MapPin size={11} style={{ color: '#ccac71' }} />}
                                   </div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1472,7 +1472,7 @@ export default function TeleproClient({
                                     )}
                                     <StatusBadge status={rdv.status} />
                                     <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                                      style={{ background: 'rgba(79,110,247,0.1)', border: '1px solid rgba(79,110,247,0.25)', borderRadius: 7, padding: '3px 8px', color: '#6b87ff', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
+                                      style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '3px 8px', color: '#ccac71', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
                                       Voir fiche
                                     </button>
                                   </div>
@@ -1490,7 +1490,7 @@ export default function TeleproClient({
               {!isCurrentWeek && (
                 <div style={{ textAlign: 'center', marginTop: 16 }}>
                   <button onClick={() => setPlanningWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-                    style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, padding: '7px 16px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer', fontWeight: 600 }}>
+                    style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '7px 16px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer', fontWeight: 600 }}>
                     Revenir à cette semaine
                   </button>
                 </div>
@@ -1506,8 +1506,8 @@ export default function TeleproClient({
 
           {/* Étape 1 */}
           <div style={{
-            background: '#1e2130',
-            border: contact ? '1px solid rgba(34,197,94,0.35)' : '1px solid #2a2d3e',
+            background: '#152438',
+            border: contact ? '1px solid rgba(34,197,94,0.35)' : '1px solid #2d4a6b',
             borderRadius: 14, padding: '18px 20px', marginBottom: 20, transition: 'border-color 0.2s',
           }}>
             {contact ? (
@@ -1528,7 +1528,7 @@ export default function TeleproClient({
             ) : (
               <>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Search size={14} style={{ color: '#6b87ff' }} />
+                  <Search size={14} style={{ color: '#ccac71' }} />
                   Étape 1 — Trouver le contact HubSpot
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
@@ -1539,10 +1539,10 @@ export default function TeleproClient({
                   ]).map(tab => (
                     <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null) }}
                       style={{
-                        background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)' : 'transparent',
-                        border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                        background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)' : 'transparent',
+                        border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '5px 12px',
-                        color: lookupMode === tab.key ? tab.key === 'new' ? '#22c55e' : '#6b87ff' : '#555870',
+                        color: lookupMode === tab.key ? tab.key === 'new' ? '#22c55e' : '#ccac71' : '#555870',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                       }}>
                       {tab.icon} {tab.label}
@@ -1556,7 +1556,7 @@ export default function TeleproClient({
                         placeholder={lookupMode === 'url' ? 'Coller le lien du contact HubSpot…' : 'Ex : 0612345678'}
                         style={{ ...inputStyle, flex: 1 }} autoFocus />
                       <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
-                        style={{ background: lookupInput.trim() ? '#4f6ef7' : '#252840', color: lookupInput.trim() ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        style={{ background: lookupInput.trim() ? '#b89450' : '#243d5c', color: lookupInput.trim() ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {lookupLoading ? '…' : 'Rechercher'}
                       </button>
                     </div>
@@ -1587,7 +1587,7 @@ export default function TeleproClient({
                     </div>
                     <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département (ex: 75)" maxLength={3} style={inputStyle} />
                     <button onClick={createNewContact} disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
-                      style={{ background: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? '#22c55e' : '#252840', color: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'pointer' : 'default' }}>
+                      style={{ background: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? '#22c55e' : '#243d5c', color: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'pointer' : 'default' }}>
                       {creating ? 'Création…' : 'Créer le contact HubSpot'}
                     </button>
                   </div>
@@ -1606,13 +1606,13 @@ export default function TeleproClient({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div>
                 <div style={{ marginBottom: 20 }}>
-                  <div style={labelStyle}><Calendar size={12} style={{ color: '#4f6ef7' }} /> Date du RDV *</div>
+                  <div style={labelStyle}><Calendar size={12} style={{ color: '#b89450' }} /> Date du RDV *</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {days.map(day => {
                       const sel = selectedDate && isSameDay(day, selectedDate)
                       return (
                         <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                          style={{ background: sel ? 'rgba(79,110,247,0.12)' : '#1e2130', border: `1px solid ${sel ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`, borderRadius: 8, padding: '7px 14px', color: sel ? '#6b87ff' : '#8b8fa8', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
+                          style={{ background: sel ? 'rgba(204,172,113,0.12)' : '#152438', border: `1px solid ${sel ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`, borderRadius: 8, padding: '7px 14px', color: sel ? '#ccac71' : '#8b8fa8', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ textTransform: 'capitalize' }}>{format(day, 'EEEE', { locale: fr })}</span>
                           <span>{format(day, 'd MMM', { locale: fr })}</span>
                         </button>
@@ -1638,7 +1638,7 @@ export default function TeleproClient({
                           const sel = selectedSlot?.start === slot.start
                           return (
                             <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                              style={{ background: sel ? 'rgba(34,197,94,0.12)' : '#1e2130', border: `1px solid ${sel ? 'rgba(34,197,94,0.4)' : '#2a2d3e'}`, borderRadius: 6, padding: '7px', color: sel ? '#22c55e' : '#8b8fa8', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', position: 'relative' }}>
+                              style={{ background: sel ? 'rgba(34,197,94,0.12)' : '#152438', border: `1px solid ${sel ? 'rgba(34,197,94,0.4)' : '#2d4a6b'}`, borderRadius: 6, padding: '7px', color: sel ? '#22c55e' : '#8b8fa8', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', position: 'relative' }}>
                               {format(new Date(slot.start), 'HH:mm')}
                               {slot.count && slot.count > 1 && <span style={{ position: 'absolute', top: 2, right: 4, fontSize: 9, color: '#555870' }}>{slot.count}</span>}
                             </button>
@@ -1662,11 +1662,11 @@ export default function TeleproClient({
                   <input type="email" value={emailParent} onChange={e => setEmailParent(e.target.value)} placeholder="parent@exemple.com" style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Phone size={12} style={{ color: '#6b87ff' }} /> Téléphone *</div>
+                  <div style={labelStyle}><Phone size={12} style={{ color: '#ccac71' }} /> Téléphone *</div>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex : 0612345678" style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><MapPin size={12} style={{ color: '#f59e0b' }} /> Département *</div>
+                  <div style={labelStyle}><MapPin size={12} style={{ color: '#ccac71' }} /> Département *</div>
                   <input type="text" value={departement} onChange={e => setDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Ex : 75" maxLength={3} style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
@@ -1684,25 +1684,25 @@ export default function TeleproClient({
                   </select>
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Video size={12} style={{ color: '#6b87ff' }} /> Type de RDV</div>
+                  <div style={labelStyle}><Video size={12} style={{ color: '#ccac71' }} /> Type de RDV</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {([
-                      { key: 'visio' as const, icon: <Video size={12} />, label: 'Visio', color: '#6b87ff' },
+                      { key: 'visio' as const, icon: <Video size={12} />, label: 'Visio', color: '#ccac71' },
                       { key: 'telephone' as const, icon: <PhoneCall size={12} />, label: 'Téléphone', color: '#22c55e' },
-                      { key: 'presentiel' as const, icon: <MapPin size={12} />, label: 'Présentiel', color: '#f59e0b' },
+                      { key: 'presentiel' as const, icon: <MapPin size={12} />, label: 'Présentiel', color: '#ccac71' },
                     ]).map(t => (
                       <button key={t.key} type="button" onClick={() => { setMeetingType(t.key); if (t.key === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink()); setLinkCopied(false) }}
-                        style={{ flex: 1, background: meetingType === t.key ? `${t.color}18` : '#252840', border: `1px solid ${meetingType === t.key ? `${t.color}60` : '#2a2d3e'}`, borderRadius: 8, padding: '8px 6px', color: meetingType === t.key ? t.color : '#555870', fontSize: 12, fontWeight: meetingType === t.key ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        style={{ flex: 1, background: meetingType === t.key ? `${t.color}18` : '#243d5c', border: `1px solid ${meetingType === t.key ? `${t.color}60` : '#2d4a6b'}`, borderRadius: 8, padding: '8px 6px', color: meetingType === t.key ? t.color : '#555870', fontSize: 12, fontWeight: meetingType === t.key ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
                   </div>
                   {meetingType === 'visio' && meetingLink && (
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)', borderRadius: 8, padding: '8px 12px' }}>
-                      <Video size={13} style={{ color: '#6b87ff', flexShrink: 0 }} />
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '8px 12px' }}>
+                      <Video size={13} style={{ color: '#ccac71', flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: '#8b8fa8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meetingLink}</span>
                       <button type="button" onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 6, padding: '4px 8px', color: linkCopied ? '#22c55e' : '#6b87ff', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 8px', color: linkCopied ? '#22c55e' : '#ccac71', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
                       </button>
                       <button type="button" onClick={() => setMeetingLink(generateJitsiLink())} style={{ background: 'transparent', border: 'none', padding: 4, color: '#555870', fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>↻</button>
@@ -1722,12 +1722,12 @@ export default function TeleproClient({
                   </div>
                 )}
                 {selectedSlot && (
-                  <div style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)', borderRadius: 8, padding: '9px 14px', color: '#6b87ff', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
+                  <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '9px 14px', color: '#ccac71', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
                     {format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
                   </div>
                 )}
                 <button onClick={submit} disabled={submitting || !canSubmit}
-                  style={{ width: '100%', background: canSubmit ? '#4f6ef7' : '#252840', color: canSubmit ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '13px', fontSize: 14, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default' }}>
+                  style={{ width: '100%', background: canSubmit ? '#b89450' : '#243d5c', color: canSubmit ? 'white' : '#555870', border: 'none', borderRadius: 10, padding: '13px', fontSize: 14, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default' }}>
                   {submitting ? 'Enregistrement…' : 'Valider le RDV'}
                 </button>
               </div>
@@ -1744,7 +1744,7 @@ export default function TeleproClient({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} style={{ color: '#f59e0b' }} />
+                <Clock size={18} style={{ color: '#ccac71' }} />
                 Historique RDV
               </div>
               <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
@@ -1757,7 +1757,7 @@ export default function TeleproClient({
                   <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
                 </span>
               )}
-              <button onClick={fetchHistorique} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+              <button onClick={fetchHistorique} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                 <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
               </button>
               {!histLoading && (
@@ -1820,13 +1820,13 @@ export default function TeleproClient({
                 key={rdv.id}
                 onClick={() => setSelectedHistRdv(rdv)}
                 style={{
-                  background: '#1a1d27',
-                  border: '1px solid #2a2d3e',
+                  background: '#1d2f4b',
+                  border: '1px solid #2d4a6b',
                   borderRadius: 12, marginBottom: 10, overflow: 'hidden',
                   cursor: 'pointer', transition: 'border-color 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#f59e0b')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2d3e')}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#ccac71')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = '#2d4a6b')}
               >
                 {/* Ligne principale */}
                 <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1852,8 +1852,8 @@ export default function TeleproClient({
                   )}
                   {rdv.repop_form_date && (
                     <span style={{
-                      background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)',
-                      color: '#fb923c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                      background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
+                      color: '#ccac71', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
                       flexShrink: 0,
                     }}>
                       🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
@@ -1864,13 +1864,13 @@ export default function TeleproClient({
                 {/* Infos prospect */}
                 <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {rdv.prospect_phone && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
                       <Phone size={10} /> {rdv.prospect_phone}
                     </span>
                   )}
                   {rdv.formation_type && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                      <Tag size={10} style={{ color: '#f59e0b' }} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
+                      <Tag size={10} style={{ color: '#ccac71' }} />
                       Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong>
                     </span>
                   )}
@@ -1889,8 +1889,8 @@ export default function TeleproClient({
                       disabled={rebookLoading === rdv.id}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6,
-                        background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.35)',
-                        borderRadius: 7, padding: '5px 12px', color: '#6b87ff',
+                        background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
+                        borderRadius: 7, padding: '5px 12px', color: '#ccac71',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >

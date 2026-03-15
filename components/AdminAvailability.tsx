@@ -50,8 +50,8 @@ for (let h = 7; h <= 22; h++) {
 }
 
 const selectStyle: React.CSSProperties = {
-  background: '#252840',
-  border: '1px solid #2a2d3e',
+  background: '#243d5c',
+  border: '1px solid #2d4a6b',
   borderRadius: 6,
   padding: '5px 8px',
   color: '#e8eaf0',
@@ -179,8 +179,8 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 
   return (
     <div style={{
-      background: '#1e2130',
-      border: `1px solid ${expanded ? 'rgba(79,110,247,0.3)' : '#2a2d3e'}`,
+      background: '#152438',
+      border: `1px solid ${expanded ? 'rgba(204,172,113,0.3)' : '#2d4a6b'}`,
       borderRadius: 12,
       overflow: 'hidden',
       transition: 'border-color 0.2s',
@@ -225,7 +225,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 
       {/* Expanded content */}
       {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #2a2d3e' }}>
+        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #2d4a6b' }}>
 
           {/* Planning hebdomadaire compact */}
           <div style={{ paddingTop: 12 }}>
@@ -241,7 +241,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 10px',
-                      background: rule.is_active ? 'rgba(79,110,247,0.05)' : 'transparent',
+                      background: rule.is_active ? 'rgba(204,172,113,0.05)' : 'transparent',
                       borderRadius: 6,
                     }}
                   >
@@ -249,7 +249,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                       onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
                       style={{
                         width: 36, height: 20, borderRadius: 10,
-                        background: rule.is_active ? '#4f6ef7' : '#353849',
+                        background: rule.is_active ? '#b89450' : '#353849',
                         border: 'none', cursor: 'pointer',
                         position: 'relative', transition: 'background 0.2s',
                         flexShrink: 0,
@@ -299,7 +299,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                 onClick={saveRules}
                 disabled={saving}
                 style={{
-                  background: '#4f6ef7', color: 'white', border: 'none',
+                  background: '#b89450', color: 'white', border: 'none',
                   borderRadius: 8, padding: '7px 16px',
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 5,
@@ -315,7 +315,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
           </div>
 
           {/* Jours bloqués */}
-          <div style={{ paddingTop: 14, marginTop: 14, borderTop: '1px solid #2a2d3e' }}>
+          <div style={{ paddingTop: 14, marginTop: 14, borderTop: '1px solid #2d4a6b' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', marginBottom: 8 }}>
               Jours bloqués
             </div>
@@ -361,7 +361,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                     key={b.id}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      background: '#252840', borderRadius: 6, padding: '5px 10px',
+                      background: '#243d5c', borderRadius: 6, padding: '5px 10px',
                     }}
                   >
                     <span style={{ fontSize: 11, color: '#e8eaf0', textTransform: 'capitalize' }}>
@@ -409,8 +409,8 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#1a1d27',
-        border: '1px solid #2a2d3e',
+        background: '#1d2f4b',
+        border: '1px solid #2d4a6b',
         borderRadius: 16,
         width: '100%', maxWidth: 640,
         maxHeight: '90vh',
@@ -421,13 +421,13 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
         {/* Header */}
         <div style={{
           padding: '18px 24px',
-          borderBottom: '1px solid #2a2d3e',
+          borderBottom: '1px solid #2d4a6b',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock size={18} style={{ color: '#4f6ef7' }} />
+              <Clock size={18} style={{ color: '#b89450' }} />
               Disponibilités des closers
             </div>
             <div style={{ fontSize: 12, color: '#555870', marginTop: 4 }}>
@@ -437,7 +437,7 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
           <button
             onClick={onClose}
             style={{
-              background: '#252840', border: '1px solid #2a2d3e',
+              background: '#243d5c', border: '1px solid #2d4a6b',
               borderRadius: 8, width: 32, height: 32,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', color: '#8b8fa8',

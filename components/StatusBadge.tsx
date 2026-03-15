@@ -6,12 +6,12 @@ const STATUS_CONFIG = {
   confirme_prospect:  { label: 'Assigné / Confirmé',     color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)' },
   no_show:       { label: 'No-show',       color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)' },
   annule:        { label: 'Annulé',        color: '#6b7280', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)' },
-  a_travailler:  { label: 'A travailler',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
+  a_travailler:  { label: 'A travailler',  color: '#ccac71', bg: 'rgba(204,172,113,0.12)', border: 'rgba(204,172,113,0.3)' },
   pre_positif:   { label: 'Pré-positif',   color: '#06b6d4', bg: 'rgba(6,182,212,0.12)',  border: 'rgba(6,182,212,0.3)' },
   positif:       { label: 'POSITIF',       color: '#a855f7', bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.3)' },
   negatif:       { label: 'Négatif',       color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)' },
   // Legacy (kept for backward compat with existing data)
-  va_reflechir:  { label: 'Va réfléchir',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
+  va_reflechir:  { label: 'Va réfléchir',  color: '#ccac71', bg: 'rgba(204,172,113,0.12)', border: 'rgba(204,172,113,0.3)' },
   preinscription:{ label: 'Préinscription', color: '#a855f7', bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.3)' },
 }
 

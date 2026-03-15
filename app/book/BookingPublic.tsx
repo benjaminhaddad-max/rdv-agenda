@@ -19,7 +19,7 @@ const FORMATIONS = [
 ]
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+  width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
   borderRadius: 10, padding: '12px 14px', color: '#e8eaf0',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
   fontFamily: 'inherit',
@@ -107,12 +107,12 @@ export default function BookingPublic() {
   if (success) {
     return (
       <div style={{
-        minHeight: '100vh', background: '#0f1117',
+        minHeight: '100vh', background: '#0b1624',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 24,
       }}>
         <div style={{
-          background: '#1e2130', border: '1px solid rgba(34,197,94,0.3)',
+          background: '#152438', border: '1px solid rgba(34,197,94,0.3)',
           borderRadius: 20, padding: '48px 40px', maxWidth: 480, width: '100%',
           textAlign: 'center',
         }}>
@@ -133,13 +133,13 @@ export default function BookingPublic() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e8eaf0' }}>
+    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0' }}>
       {/* Header */}
       <div style={{
-        background: '#1a1d27', borderBottom: '1px solid #2a2d3e',
+        background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
         padding: '20px 24px', textAlign: 'center',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#6b87ff', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#ccac71', marginBottom: 4 }}>
           Diploma Santé
         </div>
         <div style={{ fontSize: 24, fontWeight: 800, color: '#e8eaf0' }}>
@@ -154,7 +154,7 @@ export default function BookingPublic() {
         {/* Étape 1 : Filière */}
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: '#e8eaf0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Tag size={16} style={{ color: '#f59e0b' }} />
+            <Tag size={16} style={{ color: '#ccac71' }} />
             Votre filière souhaitée *
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
@@ -163,10 +163,10 @@ export default function BookingPublic() {
                 key={f}
                 onClick={() => setFormation(f)}
                 style={{
-                  background: formation === f ? 'rgba(245,158,11,0.15)' : '#1e2130',
-                  border: `1px solid ${formation === f ? 'rgba(245,158,11,0.5)' : '#2a2d3e'}`,
+                  background: formation === f ? 'rgba(204,172,113,0.15)' : '#152438',
+                  border: `1px solid ${formation === f ? 'rgba(204,172,113,0.5)' : '#2d4a6b'}`,
                   borderRadius: 10, padding: '10px 12px',
-                  color: formation === f ? '#f59e0b' : '#8b8fa8',
+                  color: formation === f ? '#ccac71' : '#8b8fa8',
                   fontSize: 13, fontWeight: formation === f ? 700 : 400,
                   cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
                 }}
@@ -180,7 +180,7 @@ export default function BookingPublic() {
         {/* Étape 2 : Date */}
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: '#e8eaf0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={16} style={{ color: '#4f6ef7' }} />
+            <Calendar size={16} style={{ color: '#b89450' }} />
             Choisir une date *
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -191,10 +191,10 @@ export default function BookingPublic() {
                   key={day.toISOString()}
                   onClick={() => setSelectedDate(day)}
                   style={{
-                    background: selected ? 'rgba(79,110,247,0.15)' : '#1e2130',
-                    border: `1px solid ${selected ? 'rgba(79,110,247,0.5)' : '#2a2d3e'}`,
+                    background: selected ? 'rgba(204,172,113,0.15)' : '#152438',
+                    border: `1px solid ${selected ? 'rgba(204,172,113,0.5)' : '#2d4a6b'}`,
                     borderRadius: 10, padding: '10px 16px',
-                    color: selected ? '#6b87ff' : '#8b8fa8',
+                    color: selected ? '#ccac71' : '#8b8fa8',
                     fontSize: 13, fontWeight: selected ? 700 : 400,
                     cursor: 'pointer', transition: 'all 0.15s',
                     textAlign: 'center', minWidth: 72,
@@ -229,8 +229,8 @@ export default function BookingPublic() {
                       key={slot.start}
                       onClick={() => setSelectedSlot(slot)}
                       style={{
-                        background: isSelected ? 'rgba(34,197,94,0.15)' : '#1e2130',
-                        border: `1px solid ${isSelected ? 'rgba(34,197,94,0.5)' : '#2a2d3e'}`,
+                        background: isSelected ? 'rgba(34,197,94,0.15)' : '#152438',
+                        border: `1px solid ${isSelected ? 'rgba(34,197,94,0.5)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '8px 16px',
                         color: isSelected ? '#22c55e' : '#8b8fa8',
                         fontSize: 14, fontWeight: isSelected ? 700 : 400,
@@ -308,7 +308,7 @@ export default function BookingPublic() {
         {/* Récap + Bouton */}
         {selectedSlot && name && email && formation && (
           <div style={{
-            background: '#1e2130', border: '1px solid #2a2d3e',
+            background: '#152438', border: '1px solid #2d4a6b',
             borderRadius: 14, padding: '20px 24px', marginBottom: 16,
           }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -338,7 +338,7 @@ export default function BookingPublic() {
             onClick={submit}
             disabled={submitting || !name || !email || !formation}
             style={{
-              width: '100%', background: name && email && formation ? '#4f6ef7' : '#252840',
+              width: '100%', background: name && email && formation ? '#b89450' : '#243d5c',
               color: name && email && formation ? 'white' : '#555870',
               border: 'none', borderRadius: 12, padding: '14px',
               fontSize: 15, fontWeight: 700, cursor: name && email && formation ? 'pointer' : 'default',

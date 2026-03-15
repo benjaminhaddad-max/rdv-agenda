@@ -34,7 +34,7 @@ const SOURCE_LABEL: Record<string, string> = {
   admin: '⚙️ Admin',
 }
 
-const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#a855f7','#06b6d4','#ef4444','#f97316']
+const COLORS = ['#b89450','#22c55e','#ccac71','#a855f7','#06b6d4','#ef4444','#f97316']
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -194,8 +194,8 @@ export default function AssignModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#1e2130',
-        border: '1px solid #2a2d3e',
+        background: '#152438',
+        border: '1px solid #2d4a6b',
         borderRadius: 16,
         width: '100%', maxWidth: 560,
         boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
@@ -206,12 +206,12 @@ export default function AssignModal({
         {/* Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid #2a2d3e',
+          borderBottom: '1px solid #2d4a6b',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: reassign ? '#6b87ff' : '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: reassign ? '#ccac71' : '#ccac71', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
               {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0' }}>
@@ -234,17 +234,17 @@ export default function AssignModal({
         </div>
 
         {/* Infos RDV */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #2a2d3e', flexShrink: 0 }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #2d4a6b', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {appointment.formation_type && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#8b8fa8' }}>
-                <Tag size={13} style={{ color: '#f59e0b' }} />
+                <Tag size={13} style={{ color: '#ccac71' }} />
                 <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{appointment.formation_type}</span>
               </div>
             )}
             {appointment.source && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#8b8fa8' }}>
-                <Zap size={13} style={{ color: '#6b87ff' }} />
+                <Zap size={13} style={{ color: '#ccac71' }} />
                 <span>{SOURCE_LABEL[appointment.source] || appointment.source}</span>
               </div>
             )}
@@ -269,7 +269,7 @@ export default function AssignModal({
               const isSelected = selected === closer.id
               const isCurrent = reassign && currentCloserId === closer.id
               const load = closer.rdv_count || 0
-              const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#f59e0b' : '#ef4444'
+              const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#ccac71' : '#ef4444'
               const available = closer.is_available
               const blocked = closer.is_blocked
 
@@ -278,8 +278,8 @@ export default function AssignModal({
                 <div
                   onClick={() => setSelected(closer.id)}
                   style={{
-                    background: isSelected ? `${color}12` : '#252840',
-                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.2)' : '#2a2d3e'}`,
+                    background: isSelected ? `${color}12` : '#243d5c',
+                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.2)' : '#2d4a6b'}`,
                     borderRadius: 12,
                     padding: '12px 16px',
                     cursor: 'pointer',
@@ -306,7 +306,7 @@ export default function AssignModal({
                       <span style={{ fontWeight: 600, fontSize: 14, color: '#e8eaf0' }}>{closer.name}</span>
                       {isCurrent && (
                         <span style={{
-                          background: 'rgba(107,135,255,0.15)', color: '#6b87ff',
+                          background: 'rgba(204,172,113,0.15)', color: '#ccac71',
                           borderRadius: 6, padding: '1px 8px',
                           fontSize: 10, fontWeight: 700,
                         }}>
@@ -333,7 +333,7 @@ export default function AssignModal({
                       )}
                       {!available && !blocked && (
                         <span style={{
-                          background: 'rgba(245,158,11,0.15)', color: '#f59e0b',
+                          background: 'rgba(204,172,113,0.15)', color: '#ccac71',
                           borderRadius: 6, padding: '1px 8px',
                           fontSize: 10, fontWeight: 700,
                         }}>
@@ -351,12 +351,12 @@ export default function AssignModal({
                   <button
                     onClick={(e) => { e.stopPropagation(); togglePreview(closer.id) }}
                     style={{
-                      background: previewCloserId === closer.id ? 'rgba(79,110,247,0.15)' : 'transparent',
-                      border: `1px solid ${previewCloserId === closer.id ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                      background: previewCloserId === closer.id ? 'rgba(204,172,113,0.15)' : 'transparent',
+                      border: `1px solid ${previewCloserId === closer.id ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                       borderRadius: 8, width: 32, height: 32,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', flexShrink: 0,
-                      color: previewCloserId === closer.id ? '#6b87ff' : '#555870',
+                      color: previewCloserId === closer.id ? '#ccac71' : '#555870',
                     }}
                     title="Voir le planning"
                   >
@@ -372,7 +372,7 @@ export default function AssignModal({
                 {/* Preview panel */}
                 {previewCloserId === closer.id && (
                   <div style={{
-                    background: '#1a1d27', border: '1px solid #2a2d3e',
+                    background: '#1d2f4b', border: '1px solid #2d4a6b',
                     borderRadius: 10, padding: '10px 14px', margin: '4px 16px 8px',
                   }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
@@ -398,7 +398,7 @@ export default function AssignModal({
                                 border: isSameSlot ? '1px solid rgba(239,68,68,0.25)' : '1px solid transparent',
                               }}
                             >
-                              <span style={{ fontSize: 11, color: '#6b87ff', fontWeight: 600, minWidth: 80 }}>
+                              <span style={{ fontSize: 11, color: '#ccac71', fontWeight: 600, minWidth: 80 }}>
                                 {format(apptStart, 'EEE d · HH:mm', { locale: fr })}
                               </span>
                               <span style={{ fontSize: 12, color: '#8b8fa8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -418,7 +418,7 @@ export default function AssignModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #2a2d3e', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #2d4a6b', flexShrink: 0 }}>
           {error && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -433,7 +433,7 @@ export default function AssignModal({
               onClick={onClose}
               style={{
                 flex: 1, background: 'transparent',
-                border: '1px solid #2a2d3e', borderRadius: 10,
+                border: '1px solid #2d4a6b', borderRadius: 10,
                 padding: '10px', color: '#8b8fa8', fontSize: 14,
                 cursor: 'pointer', fontWeight: 500,
               }}
@@ -444,7 +444,7 @@ export default function AssignModal({
               onClick={assign}
               disabled={!selected || assigning}
               style={{
-                flex: 2, background: selected ? '#4f6ef7' : '#252840',
+                flex: 2, background: selected ? '#b89450' : '#243d5c',
                 border: 'none', borderRadius: 10,
                 padding: '10px', color: selected ? 'white' : '#555870', fontSize: 14,
                 cursor: selected ? 'pointer' : 'default', fontWeight: 700,

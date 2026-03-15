@@ -147,8 +147,8 @@ export default function ReschedulePage() {
             </div>
             {selectedSlot && (
               <div style={{
-                marginTop: 20, background: '#252840', borderRadius: 10,
-                padding: '12px 16px', fontSize: 14, color: '#6b87ff', fontWeight: 600,
+                marginTop: 20, background: '#243d5c', borderRadius: 10,
+                padding: '12px 16px', fontSize: 14, color: '#ccac71', fontWeight: 600,
               }}>
                 📅 {format(new Date(selectedSlot.start), "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
               </div>
@@ -161,7 +161,7 @@ export default function ReschedulePage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e8eaf0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <Header />
 
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '28px 16px' }}>
@@ -179,7 +179,7 @@ export default function ReschedulePage() {
         {/* Sélection date */}
         <div style={{ marginBottom: 28 }}>
           <div style={sectionTitle}>
-            <Calendar size={15} style={{ color: '#4f6ef7' }} />
+            <Calendar size={15} style={{ color: '#b89450' }} />
             Choisir une date
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -190,10 +190,10 @@ export default function ReschedulePage() {
                   key={day.toISOString()}
                   onClick={() => setSelectedDate(day)}
                   style={{
-                    background: sel ? 'rgba(79,110,247,0.15)' : '#1e2130',
-                    border: `1px solid ${sel ? 'rgba(79,110,247,0.5)' : '#2a2d3e'}`,
+                    background: sel ? 'rgba(204,172,113,0.15)' : '#152438',
+                    border: `1px solid ${sel ? 'rgba(204,172,113,0.5)' : '#2d4a6b'}`,
                     borderRadius: 10, padding: '10px 14px',
-                    color: sel ? '#6b87ff' : '#8b8fa8',
+                    color: sel ? '#ccac71' : '#8b8fa8',
                     fontSize: 13, fontWeight: sel ? 700 : 400,
                     cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center',
                   }}
@@ -219,7 +219,7 @@ export default function ReschedulePage() {
             {loadingSlots ? (
               <div style={{ color: '#555870', fontSize: 13 }}>Chargement des créneaux…</div>
             ) : slots.length === 0 ? (
-              <div style={{ color: '#f59e0b', fontSize: 13, padding: '12px 0' }}>
+              <div style={{ color: '#ccac71', fontSize: 13, padding: '12px 0' }}>
                 Aucun créneau disponible ce jour — essayez une autre date.
               </div>
             ) : (
@@ -231,8 +231,8 @@ export default function ReschedulePage() {
                       key={slot.start}
                       onClick={() => setSelectedSlot(slot)}
                       style={{
-                        background: isSel ? 'rgba(34,197,94,0.15)' : '#1e2130',
-                        border: `1px solid ${isSel ? 'rgba(34,197,94,0.5)' : '#2a2d3e'}`,
+                        background: isSel ? 'rgba(34,197,94,0.15)' : '#152438',
+                        border: `1px solid ${isSel ? 'rgba(34,197,94,0.5)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '8px 16px',
                         color: isSel ? '#22c55e' : '#8b8fa8',
                         fontSize: 14, fontWeight: isSel ? 700 : 400,
@@ -265,7 +265,7 @@ export default function ReschedulePage() {
             disabled={submitting}
             style={{
               width: '100%',
-              background: 'linear-gradient(135deg, #4f6ef7, #6b87ff)',
+              background: 'linear-gradient(135deg, #b89450, #ccac71)',
               border: 'none', borderRadius: 12, padding: '16px',
               color: 'white', fontSize: 16, fontWeight: 700,
               cursor: submitting ? 'default' : 'pointer',
@@ -286,10 +286,10 @@ export default function ReschedulePage() {
 function Header() {
   return (
     <div style={{
-      background: '#1a1d27', borderBottom: '1px solid #2a2d3e',
+      background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
       padding: '16px 24px', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#6b87ff', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
         Diploma Santé
       </div>
       <div style={{ fontSize: 11, color: '#555870' }}>Prépa médecine d&apos;excellence</div>
@@ -306,14 +306,14 @@ function Footer({ inline }: { inline?: boolean }) {
 }
 
 const pageWrap: React.CSSProperties = {
-  minHeight: '100vh', background: '#0f1117',
+  minHeight: '100vh', background: '#0b1624',
   display: 'flex', flexDirection: 'column', alignItems: 'center',
   justifyContent: 'center', padding: '24px 16px',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 }
 
 const card: React.CSSProperties = {
-  background: '#1e2130', border: '1px solid #2a2d3e',
+  background: '#152438', border: '1px solid #2d4a6b',
   borderRadius: 20, padding: '32px 28px', maxWidth: 420, width: '100%',
 }
 

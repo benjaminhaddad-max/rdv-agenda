@@ -47,19 +47,19 @@ function normalizePhoneUI(phone: string): string {
 }
 
 const LEAD_STATUS: Record<string, { label: string; color: string }> = {
-  NEW:                  { label: 'Nouveau',           color: '#6b87ff' },
+  NEW:                  { label: 'Nouveau',           color: '#ccac71' },
   OPEN:                 { label: 'Ouvert',            color: '#22c55e' },
-  IN_PROGRESS:          { label: 'En cours',          color: '#f59e0b' },
+  IN_PROGRESS:          { label: 'En cours',          color: '#ccac71' },
   OPEN_DEAL:            { label: 'Deal ouvert',       color: '#22c55e' },
   UNQUALIFIED:          { label: 'Non qualifié',      color: '#ef4444' },
   ATTEMPTED_TO_CONTACT: { label: 'Tentative contact', color: '#8b8fa8' },
   CONNECTED:            { label: 'Connecté',          color: '#22c55e' },
-  BAD_TIMING:           { label: 'Mauvais timing',    color: '#f59e0b' },
+  BAD_TIMING:           { label: 'Mauvais timing',    color: '#ccac71' },
 }
 
 const DEAL_STAGES: Record<string, { label: string; color: string }> = {
-  '3165428979': { label: 'À replanifier',         color: '#f59e0b' },
-  '3165428980': { label: 'RDV pris',              color: '#6b87ff' },
+  '3165428979': { label: 'À replanifier',         color: '#ccac71' },
+  '3165428980': { label: 'RDV pris',              color: '#ccac71' },
   '3165428981': { label: 'Délai de réflexion',    color: '#8b8fa8' },
   '3165428982': { label: 'Préinscription',        color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#22c55e' },
@@ -69,24 +69,24 @@ const DEAL_STAGES: Record<string, { label: string; color: string }> = {
 
 const LIFECYCLE_STAGES: Record<string, { label: string; color: string }> = {
   subscriber:              { label: 'Abonné',           color: '#8b8fa8' },
-  lead:                    { label: 'Lead',              color: '#6b87ff' },
-  marketingqualifiedlead:  { label: 'Lead MQL',         color: '#6b87ff' },
-  salesqualifiedlead:      { label: 'Lead SQL',         color: '#f59e0b' },
-  opportunity:             { label: 'Opportunité',      color: '#f59e0b' },
+  lead:                    { label: 'Lead',              color: '#ccac71' },
+  marketingqualifiedlead:  { label: 'Lead MQL',         color: '#ccac71' },
+  salesqualifiedlead:      { label: 'Lead SQL',         color: '#ccac71' },
+  opportunity:             { label: 'Opportunité',      color: '#ccac71' },
   customer:                { label: 'Client',           color: '#22c55e' },
   evangelist:              { label: 'Évangéliste',      color: '#22c55e' },
   other:                   { label: 'Autre',            color: '#555870' },
 }
 
 const REASON_CONFIG = {
-  same_phone: { label: 'Même téléphone', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  same_phone: { label: 'Même téléphone', color: '#ccac71', bg: 'rgba(204,172,113,0.12)' },
   same_email: { label: 'Même email', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-  same_name:  { label: 'Même nom', color: '#6b87ff', bg: 'rgba(107,135,255,0.12)' },
+  same_name:  { label: 'Même nom', color: '#ccac71', bg: 'rgba(204,172,113,0.12)' },
 }
 
 const CONFIDENCE_CONFIG = {
   high:   { label: 'Haute confiance', color: '#22c55e' },
-  medium: { label: 'Confiance moyenne', color: '#f59e0b' },
+  medium: { label: 'Confiance moyenne', color: '#ccac71' },
 }
 
 export default function DoublonsManager({ onClose }: { onClose: () => void }) {
@@ -173,15 +173,15 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
 
       <div style={{
         width: 680, height: '100vh', background: '#13151f',
-        borderLeft: '1px solid #2a2d3e', display: 'flex', flexDirection: 'column',
+        borderLeft: '1px solid #2d4a6b', display: 'flex', flexDirection: 'column',
         animation: 'slideIn 0.2s ease',
         overflowY: 'auto',
       }}>
 
         {/* Header */}
         <div style={{
-          padding: '18px 20px', background: '#1a1d27',
-          borderBottom: '1px solid #2a2d3e', flexShrink: 0,
+          padding: '18px 20px', background: '#1d2f4b',
+          borderBottom: '1px solid #2d4a6b', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 10,
         }}>
@@ -204,13 +204,13 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
             <button
               onClick={load}
               disabled={loading}
-              style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'default' : 'pointer', color: '#8b8fa8' }}
+              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'default' : 'pointer', color: '#8b8fa8' }}
             >
               <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
             <button
               onClick={onClose}
-              style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}
+              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}
             >
               <X size={14} />
             </button>
@@ -222,12 +222,12 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
           {/* Alerte explicative */}
           {!loading && !error && (
             <div style={{
-              background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)',
+              background: 'rgba(204,172,113,0.07)', border: '1px solid rgba(204,172,113,0.2)',
               borderRadius: 10, padding: '12px 14px', marginBottom: 16,
               fontSize: 12, color: '#8b8fa8', lineHeight: 1.6,
               display: 'flex', gap: 10, alignItems: 'flex-start',
             }}>
-              <AlertTriangle size={14} style={{ color: '#f59e0b', marginTop: 1, flexShrink: 0 }} />
+              <AlertTriangle size={14} style={{ color: '#ccac71', marginTop: 1, flexShrink: 0 }} />
               <div>
                 <span style={{ color: '#e8eaf0', fontWeight: 600 }}>Doublons détectés parmi les contacts des télépros.</span>
                 {' '}Fusionner garde le contact principal et transfère tous les deals vers lui. L&apos;action est <span style={{ color: '#ef4444', fontWeight: 600 }}>irréversible dans HubSpot</span>.
@@ -240,7 +240,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
               {([
                 { key: 'cross',      label: `⚡ Télépros différents (${crossCount})`,   color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-                { key: 'all',        label: `Tous (${groups.length})`,                  color: '#8b8fa8', bg: '#252840' },
+                { key: 'all',        label: `Tous (${groups.length})`,                  color: '#8b8fa8', bg: '#243d5c' },
                 { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`,       color: REASON_CONFIG.same_phone.color, bg: REASON_CONFIG.same_phone.bg },
                 { key: 'same_email', label: `Email (${countByReason.same_email})`,      color: REASON_CONFIG.same_email.color, bg: REASON_CONFIG.same_email.bg },
                 { key: 'same_name',  label: `Nom (${countByReason.same_name})`,         color: REASON_CONFIG.same_name.color,  bg: REASON_CONFIG.same_name.bg },
@@ -249,8 +249,8 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
                   key={f.key}
                   onClick={() => setFilter(f.key)}
                   style={{
-                    background: filter === f.key ? f.bg : '#1e2130',
-                    border: `1px solid ${filter === f.key ? f.color + '60' : '#2a2d3e'}`,
+                    background: filter === f.key ? f.bg : '#152438',
+                    border: `1px solid ${filter === f.key ? f.color + '60' : '#2d4a6b'}`,
                     borderRadius: 20, padding: '4px 12px',
                     color: filter === f.key ? f.color : '#555870',
                     fontSize: 11, fontWeight: 700, cursor: 'pointer',
@@ -310,7 +310,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
         {/* Stats footer */}
         {!loading && stats && (
           <div style={{
-            padding: '12px 20px', borderTop: '1px solid #2a2d3e', flexShrink: 0,
+            padding: '12px 20px', borderTop: '1px solid #2d4a6b', flexShrink: 0,
             display: 'flex', gap: 20, fontSize: 11, color: '#555870',
           }}>
             <span><span style={{ color: '#e8eaf0', fontWeight: 700 }}>{stats.totalContacts}</span> contacts scannés</span>
@@ -352,8 +352,8 @@ function DuplicateGroupCard({
 
   return (
     <div style={{
-      background: '#1e2130',
-      border: `1px solid ${group.crossTelepro ? 'rgba(239,68,68,0.35)' : '#2a2d3e'}`,
+      background: '#152438',
+      border: `1px solid ${group.crossTelepro ? 'rgba(239,68,68,0.35)' : '#2d4a6b'}`,
       borderRadius: 12, padding: '14px',
     }}>
       {/* Badges */}
@@ -370,7 +370,7 @@ function DuplicateGroupCard({
           {cc.label}
         </span>
         {group.reason === 'same_phone' && group.matchedValue && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, background: 'rgba(204,172,113,0.1)', color: '#ccac71', border: '1px solid rgba(204,172,113,0.3)' }}>
             🔍 {group.matchedValue}
           </span>
         )}
@@ -386,7 +386,7 @@ function DuplicateGroupCard({
               onClick={() => !confirmMerge && setPrimaryId(contact.id)}
               style={{
                 background: isPrimary ? 'rgba(34,197,94,0.06)' : '#13151f',
-                border: `1px solid ${isPrimary ? 'rgba(34,197,94,0.3)' : '#2a2d3e'}`,
+                border: `1px solid ${isPrimary ? 'rgba(34,197,94,0.3)' : '#2d4a6b'}`,
                 borderRadius: 10, padding: '11px',
                 cursor: confirmMerge ? 'default' : 'pointer',
                 transition: 'border-color 0.15s',
@@ -420,7 +420,7 @@ function DuplicateGroupCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.phone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#f59e0b' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.phone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
@@ -429,7 +429,7 @@ function DuplicateGroupCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.mobilephone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#f59e0b' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.mobilephone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
@@ -458,7 +458,7 @@ function DuplicateGroupCard({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
                       <span>📋</span>
                       {deals && deals !== '0'
-                        ? <span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
+                        ? <span><span style={{ color: '#ccac71', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
                         : <span style={{ color: '#555870', fontStyle: 'italic' }}>Aucun deal</span>
                       }
                     </div>
@@ -520,7 +520,7 @@ function DuplicateGroupCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#6b87ff', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#ccac71', textDecoration: 'none' }}
               >
                 <ExternalLink size={9} />
                 Voir sur HubSpot
@@ -542,7 +542,7 @@ function DuplicateGroupCard({
               onClick={() => onMerge(group, primaryId)}
               disabled={merging}
               style={{
-                flex: 1, background: merging ? '#252840' : 'rgba(239,68,68,0.15)',
+                flex: 1, background: merging ? '#243d5c' : 'rgba(239,68,68,0.15)',
                 border: '1px solid rgba(239,68,68,0.4)',
                 borderRadius: 8, padding: '9px', fontSize: 12, fontWeight: 700,
                 color: merging ? '#555870' : '#ef4444', cursor: merging ? 'default' : 'pointer',
@@ -554,7 +554,7 @@ function DuplicateGroupCard({
             </button>
             <button
               onClick={() => setConfirmMerge(false)}
-              style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, padding: '9px 14px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer' }}
+              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '9px 14px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer' }}
             >
               Annuler
             </button>
@@ -565,9 +565,9 @@ function DuplicateGroupCard({
           <button
             onClick={() => setConfirmMerge(true)}
             style={{
-              flex: 1, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
+              flex: 1, background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 8, padding: '9px', fontSize: 12, fontWeight: 700,
-              color: '#f59e0b', cursor: 'pointer',
+              color: '#ccac71', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
           >
@@ -578,7 +578,7 @@ function DuplicateGroupCard({
             onClick={() => onIgnore(group)}
             disabled={ignoring}
             style={{
-              background: '#252840', border: '1px solid #2a2d3e',
+              background: '#243d5c', border: '1px solid #2d4a6b',
               borderRadius: 8, padding: '9px 14px', fontSize: 12, fontWeight: 600,
               color: ignoring ? '#555870' : '#8b8fa8', cursor: ignoring ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 5,

@@ -16,14 +16,14 @@ const FILTERS: { value: Filter; label: string; icon: React.ReactNode; color: str
     value: 'all',
     label: 'Tous',
     icon: <AlertTriangle size={13} />,
-    color: '#f59e0b',
+    color: '#ccac71',
     desc: 'Tous les RDV passés encore en "RDV Pris"',
   },
   {
     value: 'same_person',
     label: 'Télépro = Propriétaire',
     icon: <Users size={13} />,
-    color: '#6b87ff',
+    color: '#ccac71',
     desc: 'Le télépro est encore propriétaire du deal — aucun closer assigné',
   },
   {
@@ -43,7 +43,7 @@ const FILTERS: { value: Filter; label: string; icon: React.ReactNode; color: str
 ]
 
 function Avatar({ name, color, size = 24 }: { name: string; color?: string; size?: number }) {
-  const bg = color || '#6b87ff'
+  const bg = color || '#ccac71'
   return (
     <div style={{
       width: size, height: size, borderRadius: 6, flexShrink: 0,
@@ -152,13 +152,13 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
       onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
       onClick={e => { if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose(); mouseDownOnBackdrop.current = false }}
     >
-      <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 960, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 960, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+              <AlertTriangle size={16} style={{ color: '#ccac71' }} />
               Check RDV Closer
             </div>
             <div style={{ fontSize: 12, color: '#555870', marginTop: 3 }}>
@@ -169,7 +169,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             <button
               onClick={load}
               disabled={loading}
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #2a2d3e', borderRadius: 8, padding: '6px 10px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 10px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}
             >
               <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
               {loading ? 'Chargement…' : 'Actualiser'}
@@ -181,7 +181,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
         </div>
 
         {/* Filter tabs */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #2d4a6b', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {FILTERS.map(f => {
             const isActive = activeFilter === f.value
             const count = counts[f.value]
@@ -193,7 +193,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   background: isActive ? `${f.color}18` : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isActive ? `${f.color}55` : '#2a2d3e'}`,
+                  border: `1px solid ${isActive ? `${f.color}55` : '#2d4a6b'}`,
                   borderRadius: 8, padding: '6px 12px',
                   color: isActive ? f.color : '#8b8fa8',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -202,7 +202,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                 {f.icon}
                 {f.label}
                 <span style={{
-                  background: isActive ? `${f.color}30` : '#252840',
+                  background: isActive ? `${f.color}30` : '#243d5c',
                   borderRadius: 10, padding: '1px 7px', fontSize: 11,
                   color: isActive ? f.color : '#555870',
                 }}>
@@ -214,7 +214,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
         </div>
 
         {/* Description du filtre actif */}
-        <div style={{ padding: '10px 24px', background: 'rgba(245,158,11,0.05)', borderBottom: '1px solid #2a2d3e' }}>
+        <div style={{ padding: '10px 24px', background: 'rgba(204,172,113,0.05)', borderBottom: '1px solid #2d4a6b' }}>
           <p style={{ fontSize: 12, color: '#8b8fa8', margin: 0 }}>
             {FILTERS.find(f => f.value === activeFilter)?.desc}
           </p>
@@ -240,7 +240,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             const isActioning = !!actioning[deal.id]
 
             const catColors: Record<RdvPrisAuditDeal['category'], { label: string; color: string }> = {
-              same_person:     { label: 'Même personne',   color: '#6b87ff' },
+              same_person:     { label: 'Même personne',   color: '#ccac71' },
               closer_assigned: { label: 'Closer assigné',  color: '#22c55e' },
               unknown_telepro: { label: 'Télépro inconnu', color: '#a855f7' },
               other:           { label: 'Autre',           color: '#8b8fa8' },
@@ -250,7 +250,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             return (
               <div key={deal.id} style={{
                 background: '#151823',
-                border: '1px solid #2a2d3e',
+                border: '1px solid #2d4a6b',
                 borderRadius: 10, padding: '10px 14px',
                 marginBottom: 7,
               }}>
@@ -316,8 +316,8 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                     rel="noopener noreferrer"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)',
-                      borderRadius: 6, padding: '4px 9px', color: '#6b87ff',
+                      background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
+                      borderRadius: 6, padding: '4px 9px', color: '#ccac71',
                       fontSize: 11, fontWeight: 600, textDecoration: 'none', flexShrink: 0,
                     }}
                   >
@@ -326,7 +326,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                 </div>
 
                 {/* Boutons d'action */}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2130', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #152438', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => updateStage(deal, 'aReplanifier')}
                     disabled={isActioning}
@@ -378,8 +378,8 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                     disabled={isActioning}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(107,135,255,0.08)', border: '1px solid rgba(107,135,255,0.3)',
-                      borderRadius: 6, padding: '4px 11px', color: '#6b87ff',
+                      background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)',
+                      borderRadius: 6, padding: '4px 11px', color: '#ccac71',
                       fontSize: 11, fontWeight: 600, cursor: isActioning ? 'default' : 'pointer',
                       fontFamily: 'inherit', opacity: isActioning ? 0.7 : 1, marginLeft: 'auto',
                     }}
@@ -406,13 +406,13 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
         onClick={e => e.target === e.currentTarget && setReassigningDeal(null)}
       >
         <div style={{
-          background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 16,
+          background: '#152438', border: '1px solid #2d4a6b', borderRadius: 16,
           width: '100%', maxWidth: 480, boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
           overflow: 'hidden',
         }}>
-          <div style={{ padding: '20px 24px', borderBottom: '1px solid #2a2d3e', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b87ff', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#ccac71', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
                 🔄 Réassigner le closer
               </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf0' }}>
@@ -430,7 +430,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             </div>
             {closers.length === 0 && <div style={{ color: '#555870', fontSize: 13 }}>Chargement…</div>}
             {closers.map((closer, idx) => {
-              const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#a855f7','#06b6d4','#ef4444','#f97316']
+              const COLORS = ['#b89450','#22c55e','#ccac71','#a855f7','#06b6d4','#ef4444','#f97316']
               const color = COLORS[idx % COLORS.length]
               const isSelected = selectedCloserId === closer.id
               const isCurrent = reassigningDeal.owner_user?.id === closer.id
@@ -439,8 +439,8 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                   key={closer.id}
                   onClick={() => setSelectedCloserId(closer.id)}
                   style={{
-                    background: isSelected ? `${color}12` : '#252840',
-                    border: `1px solid ${isSelected ? color : '#2a2d3e'}`,
+                    background: isSelected ? `${color}12` : '#243d5c',
+                    border: `1px solid ${isSelected ? color : '#2d4a6b'}`,
                     borderRadius: 10, padding: '10px 14px',
                     display: 'flex', alignItems: 'center', gap: 12,
                     cursor: 'pointer',
@@ -458,7 +458,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontWeight: 600, fontSize: 13, color: '#e8eaf0' }}>{closer.name}</span>
                       {isCurrent && (
-                        <span style={{ background: 'rgba(107,135,255,0.15)', color: '#6b87ff', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                        <span style={{ background: 'rgba(204,172,113,0.15)', color: '#ccac71', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                           Actuel
                         </span>
                       )}
@@ -470,12 +470,12 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
             })}
           </div>
 
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #2a2d3e' }}>
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #2d4a6b' }}>
             {reassignError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{reassignError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setReassigningDeal(null)}
-                style={{ flex: 1, background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 8, padding: '9px', color: '#8b8fa8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ flex: 1, background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '9px', color: '#8b8fa8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 Annuler
               </button>
@@ -483,7 +483,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                 onClick={doReassign}
                 disabled={!selectedCloserId || reassigning}
                 style={{
-                  flex: 2, background: selectedCloserId ? '#4f6ef7' : '#252840',
+                  flex: 2, background: selectedCloserId ? '#b89450' : '#243d5c',
                   border: 'none', borderRadius: 8, padding: '9px',
                   color: selectedCloserId ? 'white' : '#555870', fontSize: 13,
                   cursor: selectedCloserId ? 'pointer' : 'default', fontWeight: 700,

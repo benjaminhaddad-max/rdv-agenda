@@ -24,9 +24,9 @@ interface ScanResult {
 
 const STAGE_COLOR: Record<string, string> = {
   'Pré-inscription effectuée': '#22c55e',
-  'Délai de réflexion':        '#f59e0b',
-  'À Replanifier':             '#fb923c',
-  'RDV découverte pris':       '#6b87ff',
+  'Délai de réflexion':        '#ccac71',
+  'À Replanifier':             '#ccac71',
+  'RDV découverte pris':       '#ccac71',
 }
 
 function stageBadge(stage: string) {
@@ -127,7 +127,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
       style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: '#1a1d27', border: '1px solid #2a2d3e', borderRadius: 16, width: '100%', maxWidth: 780, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+      <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 780, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -145,14 +145,14 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         </div>
 
         {/* Règles de priorité */}
-        <div style={{ background: '#12141d', border: '1px solid #2a2d3e', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
           <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Règles de priorité</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               { label: '🥇 Pré-inscription effectuée', color: '#22c55e' },
-              { label: '🥈 Délai de réflexion', color: '#f59e0b' },
-              { label: '🥉 À Replanifier', color: '#fb923c' },
-              { label: '4️⃣ RDV découverte pris', color: '#6b87ff' },
+              { label: '🥈 Délai de réflexion', color: '#ccac71' },
+              { label: '🥉 À Replanifier', color: '#ccac71' },
+              { label: '4️⃣ RDV découverte pris', color: '#ccac71' },
             ].map(({ label, color }) => (
               <span key={label} style={{ background: `${color}18`, border: `1px solid ${color}44`, color, borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
                 {label}
@@ -167,8 +167,8 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
             onClick={scan}
             disabled={loading}
             style={{
-              background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.3)',
-              borderRadius: 8, padding: '8px 18px', color: '#6b87ff',
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 8, padding: '8px 18px', color: '#ccac71',
               fontSize: 13, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
               opacity: loading ? 0.6 : 1,
@@ -215,12 +215,12 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {result && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             {[
-              { label: 'Deals scannés', value: result.total_deals, color: '#6b87ff' },
-              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#f59e0b' },
+              { label: 'Deals scannés', value: result.total_deals, color: '#ccac71' },
+              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#ccac71' },
               { label: 'À archiver', value: result.deals_to_archive - archivedIds.size, color: '#ef4444' },
               { label: 'Archivés', value: archivedIds.size, color: '#22c55e' },
             ].map(({ label, value, color }) => (
-              <div key={label} style={{ background: '#12141d', border: '1px solid #2a2d3e', borderRadius: 10, padding: '10px 16px', minWidth: 110 }}>
+              <div key={label} style={{ background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 10, padding: '10px 16px', minWidth: 110 }}>
                 <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
                 <div style={{ fontSize: 11, color: '#555870', marginTop: 2 }}>{label}</div>
               </div>
@@ -240,14 +240,14 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {/* Liste des groupes */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {visibleGroups.map(group => (
-            <div key={group.contactId} style={{ background: '#12141d', border: '1px solid #2a2d3e', borderRadius: 12, padding: '14px 16px' }}>
+            <div key={group.contactId} style={{ background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 12, padding: '14px 16px' }}>
               {/* Contact ID */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ fontSize: 11, color: '#555870' }}>Contact HubSpot</span>
                 <a
                   href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/contact/${group.contactId}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: '#6b87ff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
+                  style={{ fontSize: 11, color: '#ccac71', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
                 >
                   #{group.contactId} <ExternalLink size={10} />
                 </a>

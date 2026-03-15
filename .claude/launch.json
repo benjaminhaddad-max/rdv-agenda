@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rdv-agenda",
+      "runtimeExecutable": "/Users/benjaminhaddad-diplomasante/.bun/bin/bun",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001
+    }
+  ]
+}

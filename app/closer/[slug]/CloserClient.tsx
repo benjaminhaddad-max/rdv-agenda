@@ -123,8 +123,8 @@ const CLASSES = [
 ]
 
 const inputStyle: React.CSSProperties = {
-  background: '#252840',
-  border: '1px solid #2a2d3e',
+  background: '#243d5c',
+  border: '1px solid #2d4a6b',
   borderRadius: 8,
   padding: '8px 12px',
   color: '#e8eaf0',
@@ -135,7 +135,7 @@ const inputStyle: React.CSSProperties = {
 }
 
 const fieldInputStyle: React.CSSProperties = {
-  width: '100%', background: '#252840', border: '1px solid #2a2d3e',
+  width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
   borderRadius: 10, padding: '11px 14px', color: '#e8eaf0',
   fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
 }
@@ -167,7 +167,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
   const SUIVI_OPTIONS = [
     { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
-    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#f59e0b' },
+    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#ccac71' },
     { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
   ]
 
@@ -553,8 +553,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // ─── Success screen RDV ────────────────────────────────────────────────
   if (rdvSuccess) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e8eaf0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: '#1e2130', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
+      <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#152438', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
           <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
           <div style={{ fontSize: 15, color: '#8b8fa8', marginBottom: 4 }}>{contactName}</div>
@@ -562,11 +562,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
           </div>
           {meetingType === 'visio' && meetingLink && (
-            <div style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Video size={14} style={{ color: '#6b87ff', flexShrink: 0 }} />
-              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#6b87ff', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
+            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Video size={14} style={{ color: '#ccac71', flexShrink: 0 }} />
+              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#ccac71', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
               <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#6b87ff', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#ccac71', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
               </button>
             </div>
@@ -586,11 +586,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
   // ─── Render ───────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f1117', color: '#e8eaf0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624', color: '#e8eaf0' }}>
 
       {/* Header */}
       <div style={{
-        background: '#1a1d27', borderBottom: '1px solid #2a2d3e',
+        background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
         padding: '0 24px', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
@@ -611,7 +611,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', background: '#252840', borderRadius: 8, padding: 3, border: '1px solid #2a2d3e' }}>
+        <div style={{ display: 'flex', background: '#243d5c', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
@@ -652,7 +652,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 20px' }}>
 
             {/* Step 1 — Contact HubSpot */}
-            <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <User size={16} style={{ color: user.avatar_color }} />
                 {contact ? '✓ Contact HubSpot' : 'Étape 1 — Contact HubSpot'}
@@ -680,7 +680,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       { key: 'new' as const, label: 'Nouveau contact', icon: <Plus size={11} /> },
                     ]).map(m => (
                       <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null) }}
-                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#252840', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#2a2d3e'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#243d5c', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#2d4a6b'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                         {m.icon} {m.label}
                       </button>
                     ))}
@@ -728,7 +728,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Step 2 — Date + créneau */}
-            <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Calendar size={16} style={{ color: user.avatar_color }} />
                 Étape 2 — Date &amp; créneau
@@ -740,7 +740,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   const isSelected = selectedDate && isBefore(day, addDays(selectedDate, 1)) && !isBefore(day, selectedDate)
                   return (
                     <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                      style={{ background: isSelected ? `${user.avatar_color}25` : '#252840', border: `1px solid ${isSelected ? user.avatar_color : '#2a2d3e'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
+                      style={{ background: isSelected ? `${user.avatar_color}25` : '#243d5c', border: `1px solid ${isSelected ? user.avatar_color : '#2d4a6b'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
                       <div style={{ fontSize: 10, textTransform: 'uppercase' }}>{format(day, 'EEE', { locale: fr })}</div>
                       <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'd')}</div>
                       <div style={{ fontSize: 10 }}>{format(day, 'MMM', { locale: fr })}</div>
@@ -761,7 +761,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       const isSelected = selectedSlot?.start === slot.start
                       return (
                         <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                          style={{ background: isSelected ? `${user.avatar_color}25` : '#252840', border: `1px solid ${isSelected ? user.avatar_color : '#2a2d3e'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#e8eaf0', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
+                          style={{ background: isSelected ? `${user.avatar_color}25` : '#243d5c', border: `1px solid ${isSelected ? user.avatar_color : '#2d4a6b'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#e8eaf0', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
                           {format(new Date(slot.start), 'HH:mm')}
                         </button>
                       )
@@ -772,7 +772,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Step 3 — Détails */}
-            <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} style={{ color: user.avatar_color }} />
                 Étape 3 — Informations prospect
@@ -827,7 +827,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       { value: 'presentiel', label: 'Présentiel', icon: <User size={12} /> },
                     ] as const).map(t => (
                       <button key={t.value} onClick={() => setMeetingType(t.value)}
-                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#252840', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#2a2d3e'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#243d5c', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#2d4a6b'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
@@ -841,7 +841,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input value={meetingLink} onChange={e => setMeetingLink(e.target.value)} style={{ ...fieldInputStyle, flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
                       <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(79,110,247,0.15)', border: 'none', borderRadius: 8, padding: '0 14px', color: linkCopied ? '#22c55e' : '#6b87ff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 8, padding: '0 14px', color: linkCopied ? '#22c55e' : '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                         {linkCopied ? <><Check size={12} /> Copié</> : <><Copy size={12} /> Copier</>}
                       </button>
                     </div>
@@ -865,7 +865,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             <button onClick={submitRdv} disabled={submitting || !canSubmit}
-              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#252840', color: canSubmit ? 'white' : '#555870', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
+              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#243d5c', color: canSubmit ? 'white' : '#555870', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
               <CheckCircle size={16} />
               {submitting ? 'Enregistrement…' : 'Valider le RDV'}
             </button>
@@ -880,9 +880,9 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
 
             {/* Section 1 : Planning hebdomadaire */}
-            <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
+            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={16} style={{ color: '#4f6ef7' }} />
+                <Clock size={16} style={{ color: '#b89450' }} />
                 Planning hebdomadaire récurrent
               </div>
 
@@ -890,10 +890,10 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                 {DAYS.map(day => {
                   const rule = rules.find(r => r.day_of_week === day.value)!
                   return (
-                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(79,110,247,0.05)' : '#252840', border: `1px solid ${rule.is_active ? 'rgba(79,110,247,0.2)' : '#2a2d3e'}`, borderRadius: 10, transition: 'all 0.15s' }}>
+                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#243d5c', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#2d4a6b'}`, borderRadius: 10, transition: 'all 0.15s' }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: rule.is_active ? '#e8eaf0' : '#555870' }}>{day.label}</div>
                       <button onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
-                        style={{ width: 44, height: 24, borderRadius: 12, background: rule.is_active ? '#4f6ef7' : '#353849', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                        style={{ width: 44, height: 24, borderRadius: 12, background: rule.is_active ? '#b89450' : '#353849', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
                         <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: rule.is_active ? 23 : 3, transition: 'left 0.2s' }} />
                       </button>
                       <select value={rule.start_time} onChange={e => updateRule(day.value, 'start_time', e.target.value)} disabled={!rule.is_active} style={{ ...inputStyle, opacity: rule.is_active ? 1 : 0.3 }}>
@@ -910,7 +910,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
                 <button onClick={saveRules} disabled={rulesSaving}
-                  style={{ background: '#4f6ef7', color: 'white', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: rulesSaving ? 0.7 : 1 }}>
+                  style={{ background: '#b89450', color: 'white', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: rulesSaving ? 0.7 : 1 }}>
                   <Save size={15} />
                   {rulesSaving ? 'Enregistrement…' : 'Enregistrer le planning'}
                 </button>
@@ -920,20 +920,20 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Section 2 : Jours bloqués */}
-            <div style={{ background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 14, padding: '20px 24px' }}>
+            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px' }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Ban size={16} style={{ color: '#ef4444' }} />
                 Jours bloqués (vacances, indisponibilités)
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                   <ChevronLeft size={14} />
                 </button>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#8b8fa8' }}>
                   {format(calendarWeekStart, 'd MMM', { locale: fr })} — {format(addDays(calendarWeekStart, 27), 'd MMM yyyy', { locale: fr })}
                 </div>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                   <ChevronRight size={14} />
                 </button>
               </div>
@@ -961,7 +961,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                           }
                         }}
                         disabled={isPast}
-                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(245,158,11,0.15)' : '#252840', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(245,158,11,0.4)' : '#2a2d3e'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#f59e0b' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#243d5c', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#ccac71' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                         {format(day, 'd')}
                       </button>
                     </div>
@@ -970,15 +970,15 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               </div>
 
               {blockingDate && (
-                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ fontSize: 13, color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: '#ccac71', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     Bloquer le {format(new Date(blockingDate + 'T00:00:00'), 'EEEE d MMMM', { locale: fr })}
                   </div>
                   <input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Raison (optionnel)…" style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
-                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#f59e0b', color: '#1e2130', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#ccac71', color: '#152438', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     <Plus size={12} style={{ display: 'inline', verticalAlign: -2 }} /> Bloquer
                   </button>
-                  <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2a2d3e', borderRadius: 8, padding: '6px 8px', color: '#8b8fa8', cursor: 'pointer' }}>
+                  <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 8px', color: '#8b8fa8', cursor: 'pointer' }}>
                     <X size={14} />
                   </button>
                 </div>
@@ -987,7 +987,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               {blockedDates.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {blockedDates.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, padding: '8px 14px' }}>
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Ban size={13} style={{ color: '#ef4444' }} />
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#e8eaf0', textTransform: 'capitalize' }}>
@@ -1036,7 +1036,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
                   </span>
                 )}
-                <button onClick={fetchHistorique} style={{ background: '#252840', border: '1px solid #2a2d3e', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={fetchHistorique} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
                   <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
                 </button>
                 {!histLoading && (
@@ -1099,13 +1099,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   key={rdv.id}
                   onClick={() => setSelectedHistRdv(rdv)}
                   style={{
-                    background: '#1a1d27',
-                    border: '1px solid #2a2d3e',
+                    background: '#1d2f4b',
+                    border: '1px solid #2d4a6b',
                     borderRadius: 12, marginBottom: 10, overflow: 'hidden',
                     cursor: 'pointer', transition: 'border-color 0.15s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = user.avatar_color)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2d3e')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#2d4a6b')}
                 >
                   {/* Ligne principale */}
                   <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1131,8 +1131,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     )}
                     {rdv.repop_form_date && (
                       <span style={{
-                        background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)',
-                        color: '#fb923c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
+                        color: '#ccac71', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
                         flexShrink: 0,
                       }}>
                         🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
@@ -1143,13 +1143,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   {/* Infos prospect */}
                   <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {rdv.prospect_phone && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
                         <Phone size={10} /> {rdv.prospect_phone}
                       </span>
                     )}
                     {rdv.formation_type && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#252840', borderRadius: 5, padding: '2px 8px' }}>
-                        <Tag size={10} style={{ color: '#f59e0b' }} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
+                        <Tag size={10} style={{ color: '#ccac71' }} />
                         Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong>
                       </span>
                     )}
@@ -1168,8 +1168,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         disabled={rebookLoading === rdv.id}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
-                          background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.35)',
-                          borderRadius: 7, padding: '5px 12px', color: '#6b87ff',
+                          background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
+                          borderRadius: 7, padding: '5px 12px', color: '#ccac71',
                           fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                         }}
                       >

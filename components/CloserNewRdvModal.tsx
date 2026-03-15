@@ -65,8 +65,8 @@ function generateJitsiLink() {
 // ─── Shared styles ───────────────────────────────────────────────────────────
 
 const inp: React.CSSProperties = {
-  background: '#252840',
-  border: '1px solid #2a2d3e',
+  background: '#243d5c',
+  border: '1px solid #2d4a6b',
   borderRadius: 8,
   padding: '8px 12px',
   color: '#e8eaf0',
@@ -278,8 +278,8 @@ export default function CloserNewRdvModal({
         onMouseDown={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 520,
-          background: '#1a1d27',
-          border: '1px solid #2a2d3e',
+          background: '#1d2f4b',
+          border: '1px solid #2d4a6b',
           borderRadius: 16,
           maxHeight: '92vh',
           display: 'flex', flexDirection: 'column',
@@ -290,7 +290,7 @@ export default function CloserNewRdvModal({
         {/* ── Header ────────────────────────────────────────────────── */}
         <div style={{
           padding: '16px 20px',
-          borderBottom: '1px solid #2a2d3e',
+          borderBottom: '1px solid #2d4a6b',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
@@ -299,13 +299,13 @@ export default function CloserNewRdvModal({
               Nouveau RDV
             </div>
             <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
-              Assigné à <span style={{ color: '#6b87ff', fontWeight: 600 }}>{closerName}</span>
+              Assigné à <span style={{ color: '#ccac71', fontWeight: 600 }}>{closerName}</span>
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'transparent', border: '1px solid #2a2d3e',
+              background: 'transparent', border: '1px solid #2d4a6b',
               borderRadius: 8, width: 32, height: 32,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', color: '#8b8fa8',
@@ -337,10 +337,10 @@ export default function CloserNewRdvModal({
                     onClick={() => { setHsMode(m.key as typeof hsMode); setHsError(null) }}
                     style={{
                       flex: 1,
-                      background: hsMode === m.key ? 'rgba(79,110,247,0.15)' : '#252840',
-                      border: `1px solid ${hsMode === m.key ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                      background: hsMode === m.key ? 'rgba(204,172,113,0.15)' : '#243d5c',
+                      border: `1px solid ${hsMode === m.key ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                       borderRadius: 8, padding: '7px 6px',
-                      color: hsMode === m.key ? '#6b87ff' : '#8b8fa8',
+                      color: hsMode === m.key ? '#ccac71' : '#8b8fa8',
                       fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
@@ -363,7 +363,7 @@ export default function CloserNewRdvModal({
                     onClick={lookupByUrl}
                     disabled={hsLoading || !hsUrl.trim()}
                     style={{
-                      background: hsLoading ? '#353849' : '#4f6ef7',
+                      background: hsLoading ? '#353849' : '#b89450',
                       color: 'white', border: 'none',
                       borderRadius: 8, padding: '10px 0',
                       fontSize: 13, fontWeight: 700, cursor: hsLoading ? 'wait' : 'pointer',
@@ -391,7 +391,7 @@ export default function CloserNewRdvModal({
                     onClick={lookupByPhone}
                     disabled={hsLoading || !hsPhone.trim()}
                     style={{
-                      background: hsLoading ? '#353849' : '#4f6ef7',
+                      background: hsLoading ? '#353849' : '#b89450',
                       color: 'white', border: 'none',
                       borderRadius: 8, padding: '10px 0',
                       fontSize: 13, fontWeight: 700, cursor: hsLoading ? 'wait' : 'pointer',
@@ -441,13 +441,13 @@ export default function CloserNewRdvModal({
               {/* HubSpot badge */}
               {hsContact && (
                 <div style={{
-                  background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)',
+                  background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
                   borderRadius: 10, padding: '10px 14px',
                   display: 'flex', alignItems: 'center', gap: 10,
                 }}>
-                  <CheckCircle size={15} style={{ color: '#4f6ef7', flexShrink: 0 }} />
+                  <CheckCircle size={15} style={{ color: '#b89450', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#6b87ff' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#ccac71' }}>
                       Contact HubSpot lié
                     </div>
                     <div style={{ fontSize: 11, color: '#555870', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -561,10 +561,10 @@ export default function CloserNewRdvModal({
                       onClick={() => setMeetingType(m.key)}
                       style={{
                         flex: 1,
-                        background: meetingType === m.key ? 'rgba(79,110,247,0.15)' : '#252840',
-                        border: `1px solid ${meetingType === m.key ? 'rgba(79,110,247,0.4)' : '#2a2d3e'}`,
+                        background: meetingType === m.key ? 'rgba(204,172,113,0.15)' : '#243d5c',
+                        border: `1px solid ${meetingType === m.key ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '8px 0',
-                        color: meetingType === m.key ? '#6b87ff' : '#8b8fa8',
+                        color: meetingType === m.key ? '#ccac71' : '#8b8fa8',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                       }}
@@ -585,8 +585,8 @@ export default function CloserNewRdvModal({
 
               {/* ── Question télépro ───────────────────────────────── */}
               <div style={{
-                background: '#0f1117',
-                border: `1px solid ${hasTelePro === null ? '#2a2d3e' : hasTelePro ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                background: '#0b1624',
+                border: `1px solid ${hasTelePro === null ? '#2d4a6b' : hasTelePro ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
                 borderRadius: 12, padding: '14px 16px',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 12 }}>
@@ -597,8 +597,8 @@ export default function CloserNewRdvModal({
                     onClick={() => setHasTelePro(true)}
                     style={{
                       flex: 1,
-                      background: hasTelePro === true ? 'rgba(34,197,94,0.15)' : '#252840',
-                      border: `1px solid ${hasTelePro === true ? 'rgba(34,197,94,0.4)' : '#2a2d3e'}`,
+                      background: hasTelePro === true ? 'rgba(34,197,94,0.15)' : '#243d5c',
+                      border: `1px solid ${hasTelePro === true ? 'rgba(34,197,94,0.4)' : '#2d4a6b'}`,
                       borderRadius: 8, padding: '9px 0',
                       color: hasTelePro === true ? '#22c55e' : '#8b8fa8',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -610,8 +610,8 @@ export default function CloserNewRdvModal({
                     onClick={() => { setHasTelePro(false); setSelectedTelepro('') }}
                     style={{
                       flex: 1,
-                      background: hasTelePro === false ? 'rgba(239,68,68,0.1)' : '#252840',
-                      border: `1px solid ${hasTelePro === false ? 'rgba(239,68,68,0.3)' : '#2a2d3e'}`,
+                      background: hasTelePro === false ? 'rgba(239,68,68,0.1)' : '#243d5c',
+                      border: `1px solid ${hasTelePro === false ? 'rgba(239,68,68,0.3)' : '#2d4a6b'}`,
                       borderRadius: 8, padding: '9px 0',
                       color: hasTelePro === false ? '#ef4444' : '#8b8fa8',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -667,14 +667,14 @@ export default function CloserNewRdvModal({
         {step === 'form' && (
           <div style={{
             padding: '14px 20px',
-            borderTop: '1px solid #2a2d3e',
+            borderTop: '1px solid #2d4a6b',
             display: 'flex', gap: 10,
             flexShrink: 0,
           }}>
             <button
               onClick={() => setStep('lookup')}
               style={{
-                background: 'transparent', border: '1px solid #2a2d3e',
+                background: 'transparent', border: '1px solid #2d4a6b',
                 borderRadius: 8, padding: '9px 16px',
                 color: '#8b8fa8', fontSize: 13, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -687,7 +687,7 @@ export default function CloserNewRdvModal({
               disabled={submitting || !name.trim() || !email.trim() || !selectedDate || !selectedHour || hasTelePro === null}
               style={{
                 flex: 1,
-                background: '#4f6ef7', color: 'white', border: 'none',
+                background: '#b89450', color: 'white', border: 'none',
                 borderRadius: 8, padding: '10px 0',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,

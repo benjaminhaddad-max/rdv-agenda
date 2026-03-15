@@ -55,7 +55,7 @@ export default function ConfirmPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0f1117',
+      background: '#0b1624',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -65,15 +65,15 @@ export default function ConfirmPage() {
     }}>
       {/* Logo / Header */}
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#6b87ff', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
           Diploma Santé
         </div>
         <div style={{ fontSize: 11, color: '#555870' }}>Prépa médecine d&apos;excellence</div>
       </div>
 
       <div style={{
-        background: '#1e2130',
-        border: '1px solid #2a2d3e',
+        background: '#152438',
+        border: '1px solid #2d4a6b',
         borderRadius: 20,
         padding: '32px 28px',
         maxWidth: 420,
@@ -116,13 +116,13 @@ export default function ConfirmPage() {
 
             {/* Carte RDV */}
             <div style={{
-              background: '#252840',
-              border: '1px solid #2a2d3e',
+              background: '#243d5c',
+              border: '1px solid #2d4a6b',
               borderRadius: 14,
               padding: '16px 20px',
               marginBottom: 28,
             }}>
-              <div style={{ fontSize: 13, color: '#6b87ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              <div style={{ fontSize: 13, color: '#ccac71', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
                 Votre rendez-vous
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -189,7 +189,7 @@ export default function ConfirmPage() {
               href={`/reschedule/${token}`}
               style={{
                 display: 'block',
-                background: 'linear-gradient(135deg, #4f6ef7, #6b87ff)',
+                background: 'linear-gradient(135deg, #b89450, #ccac71)',
                 borderRadius: 12,
                 padding: '16px',
                 color: 'white',
@@ -218,7 +218,7 @@ export default function ConfirmPage() {
             {startDate && (
               <div style={{
                 marginTop: 20,
-                background: '#252840',
+                background: '#243d5c',
                 borderRadius: 10,
                 padding: '12px 16px',
                 fontSize: 14,
