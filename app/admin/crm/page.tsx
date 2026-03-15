@@ -244,6 +244,10 @@ export default function CRMPage() {
   const [ownerExclude, setOwnerExclude] = useState('')
   const [recentFormMonths, setRecentFormMonths] = useState(0)
 
+  // Overrides des filtres par défaut
+  const [showExternal, setShowExternal] = useState(false)  // montrer équipe externe (ex. Benjamin Delacour)
+  const [allClasses, setAllClasses]     = useState(false)  // bypass filtre classe/date
+
   // Client-side filters (appliqués sur les données déjà chargées)
   const [formation, setFormation] = useState('')
   const [classe, setClasse]       = useState('')
@@ -284,13 +288,15 @@ export default function CRMPage() {
         limit: String(LIMIT),
         page: String(currentPage),
       })
-      if (search)              params.set('search', search)
-      if (stage)               params.set('stage', stage)
-      if (closerHsId)          params.set('closer_hs_id', closerHsId)
-      if (teleproHsId)         params.set('telepro_hs_id', teleproHsId)
-      if (noTelepro)           params.set('no_telepro', '1')
-      if (ownerExclude)        params.set('owner_exclude', ownerExclude)
+      if (search)               params.set('search', search)
+      if (stage)                params.set('stage', stage)
+      if (closerHsId)           params.set('closer_hs_id', closerHsId)
+      if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
+      if (noTelepro)            params.set('no_telepro', '1')
+      if (ownerExclude)         params.set('owner_exclude', ownerExclude)
       if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+      if (showExternal)         params.set('show_external', '1')
+      if (allClasses)           params.set('all_classes', '1')
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
@@ -302,7 +308,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -374,6 +380,7 @@ export default function CRMPage() {
     setFormation(''); setClasse(''); setPeriod('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
     setViewPreset('all')
+    // On ne reset PAS showExternal ni allClasses (ce sont des préférences de vue, pas des filtres)
   }
 
   // Dropdown options
@@ -547,6 +554,74 @@ export default function CRMPage() {
             {viewPreset === 'recents' && '— formulaire soumis il y a moins de 3 mois'}
           </span>
         )}
+      </div>
+
+      {/* ── Bandeau filtres par défaut ──────────────────────────────────────── */}
+      <div style={{
+        padding: '6px 20px',
+        background: '#090f1a',
+        borderBottom: '1px solid #1a2f45',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: 10, color: '#3a5070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>
+          Filtres auto
+        </span>
+
+        {/* Toggle : filtre classe/date */}
+        <button
+          onClick={() => { setAllClasses(v => !v); scheduleRefetch() }}
+          title={allClasses ? 'Affiche toutes les classes (filtre désactivé)' : 'Terminale / Première / Seconde toujours · Autres classes depuis sept. 2025'}
+          style={{
+            background: allClasses ? 'rgba(85,88,112,0.15)' : 'rgba(76,171,219,0.1)',
+            border: `1px solid ${allClasses ? '#2d4a6b' : 'rgba(76,171,219,0.3)'}`,
+            borderRadius: 20,
+            padding: '3px 10px',
+            color: allClasses ? '#555870' : '#4cabdb',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            transition: 'all 0.15s',
+          }}
+        >
+          <span style={{ fontSize: 9 }}>{allClasses ? '○' : '●'}</span>
+          {allClasses ? 'Toutes classes' : 'Terminale · Première · Seconde + récents'}
+          {!allClasses && <span style={{ opacity: 0.5 }}>✕</span>}
+        </button>
+
+        {/* Toggle : exclure équipe externe */}
+        <button
+          onClick={() => { setShowExternal(v => !v); scheduleRefetch() }}
+          title={showExternal ? 'Équipe externe incluse' : 'Contacts équipe externe masqués (ex. Benjamin Delacour)'}
+          style={{
+            background: showExternal ? 'rgba(239,68,68,0.1)' : 'rgba(76,171,219,0.1)',
+            border: `1px solid ${showExternal ? 'rgba(239,68,68,0.3)' : 'rgba(76,171,219,0.3)'}`,
+            borderRadius: 20,
+            padding: '3px 10px',
+            color: showExternal ? '#ef4444' : '#4cabdb',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            transition: 'all 0.15s',
+          }}
+        >
+          <span style={{ fontSize: 9 }}>{showExternal ? '○' : '●'}</span>
+          {showExternal ? 'Équipe externe visible' : 'Équipe externe masquée'}
+          {showExternal && <span style={{ opacity: 0.5 }}>✕</span>}
+        </button>
+
+        <span style={{ fontSize: 10, color: '#2d4a6b', marginLeft: 4 }}>
+          — cliquer pour activer/désactiver
+        </span>
       </div>
 
       {/* ── Filters ─────────────────────────────────────────────────────────── */}
