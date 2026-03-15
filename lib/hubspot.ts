@@ -510,3 +510,62 @@ export async function mergeContacts(primaryContactId: string, secondaryContactId
     }),
   })
 }
+
+// ─── Sync CRM : récupérer tous les contacts (paginé, pour sync Supabase) ──
+export async function getAllContactsForSync(after?: string): Promise<{
+  contacts: HubSpotContact[]
+  nextCursor?: string
+}> {
+  const params = new URLSearchParams({
+    properties: CONTACT_PROPS,
+    limit: '100',
+  })
+  if (after) params.set('after', after)
+
+  const data = await hubspotFetch(`/crm/v3/objects/contacts?${params.toString()}`)
+  return {
+    contacts: data.results ?? [],
+    nextCursor: data.paging?.next?.after,
+  }
+}
+
+// ─── Sync CRM : récupérer tous les deals du pipeline (paginé) ─────────────
+const DEAL_SYNC_PROPS = [
+  'dealname', 'dealstage', 'pipeline', 'hubspot_owner_id',
+  'teleprospecteur', 'diploma_sante___formation',
+  'closedate', 'createdate', 'description',
+].join(',')
+
+export async function getAllDealsForSync(after?: string): Promise<{
+  deals: Array<{
+    id: string
+    properties: {
+      dealname: string; dealstage: string; pipeline: string
+      hubspot_owner_id?: string; teleprospecteur?: string
+      diploma_sante___formation?: string; closedate?: string
+      createdate?: string; description?: string
+    }
+    associations?: { contacts?: { results: Array<{ id: string }> } }
+  }>
+  nextCursor?: string
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = {
+    filterGroups: [{
+      filters: [{ propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID }],
+    }],
+    properties: DEAL_SYNC_PROPS.split(','),
+    associations: ['contacts'],
+    limit: 100,
+  }
+  if (after) body.after = after
+
+  const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return {
+    deals: data.results ?? [],
+    nextCursor: data.paging?.next?.after,
+  }
+}

@@ -4,6 +4,7 @@
     { "path": "/api/cron/sms-24h-relance",  "schedule": "0 8,20 * * *" },
     { "path": "/api/cron/sms-morning",      "schedule": "0 8 * * *"    },
     { "path": "/api/cron/sms-intraday",     "schedule": "*/5 * * * *"  },
-    { "path": "/api/cron/auto-replanifier", "schedule": "0 2 * * *"    }
+    { "path": "/api/cron/auto-replanifier", "schedule": "0 2 * * *"    },
+    { "path": "/api/cron/crm-sync",         "schedule": "0 * * * *"    }
   ]
 }

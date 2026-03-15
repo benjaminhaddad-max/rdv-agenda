@@ -17,7 +17,7 @@ export default async function TeleproPage({
   const db = createServiceClient()
   const { data: loggedInUser } = await db
     .from('rdv_users')
-    .select('id, name, email, role, slug, avatar_color, hubspot_owner_id')
+    .select('id, name, email, role, slug, avatar_color, hubspot_owner_id, hubspot_user_id')
     .eq('auth_id', user.id)
     .single()
 
@@ -27,7 +27,7 @@ export default async function TeleproPage({
   if (loggedInUser.role === 'admin' && params.preview_as) {
     const { data: previewUser } = await db
       .from('rdv_users')
-      .select('id, name, email, role, slug, avatar_color, hubspot_owner_id')
+      .select('id, name, email, role, slug, avatar_color, hubspot_owner_id, hubspot_user_id')
       .eq('id', params.preview_as)
       .single()
 

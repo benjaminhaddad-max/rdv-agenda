@@ -15,6 +15,7 @@ import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/Stat
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
+import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -155,7 +156,10 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
-  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop'>('planning')
+  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads'>('planning')
+  const [leadsContacts, setLeadsContacts] = useState<CRMContact[]>([])
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [leadsTotal, setLeadsTotal] = useState(0)
   const [showGuide, setShowGuide] = useState(false)
 
   // ── Historique ──
@@ -189,6 +193,27 @@ export default function CloserClient({ user }: { user: CloserUser }) {
       fetchHistorique()
     }
   }, [activeTab, histRdvs.length, histLoading, fetchHistorique])
+
+  const fetchLeads = useCallback(async () => {
+    if (!user.hubspot_owner_id) return
+    setLeadsLoading(true)
+    try {
+      const res = await fetch(`/api/crm/contacts?closer_hs_id=${user.hubspot_owner_id}&limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        setLeadsContacts(data.data ?? [])
+        setLeadsTotal(data.total ?? 0)
+      }
+    } finally {
+      setLeadsLoading(false)
+    }
+  }, [user.hubspot_owner_id])
+
+  useEffect(() => {
+    if (activeTab === 'leads' && leadsContacts.length === 0 && !leadsLoading) {
+      fetchLeads()
+    }
+  }, [activeTab, leadsContacts.length, leadsLoading, fetchLeads])
 
   const uniqueStages = histRdvs.reduce<Array<{ label: string; color: string; count: number }>>((acc, r) => {
     if (!r.hs_stage_label) return acc
@@ -617,6 +642,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
+            { key: 'leads' as const, label: 'Mes Leads', icon: <User size={13} /> },
             { key: 'historique' as const, label: 'Historique', icon: <Clock size={13} /> },
             { key: 'repop' as const, label: '🔁 Repop', icon: null },
             { key: 'dispos' as const, label: 'Mes dispos', icon: <Clock size={13} /> },
@@ -1246,6 +1272,45 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: Mes Leads ──────────────────────────────────────────── */}
+      {activeTab === 'leads' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 20px' }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <User size={18} style={{ color: user.avatar_color }} />
+                  Mes Leads — Pipeline HubSpot
+                </div>
+                <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
+                  {leadsTotal > 0 ? `${leadsTotal} contacts synchronisés` : 'Contacts + transactions associés depuis HubSpot'}
+                </div>
+              </div>
+              <button
+                onClick={fetchLeads}
+                disabled={leadsLoading}
+                style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '7px 14px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'inherit' }}
+              >
+                <RefreshCw size={12} style={{ animation: leadsLoading ? 'spin 1s linear infinite' : 'none' }} />
+                {leadsLoading ? 'Chargement…' : 'Actualiser'}
+              </button>
+            </div>
+            {!user.hubspot_owner_id ? (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '16px 20px', color: '#ef4444', fontSize: 13 }}>
+                ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
+              </div>
+            ) : (
+              <CRMContactsTable
+                contacts={leadsContacts}
+                loading={leadsLoading}
+                mode="closer"
+                onRefresh={fetchLeads}
+              />
+            )}
           </div>
         </div>
       )}

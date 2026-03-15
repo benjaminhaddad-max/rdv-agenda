@@ -14,6 +14,7 @@ import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/Stat
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
+import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -39,6 +40,7 @@ type TeleproUser = {
   slug: string
   avatar_color: string
   hubspot_owner_id?: string | null
+  hubspot_user_id?: string | null
 }
 
 type MyAppointment = {
@@ -440,8 +442,11 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
+  const [crmContacts, setCrmContacts] = useState<CRMContact[]>([])
+  const [crmLoading, setCrmLoading] = useState(false)
+  const [crmTotal, setCrmTotal] = useState(0)
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
@@ -666,6 +671,29 @@ export default function TeleproClient({
   useEffect(() => {
     if (activeTab === 'historique') fetchHistorique()
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchCrmContacts = useCallback(async () => {
+    const hsId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id
+    if (!hsId) return
+    setCrmLoading(true)
+    try {
+      const param = teleproUser.hubspot_user_id ? 'telepro_hs_id' : 'closer_hs_id'
+      const res = await fetch(`/api/crm/contacts?${param}=${hsId}&limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        setCrmContacts(data.data ?? [])
+        setCrmTotal(data.total ?? 0)
+      }
+    } finally {
+      setCrmLoading(false)
+    }
+  }, [teleproUser.hubspot_user_id, teleproUser.hubspot_owner_id])
+
+  useEffect(() => {
+    if (activeTab === 'contacts' && crmContacts.length === 0 && !crmLoading) {
+      fetchCrmContacts()
+    }
+  }, [activeTab, crmContacts.length, crmLoading, fetchCrmContacts])
 
   const marquerPerdu = useCallback(async (rdv: HistRdv) => {
     if (!rdv.hubspot_deal_id) return
@@ -1049,6 +1077,20 @@ export default function TeleproClient({
                 {repriseCount > 0 && (
                   <span style={{ background: '#f97316', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#fff' }}>
                     🔔 {repriseCount}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setActiveTab('contacts')} style={{
+                background: activeTab === 'contacts' ? 'rgba(76,171,219,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'contacts' ? 'rgba(76,171,219,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'contacts' ? '#4cabdb' : '#8b8fa8',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}>
+                👥 Mes Contacts
+                {crmTotal > 0 && (
+                  <span style={{ background: 'rgba(76,171,219,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                    {crmTotal}
                   </span>
                 )}
               </button>
@@ -1965,6 +2007,37 @@ export default function TeleproClient({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ── Onglet Mes Contacts (CRM) ───────────────────────────────── */}
+      {activeTab === 'contacts' && !isAdmin && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 20px' }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  👥 Mes Contacts — Pipeline HubSpot
+                </div>
+                <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
+                  {crmTotal > 0 ? `${crmTotal} contacts synchronisés` : 'Contacts + transactions associés depuis HubSpot'}
+                </div>
+              </div>
+              <button
+                onClick={fetchCrmContacts}
+                disabled={crmLoading}
+                style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 8, padding: '7px 14px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'inherit' }}
+              >
+                {crmLoading ? 'Chargement…' : '🔄 Actualiser'}
+              </button>
+            </div>
+            <CRMContactsTable
+              contacts={crmContacts}
+              loading={crmLoading}
+              mode="telepro"
+              onRefresh={fetchCrmContacts}
+            />
+          </div>
         </div>
       )}
 
