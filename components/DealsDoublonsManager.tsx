@@ -75,11 +75,12 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
 
   // ─── Archiver un seul deal perdant ───────────────────────────────────────
   const archiveOne = useCallback(async (dealId: string) => {
+    setError(null)
     try {
       const res = await fetch('/api/admin/deduplicate-deals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dry_run: false }),
+        body: JSON.stringify({ deal_ids: [dealId] }),
       })
       if (!res.ok) throw new Error(`Erreur ${res.status}`)
       setArchivedIds(prev => new Set([...prev, dealId]))
@@ -93,23 +94,29 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
     if (!result) return
     setArchiving(true)
     setError(null)
+    // Collecte tous les IDs perdants pas encore archivés
+    const idsToArchive = result.groups
+      .flatMap(g => g.losers.map(l => l.id))
+      .filter(id => !archivedIds.has(id))
     try {
       const res = await fetch('/api/admin/deduplicate-deals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dry_run: false }),
+        body: JSON.stringify({ deal_ids: idsToArchive }),
       })
       if (!res.ok) throw new Error(`Erreur ${res.status}`)
       const data = await res.json()
-      const ids = new Set<string>(data.archived_deal_ids ?? [])
-      setArchivedIds(ids)
+      setArchivedIds(prev => new Set([...prev, ...(data.archived_deal_ids ?? [])]))
       setSuccess(`✅ ${data.archived_count} deal(s) archivé(s) avec succès`)
+      if (data.errors?.length > 0) {
+        setError(`⚠️ ${data.errors.length} erreur(s) : ${data.errors[0].error}`)
+      }
     } catch (e) {
       setError(String(e))
     } finally {
       setArchiving(false)
     }
-  }, [result])
+  }, [result, archivedIds])
 
   const visibleGroups = result?.groups.filter(g =>
     g.losers.some(l => !archivedIds.has(l.id))

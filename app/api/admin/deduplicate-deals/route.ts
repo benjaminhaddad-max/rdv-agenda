@@ -155,52 +155,31 @@ export async function GET() {
   }
 }
 
-// ─── POST — applique la déduplication (archive les deals perdants) ─────────
+// ─── POST — archive une liste précise de deal IDs (pas de re-scan) ────────
+// Body: { deal_ids: string[] }
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}))
-  const dryRun: boolean = body.dry_run === true
-
   try {
-    const deals = await fetchAllDeals(PIPELINE_2026_2027)
-    const dealIds = deals.map(d => d.id)
-    const assocMap = await fetchDealContactAssociations(dealIds)
+    const body = await req.json().catch(() => ({}))
+    const dealIds: string[] = Array.isArray(body.deal_ids) ? body.deal_ids : []
 
-    for (const deal of deals) {
-      deal.contactId = assocMap.get(deal.id)
-    }
-
-    const byContact = new Map<string, DealRaw[]>()
-    for (const deal of deals) {
-      if (!deal.contactId) continue
-      const group = byContact.get(deal.contactId) ?? []
-      group.push(deal)
-      byContact.set(deal.contactId, group)
+    if (dealIds.length === 0) {
+      return NextResponse.json({ error: 'deal_ids manquants ou vides' }, { status: 400 })
     }
 
     const archived: string[] = []
     const errors: Array<{ dealId: string; error: string }> = []
 
-    for (const [, group] of byContact.entries()) {
-      if (group.length < 2) continue
-      const { losers } = pickWinner(group)
-
-      for (const loser of losers) {
-        if (dryRun) {
-          archived.push(loser.id)
-          continue
-        }
-        try {
-          await hubspotFetch(`/crm/v3/objects/deals/${loser.id}`, { method: 'DELETE' })
-          archived.push(loser.id)
-          await new Promise(r => setTimeout(r, 100)) // anti rate-limit
-        } catch (e) {
-          errors.push({ dealId: loser.id, error: String(e) })
-        }
+    for (const dealId of dealIds) {
+      try {
+        await hubspotFetch(`/crm/v3/objects/deals/${dealId}`, { method: 'DELETE' })
+        archived.push(dealId)
+        await new Promise(r => setTimeout(r, 100)) // anti rate-limit
+      } catch (e) {
+        errors.push({ dealId, error: String(e) })
       }
     }
 
     return NextResponse.json({
-      dry_run: dryRun,
       archived_count: archived.length,
       archived_deal_ids: archived,
       errors,
