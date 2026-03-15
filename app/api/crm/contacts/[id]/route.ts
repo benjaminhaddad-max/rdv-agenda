@@ -56,30 +56,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  // Téléprospecteur → stocker sur le contact + propaguer aux deals liés
-  if (teleprospecteur !== undefined) {
-    // Stocker directement sur le contact (pour les contacts sans deal)
-    await db
-      .from('crm_contacts')
-      .update({ teleprospecteur, synced_at: new Date().toISOString() })
-      .eq('hubspot_contact_id', contactId)
+  // Propagation contact → deals liés (closer + télépro toujours synchronisés)
+  const hubspot_owner_id = contactFields.hubspot_owner_id
+  const needsDealSync    = teleprospecteur !== undefined || hubspot_owner_id !== undefined
 
+  if (needsDealSync) {
+    // Stocker teleprospecteur sur le contact si besoin
+    if (teleprospecteur !== undefined) {
+      await db
+        .from('crm_contacts')
+        .update({ teleprospecteur, synced_at: new Date().toISOString() })
+        .eq('hubspot_contact_id', contactId)
+    }
+
+    // Récupérer tous les deals liés
     const { data: deals } = await db
       .from('crm_deals')
       .select('hubspot_deal_id')
       .eq('hubspot_contact_id', contactId)
 
     for (const deal of deals ?? []) {
+      const dealUpdate: Record<string, unknown> = { synced_at: new Date().toISOString() }
+      if (teleprospecteur !== undefined)  dealUpdate.teleprospecteur  = teleprospecteur
+      if (hubspot_owner_id !== undefined) dealUpdate.hubspot_owner_id = hubspot_owner_id
+
       await db
         .from('crm_deals')
-        .update({ teleprospecteur, synced_at: new Date().toISOString() })
+        .update(dealUpdate)
         .eq('hubspot_deal_id', deal.hubspot_deal_id)
 
+      // Sync HubSpot deal (best-effort)
       try {
-        await hubspotFetch(`/crm/v3/objects/deals/${deal.hubspot_deal_id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ properties: { teleprospecteur: teleprospecteur ?? '' } }),
-        })
+        const hsProps: Record<string, string> = {}
+        if (teleprospecteur !== undefined)  hsProps.teleprospecteur  = teleprospecteur ?? ''
+        if (hubspot_owner_id !== undefined) hsProps.hubspot_owner_id = hubspot_owner_id ?? ''
+        if (Object.keys(hsProps).length > 0) {
+          await hubspotFetch(`/crm/v3/objects/deals/${deal.hubspot_deal_id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ properties: hsProps }),
+          })
+        }
       } catch (e) {
         console.error('[crm/contacts PATCH] Deal HubSpot error:', e)
       }
