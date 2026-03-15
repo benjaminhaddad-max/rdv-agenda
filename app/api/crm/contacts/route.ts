@@ -197,10 +197,11 @@ export async function GET(req: NextRequest) {
     stage: 'dealstage', closer: 'hubspot_owner_id', telepro: 'teleprospecteur', formation: 'formation',
   }
 
-  // Helper: fetch ALL contact IDs from crm_deals matching a query (paginated to avoid limits)
+  // Helper: fetch ALL contact IDs from crm_deals matching a query (paginated)
+  // Uses small page size (1000) to respect Supabase max_rows config + deterministic ordering
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function fetchAllDealContactIds(buildQuery: (q: any) => any): Promise<string[]> {
-    const PAGE_SIZE = 10000
+    const PAGE_SIZE = 1000
     const allIds = new Set<string>()
     let offset = 0
     // eslint-disable-next-line no-constant-condition
@@ -208,12 +209,14 @@ export async function GET(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q: any = db.from('crm_deals').select('hubspot_contact_id')
       q = buildQuery(q)
+      q = q.order('hubspot_deal_id', { ascending: true })
       const { data: rows } = await q.range(offset, offset + PAGE_SIZE - 1)
       if (!rows || rows.length === 0) break
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const r of rows) if (r.hubspot_contact_id) allIds.add(r.hubspot_contact_id)
       if (rows.length < PAGE_SIZE) break
       offset += PAGE_SIZE
+      if (offset > 500000) break // safety limit
     }
     return [...allIds]
   }
