@@ -487,6 +487,14 @@ export default function CRMPage() {
     })
   }
 
+  function selectAllPage(ids: string[]) {
+    setSelectedIds(prev => new Set([...prev, ...ids]))
+  }
+
+  function deselectAll() {
+    setSelectedIds(new Set())
+  }
+
   function selectFirst(n: number) {
     const ids = displayed.slice(0, n).map(c => c.hubspot_contact_id)
     setSelectedIds(new Set(ids))
@@ -1003,6 +1011,8 @@ export default function CRMPage() {
           onRefresh={() => fetchContacts()}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
+          onSelectAll={selectAllPage}
+          onDeselectAll={deselectAll}
           onOpenDrawer={setDrawerContact}
           leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
           sourceOptions={sourceOptions.filter(o => o.id !== '')}

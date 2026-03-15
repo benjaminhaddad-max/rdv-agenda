@@ -456,10 +456,30 @@ interface Props {
   onRefresh?: () => void
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
+  onSelectAll?: (ids: string[]) => void
+  onDeselectAll?: () => void
   onOpenDrawer?: (contact: CRMContact) => void
   leadStatusOptions?: { id: string; label: string }[]
   sourceOptions?: { id: string; label: string }[]
   formationOptions?: { id: string; label: string }[]
+}
+
+// ── Formatage numéro de téléphone ─────────────────────────────────────────────
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, '')
+  // International +33 ou 0033 → +33 X XX XX XX XX
+  const m = digits.match(/^(?:\+33|0033)(\d{9})$/)
+  if (m) {
+    const n = m[1]
+    return `+33 ${n[0]} ${n.slice(1,3)} ${n.slice(3,5)} ${n.slice(5,7)} ${n.slice(7,9)}`
+  }
+  // Local 0X → 0X XX XX XX XX
+  const m2 = digits.match(/^0(\d{9})$/)
+  if (m2) {
+    const n = m2[1]
+    return `0${n[0]} ${n.slice(1,3)} ${n.slice(3,5)} ${n.slice(5,7)} ${n.slice(7,9)}`
+  }
+  return raw
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -831,6 +851,8 @@ export default function CRMContactsTable({
   onRefresh,
   selectedIds,
   onToggleSelect,
+  onSelectAll,
+  onDeselectAll,
   onOpenDrawer,
   leadStatusOptions,
   sourceOptions,
@@ -845,6 +867,17 @@ export default function CRMContactsTable({
   const [savingStage,       setSavingStage]        = useState<string | null>(null)
   const [savingContactField,setSavingContactField] = useState<string | null>(null)
   const [hovered,           setHovered]            = useState<string | null>(null)
+
+  // ── Select-all page ──────────────────────────────────────────────────────
+  const selectAllRef  = useRef<HTMLInputElement>(null)
+  const pageIds       = contacts.map(c => c.hubspot_contact_id)
+  const checkedCount  = selectedIds ? pageIds.filter(id => selectedIds.has(id)).length : 0
+  const allChecked    = checkedCount === pageIds.length && pageIds.length > 0
+  const someChecked   = checkedCount > 0 && checkedCount < pageIds.length
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someChecked
+  }, [someChecked])
 
   // ── Drag-and-drop colonnes ────────────────────────────────────────────────
   const [colOrder,    setColOrder]    = useState<ColKey[]>(DEFAULT_COL_ORDER)
@@ -955,7 +988,7 @@ export default function CRMContactsTable({
       case 'phone':
         return contact.phone ? (
           <a href={`tel:${contact.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Phone size={11} />{contact.phone}
+            <Phone size={11} />{formatPhone(contact.phone)}
           </a>
         ) : <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
 
@@ -1094,7 +1127,7 @@ export default function CRMContactsTable({
           {/* Header with drag-and-drop */}
           <thead>
             <tr style={{ borderBottom: `1px solid ${NAVY_BORDER}` }}>
-              {/* Checkbox (non-draggable) */}
+              {/* Checkbox select-all (non-draggable) */}
               {onToggleSelect && (
                 <th style={{
                   padding: '9px 12px',
@@ -1104,7 +1137,18 @@ export default function CRMContactsTable({
                   top: 0,
                   zIndex: 10,
                   width: 38,
-                }} />
+                }}>
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={() => {
+                      if (allChecked || someChecked) onDeselectAll?.()
+                      else onSelectAll?.(pageIds)
+                    }}
+                    style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#4cabdb' }}
+                  />
+                </th>
               )}
 
               {/* Colonnes draggables */}
