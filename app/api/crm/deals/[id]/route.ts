@@ -42,6 +42,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
+  // Synchroniser closer + télépro sur le contact lié (cohérence contact ↔ deal)
+  if (deal.hubspot_contact_id && (hubspot_owner_id !== undefined || teleprospecteur !== undefined)) {
+    const contactUpdate: Record<string, unknown> = { synced_at: new Date().toISOString() }
+    if (hubspot_owner_id !== undefined) contactUpdate.hubspot_owner_id = hubspot_owner_id
+    if (teleprospecteur !== undefined)  contactUpdate.teleprospecteur  = teleprospecteur
+    await db
+      .from('crm_contacts')
+      .update(contactUpdate)
+      .eq('hubspot_contact_id', deal.hubspot_contact_id)
+  }
+
   // Sync HubSpot (best-effort)
   const errors: string[] = []
 
