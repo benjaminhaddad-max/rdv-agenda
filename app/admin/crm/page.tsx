@@ -61,7 +61,7 @@ const PERIOD_OPTIONS = [
 // ── Advanced filter system ───────────────────────────────────────────────────
 
 type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
-type CRMFilterOp = 'is' | 'is_not' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
+type CRMFilterOp = 'is' | 'is_not' | 'is_any' | 'is_none' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
 
 interface CRMFilterRule {
   id: string
@@ -92,6 +92,8 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
 const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
   { key: 'is',           label: 'est' },
   { key: 'is_not',       label: "n'est pas" },
+  { key: 'is_any',       label: 'est parmi' },
+  { key: 'is_none',      label: "n'est aucun de" },
   { key: 'is_empty',     label: 'est vide' },
   { key: 'is_not_empty', label: "n'est pas vide" },
 ]
@@ -110,6 +112,94 @@ function opsForField(field: CRMFilterField) {
 
 function opNeedsValue(op: CRMFilterOp) {
   return op !== 'is_empty' && op !== 'is_not_empty'
+}
+
+function opIsMulti(op: CRMFilterOp) {
+  return op === 'is_any' || op === 'is_none'
+}
+
+// ── Multi-select dropdown for filters ─────────────────────────────────────
+
+function MultiSelectDropdown({ options, value, onChange }: {
+  options: SelectOption[]
+  value: string          // comma-separated
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = value ? value.split(',').filter(Boolean) : []
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]
+    onChange(next.join(','))
+  }
+
+  const selectedLabels = selected
+    .map(s => options.find(o => o.id === s)?.label ?? s)
+    .slice(0, 2)
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+          padding: '6px 8px', color: selected.length > 0 ? '#ccac71' : '#555870',
+          fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
+          textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {selected.length === 0
+            ? 'Sélectionner…'
+            : selected.length <= 2
+              ? selectedLabels.join(', ')
+              : `${selectedLabels.join(', ')} +${selected.length - 2}`}
+        </span>
+        <ChevronDown size={12} style={{ flexShrink: 0, marginLeft: 4, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
+          background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 6,
+          marginTop: 2, maxHeight: 220, overflowY: 'auto',
+          boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+        }}>
+          {options.map(opt => (
+            <label
+              key={opt.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#c8cad8',
+                background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+              onMouseLeave={e => (e.currentTarget.style.background = selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
+            >
+              <span style={{
+                width: 16, height: 16, borderRadius: 3,
+                border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
+                background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {selected.includes(opt.id) && <Check size={10} color="#0d1a28" strokeWidth={3} />}
+              </span>
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Saved views ─────────────────────────────────────────────────────────────
@@ -340,6 +430,16 @@ export default function CRMPage() {
   const [zoneFilter, setZoneFilter]   = useState('')
   const [deptFilter, setDeptFilter]   = useState('')
 
+  // Exclusion filters (is_not / is_none)
+  const [stageNot, setStageNot]           = useState('')
+  const [leadStatusNot, setLeadStatusNot] = useState('')
+  const [sourceNot, setSourceNot]         = useState('')
+  const [zoneNot, setZoneNot]             = useState('')
+  const [deptNot, setDeptNot]             = useState('')
+  const [closerNot, setCloserNot]         = useState('')
+  const [teleproNot, setTeleproNot]       = useState('')
+  const [formationNot, setFormationNot]   = useState('')
+
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
   const [allClasses, setAllClasses]     = useState(true)
@@ -456,6 +556,16 @@ export default function CRMPage() {
       if (zoneFilter)           params.set('zone', zoneFilter)
       if (deptFilter)           params.set('departement', deptFilter)
 
+      // Exclusion params (is_not / is_none)
+      if (stageNot)             params.set('stage_not', stageNot)
+      if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
+      if (sourceNot)            params.set('source_not', sourceNot)
+      if (zoneNot)              params.set('zone_not', zoneNot)
+      if (deptNot)              params.set('departement_not', deptNot)
+      if (closerNot)            params.set('closer_not', closerNot)
+      if (teleproNot)           params.set('telepro_not', teleproNot)
+      if (formationNot)         params.set('formation_not', formationNot)
+
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
@@ -466,7 +576,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -478,10 +588,13 @@ export default function CRMPage() {
   // ── View management ──────────────────────────────────────────────────────────
 
   function applyGroupsToFilters(groups: CRMFilterGroup[], flags?: CRMSavedView['presetFlags']) {
-    // Reset all
+    // Reset all positive filters
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource('')
     setZoneFilter(''); setDeptFilter('')
+    // Reset all exclusion filters
+    setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
+    setCloserNot(''); setTeleproNot(''); setFormationNot('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
 
@@ -491,7 +604,8 @@ export default function CRMPage() {
       for (const rule of firstGroup.rules) {
         if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
         const val = rule.value
-        if (rule.operator === 'is' || rule.operator === 'contains') {
+        // Positive filters: is, is_any, contains
+        if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
           switch (rule.field) {
             case 'stage':       setStage(val); break
             case 'formation':   setFormation(val); break
@@ -504,6 +618,19 @@ export default function CRMPage() {
             case 'search':      setSearch(val); break
             case 'zone':        setZoneFilter(val); break
             case 'departement': setDeptFilter(val); break
+          }
+        }
+        // Exclusion filters: is_not, is_none
+        if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+          switch (rule.field) {
+            case 'stage':       setStageNot(val); break
+            case 'formation':   setFormationNot(val); break
+            case 'closer':      setCloserNot(val); break
+            case 'telepro':     setTeleproNot(val); break
+            case 'lead_status': setLeadStatusNot(val); break
+            case 'source':      setSourceNot(val); break
+            case 'zone':        setZoneNot(val); break
+            case 'departement': setDeptNot(val); break
           }
         }
       }
@@ -1441,10 +1568,18 @@ export default function CRMPage() {
                           </select>
                           {showVal && (
                             fieldDef?.type === 'select' && valueOptions.length > 0 ? (
-                              <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
-                                <option value="">Rechercher…</option>
-                                {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                              </select>
+                              opIsMulti(rule.operator) ? (
+                                <MultiSelectDropdown
+                                  options={valueOptions}
+                                  value={rule.value}
+                                  onChange={v => updateRule(group.id, rule.id, { value: v })}
+                                />
+                              ) : (
+                                <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                                  <option value="">Rechercher…</option>
+                                  {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                </select>
+                              )
                             ) : (
                               <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#e8eaf0', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }} />
                             )
