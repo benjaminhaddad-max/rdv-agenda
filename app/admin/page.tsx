@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { LayoutDashboard, Calendar, Clock, Users, Briefcase, GitMerge, AlertTriangle } from 'lucide-react'
+import {
+  LayoutDashboard, Calendar, Clock, Users, Briefcase,
+  GitMerge, AlertTriangle, ChevronDown, ChevronUp, Plus,
+  RefreshCw, BookOpen,
+} from 'lucide-react'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
@@ -22,205 +26,175 @@ export default function AdminPage() {
   const [showDealsDoublons, setShowDealsDoublons] = useState(false)
   const [showCheckRdv, setShowCheckRdv] = useState(false)
   const [showRepop, setShowRepop] = useState(false)
+  const [queueCollapsed, setQueueCollapsed] = useState(false)
 
-  // Quand un RDV est assigné, on rafraîchit le calendrier
   const handleAssigned = useCallback(() => {
     setCalendarKey(k => k + 1)
   }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624' }}>
-      {/* Top bar admin */}
+
+      {/* ── Topbar principale ── */}
       <div style={{
-        padding: '0 24px',
-        height: 56,
+        padding: '0 20px',
+        height: 52,
         background: '#1d2f4b',
         borderBottom: '1px solid #2d4a6b',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
+        zIndex: 10,
       }}>
+        {/* Logo + titre */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
             background: 'rgba(204,172,113,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
           }}>
             <LayoutDashboard size={16} style={{ color: '#ccac71' }} />
           </div>
           <div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#e8eaf0' }}>Admin</span>
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#555870' }}>Vue de Pascal — Chef des closers</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0' }}>Dashboard Admin</span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: '#555870' }}>Vue Pascal — Chef des closers</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => setShowTelepros(true)}
-            style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ccac71', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <Users size={13} />
-            Télépros
-          </button>
-          <button
-            onClick={() => setShowClosers(true)}
-            style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ccac71', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <Briefcase size={13} />
-            Closers
-          </button>
-          <button
-            onClick={() => setShowCheckRdv(true)}
-            style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ccac71', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <AlertTriangle size={13} />
-            Check RDV Closer
-          </button>
-          <button
-            onClick={() => setShowDoublons(true)}
-            style={{
-              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ef4444', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <GitMerge size={13} />
-            Doublons
-          </button>
-          <button
-            onClick={() => setShowDealsDoublons(true)}
-            style={{
-              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ef4444', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            🔁 Doublons transac
-          </button>
-          <button
-            onClick={() => setShowRepop(true)}
-            style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ccac71', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            🔁 Repop
-          </button>
-          <button
-            onClick={() => setShowAvailability(true)}
-            style={{
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#22c55e', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <Clock size={13} />
-            Disponibilités
-          </button>
+
+        {/* Actions rapides droite */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <a
             href="/closer"
             style={{
-              background: '#243d5c', border: '1px solid #2d4a6b',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#8b8fa8', fontSize: 12, cursor: 'pointer',
-              textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6,
+              background: '#152438', border: '1px solid #2d4a6b',
+              borderRadius: 8, padding: '5px 12px',
+              color: '#8b8fa8', fontSize: 12,
+              textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
             }}
           >
-            <Calendar size={13} />
+            <Calendar size={12} />
             Mon agenda
           </a>
           <a
             href="/telepro"
             style={{
-              background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#ccac71', fontSize: 12, cursor: 'pointer',
-              textDecoration: 'none',
+              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 8, padding: '5px 12px',
+              color: '#ccac71', fontSize: 12, fontWeight: 600,
+              textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
             }}
           >
-            + Nouveau RDV
+            <Plus size={12} />
+            Nouveau RDV
           </a>
           <LogoutButton />
         </div>
       </div>
 
-      {/* Main content — split layout */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* File d'attente non-assignés */}
-        <div style={{
-          background: '#1d2f4b',
-          borderBottom: '2px solid #ccac71',
-          flexShrink: 0,
-        }}>
-          <UnassignedQueue onAssigned={handleAssigned} />
+      {/* ── Barre secondaire — groupes d'outils ── */}
+      <div style={{
+        padding: '0 20px',
+        height: 44,
+        background: '#152438',
+        borderBottom: '1px solid #2d4a6b',
+        display: 'flex', alignItems: 'center', gap: 0,
+        flexShrink: 0,
+        overflowX: 'auto',
+      }}>
+
+        {/* Groupe : Équipe */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 16 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: '#3a5070',
+            textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4,
+          }}>Équipe</span>
+          <ToolBtn icon={<Users size={12} />} label="Télépros" onClick={() => setShowTelepros(true)} />
+          <ToolBtn icon={<Briefcase size={12} />} label="Closers" onClick={() => setShowClosers(true)} />
+          <ToolBtn icon={<Clock size={12} />} label="Disponibilités" onClick={() => setShowAvailability(true)} color="green" />
         </div>
 
-        {/* Calendrier global (tous les closers) */}
+        {/* Séparateur */}
+        <div style={{ width: 1, height: 22, background: '#2d4a6b', marginRight: 16 }} />
+
+        {/* Groupe : Outils */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 16 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: '#3a5070',
+            textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4,
+          }}>Outils</span>
+          <ToolBtn icon={<AlertTriangle size={12} />} label="Check RDV" onClick={() => setShowCheckRdv(true)} />
+          <ToolBtn icon={<GitMerge size={12} />} label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
+          <ToolBtn icon={<RefreshCw size={12} />} label="Doublons transac" onClick={() => setShowDealsDoublons(true)} color="red" />
+          <ToolBtn icon={<BookOpen size={12} />} label="Journal Repop" onClick={() => setShowRepop(true)} />
+        </div>
+
+      </div>
+
+      {/* ── Contenu principal ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* File d'attente — collapsible */}
+        <div style={{
+          background: '#1d2f4b',
+          borderBottom: queueCollapsed ? '1px solid #2d4a6b' : '2px solid #ccac71',
+          flexShrink: 0,
+        }}>
+          {/* En-tête avec toggle */}
+          <div
+            onClick={() => setQueueCollapsed(c => !c)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: queueCollapsed ? '8px 20px' : '6px 20px 0',
+              cursor: 'pointer', userSelect: 'none',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#ccac71', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              📥 File d&apos;attente — RDV non assignés
+            </span>
+            <div style={{ color: '#555870', display: 'flex' }}>
+              {queueCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </div>
+          </div>
+          {!queueCollapsed && <UnassignedQueue onAssigned={handleAssigned} />}
+        </div>
+
+        {/* Calendrier global */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{
-            padding: '10px 24px',
+            padding: '8px 20px',
             background: '#1d2f4b',
             borderBottom: '1px solid #2d4a6b',
-            fontSize: 12, fontWeight: 600, color: '#555870',
-            textTransform: 'uppercase', letterSpacing: '0.08em',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            📅 Agenda des closers
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              📅 Agenda des closers
+            </span>
+            <button
+              onClick={() => setCalendarKey(k => k + 1)}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: '#3a5070', display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontFamily: 'inherit', padding: '2px 6px', borderRadius: 6,
+              }}
+            >
+              <RefreshCw size={11} />
+              Actualiser
+            </button>
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <WeekCalendar key={calendarKey} adminMode />
           </div>
         </div>
       </div>
-      {/* Modal disponibilités */}
-      {showAvailability && (
-        <AdminAvailability onClose={() => setShowAvailability(false)} />
-      )}
-      {/* Panel télépros */}
-      {showTelepros && (
-        <TeleproManager onClose={() => setShowTelepros(false)} />
-      )}
-      {/* Panel closers */}
-      {showClosers && (
-        <CloserManager onClose={() => setShowClosers(false)} />
-      )}
-      {/* Panel doublons contacts */}
-      {showDoublons && (
-        <DoublonsManager onClose={() => setShowDoublons(false)} />
-      )}
-      {/* Panel doublons transactions 2026-2027 */}
-      {showDealsDoublons && (
-        <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />
-      )}
-      {/* Panel check RDV closer */}
-      {showCheckRdv && (
-        <CheckRdvCloserPanel onClose={() => setShowCheckRdv(false)} />
-      )}
-      {/* Panel Journal Repop */}
+
+      {/* ── Modals ── */}
+      {showAvailability && <AdminAvailability onClose={() => setShowAvailability(false)} />}
+      {showTelepros    && <TeleproManager    onClose={() => setShowTelepros(false)} />}
+      {showClosers     && <CloserManager     onClose={() => setShowClosers(false)} />}
+      {showDoublons    && <DoublonsManager   onClose={() => setShowDoublons(false)} />}
+      {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
+      {showCheckRdv    && <CheckRdvCloserPanel onClose={() => setShowCheckRdv(false)} />}
+
       {showRepop && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
@@ -238,5 +212,38 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Composant bouton outil ─────────────────────────────────────────────────
+function ToolBtn({
+  icon, label, onClick, color = 'gold',
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  color?: 'gold' | 'green' | 'red'
+}) {
+  const palette = {
+    gold:  { bg: 'rgba(204,172,113,0.1)',  border: 'rgba(204,172,113,0.25)', text: '#ccac71' },
+    green: { bg: 'rgba(34,197,94,0.1)',    border: 'rgba(34,197,94,0.25)',   text: '#22c55e' },
+    red:   { bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.25)',   text: '#ef4444' },
+  }
+  const p = palette[color]
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: p.bg, border: `1px solid ${p.border}`,
+        borderRadius: 7, padding: '4px 11px',
+        color: p.text, fontSize: 11, fontWeight: 600,
+        cursor: 'pointer', fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 5,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }
