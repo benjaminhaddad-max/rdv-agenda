@@ -1,7 +1,7 @@
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
-async function hubspotFetch(path: string, options: RequestInit = {}) {
+export async function hubspotFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
