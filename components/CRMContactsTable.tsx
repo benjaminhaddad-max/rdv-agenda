@@ -853,7 +853,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   closer:               120,
   telepro:              110,
   createdat:             90,
-  form_submission:      130,
+  form_submission:      160,
 }
 
 const DEFAULT_COL_ORDER: ColKey[] = [
@@ -1178,12 +1178,43 @@ export default function CRMContactsTable({
         const raw = contact.recent_conversion_date
         if (!raw) return <span style={{ fontSize: 11, color: '#4a5568' }}>—</span>
         const d = new Date(raw)
-        const dateStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })
+        const now = new Date()
+        const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
+        let dateStr: string
+        if (diffDays === 0) dateStr = "Aujourd'hui"
+        else if (diffDays === 1) dateStr = 'Hier'
+        else if (diffDays < 7) dateStr = `Il y a ${diffDays}j`
+        else dateStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        const eventRaw = contact.recent_conversion_event ?? ''
+        // Nettoyer le nom du formulaire : supprimer les préfixes HubSpot courants
+        const formName = eventRaw
+          .replace(/^Form submission[:\s-]*/i, '')
+          .replace(/^Formulaire[:\s-]*/i, '')
+          .replace(/^Submitted form[:\s-]*/i, '')
+          .trim() || eventRaw
         return (
-          <div title={contact.recent_conversion_event ?? undefined}>
-            <span style={{ fontSize: 11, color: '#c8cad8', whiteSpace: 'nowrap' }}>{dateStr}</span>
-            <span style={{ fontSize: 10, color: '#555870', marginLeft: 4 }}>{timeStr}</span>
+          <div
+            title={`${eventRaw}\n${d.toLocaleString('fr-FR')}`}
+            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
+          >
+            {formName && (
+              <span style={{
+                fontSize: 10,
+                color: '#7c8db5',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: '100%',
+                fontStyle: 'italic',
+              }}>
+                {formName}
+              </span>
+            )}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 11, color: '#c8cad8', whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</span>
+              <span style={{ fontSize: 10, color: '#555870' }}>· {timeStr}</span>
+            </span>
           </div>
         )
       }
