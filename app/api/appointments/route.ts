@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
         appointmentDate: start_at,
         appointmentId: appointment.id,
         formationType: formation_type,
+        classeActuelle: classe_actuelle || null,
         hubspotContactId: hubspot_contact_id || null,
         callNotes: enrichedNotes || null,
       })

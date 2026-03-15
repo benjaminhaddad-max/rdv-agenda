@@ -103,6 +103,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             appointmentDate: appointment.start_at,
             appointmentId: id,
             formationType: appointment.formation_type,
+            classeActuelle: appointment.classe_actuelle || null,
             hubspotContactId: appointment.hubspot_contact_id || null,
             callNotes: enrichedNotes || null,
           })

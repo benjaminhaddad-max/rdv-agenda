@@ -131,6 +131,20 @@ export async function addNoteToEngagements(params: {
   })
 }
 
+// ─── Formate le nom d'un deal pour les stages RDV/Délai/Replanifier ────────
+export function formatDealName(params: {
+  prospectName: string
+  classeActuelle?: string | null
+  formationType?: string | null
+}): string {
+  const parts = [
+    params.prospectName.trim(),
+    params.classeActuelle?.trim() || null,
+    params.formationType?.trim() || null,
+  ].filter(Boolean)
+  return parts.join(' - ')
+}
+
 // ─── Créer un deal lors d'un RDV ──────────────────────────────────────────
 export async function createDeal(params: {
   prospectName: string
@@ -140,12 +154,17 @@ export async function createDeal(params: {
   appointmentDate: string     // ISO
   appointmentId: string
   formationType?: string | null
+  classeActuelle?: string | null  // pour le nom du deal
   hubspotContactId?: string | null  // ID contact déjà connu → évite doublon
   callNotes?: string | null         // Notes d'appel → ajoutées sur le deal
 }) {
   // 1. Créer le deal
   const dealProperties: Record<string, string> = {
-    dealname: `RDV Découverte — ${params.prospectName}`,
+    dealname: formatDealName({
+      prospectName: params.prospectName,
+      classeActuelle: params.classeActuelle,
+      formationType: params.formationType,
+    }),
     pipeline: PIPELINE_ID,
     dealstage: STAGES.rdvPris,
     closedate: params.appointmentDate,
