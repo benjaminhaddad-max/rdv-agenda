@@ -98,7 +98,10 @@ export async function GET(req: NextRequest) {
       const formations = splitMulti(formation)
       dealQ = formations.length > 1 ? dealQ.in('formation', formations) : dealQ.eq('formation', formation)
     }
-    if (pipeline) dealQ = dealQ.eq('pipeline', pipeline)
+    if (pipeline) {
+      const vals = splitMulti(pipeline)
+      dealQ = vals.length > 1 ? dealQ.in('pipeline', vals) : dealQ.eq('pipeline', pipeline)
+    }
     if (pipelineNot) {
       const vals = splitMulti(pipelineNot)
       // On INCLUT les deals dont le pipeline n'est PAS dans la liste

@@ -181,6 +181,7 @@ function MultiSelectDropdown({ options, value, onChange }: {
           {options.map(opt => (
             <label
               key={opt.id}
+              onClick={() => toggle(opt.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#c8cad8',
