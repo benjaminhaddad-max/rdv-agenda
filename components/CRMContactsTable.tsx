@@ -73,26 +73,30 @@ function InlineCellSelect({
         ref={btnRef}
         onClick={handleToggle}
         style={{
-          background: open ? 'rgba(76,171,219,0.08)' : 'transparent',
-          border: `1px solid ${open ? 'rgba(76,171,219,0.4)' : 'transparent'}`,
-          borderRadius: 5,
-          padding: '2px 5px 2px 4px',
+          background: open ? '#eaf4fd' : 'transparent',
+          border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
+          borderRadius: 4,
+          padding: '3px 8px',
           cursor: saving ? 'not-allowed' : 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 3,
-          transition: 'all 0.12s',
+          gap: 0,
+          transition: 'border-color 0.1s, background 0.1s',
           fontFamily: 'inherit',
+          minWidth: 40,
+          width: '100%',
+          textAlign: 'left',
+          outline: 'none',
         }}
         onMouseEnter={e => {
           if (!open) {
-            e.currentTarget.style.border = '1px solid rgba(76,171,219,0.35)'
-            e.currentTarget.style.background = 'rgba(76,171,219,0.06)'
+            e.currentTarget.style.border = '1.5px solid #a8c7e8'
+            e.currentTarget.style.background = 'transparent'
           }
         }}
         onMouseLeave={e => {
           if (!open) {
-            e.currentTarget.style.border = '1px solid transparent'
+            e.currentTarget.style.border = '1.5px solid transparent'
             e.currentTarget.style.background = 'transparent'
           }
         }}
@@ -106,7 +110,6 @@ function InlineCellSelect({
             {displayValue || currentOpt?.label || value || '—'}
           </span>
         )}
-        {!saving && <ChevronDown size={9} style={{ color: '#3a5070', flexShrink: 0 }} />}
       </button>
 
       {open && pos && (
