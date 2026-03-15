@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// GET /api/users — List users (optionnel: ?role=telepro)
+// GET /api/users — List users (optionnel: ?role=telepro ou ?roles=closer,admin)
 export async function GET(req: NextRequest) {
-  const role = new URL(req.url).searchParams.get('role')
+  const url  = new URL(req.url)
+  const role  = url.searchParams.get('role')
+  const roles = url.searchParams.get('roles')  // ex: "closer,admin"
 
   const db = createServiceClient()
   let query = db
@@ -11,7 +13,9 @@ export async function GET(req: NextRequest) {
     .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id')
     .order('name')
 
-  if (role) {
+  if (roles) {
+    query = query.in('role', roles.split(',').map(r => r.trim()))
+  } else if (role) {
     query = query.eq('role', role)
   }
 
