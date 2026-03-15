@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -424,6 +424,9 @@ export default function CRMPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href="/admin/crm/transactions" style={{ background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '5px 12px', color: '#ccac71', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+            <GraduationCap size={12} /> Transactions 2026-2027
+          </a>
           <a href="/admin" style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '5px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <LayoutDashboard size={12} /> Dashboard
           </a>
