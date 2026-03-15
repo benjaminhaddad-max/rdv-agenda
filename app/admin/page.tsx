@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   LayoutDashboard, Calendar, Clock, Users, Briefcase,
-  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2,
+  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2, ChevronDown,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [showQueue, setShowQueue]                   = useState(false)
   const [showLinks, setShowLinks]                   = useState(false)
   const [showRdvTypes, setShowRdvTypes]             = useState(false)
+  const [showSiteMenu, setShowSiteMenu]             = useState(false)
   const [showGuide, setShowGuide]                   = useState(false)
   const [unassignedCount, setUnassignedCount]       = useState<number | null>(null)
 
@@ -155,8 +156,39 @@ export default function AdminPage() {
           <ToolBtn icon={<GitMerge size={12} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
           <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac" onClick={() => setShowDealsDoublons(true)} color="red" />
           <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"    onClick={() => setShowRepop(true)} />
-          <ToolBtn icon={<Link2 size={12} />}         label="Liens & Campagnes" onClick={() => setShowLinks(true)} color="blue" />
-          <ToolBtn icon={<BookOpen size={12} />}      label="Contenus /rdv"     onClick={() => setShowRdvTypes(true)} color="gold" />
+          {/* Dropdown Site & Contenus */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSiteMenu(v => !v)}
+              style={{ background: showSiteMenu ? 'rgba(76,171,219,0.18)' : 'rgba(76,171,219,0.1)', border: `1px solid ${showSiteMenu ? 'rgba(76,171,219,0.5)' : 'rgba(76,171,219,0.25)'}`, borderRadius: 7, padding: '4px 11px', color: '#4cabdb', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+            >
+              <Link2 size={12} /> Site & Contenus <ChevronDown size={10} style={{ transition: 'transform 0.15s', transform: showSiteMenu ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+            </button>
+            {showSiteMenu && (
+              <>
+                {/* Overlay pour fermer */}
+                <div style={{ position: 'fixed', inset: 0, zIndex: 89 }} onClick={() => setShowSiteMenu(false)} />
+                <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 90, background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 10, padding: '6px', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <button
+                    onClick={() => { setShowLinks(true); setShowSiteMenu(false) }}
+                    style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '8px 12px', color: '#4cabdb', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(76,171,219,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <Link2 size={12} /> Liens &amp; Campagnes
+                  </button>
+                  <button
+                    onClick={() => { setShowRdvTypes(true); setShowSiteMenu(false) }}
+                    style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '8px 12px', color: '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(204,172,113,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <BookOpen size={12} /> Contenus /rdv
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
