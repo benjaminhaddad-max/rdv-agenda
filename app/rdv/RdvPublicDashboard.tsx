@@ -87,6 +87,7 @@ export default function RdvPublicDashboard({
   const [slots, setSlots] = useState<Slot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
+  const [meetingType, setMeetingType] = useState<'visio' | 'telephone' | 'presentiel' | null>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -127,7 +128,7 @@ export default function RdvPublicDashboard({
   }
 
   async function submit() {
-    if (!selectedSlot || !selectedType || !name || !email) { setError('Veuillez remplir tous les champs'); return }
+    if (!selectedSlot || !selectedType || !name || !email || !meetingType) { setError('Veuillez remplir tous les champs et choisir un format'); return }
     setSubmitting(true); setError(null)
 
     // Construire les notes UTM pour le tracking
@@ -152,6 +153,7 @@ export default function RdvPublicDashboard({
           end_at: selectedSlot.end,
           source: 'prospect',
           formation_type: selectedType.formation,
+          meeting_type: meetingType,
           notes: trackingNote || null,
         }),
       })
@@ -172,7 +174,7 @@ export default function RdvPublicDashboard({
       {/* ── Header ── */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', top: 0, background: 'rgba(11,22,36,0.9)', backdropFilter: 'blur(12px)', zIndex: 10 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, filter: 'brightness(10)' }} />
+        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28 }} />
         {utmCampaign && (
           <div style={{ position: 'absolute', right: 20, background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: '#4cabdb', fontWeight: 600 }}>
             📊 {utmCampaign}
@@ -191,11 +193,18 @@ export default function RdvPublicDashboard({
             <div style={{ fontSize: 14, color: '#8b8fa8', lineHeight: 1.7, marginBottom: 24 }}>
               Votre demande de <strong style={{ color: accentColor }}>{selectedType.title}</strong> a bien été reçue. Un conseiller Diploma Santé vous contactera rapidement pour confirmer le créneau.
             </div>
-            <div style={{ background: accentAlpha, border: `1px solid ${selectedType.borderAlpha}`, borderRadius: 12, padding: '14px 18px', fontSize: 14, color: accentColor, fontWeight: 600 }}>
-              📅 {format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
+            <div style={{ background: accentAlpha, border: `1px solid ${selectedType.borderAlpha}`, borderRadius: 12, padding: '14px 18px', fontSize: 14, color: accentColor, fontWeight: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div>📅 {format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}</div>
+              {meetingType && (
+                <div style={{ fontSize: 13, color: '#8b8fa8' }}>
+                  {meetingType === 'visio' && '📹 Visioconférence — lien envoyé par email'}
+                  {meetingType === 'telephone' && '📞 Téléphone — on vous rappelle'}
+                  {meetingType === 'presentiel' && '🏫 Présentiel — à la prépa'}
+                </div>
+              )}
             </div>
             <button
-              onClick={() => { setStep('dashboard'); setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); setName(''); setEmail(''); setPhone('') }}
+              onClick={() => { setStep('dashboard'); setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); setMeetingType(null); setName(''); setEmail(''); setPhone('') }}
               style={{ marginTop: 20, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 20px', color: '#555870', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               ← Retour à l&apos;accueil
@@ -462,6 +471,34 @@ export default function RdvPublicDashboard({
                     {format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })} – {format(new Date(selectedSlot.end), 'HH:mm')}
                   </div>
 
+                  {/* ── Format de réunion ── */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8', marginBottom: 10, letterSpacing: '0.06em' }}>FORMAT DU RENDEZ-VOUS *</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {([
+                        { key: 'visio',       label: 'Visioconférence', icon: '📹', desc: 'Lien envoyé par email' },
+                        { key: 'telephone',   label: 'Téléphone',       icon: '📞', desc: 'On vous rappelle' },
+                        { key: 'presentiel',  label: 'Présentiel',      icon: '🏫', desc: 'À la prépa' },
+                      ] as const).map(m => (
+                        <button
+                          key={m.key}
+                          onClick={() => setMeetingType(m.key)}
+                          style={{
+                            background: meetingType === m.key ? accentAlpha : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${meetingType === m.key ? accentColor + '70' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: 12, padding: '12px 8px',
+                            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          <div style={{ fontSize: 22, marginBottom: 6 }}>{m.icon}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: meetingType === m.key ? accentColor : '#e8eaf0' }}>{m.label}</div>
+                          <div style={{ fontSize: 10, color: '#555870', marginTop: 2 }}>{m.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {[
                       { label: 'NOM COMPLET *', key: 'name', type: 'text', val: name, set: setName, placeholder: 'Marie Dupont' },
@@ -478,13 +515,13 @@ export default function RdvPublicDashboard({
 
                     <button
                       onClick={submit}
-                      disabled={submitting || !name || !email}
+                      disabled={submitting || !name || !email || !meetingType}
                       style={{
-                        background: !name || !email ? 'rgba(255,255,255,0.06)' : accentColor,
-                        color: !name || !email ? '#555870' : 'white',
+                        background: (!name || !email || !meetingType) ? 'rgba(255,255,255,0.06)' : accentColor,
+                        color: (!name || !email || !meetingType) ? '#555870' : 'white',
                         border: 'none', borderRadius: 12, padding: '14px',
                         fontSize: 15, fontWeight: 700,
-                        cursor: !name || !email || submitting ? 'not-allowed' : 'pointer',
+                        cursor: (!name || !email || !meetingType || submitting) ? 'not-allowed' : 'pointer',
                         transition: 'all 0.15s', fontFamily: 'inherit', width: '100%', marginTop: 4,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       }}

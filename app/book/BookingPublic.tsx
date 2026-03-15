@@ -90,7 +90,7 @@ export default function BookingPublic() {
             <CheckCircle size={36} style={{ color: '#4cabdb' }} />
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 26, margin: '0 auto 24px', display: 'block', filter: 'brightness(10)' }} />
+          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 26, margin: '0 auto 24px', display: 'block' }} />
           <div style={{ fontSize: 24, fontWeight: 800, color: '#e8eaf0', marginBottom: 12 }}>Demande envoyée !</div>
           <div style={{ fontSize: 15, color: '#8b8fa8', lineHeight: 1.7 }}>
             Votre demande a bien été enregistrée. Un conseiller Diploma Santé vous contactera pour confirmer le créneau.
@@ -111,7 +111,7 @@ export default function BookingPublic() {
       {/* ── Header ── */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 30, filter: 'brightness(10)' }} />
+        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 30 }} />
       </div>
 
       <div style={{ maxWidth: 940, margin: '0 auto', padding: '40px 24px', display: 'grid', gridTemplateColumns: '300px 1fr', gap: 32, alignItems: 'start' }}>

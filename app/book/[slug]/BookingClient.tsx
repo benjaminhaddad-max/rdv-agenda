@@ -70,7 +70,7 @@ export default function BookingClient({ commercial }: { commercial: Commercial }
       {/* Logo header */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 30, filter: 'brightness(10)' }} />
+        <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 30 }} />
       </div>
 
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px', display: 'grid', gridTemplateColumns: '240px 1fr', gap: 28, alignItems: 'start' }}>
