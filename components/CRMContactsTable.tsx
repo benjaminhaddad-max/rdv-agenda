@@ -928,6 +928,31 @@ export default function CRMContactsTable({
   })
   const resizingRef = useRef<{ key: ColKey; startX: number; startW: number } | null>(null)
 
+  // ── Chargement des préférences utilisateur depuis Supabase ────────────────
+  useEffect(() => {
+    fetch('/api/crm/prefs')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        if (Array.isArray(data.col_order) && data.col_order.length > 0) {
+          const known = new Set(DEFAULT_COL_ORDER)
+          const valid = (data.col_order as ColKey[]).filter(k => known.has(k))
+          const missing = DEFAULT_COL_ORDER.filter(k => !valid.includes(k))
+          const merged = [...valid, ...missing]
+          setColOrder(merged)
+          localStorage.setItem('crm-col-order', JSON.stringify(merged))
+        }
+        if (data.col_widths && typeof data.col_widths === 'object') {
+          setColWidths(prev => {
+            const merged = { ...prev, ...data.col_widths }
+            localStorage.setItem('crm-col-widths', JSON.stringify(merged))
+            return merged
+          })
+        }
+      })
+      .catch(() => { /* silently ignore */ })
+  }, [])
+
   function handleResizeStart(e: React.MouseEvent, key: ColKey) {
     e.preventDefault()
     e.stopPropagation()
@@ -947,6 +972,11 @@ export default function CRMContactsTable({
       // Persist
       setColWidths(prev => {
         localStorage.setItem('crm-col-widths', JSON.stringify(prev))
+        fetch('/api/crm/prefs', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ col_widths: prev }),
+        }).catch(() => {})
         return prev
       })
       resizingRef.current = null
@@ -1040,6 +1070,11 @@ export default function CRMContactsTable({
       next.splice(fromReal, 1)
       next.splice(toReal, 0, fromKey)
       localStorage.setItem('crm-col-order', JSON.stringify(next))
+      fetch('/api/crm/prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ col_order: next }),
+      }).catch(() => {})
       return next
     })
     resetDrag()
