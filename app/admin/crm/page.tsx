@@ -12,7 +12,7 @@ const CURRENT_PIPELINE_ID = '2313043166'
 // ── Static option lists ────────────────────────────────────────────────────────
 
 const STAGE_OPTIONS = [
-  { id: '',           label: 'Toutes les étapes' },
+  { id: '',           label: 'Toutes les étapes de transaction' },
   { id: '3165428979', label: '🔴 À Replanifier' },
   { id: '3165428980', label: '🔵 RDV Pris' },
   { id: '3165428981', label: '🟡 Délai Réflexion' },
@@ -23,7 +23,7 @@ const STAGE_OPTIONS = [
 ]
 
 const FORMATION_OPTIONS = [
-  { id: '',              label: 'Toutes formations' },
+  { id: '',              label: 'Toutes formations demandées' },
   { id: 'PASS',          label: 'PASS' },
   { id: 'LSPS',          label: 'LSPS' },
   { id: 'LAS',           label: 'LAS' },
@@ -36,7 +36,7 @@ const FORMATION_OPTIONS = [
 ]
 
 const CLASSE_OPTIONS = [
-  { id: '',                  label: 'Toutes classes' },
+  { id: '',                  label: 'Toutes classes actuelles' },
   { id: 'Terminale',         label: 'Terminale' },
   { id: 'Première',          label: 'Première' },
   { id: 'Seconde',           label: 'Seconde' },
@@ -79,19 +79,19 @@ interface CRMFilterGroup {
 }
 
 const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
-  { key: 'stage',       label: 'Étape',         type: 'select' },
-  { key: 'formation',   label: 'Formation',     type: 'select' },
-  { key: 'classe',      label: 'Classe',        type: 'select' },
-  { key: 'closer',      label: 'Closer',        type: 'select' },
-  { key: 'telepro',     label: 'Télépro',       type: 'select' },
-  { key: 'lead_status', label: 'Statut lead',   type: 'select' },
-  { key: 'source',      label: 'Origine',       type: 'select' },
-  { key: 'zone',        label: 'Zone / Localité', type: 'select' },
-  { key: 'departement', label: 'Département',   type: 'select' },
-  { key: 'period',      label: 'Période',       type: 'select' },
-  { key: 'pipeline',           label: 'Pipeline (Année)',             type: 'select' },
+  { key: 'stage',              label: 'Étape de transaction',          type: 'select' },
+  { key: 'formation',          label: 'Formation demandée',            type: 'select' },
+  { key: 'classe',             label: 'Classe actuelle',               type: 'select' },
+  { key: 'closer',             label: 'Propriétaire du contact',       type: 'select' },
+  { key: 'telepro',            label: 'Télépro',                       type: 'select' },
+  { key: 'lead_status',        label: 'Statut du lead',                type: 'select' },
+  { key: 'source',             label: 'Origine',                       type: 'select' },
+  { key: 'zone',               label: 'Zone / Localité',               type: 'select' },
+  { key: 'departement',        label: 'Département',                   type: 'select' },
+  { key: 'period',             label: 'Période',                       type: 'select' },
+  { key: 'pipeline',           label: 'Pipeline (Année)',              type: 'select' },
   { key: 'prior_preinscription', label: '🎓 Pré-inscrits années préc.', type: 'select' },
-  { key: 'search',             label: 'Recherche',                    type: 'text' },
+  { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
 const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -823,9 +823,9 @@ export default function CRMPage() {
   const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
 
   // Options dynamiques depuis HubSpot (valeurs réelles)
-  const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts lead' }])
+  const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts du lead' }])
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
-  const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones' }])
+  const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones / localités' }])
   const [deptOptions, setDeptOptions]               = useState<SelectOption[]>([{ id: '', label: 'Tous les départements' }])
 
   // Counts pré-chargés par vue
@@ -913,7 +913,7 @@ export default function CRMPage() {
     fetch('/api/crm/field-options').then(r => r.json()).then(d => {
       if (d.leadStatuses?.length) {
         setLeadStatusOptions([
-          { id: '', label: 'Tous les statuts lead' },
+          { id: '', label: 'Tous les statuts du lead' },
           ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
         ])
       }
@@ -925,7 +925,7 @@ export default function CRMPage() {
       }
       if (d.zones?.length) {
         setZoneOptions([
-          { id: '', label: 'Toutes les zones' },
+          { id: '', label: 'Toutes les zones / localités' },
           ...d.zones.map((v: string) => ({ id: v, label: v })),
         ])
       }

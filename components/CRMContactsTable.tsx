@@ -826,19 +826,19 @@ type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
-  phone:                'Tél',
-  formation_souhaitee:  'Formation souhaitée',
-  classe:               'Classe',
-  zone:                 'Zone',
+  phone:                'Téléphone',
+  formation_souhaitee:  'Formation demandée',
+  classe:               'Classe actuelle',
+  zone:                 'Zone / Localité',
   departement:          'Département',
-  etape:                'Étape',
-  lead_status:          'Statut lead',
+  etape:                'Étape de transaction',
+  lead_status:          'Statut du lead',
   origine:              'Origine',
-  closer:               'Closer',
+  closer:               'Propriétaire du contact',
   telepro:              'Télépro',
-  createdat_contact:    'Créé le (contact)',
-  createdat_deal:       'Créé le (deal)',
-  form_submission:      'Soumission formulaire',
+  createdat_contact:    'Date de création (contact)',
+  createdat_deal:       'Date de création (deal)',
+  form_submission:      'Dernière soumission de formulaire',
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
