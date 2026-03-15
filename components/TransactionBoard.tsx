@@ -170,6 +170,57 @@ function DealCard({
   )
 }
 
+// ── Column Drop Zone (between columns) ──────────────────────────────────────
+
+function ColumnDropZone({
+  isActive, onDrop,
+}: {
+  isActive: boolean
+  onDrop: (draggedStageId: string) => void
+}) {
+  const [over, setOver] = useState(false)
+
+  return (
+    <div
+      onDragOver={e => {
+        const types = Array.from(e.dataTransfer.types)
+        if (!types.includes('columnid')) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={e => {
+        e.preventDefault()
+        setOver(false)
+        const colId = e.dataTransfer.getData('columnid')
+        if (colId) onDrop(colId)
+      }}
+      style={{
+        width: over ? 40 : (isActive ? 16 : 0),
+        minWidth: over ? 40 : (isActive ? 16 : 0),
+        transition: 'all 0.2s ease',
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'center',
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
+    >
+      {(over || isActive) && (
+        <div style={{
+          width: 4,
+          background: over ? '#4cabdb' : 'rgba(76,171,219,0.3)',
+          borderRadius: 4,
+          margin: '8px 0',
+          transition: 'all 0.15s',
+          boxShadow: over ? '0 0 12px rgba(76,171,219,0.5)' : 'none',
+        }} />
+      )}
+    </div>
+  )
+}
+
 // ── Board Column ─────────────────────────────────────────────────────────────
 
 function BoardColumn({
@@ -177,8 +228,7 @@ function BoardColumn({
   dragOverStage, setDragOverStage,
   selectedDeals, onToggleSelect, onSelectAllInColumn, onDragStartMulti,
   onDropDeals,
-  // Column reorder
-  columnDragOver, setColumnDragOver, onColumnDragStart,
+  onColumnDragStart, isDraggingColumn,
 }: {
   stageId: string
   deals: TransactionDetail[]
@@ -190,9 +240,8 @@ function BoardColumn({
   onSelectAllInColumn: (stageId: string) => void
   onDragStartMulti: (e: React.DragEvent, dealId: string) => void
   onDropDeals: (dealIds: string[], targetStage: string) => void
-  columnDragOver: string | null
-  setColumnDragOver: (s: string | null) => void
   onColumnDragStart: (e: React.DragEvent, stageId: string) => void
+  isDraggingColumn: boolean
 }) {
   const [headerHovered, setHeaderHovered] = useState(false)
   const stage = STAGE_MAP[stageId]
@@ -201,43 +250,29 @@ function BoardColumn({
   const isOver = dragOverStage === stageId
   const selectionActive = selectedDeals.size > 0
   const allInColumnSelected = deals.length > 0 && deals.every(d => selectedDeals.has(d.hubspot_deal_id))
-  const isColumnDragTarget = columnDragOver === stageId
 
   return (
     <div
       onDragOver={e => {
+        // Only handle card drags here, not column drags
+        const types = Array.from(e.dataTransfer.types)
+        if (types.includes('columnid')) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
-        // Check if this is a card drag or column drag
-        // Column drags have 'columnId' data type
-        const types = Array.from(e.dataTransfer.types)
-        if (types.includes('columnid')) {
-          setColumnDragOver(stageId)
-        } else {
-          setDragOverStage(stageId)
-        }
+        setDragOverStage(stageId)
       }}
       onDragLeave={e => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
           setDragOverStage(null)
-          setColumnDragOver(null)
         }
       }}
       onDrop={e => {
+        // Only handle card drops, not column drops
+        const types = Array.from(e.dataTransfer.types)
+        if (types.includes('columnid')) return
         e.preventDefault()
         setDragOverStage(null)
-        setColumnDragOver(null)
 
-        // Check if it's a column reorder drop
-        const colId = e.dataTransfer.getData('columnId')
-        if (colId) {
-          // Column reorder — dispatch event to parent
-          const evt = new CustomEvent('columnReorder', { detail: { draggedStageId: colId, targetStageId: stageId } })
-          document.dispatchEvent(evt)
-          return
-        }
-
-        // Card drop
         const raw = e.dataTransfer.getData('dealIds')
         if (raw) {
           try {
@@ -258,11 +293,12 @@ function BoardColumn({
         maxWidth: 280,
         display: 'flex',
         flexDirection: 'column',
-        background: isOver ? 'rgba(204,172,113,0.08)' : isColumnDragTarget ? 'rgba(76,171,219,0.08)' : 'transparent',
+        background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
         borderRadius: 10,
-        border: `2px solid ${isOver ? '#ccac71' : isColumnDragTarget ? '#4cabdb' : '#1a2f45'}`,
+        border: `2px solid ${isOver ? '#ccac71' : '#1a2f45'}`,
         transition: 'all 0.15s',
         overflow: 'hidden',
+        opacity: isDraggingColumn ? 0.5 : 1,
       }}
     >
       {/* Header — draggable to REORDER columns */}
@@ -313,7 +349,7 @@ function BoardColumn({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {headerHovered && (
             <span style={{ fontSize: 9, color: '#555870', whiteSpace: 'nowrap' }}>
-              ⇄ réordonner
+              ⇄ glisser
             </span>
           )}
           <span style={{
@@ -328,17 +364,6 @@ function BoardColumn({
           </span>
         </div>
       </div>
-
-      {/* Column reorder indicator */}
-      {isColumnDragTarget && (
-        <div style={{
-          padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
-          color: '#4cabdb', background: 'rgba(76,171,219,0.06)',
-          borderBottom: '1px solid rgba(76,171,219,0.15)',
-        }}>
-          ⇄ Insérer la colonne ici
-        </div>
-      )}
 
       {/* Deal drop indicator */}
       {isOver && (
@@ -390,8 +415,8 @@ export default function TransactionBoard({
   undoAction, onUndo,
 }: Props) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
-  const [columnDragOver, setColumnDragOver] = useState<string | null>(null)
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set())
+  const [draggingColumn, setDraggingColumn] = useState<string | null>(null)
   const [stageOrder, setStageOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('tx-column-order')
@@ -399,24 +424,6 @@ export default function TransactionBoard({
     }
     return DEFAULT_STAGE_ORDER
   })
-
-  // Listen for column reorder events
-  useEffect(() => {
-    function handleColumnReorder(e: Event) {
-      const { draggedStageId, targetStageId } = (e as CustomEvent).detail
-      if (draggedStageId === targetStageId) return
-
-      setStageOrder(prev => {
-        const next = prev.filter(id => id !== draggedStageId)
-        const targetIdx = next.indexOf(targetStageId)
-        next.splice(targetIdx, 0, draggedStageId)
-        localStorage.setItem('tx-column-order', JSON.stringify(next))
-        return next
-      })
-    }
-    document.addEventListener('columnReorder', handleColumnReorder)
-    return () => document.removeEventListener('columnReorder', handleColumnReorder)
-  }, [])
 
   // Escape to clear selection
   useEffect(() => {
@@ -468,10 +475,8 @@ export default function TransactionBoard({
 
   function handleColumnDragStart(e: React.DragEvent, stageId: string) {
     e.dataTransfer.effectAllowed = 'move'
-    // Use a custom type to distinguish column drags from card drags
-    e.dataTransfer.setData('columnId', stageId)
-    // Also set a lowercase version for the types array check
     e.dataTransfer.setData('columnid', stageId)
+    setDraggingColumn(stageId)
 
     const stageName = STAGE_MAP[stageId]?.label ?? stageId
     const badge = document.createElement('div')
@@ -480,6 +485,20 @@ export default function TransactionBoard({
     document.body.appendChild(badge)
     e.dataTransfer.setDragImage(badge, 0, 0)
     setTimeout(() => document.body.removeChild(badge), 0)
+  }
+
+  function handleColumnDrop(targetIndex: number, draggedStageId: string) {
+    setDraggingColumn(null)
+    setStageOrder(prev => {
+      const fromIdx = prev.indexOf(draggedStageId)
+      if (fromIdx === -1) return prev
+      const next = prev.filter(id => id !== draggedStageId)
+      // Adjust target index if we removed an item before it
+      const adjustedIdx = targetIndex > fromIdx ? targetIndex - 1 : targetIndex
+      next.splice(adjustedIdx, 0, draggedStageId)
+      localStorage.setItem('tx-column-order', JSON.stringify(next))
+      return next
+    })
   }
 
   function handleDropDeals(dealIds: string[], targetStage: string) {
@@ -550,28 +569,43 @@ export default function TransactionBoard({
         </div>
       )}
 
-      {/* Columns */}
-      <div style={{
-        display: 'flex', gap: 8, flex: 1,
-        overflowX: 'auto', overflowY: 'hidden', padding: '12px 0',
-      }}>
-        {stageOrder.map(stageId => (
-          <BoardColumn
-            key={stageId}
-            stageId={stageId}
-            deals={columns[stageId] ?? []}
-            onSelectDeal={onSelectDeal}
-            dragOverStage={dragOverStage}
-            setDragOverStage={setDragOverStage}
-            selectedDeals={selectedDeals}
-            onToggleSelect={toggleSelect}
-            onSelectAllInColumn={selectAllInColumn}
-            onDragStartMulti={handleDragStart}
-            onDropDeals={handleDropDeals}
-            columnDragOver={columnDragOver}
-            setColumnDragOver={setColumnDragOver}
-            onColumnDragStart={handleColumnDragStart}
-          />
+      {/* Columns with drop zones between them */}
+      <div
+        onDragEnd={() => setDraggingColumn(null)}
+        style={{
+          display: 'flex', gap: 0, flex: 1,
+          overflowX: 'auto', overflowY: 'hidden', padding: '12px 0',
+        }}
+      >
+        {stageOrder.map((stageId, idx) => (
+          <div key={stageId} style={{ display: 'flex' }}>
+            {/* Drop zone BEFORE this column */}
+            <ColumnDropZone
+              isActive={draggingColumn !== null && draggingColumn !== stageId && (idx === 0 || stageOrder[idx - 1] !== draggingColumn)}
+              onDrop={(draggedId) => handleColumnDrop(idx, draggedId)}
+            />
+            <BoardColumn
+              stageId={stageId}
+              deals={columns[stageId] ?? []}
+              onSelectDeal={onSelectDeal}
+              dragOverStage={dragOverStage}
+              setDragOverStage={setDragOverStage}
+              selectedDeals={selectedDeals}
+              onToggleSelect={toggleSelect}
+              onSelectAllInColumn={selectAllInColumn}
+              onDragStartMulti={handleDragStart}
+              onDropDeals={handleDropDeals}
+              onColumnDragStart={handleColumnDragStart}
+              isDraggingColumn={draggingColumn === stageId}
+            />
+            {/* Drop zone AFTER the last column */}
+            {idx === stageOrder.length - 1 && (
+              <ColumnDropZone
+                isActive={draggingColumn !== null && draggingColumn !== stageId}
+                onDrop={(draggedId) => handleColumnDrop(stageOrder.length, draggedId)}
+              />
+            )}
+          </div>
         ))}
       </div>
     </div>
