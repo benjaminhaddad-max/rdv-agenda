@@ -545,13 +545,24 @@ const EXPORT_COLUMNS = [
   { key: 'form_submission',     label: 'Soumission formulaire' },
 ]
 
-function ExportCSVModal({ total, exporting, onClose, onExport }: {
-  total: number
+function ExportCSVModal({ buildParams, exporting, onClose, onExport }: {
+  buildParams: () => URLSearchParams
   exporting: boolean
   onClose: () => void
   onExport: (cols: string[]) => void
 }) {
   const [selected, setSelected] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key))
+  const [exportCount, setExportCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    const params = buildParams()
+    params.set('limit', '0')
+    fetch(`/api/crm/contacts?${params.toString()}`)
+      .then(r => r.json())
+      .then(d => setExportCount(d.total ?? 0))
+      .catch(() => setExportCount(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggleCol = (key: string) => {
     setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
@@ -570,7 +581,7 @@ function ExportCSVModal({ total, exporting, onClose, onExport }: {
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2f45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>Exporter en CSV</div>
-            <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>{total.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels</div>
+            <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>{exportCount !== null ? `${exportCount.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels` : 'Calcul en cours…'}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4 }}>
             <X size={16} />
@@ -2050,7 +2061,31 @@ export default function CRMPage() {
       {/* ── Export CSV Modal ──────────────────────────────────────────────── */}
       {exportModalOpen && (
         <ExportCSVModal
-          total={total}
+          buildParams={() => {
+            const p = new URLSearchParams()
+            if (search)               p.set('search', search)
+            if (stage)                p.set('stage', stage)
+            if (closerHsId)           p.set('closer_hs_id', closerHsId)
+            if (teleproHsId)          p.set('telepro_hs_id', teleproHsId)
+            if (noTelepro)            p.set('no_telepro', '1')
+            if (ownerExclude)         p.set('owner_exclude', ownerExclude)
+            if (recentFormMonths > 0) p.set('recent_form_months', String(recentFormMonths))
+            if (showExternal)         p.set('show_external', '1')
+            if (allClasses)           p.set('all_classes', '1')
+            if (leadStatus)           p.set('lead_status', leadStatus)
+            if (source)               p.set('source', source)
+            if (zoneFilter)           p.set('zone', zoneFilter)
+            if (deptFilter)           p.set('departement', deptFilter)
+            if (stageNot)             p.set('stage_not', stageNot)
+            if (leadStatusNot)        p.set('lead_status_not', leadStatusNot)
+            if (sourceNot)            p.set('source_not', sourceNot)
+            if (zoneNot)              p.set('zone_not', zoneNot)
+            if (deptNot)              p.set('departement_not', deptNot)
+            if (closerNot)            p.set('closer_not', closerNot)
+            if (teleproNot)           p.set('telepro_not', teleproNot)
+            if (formationNot)         p.set('formation_not', formationNot)
+            return p
+          }}
           exporting={exporting}
           onClose={() => setExportModalOpen(false)}
           onExport={async (cols) => {

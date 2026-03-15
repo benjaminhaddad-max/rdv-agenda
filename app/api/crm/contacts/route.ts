@@ -35,8 +35,9 @@ export async function GET(req: NextRequest) {
   const formationNot     = searchParams.get('formation_not') ?? ''
 
   const isExport         = searchParams.get('export') === '1'
+  const countOnly        = searchParams.get('limit') === '0'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
-  const limit            = isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
   // ── Charger rdv_users ──────────────────────────────────────────────────────
   const { data: users } = await db
@@ -291,6 +292,13 @@ export async function GET(req: NextRequest) {
     for (const v of vals) {
       query = query.not('departement', 'ilike', `%${v}%`)
     }
+  }
+
+  // Count-only mode — return just the total without data
+  if (countOnly) {
+    const { count: totalCount, error } = await query.range(0, 0)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: [], total: totalCount ?? 0, page: 0, limit: 0 })
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
