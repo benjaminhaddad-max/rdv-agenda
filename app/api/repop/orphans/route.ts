@@ -40,6 +40,7 @@ export type OrphanRepopEntry = {
   classe: string | null
   formation: string | null
   zone_localite: string | null
+  departement: string | null
   first_form_date: string
   first_form_date_label: string
   first_form_name: string | null
@@ -50,7 +51,7 @@ export type OrphanRepopEntry = {
 
 const PROPS = [
   'email', 'firstname', 'lastname', 'phone',
-  'classe_actuelle', 'diploma_sante___formation_demandee', 'zone___localite',
+  'classe_actuelle', 'diploma_sante___formation_demandee', 'zone___localite', 'departement',
   'recent_conversion_date', 'recent_conversion_event_name',
   'first_conversion_date', 'first_conversion_event_name',
   'createdate',
@@ -134,6 +135,7 @@ export async function GET() {
       classe: p.classe_actuelle ?? null,
       formation,
       zone_localite: p.zone___localite ?? null,
+      departement: p.departement ?? null,
       first_form_date: firstDate.toISOString(),
       first_form_date_label: format(firstDate, "d MMM yyyy", { locale: fr }),
       first_form_name: p.first_conversion_event_name ?? null,
