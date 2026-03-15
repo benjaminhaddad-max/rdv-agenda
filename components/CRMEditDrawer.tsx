@@ -318,7 +318,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           meeting_type: meetingType,
           meeting_link: meetingType === 'visio' ? meetingLink : null,
           call_notes: [
-            `📚 Formation demandée : ${formationLabel}`,
+            `📚 Formation souhaitée : ${formationLabel}`,
             `📍 Département : ${departement}`,
             `🎓 Classe actuelle : ${classeActuelle}`,
             phone ? `📞 Téléphone : ${phone}` : '',
@@ -833,7 +833,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             />
             <EditField label="Zone / Localité" value={c.zone_localite || ''} onSave={v => patchContact({ zone_localite: v })} />
             <SelectField
-              label="Formation demandée"
+              label="Formation souhaitée"
               value={c.formation_demandee || ''}
               options={formationOpts}
               onSave={v => patchContact({ formation_demandee: v })}
