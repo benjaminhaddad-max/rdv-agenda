@@ -348,6 +348,38 @@ export default function TransactionsPage() {
     })
   }
 
+  // ── Batch stage change (multi-select drag & drop) ──────────────────────────
+
+  async function handleBatchStageChange(dealIds: string[], newStage: string) {
+    // Optimistic update
+    setBoardColumns(prev => {
+      const next = { ...prev }
+      const movedDeals: TransactionDetail[] = []
+
+      for (const stageId of Object.keys(next)) {
+        const remaining: TransactionDetail[] = []
+        for (const deal of next[stageId]) {
+          if (dealIds.includes(deal.hubspot_deal_id)) {
+            movedDeals.push({ ...deal, dealstage: newStage })
+          } else {
+            remaining.push(deal)
+          }
+        }
+        next[stageId] = remaining
+      }
+
+      next[newStage] = [...(next[newStage] ?? []), ...movedDeals]
+      return next
+    })
+
+    // Persist via batch endpoint
+    await fetch('/api/crm/deals/batch', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dealIds, dealstage: newStage }),
+    })
+  }
+
   // ── Deal selection (for detail panel) ──────────────────────────────────────
 
   function handleSelectDeal(deal: TransactionDetail | Transaction) {
@@ -595,6 +627,7 @@ export default function TransactionsPage() {
             <TransactionBoard
               columns={boardColumns}
               onStageChange={handleStageChange}
+              onBatchStageChange={handleBatchStageChange}
               onSelectDeal={handleSelectDeal}
             />
           )
