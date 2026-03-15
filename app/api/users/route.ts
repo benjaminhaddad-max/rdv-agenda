@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   let query = db
     .from('rdv_users')
-    .select('id, name, email, slug, avatar_color, role')
+    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id')
     .order('name')
 
   if (role) {
@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest) {
     .from('rdv_users')
     .update({ name: name.trim() })
     .eq('id', id)
-    .select('id, name, email, slug, avatar_color, role')
+    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
