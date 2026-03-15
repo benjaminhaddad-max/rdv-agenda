@@ -120,6 +120,88 @@ function InlineCellSelect({
   )
 }
 
+// ── Inline text edit pour champs libres ────────────────────────────────────
+function InlineCellText({
+  value,
+  onSave,
+  saving,
+  placeholder = '—',
+}: {
+  value: string
+  onSave: (v: string) => void
+  saving?: boolean
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setVal(value) }, [value])
+
+  function commit() {
+    setEditing(false)
+    if (val !== value) onSave(val)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        autoFocus
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); commit() }
+          if (e.key === 'Escape') { setEditing(false); setVal(value) }
+          e.stopPropagation()
+        }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'rgba(76,171,219,0.08)',
+          border: '1px solid rgba(76,171,219,0.5)',
+          borderRadius: 5,
+          padding: '2px 6px',
+          color: '#e8eaf0',
+          fontSize: 11,
+          fontFamily: 'inherit',
+          outline: 'none',
+          width: '90%',
+          minWidth: 60,
+        }}
+      />
+    )
+  }
+
+  return (
+    <span
+      onClick={e => { e.stopPropagation(); setEditing(true) }}
+      style={{
+        fontSize: 11,
+        color: value ? '#7a8ba0' : '#2d4a6b',
+        cursor: saving ? 'not-allowed' : 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        padding: '2px 4px',
+        borderRadius: 4,
+        border: '1px solid transparent',
+        transition: 'all 0.12s',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.border = '1px solid rgba(76,171,219,0.35)'
+        e.currentTarget.style.background = 'rgba(76,171,219,0.06)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.border = '1px solid transparent'
+        e.currentTarget.style.background = 'transparent'
+      }}
+    >
+      {saving ? '…' : (value || placeholder)}
+    </span>
+  )
+}
+
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
@@ -249,6 +331,8 @@ interface Props {
   onOpenDrawer?: (contact: CRMContact) => void
   /** Options dynamiques HubSpot pour le statut du lead */
   leadStatusOptions?: { id: string; label: string }[]
+  /** Options dynamiques HubSpot pour l'origine */
+  sourceOptions?: { id: string; label: string }[]
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -577,7 +661,7 @@ function ExpandedDetail({
   )
 }
 
-export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer, leadStatusOptions }: Props) {
+export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer, leadStatusOptions, sourceOptions }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [noteModal, setNoteModal] = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel, setAssignPanel] = useState<{
@@ -654,7 +738,8 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
     { label: 'Classe',      width: 100 },
     { label: 'Zone',        width: 100 },
     { label: 'Étape',       width: 150 },
-    { label: 'Statut lead', width: 120, hidden: !leadStatusOptions?.length },
+    { label: 'Statut lead', width: 130, hidden: !leadStatusOptions?.length },
+    { label: 'Origine',     width: 120, hidden: !sourceOptions?.length },
     { label: 'Closer',      width: 120, hidden: mode === 'telepro' },
     { label: 'Télépro',     width: 110, hidden: false },
     { label: 'Créé le',     width: 90 },
@@ -808,9 +893,11 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
 
                     {/* 5. Zone */}
                     <td style={{ padding: '10px 12px' }}>
-                      <span style={{ fontSize: 11, color: '#5a6a7e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        {zone}
-                      </span>
+                      <InlineCellText
+                        value={contact.zone_localite || contact.departement || ''}
+                        onSave={v => handleContactFieldChange(contact.hubspot_contact_id, 'zone_localite', v)}
+                        saving={savingContactField === `${contact.hubspot_contact_id}:zone_localite`}
+                      />
                     </td>
 
                     {/* 6. Étape */}
@@ -836,6 +923,18 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
                           options={leadStatusOptions.map(o => ({ id: o.id, label: o.label }))}
                           onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)}
                           saving={savingContactField === `${contact.hubspot_contact_id}:hs_lead_status`}
+                        />
+                      </td>
+                    )}
+
+                    {/* 7b. Origine (inline edit) */}
+                    {sourceOptions && sourceOptions.length > 0 && (
+                      <td style={{ padding: '10px 12px' }}>
+                        <InlineCellSelect
+                          value={contact.hs_analytics_source || ''}
+                          options={sourceOptions.map(o => ({ id: o.id, label: o.label }))}
+                          onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_analytics_source', v)}
+                          saving={savingContactField === `${contact.hubspot_contact_id}:hs_analytics_source`}
                         />
                       </td>
                     )}

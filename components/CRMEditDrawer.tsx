@@ -212,8 +212,9 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
 
-  // Valeurs réelles HubSpot chargées depuis Supabase
+  // Valeurs réelles HubSpot chargées depuis l'API Properties
   const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
+  const [sourceOpts, setSourceOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
 
   useEffect(() => {
     setLocalContact(contact)
@@ -225,6 +226,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
         setLeadStatusOpts([
           { id: '', label: '—' },
           ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+      if (d.sources?.length) {
+        setSourceOpts([
+          { id: '', label: '—' },
+          ...d.sources.map((v: string) => ({ id: v, label: v })),
         ])
       }
     })
@@ -278,11 +285,6 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   ]
 
   const classeOptionList = CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))
-
-  // Source label mapping
-  const sourceLabel = c.hs_analytics_source
-    ? [c.hs_analytics_source, c.hs_analytics_source_data_1].filter(Boolean).join(' › ')
-    : null
 
   return (
     <>
@@ -359,6 +361,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
               options={classeOptionList}
               onSave={v => patchContact({ classe_actuelle: v })}
             />
+            <EditField label="Zone / Localité" value={c.zone_localite || ''} onSave={v => patchContact({ zone_localite: v })} />
           </div>
 
           {/* Section : Qualification */}
@@ -381,17 +384,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
                   : '—'}
               </div>
             </div>
-            {/* Origine (read-only) */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Origine</div>
-              <div style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, fontSize: 12 }}>
-                {sourceLabel ? (
-                  <span style={{ color: '#ccac71' }}>{sourceLabel}</span>
-                ) : (
-                  <span style={{ color: '#3a5070' }}>—</span>
-                )}
-              </div>
-            </div>
+            <SelectField
+              label="Origine"
+              value={c.hs_analytics_source || ''}
+              options={sourceOpts}
+              onSave={v => patchContact({ hs_analytics_source: v })}
+            />
             {/* Soumission de formulaire (read-only) */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Soumission formulaire</div>
