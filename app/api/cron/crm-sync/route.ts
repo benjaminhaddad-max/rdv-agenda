@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByPriorityClass } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass } from '@/lib/hubspot'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -146,28 +146,31 @@ export async function GET(req: NextRequest) {
       incrRounds++
     } while (incrCursor && incrRounds < MAX_INCR)
 
-    // ── Phase 6 : Sync contacts prioritaires (Terminale / Première / Seconde) ──
+    // ── Phase 6 : Sync contacts prioritaires (une classe à la fois) ──────────
+    // HubSpot Search limite à 10K résultats/requête → on sépare Terminale,
+    // Première, Seconde en 3 boucles indépendantes (3 × 10K = 30K max).
     currentPhase = 6
-    // Ces ~30K contacts sont souvent sans deal → absents des phases 4 et 5.
-    // On les pagine entièrement à chaque full sync, et les 200 derniers modifiés
-    // lors d'un sync incrémental (2 pages × 100).
-    const MAX_PRIO = fullSync ? 350 : 2  // 350×100 = 35 000 max (couvre les 30K)
-    let prioCursor: string | undefined = undefined
-    let prioRounds = 0
+    const MAX_PER_CLASS = fullSync ? 100 : 1  // 100×100=10K par classe (full), 100 (incr)
+    const PRIORITY_CLASSES_SYNC = ['Terminale', 'Premi\u00e8re', 'Seconde']
 
-    do {
-      const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByPriorityClass(prioCursor)
+    for (const classe of PRIORITY_CLASSES_SYNC) {
+      let classCursor: string | undefined = undefined
+      let classRounds = 0
 
-      if (prioContacts.length > 0) {
-        const rows = prioContacts.map(c => buildContactRow(c, now))
-        await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
-        const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
-        contactsUpserted += newOnes.length
-      }
+      do {
+        const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByClass(classe, classCursor)
 
-      prioCursor = prioNext
-      prioRounds++
-    } while (prioCursor && prioRounds < MAX_PRIO)
+        if (prioContacts.length > 0) {
+          const rows = prioContacts.map(c => buildContactRow(c, now))
+          await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+          const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
+          contactsUpserted += newOnes.length
+        }
+
+        classCursor = prioNext
+        classRounds++
+      } while (classCursor && classRounds < MAX_PER_CLASS)
+    }
 
   } catch (err) {
     const rawMsg = err instanceof Error ? err.message : String(err)

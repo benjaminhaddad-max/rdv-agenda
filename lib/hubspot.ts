@@ -682,17 +682,17 @@ export async function getAllDealsForSync(after?: string): Promise<{
   }
 }
 
-// ─── Sync CRM : contacts par classe (Terminale / Première / Seconde) ──────
-// 3 filterGroups avec EQ (= OR entre groupes) — IN non supporté sur champs texte
-export async function getContactsByPriorityClass(
+// ─── Sync CRM : contacts par classe (une classe à la fois, 10K max/requête) ──
+// HubSpot Search est limité à 10 000 résultats par requête → on pagine
+// chaque classe séparément pour contourner la limite (3×10K = 30K).
+export async function getContactsByClass(
+  classe: string,
   after?: string,
 ): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
     filterGroups: [
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Terminale' }] },
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Premi\u00e8re' }] },
-      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Seconde' }] },
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: classe }] },
     ],
     properties: CONTACT_PROPS.split(','),
     sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
@@ -708,6 +708,13 @@ export async function getContactsByPriorityClass(
     contacts: data.results ?? [],
     nextCursor: data.paging?.next?.after,
   }
+}
+
+/** @deprecated — utiliser getContactsByClass (3 appels séparés) */
+export async function getContactsByPriorityClass(
+  after?: string,
+): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
+  return getContactsByClass('Terminale', after)
 }
 
 // ─── Sync CRM : associations deals → contacts (batch, API v4) ─────────────
