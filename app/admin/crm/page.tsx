@@ -122,6 +122,94 @@ function opIsMulti(op: CRMFilterOp) {
   return op === 'is_any' || op === 'is_none'
 }
 
+// ── Searchable field selector (like HubSpot) ──────────────────────────────
+
+function FilterFieldSearchSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const filtered = search
+    ? CRM_FILTER_FIELDS.filter(f => f.label.toLowerCase().includes(search.toLowerCase()))
+    : CRM_FILTER_FIELDS
+
+  const selectedLabel = CRM_FILTER_FIELDS.find(f => f.key === value)?.label ?? value
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 30)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <button
+        onClick={() => { setOpen(o => !o); setSearch('') }}
+        style={{
+          width: '100%', background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+          padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit',
+          cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>{selectedLabel}</span>
+        <ChevronDown size={11} style={{ color: '#555870' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 2,
+          background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 60, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '6px 8px', borderBottom: '1px solid #1a2f45' }}>
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher un champ…"
+              style={{
+                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2d4a6b',
+                borderRadius: 5, padding: '5px 8px', color: '#e8eaf0', fontSize: 12,
+                fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '8px 12px', color: '#555870', fontSize: 11 }}>Aucun résultat</div>
+            ) : (
+              filtered.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => { onChange(f.key); setOpen(false); setSearch('') }}
+                  style={{
+                    display: 'block', width: '100%', background: f.key === value ? 'rgba(204,172,113,0.12)' : 'transparent',
+                    border: 'none', padding: '7px 12px', color: f.key === value ? '#ccac71' : '#c8cad8',
+                    fontSize: 12, fontWeight: f.key === value ? 600 : 400, cursor: 'pointer',
+                    fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { if (f.key !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseLeave={e => { if (f.key !== value) e.currentTarget.style.background = 'transparent' }}
+                >
+                  {f.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Multi-select dropdown for filters ─────────────────────────────────────
 
 function MultiSelectDropdown({ options, value, onChange }: {
@@ -2037,9 +2125,10 @@ export default function CRMPage() {
                         {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#0b1624', border: '1px solid #1a2f45', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
                           <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
-                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
-                            {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                          </select>
+                          <FilterFieldSearchSelect
+                            value={rule.field}
+                            onChange={v => updateRule(group.id, rule.id, { field: v as CRMFilterField })}
+                          />
                           <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                           </select>
