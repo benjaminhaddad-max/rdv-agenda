@@ -85,7 +85,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
     if (orphanDept && o.departement !== orphanDept) return false
     if (orphanCandidatureOnly) {
       const hasCandidature = [o.first_form_name, o.repop_form_name].some(
-        n => n && /candidature/i.test(n)
+        n => n && /candidat/i.test(n)
       )
       if (!hasCandidature) return false
     }
