@@ -1298,15 +1298,6 @@ export default function CRMPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <StatChip value={total} label="contacts" color="#8b8fa8" />
-          <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
-          <StatChip value={hasWithDeal} label="avec deal" color="#4cabdb" />
-          <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
-          <StatChip value={hasNoTelepro} label="sans télépro" color="#ccac71" />
-          <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
-          <StatChip value={hasNoCloser} label="sans closer" color="#ef4444" />
-        </div>
       </div>
 
       {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
@@ -1642,27 +1633,26 @@ export default function CRMPage() {
 
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
-        {/* Compteur de résultats filtré */}
-        {!loading && (hasActiveFilters || totalFilterRules > 0) && (
-          <div style={{
-            padding: '8px 20px',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span style={{
-              fontSize: 13, fontWeight: 700, color: '#ccac71',
-              background: 'rgba(204,172,113,0.1)',
-              border: '1px solid rgba(204,172,113,0.2)',
-              borderRadius: 6, padding: '4px 10px',
-            }}>
-              {total.toLocaleString('fr-FR')} résultat{total !== 1 ? 's' : ''}
-            </span>
-            {(formation || classe || period) && (
-              <span style={{ fontSize: 12, color: '#3a5070' }}>
-                ({displayed.length} affiché{displayed.length !== 1 ? 's' : ''})
+        {/* Compteur contacts */}
+        <div style={{ padding: '8px 20px 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {loading ? (
+            <span style={{ fontSize: 12, color: '#3a5070' }}>Chargement…</span>
+          ) : (
+            <>
+              <span style={{ fontSize: 20, fontWeight: 700, color: '#e8eaf0', lineHeight: 1 }}>
+                {total.toLocaleString('fr')}
               </span>
-            )}
-          </div>
-        )}
+              <span style={{ fontSize: 12, color: '#555870', fontWeight: 500 }}>
+                contact{total !== 1 ? 's' : ''}
+              </span>
+              {(formation || classe || period) && displayed.length !== contacts.length && (
+                <span style={{ fontSize: 11, color: '#3a5070', marginLeft: 4 }}>
+                  · {displayed.length} affiché{displayed.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </>
+          )}
+        </div>
 
         {/* ── Barre sélection en masse ───────────────────────────────────────── */}
         {selectedIds.size > 0 && (
