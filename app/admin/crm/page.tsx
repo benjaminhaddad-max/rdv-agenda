@@ -841,9 +841,12 @@ export default function CRMPage() {
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
+  const fetchRef = useRef(fetchContacts)
+  fetchRef.current = fetchContacts
+
   function scheduleRefetch() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchContacts(true), 300)
+    debounceRef.current = setTimeout(() => fetchRef.current(true), 300)
   }
 
   // ── View management ──────────────────────────────────────────────────────────
