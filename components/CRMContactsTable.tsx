@@ -902,6 +902,46 @@ export default function CRMContactsTable({
   const [dragIdx,     setDragIdx]     = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
+  // ── Column resize ─────────────────────────────────────────────────────────
+  const [colWidths, setColWidths] = useState<Record<ColKey, number>>(() => {
+    if (typeof window === 'undefined') return { ...COL_WIDTHS }
+    try {
+      const saved = localStorage.getItem('crm-col-widths')
+      if (saved) return { ...COL_WIDTHS, ...JSON.parse(saved) }
+    } catch { /* ignore */ }
+    return { ...COL_WIDTHS }
+  })
+  const resizingRef = useRef<{ key: ColKey; startX: number; startW: number } | null>(null)
+
+  function handleResizeStart(e: React.MouseEvent, key: ColKey) {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] }
+
+    function onMove(ev: MouseEvent) {
+      if (!resizingRef.current) return
+      const delta = ev.clientX - resizingRef.current.startX
+      const newW = Math.max(50, resizingRef.current.startW + delta)
+      setColWidths(prev => ({ ...prev, [resizingRef.current!.key]: newW }))
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      // Persist
+      setColWidths(prev => {
+        localStorage.setItem('crm-col-widths', JSON.stringify(prev))
+        return prev
+      })
+      resizingRef.current = null
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
   const toggleExpand = useCallback((id: string) => {
     setExpanded(prev => {
       const next = new Set(prev)
@@ -1166,7 +1206,7 @@ export default function CRMContactsTable({
           <colgroup>
             {onToggleSelect && <col style={{ width: 38 }} />}
             {visibleCols.map(key => (
-              <col key={key} style={{ width: COL_WIDTHS[key] }} />
+              <col key={key} style={{ width: colWidths[key] }} />
             ))}
             <col style={{ width: 50 }} />
           </colgroup>
@@ -1223,6 +1263,8 @@ export default function CRMContactsTable({
                     position: 'sticky',
                     top: 0,
                     zIndex: 10,
+                    /* relative needed for resize handle absolute positioning —
+                       sticky already creates a positioning context, so this is safe */
                     whiteSpace: 'nowrap',
                     userSelect: 'none',
                     cursor: 'grab',
@@ -1233,10 +1275,23 @@ export default function CRMContactsTable({
                     opacity: dragIdx === idx ? 0.5 : 1,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 8 }}>
                     <GripVertical size={10} style={{ color: '#2d4a6b', flexShrink: 0, opacity: 0.6 }} />
                     {COL_LABELS[key]}
                   </div>
+                  {/* Resize handle */}
+                  <div
+                    onMouseDown={e => handleResizeStart(e, key)}
+                    style={{
+                      position: 'absolute', top: 0, right: 0,
+                      width: 6, height: '100%',
+                      cursor: 'col-resize',
+                      background: 'transparent',
+                      zIndex: 11,
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(204,172,113,0.4)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                  />
                 </th>
               ))}
 
