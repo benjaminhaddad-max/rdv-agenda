@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // ── 1. Sync Deals (pipeline filtré → rapide) ─────────────────────────
-    const allDeals: typeof [] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allDeals: any[] = []
     let dealCursor: string | undefined = undefined
 
     do {
