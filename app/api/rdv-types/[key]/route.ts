@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ key:
   const { data, error } = await db
     .from('rdv_types')
     .update(update)
-    .eq('key', key)
+    .eq('rdv_key', key)
     .select()
     .single()
 

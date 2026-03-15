@@ -9,7 +9,7 @@ const GOLD = '#ccac71'
 
 type RdvTypeRow = {
   id: number
-  key: string
+  rdv_key: string
   title: string
   subtitle: string
   description: string
@@ -56,7 +56,7 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
   useEffect(() => { load() }, [])
 
   function startEdit(type: RdvTypeRow) {
-    setEditing(type.key)
+    setEditing(type.rdv_key)
     setDraft({ ...type })
     setError(null)
   }
@@ -82,7 +82,7 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
         return
       }
       const updated = await res.json()
-      setTypes(ts => ts.map(t => t.key === key ? { ...t, ...updated } : t))
+      setTypes(ts => ts.map(t => t.rdv_key === key ? { ...t, ...updated } : t))
       setEditing(null)
       setDraft({})
       setSaved(key)
@@ -93,16 +93,16 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
   }
 
   async function toggleActive(type: RdvTypeRow) {
-    setSaving(type.key)
+    setSaving(type.rdv_key)
     try {
-      const res = await fetch(`/api/rdv-types/${type.key}`, {
+      const res = await fetch(`/api/rdv-types/${type.rdv_key}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !type.active }),
       })
       if (res.ok) {
         const updated = await res.json()
-        setTypes(ts => ts.map(t => t.key === type.key ? { ...t, ...updated } : t))
+        setTypes(ts => ts.map(t => t.rdv_key === type.rdv_key ? { ...t, ...updated } : t))
       }
     } finally {
       setSaving(null)
@@ -151,13 +151,13 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {types.map(type => {
-              const isEditing = editing === type.key
-              const isSaving  = saving  === type.key
-              const justSaved = saved   === type.key
+              const isEditing = editing === type.rdv_key
+              const isSaving  = saving  === type.rdv_key
+              const justSaved = saved   === type.rdv_key
 
               return (
                 <div
-                  key={type.key}
+                  key={type.rdv_key}
                   style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isEditing ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s' }}
                 >
                   {/* En-tête de la carte */}
@@ -190,7 +190,7 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
                             Annuler
                           </button>
                           <button
-                            onClick={() => saveType(type.key)}
+                            onClick={() => saveType(type.rdv_key)}
                             disabled={isSaving}
                             style={{ background: isSaving ? 'rgba(204,172,113,0.2)' : GOLD, border: 'none', borderRadius: 7, padding: '5px 14px', color: NAVY, cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
                           >

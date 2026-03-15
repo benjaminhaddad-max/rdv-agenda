@@ -13,7 +13,7 @@ const GOLD  = '#ccac71'
 // ─── Type DB → local ──────────────────────────────────────────────────────────
 type RdvTypeDB = {
   id: number
-  key: string
+  rdv_key: string
   title: string
   subtitle: string
   description: string
@@ -36,7 +36,7 @@ type RdvType = {
 }
 
 function dbToLocal(t: RdvTypeDB): RdvType {
-  return { key: t.key, title: t.title, subtitle: t.subtitle, description: t.description, icon: t.icon, btnLabel: t.btn_label, formation: t.formation, tag: t.tag }
+  return { key: t.rdv_key, title: t.title, subtitle: t.subtitle, description: t.description, icon: t.icon, btnLabel: t.btn_label, formation: t.formation, tag: t.tag }
 }
 
 // Fallback si l'API est indisponible
