@@ -1639,9 +1639,25 @@ export default function CRMPage() {
 
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
-        {(formation || classe || period) && !loading && (
-          <div style={{ padding: '10px 20px 6px', fontSize: 12, color: '#3a5070' }}>
-            {displayed.length} résultat{displayed.length !== 1 ? 's' : ''} affiché{displayed.length !== 1 ? 's' : ''} sur {contacts.length} chargés
+        {/* Compteur de résultats filtré */}
+        {!loading && (hasActiveFilters || totalFilterRules > 0) && (
+          <div style={{
+            padding: '8px 20px',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{
+              fontSize: 13, fontWeight: 700, color: '#ccac71',
+              background: 'rgba(204,172,113,0.1)',
+              border: '1px solid rgba(204,172,113,0.2)',
+              borderRadius: 6, padding: '4px 10px',
+            }}>
+              {total.toLocaleString('fr-FR')} résultat{total !== 1 ? 's' : ''}
+            </span>
+            {(formation || classe || period) && (
+              <span style={{ fontSize: 12, color: '#3a5070' }}>
+                ({displayed.length} affiché{displayed.length !== 1 ? 's' : ''})
+              </span>
+            )}
           </div>
         )}
 
