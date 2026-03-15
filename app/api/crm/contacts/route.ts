@@ -5,25 +5,8 @@ import { createServiceClient } from '@/lib/supabase'
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
 
 // Seuil pour les "autres classes" — leads antérieurs à cette date ignorés
-const OTHER_CLASSES_SINCE = '2025-09-01T00:00:00.000Z'
+const OTHER_CLASSES_SINCE = new Date('2025-09-01T00:00:00.000Z')
 
-// GET /api/crm/contacts
-//
-// Filtres par défaut (toujours actifs, sauf override) :
-//   • Classe Seconde / Première / Terminale → toujours inclus
-//   • Autres classes → seulement si recent_conversion_date >= 2025-09-01
-//   • Contacts dont le propriétaire OU le télépro deal est "exclude_from_crm"
-//     (ex. équipe externe Benjamin Delacour) → exclus par défaut
-//
-// Paramètres :
-//   search, stage, closer_hs_id, telepro_hs_id, formation  — filtres standard
-//   no_telepro=1       — leads sans télépro assigné
-//   with_telepro=1     — leads avec télépro assigné
-//   owner_exclude      — exclure un hubspot_owner_id de contact spécifique
-//   recent_form_months — recent_conversion_date dans les N derniers mois
-//   show_external=1    — inclure les contacts de l'équipe externe (bypass exclusion)
-//   all_classes=1      — bypass le filtre classe/date
-//   page / limit
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
@@ -42,15 +25,13 @@ export async function GET(req: NextRequest) {
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
-  // ── Charger rdv_users (enrichissement + exclusions) ───────────────────────
+  // ── Charger rdv_users ─────────────────────────────────────────────────────
   const { data: users } = await db
     .from('rdv_users')
     .select('id, name, hubspot_owner_id, hubspot_user_id, role, avatar_color, exclude_from_crm')
 
   const userByOwnerId: Record<string, { id: string; name: string; role: string; avatar_color: string }> = {}
   const userByUserId:  Record<string, { id: string; name: string; role: string; avatar_color: string }> = {}
-
-  // IDs des utilisateurs exclus du CRM (équipe externe)
   const excludedOwnerIds: string[] = []
   const excludedUserIds:  string[] = []
 
@@ -63,7 +44,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Requête Supabase avec filtres SQL ─────────────────────────────────────
+  // ── Requête Supabase — filtres SQL simples uniquement ─────────────────────
+  // Le filtre classe/date est fait en JS (plus fiable que PostgREST .or()
+  // avec timestamps ISO et caractères accentués).
+  // On remonte jusqu'à 5000 lignes pour couvrir le pipeline complet.
   let query = db
     .from('crm_contacts')
     .select(`
@@ -77,91 +61,87 @@ export async function GET(req: NextRequest) {
       )
     `)
     .order('recent_conversion_date', { ascending: false, nullsFirst: false })
-    .limit(2000)
+    .limit(5000)
 
-  // Recherche textuelle
+  // Recherche textuelle (SQL — pas de chars spéciaux dans les valeurs user)
   if (search) {
     query = query.or(
       `firstname.ilike.%${search}%,lastname.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
     )
   }
 
-  // ── Filtre classe / date (par défaut actif) ───────────────────────────────
-  // Seconde / Première / Terminale → toujours inclus
-  // Autres classes → seulement depuis sept. 2025
-  if (!allClasses) {
-    query = query.or(
-      [
-        ...PRIORITY_CLASSES.map(c => `classe_actuelle.eq.${c}`),
-        `recent_conversion_date.gte.${OTHER_CLASSES_SINCE}`,
-      ].join(',')
-    )
-  }
-
-  // Exclure un propriétaire de contact spécifique (filtre manuel Pascal)
-  if (ownerExclude) {
-    query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${ownerExclude}`)
-  }
-
-  // ── Exclusion équipe externe (ex. Benjamin Delacour) ─────────────────────
-  // Exclure les contacts dont le propriétaire fait partie de l'équipe externe
+  // Exclusion équipe externe — filtre SQL (NOT IN sur hubspot_owner_id)
   if (!showExternal && excludedOwnerIds.length > 0) {
-    // NOT IN : exclure les contacts avec ces owner_ids (NULL inclus = pas de propriétaire)
     query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
   }
 
-  // Formulaires récents (filtre optionnel via preset "Formulaires récents")
-  if (recentFormMonths > 0) {
-    const since = new Date()
-    since.setMonth(since.getMonth() - recentFormMonths)
-    query = query.gte('recent_conversion_date', since.toISOString())
+  // Exclure un propriétaire manuellement sélectionné par Pascal
+  if (ownerExclude) {
+    query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${ownerExclude}`)
   }
 
   const { data: contacts, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // ── Filtrage JS (deal-related + exclusion télépro externe) ───────────────
+  // ── Filtrage JS ───────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rows = (contacts ?? []) as any[]
+
+  // ── Filtre classe / date (JS — évite les problèmes PostgREST) ─────────────
+  if (!allClasses) {
+    rows = rows.filter(c => {
+      // Terminale / Première / Seconde → toujours affichés
+      if (PRIORITY_CLASSES.includes(c.classe_actuelle ?? '')) return true
+      // Autres classes → seulement depuis sept. 2025
+      if (c.recent_conversion_date) {
+        const convDate = new Date(c.recent_conversion_date)
+        if (!isNaN(convDate.getTime()) && convDate >= OTHER_CLASSES_SINCE) return true
+      }
+      return false
+    })
+  }
+
+  // Formulaires récents
+  if (recentFormMonths > 0) {
+    const since = new Date()
+    since.setMonth(since.getMonth() - recentFormMonths)
+    rows = rows.filter(c => {
+      if (!c.recent_conversion_date) return false
+      return new Date(c.recent_conversion_date) >= since
+    })
+  }
 
   rows = rows.filter(c => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deal = (c.crm_deals as any[])?.[0]
 
-    // Exclure si le télépro du deal appartient à l'équipe externe
-    if (!showExternal && deal?.teleprospecteur && excludedUserIds.includes(deal.teleprospecteur)) {
-      return false
-    }
+    // Exclusion télépro équipe externe
+    if (!showExternal && deal?.teleprospecteur && excludedUserIds.includes(deal.teleprospecteur)) return false
 
-    // Filtre "sans télépro" (vue "À attribuer")
-    if (noTelepro && deal?.teleprospecteur) return false
-
-    // Filtre "avec télépro"
+    if (noTelepro   && deal?.teleprospecteur)  return false
     if (withTelepro && !deal?.teleprospecteur) return false
-
-    // Filtres deal standards
-    if (stage      && (!deal || deal.dealstage         !== stage))     return false
-    if (closerHsId && (!deal || deal.hubspot_owner_id  !== closerHsId)) return false
+    if (stage       && (!deal || deal.dealstage        !== stage))      return false
+    if (closerHsId  && (!deal || deal.hubspot_owner_id !== closerHsId)) return false
     if (teleproHsId && (!deal || deal.teleprospecteur  !== teleproHsId)) return false
-    if (formation  && (!deal || deal.formation         !== formation))  return false
+    if (formation   && (!deal || deal.formation        !== formation))   return false
 
     return true
   })
 
-  // ── Total filtré + pagination JS ──────────────────────────────────────────
+  // ── Total + pagination JS ─────────────────────────────────────────────────
   const totalFiltered = rows.length
   const offset = page * limit
   const paginatedRows = rows.slice(offset, offset + limit)
 
-  // ── Enrichissement avec noms closers/télépros ─────────────────────────────
+  // ── Enrichissement ────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const enriched = paginatedRows.map((c: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const deal = (c.crm_deals as any[])?.[0] ?? null
-    const closer       = deal?.hubspot_owner_id  ? userByOwnerId[deal.hubspot_owner_id]  ?? null : null
-    const telepro      = deal?.teleprospecteur   ? userByUserId[deal.teleprospecteur]    ?? null : null
-    const contactOwner = c.hubspot_owner_id      ? userByOwnerId[c.hubspot_owner_id]     ?? null : null
+    const deal         = (c.crm_deals as any[])?.[0] ?? null
+    const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
+    const telepro      = deal?.teleprospecteur  ? userByUserId[deal.teleprospecteur]   ?? null : null
+    const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]    ?? null : null
 
     return {
       hubspot_contact_id:      c.hubspot_contact_id,
@@ -192,7 +172,7 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({
-    data: enriched,
+    data:  enriched,
     total: totalFiltered,
     page,
     limit,
