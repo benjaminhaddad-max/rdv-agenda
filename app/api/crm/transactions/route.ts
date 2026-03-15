@@ -117,6 +117,12 @@ export async function GET(req: NextRequest) {
     if (d.formation) formationStats[d.formation] = (formationStats[d.formation] ?? 0) + 1
   }
 
+  // ── Normalisation formations ──────────────────────────────────────────────
+  const FORMATION_NORMALIZE: Record<string, string> = {
+    'PAS': 'PASS',
+    'APES0': 'PAES FR/EU',
+  }
+
   // ── Enrichir un deal ──────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function enrichDeal(d: any) {
@@ -127,7 +133,7 @@ export async function GET(req: NextRequest) {
       hubspot_deal_id: d.hubspot_deal_id,
       dealname:        d.dealname,
       dealstage:       d.dealstage,
-      formation:       d.formation,
+      formation:       FORMATION_NORMALIZE[d.formation] ?? d.formation,
       closedate:       d.closedate,
       createdate:      d.createdate,
       description:     d.description,
