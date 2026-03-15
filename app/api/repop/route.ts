@@ -122,7 +122,9 @@ export async function GET(req: NextRequest) {
     const referenceMs = new Date(referenceDate).getTime()
     if (isNaN(referenceMs)) return false
 
-    return repopMs > referenceMs
+    // Au moins 7 jours d'intervalle pour que le repop soit pertinent
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+    return repopMs > referenceMs + SEVEN_DAYS_MS
   })
 
   if (repopDeals.length === 0) return NextResponse.json([])
