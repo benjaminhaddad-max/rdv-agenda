@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
   const allClasses       = searchParams.get('all_classes') === '1'
   const leadStatus       = searchParams.get('lead_status') ?? ''
   const source           = searchParams.get('source') ?? ''
+  const zone             = searchParams.get('zone') ?? ''
+  const departement      = searchParams.get('departement') ?? ''
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -182,6 +184,16 @@ export async function GET(req: NextRequest) {
   // Origine (analytics source)
   if (source) {
     query = query.eq('origine', source)
+  }
+
+  // Zone / Localité
+  if (zone) {
+    query = query.ilike('zone_localite', `%${zone}%`)
+  }
+
+  // Département
+  if (departement) {
+    query = query.ilike('departement', `%${departement}%`)
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase

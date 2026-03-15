@@ -60,7 +60,7 @@ const PERIOD_OPTIONS = [
 
 // ── Advanced filter system ───────────────────────────────────────────────────
 
-type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search'
+type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
 type CRMFilterOp = 'is' | 'is_not' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
 
 interface CRMFilterRule {
@@ -83,6 +83,8 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
   { key: 'telepro',     label: 'Télépro',       type: 'select' },
   { key: 'lead_status', label: 'Statut lead',   type: 'select' },
   { key: 'source',      label: 'Origine',       type: 'select' },
+  { key: 'zone',        label: 'Zone / Localité', type: 'text' },
+  { key: 'departement', label: 'Département',   type: 'text' },
   { key: 'period',      label: 'Période',       type: 'select' },
   { key: 'search',      label: 'Recherche',     type: 'text' },
 ]
@@ -319,6 +321,8 @@ export default function CRMPage() {
   const [recentFormMonths, setRecentFormMonths] = useState(0)
   const [leadStatus, setLeadStatus]   = useState('')
   const [source, setSource]           = useState('')
+  const [zoneFilter, setZoneFilter]   = useState('')
+  const [deptFilter, setDeptFilter]   = useState('')
 
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
@@ -404,6 +408,8 @@ export default function CRMPage() {
       if (allClasses)           params.set('all_classes', '1')
       if (leadStatus)           params.set('lead_status', leadStatus)
       if (source)               params.set('source', source)
+      if (zoneFilter)           params.set('zone', zoneFilter)
+      if (deptFilter)           params.set('departement', deptFilter)
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
@@ -415,7 +421,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -430,6 +436,7 @@ export default function CRMPage() {
     // Reset all
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource('')
+    setZoneFilter(''); setDeptFilter('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
 
@@ -437,17 +444,22 @@ export default function CRMPage() {
     const firstGroup = groups[0]
     if (firstGroup) {
       for (const rule of firstGroup.rules) {
-        if (rule.operator !== 'is' || !rule.value) continue
-        switch (rule.field) {
-          case 'stage':       setStage(rule.value); break
-          case 'formation':   setFormation(rule.value); break
-          case 'classe':      setClasse(rule.value); break
-          case 'closer':      setCloserHsId(rule.value); break
-          case 'telepro':     setTeleproHsId(rule.value); break
-          case 'lead_status': setLeadStatus(rule.value); break
-          case 'source':      setSource(rule.value); break
-          case 'period':      setPeriod(rule.value); break
-          case 'search':      setSearch(rule.value); break
+        if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
+        const val = rule.value
+        if (rule.operator === 'is' || rule.operator === 'contains') {
+          switch (rule.field) {
+            case 'stage':       setStage(val); break
+            case 'formation':   setFormation(val); break
+            case 'classe':      setClasse(val); break
+            case 'closer':      setCloserHsId(val); break
+            case 'telepro':     setTeleproHsId(val); break
+            case 'lead_status': setLeadStatus(val); break
+            case 'source':      setSource(val); break
+            case 'period':      setPeriod(val); break
+            case 'search':      setSearch(val); break
+            case 'zone':        setZoneFilter(val); break
+            case 'departement': setDeptFilter(val); break
+          }
         }
       }
     }
@@ -661,7 +673,7 @@ export default function CRMPage() {
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || leadStatus || source
+  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || leadStatus || source || zoneFilter || deptFilter
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
 
   // Check if current filters changed from active view
@@ -674,7 +686,7 @@ export default function CRMPage() {
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
-    setLeadStatus(''); setSource('')
+    setLeadStatus(''); setSource(''); setZoneFilter(''); setDeptFilter('')
     setFilterGroups([])
     setActiveViewId('all')
   }
