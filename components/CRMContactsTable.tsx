@@ -899,7 +899,21 @@ export default function CRMContactsTable({
   }, [someChecked])
 
   // ── Drag-and-drop colonnes ────────────────────────────────────────────────
-  const [colOrder,    setColOrder]    = useState<ColKey[]>(DEFAULT_COL_ORDER)
+  const [colOrder, setColOrder] = useState<ColKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_COL_ORDER
+    try {
+      const saved = localStorage.getItem('crm-col-order')
+      if (saved) {
+        const parsed: ColKey[] = JSON.parse(saved)
+        // Fusionner avec DEFAULT_COL_ORDER pour inclure les nouvelles colonnes
+        const known = new Set(DEFAULT_COL_ORDER)
+        const valid = parsed.filter(k => known.has(k))
+        const missing = DEFAULT_COL_ORDER.filter(k => !valid.includes(k))
+        return [...valid, ...missing]
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_COL_ORDER
+  })
   const [dragIdx,     setDragIdx]     = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
@@ -1025,6 +1039,7 @@ export default function CRMContactsTable({
       const toReal   = next.indexOf(toKey)
       next.splice(fromReal, 1)
       next.splice(toReal, 0, fromKey)
+      localStorage.setItem('crm-col-order', JSON.stringify(next))
       return next
     })
     resetDrag()
