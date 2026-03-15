@@ -766,18 +766,20 @@ export default function CRMPage() {
   const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
   const [pipelinesData,   setPipelinesData]   = useState<PipelineData[]>([])
 
-  // Toutes les options de stages : pipeline actuel (labels courts) + anciens pipelines (préfixés par l'année)
+  // Toutes les options de stages : pipeline actuel + anciens pipelines (préfixés par l'année)
+  // Pour les anciens pipelines, on n'affiche que les stages >= preinscription (hors fermé/perdu)
   const allStageOptions = useMemo<SelectOption[]>(() => {
-    const current = STAGE_OPTIONS.filter(o => o.id) // stages actuels sans l'option vide
+    const current = STAGE_OPTIONS.filter(o => o.id)
     const currentIds = new Set(current.map(o => o.id))
     const extra: SelectOption[] = []
     for (const p of pipelinesData) {
       if (p.id === CURRENT_PIPELINE_ID) continue
-      // Extraire l'année depuis le label ex: "Diploma Santé 2024-2025" → "2024-25"
       const yearMatch = p.label.match(/(\d{4})[^\d]*(\d{2,4})/)
       const yearTag = yearMatch ? `${yearMatch[1]}-${String(yearMatch[2]).slice(-2)}` : p.label
+      const preinscStage = p.stages.find(s => /pr[eé]inscription/i.test(s.label))
+      const minOrder = preinscStage?.displayOrder ?? Infinity
       for (const s of p.stages) {
-        if (!currentIds.has(s.id)) {
+        if (!currentIds.has(s.id) && s.displayOrder >= minOrder && !/perdu|lost|ferm[eé]/i.test(s.label)) {
           extra.push({ id: s.id, label: `[${yearTag}] ${s.label}` })
         }
       }
@@ -1095,12 +1097,17 @@ export default function CRMPage() {
   // ── Filter group CRUD ──────────────────────────────────────────────────────
 
   function applyPriorPreinscriptionFilter() {
-    // Collecter les stage IDs "preinscription ou +" des pipelines précédents
+    // Pour chaque ancien pipeline, trouver la preinscription par son label
+    // puis inclure TOUTES les étapes à partir de ce displayOrder (sauf "Fermé/Perdu")
     const prevStageIds: string[] = []
     for (const p of pipelinesData) {
       if (p.id === CURRENT_PIPELINE_ID) continue
+      const preinscStage = p.stages.find(s => /pr[eé]inscription/i.test(s.label))
+      const minOrder = preinscStage?.displayOrder ?? Infinity
       for (const s of p.stages) {
-        if (/inscription/i.test(s.label)) prevStageIds.push(s.id)
+        if (s.displayOrder >= minOrder && !/perdu|lost|ferm[eé]/i.test(s.label)) {
+          prevStageIds.push(s.id)
+        }
       }
     }
     const t = Date.now()
