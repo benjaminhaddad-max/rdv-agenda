@@ -36,6 +36,10 @@ export async function GET(req: NextRequest) {
   const pipeline         = searchParams.get('pipeline') ?? ''
   const pipelineNot      = searchParams.get('pipeline_not') ?? ''
 
+  // Empty / not-empty filters (comma-separated field names)
+  const emptyFields      = (searchParams.get('empty_fields') ?? '').split(',').filter(Boolean)
+  const notEmptyFields   = (searchParams.get('not_empty_fields') ?? '').split(',').filter(Boolean)
+
   const isExport         = searchParams.get('export') === '1'
   const countOnly        = searchParams.get('limit') === '0'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
@@ -182,6 +186,57 @@ export async function GET(req: NextRequest) {
     ]
   }
 
+  // D) Empty / not-empty filters on deal-level fields
+  // Deal fields: stage, closer, telepro, formation
+  // "is_empty" for stage → contacts that have NO deal OR deal.dealstage is null
+  // "is_not_empty" for stage → contacts that HAVE a deal with dealstage not null
+  const DEAL_FIELD_MAP: Record<string, string> = {
+    stage: 'dealstage', closer: 'hubspot_owner_id', telepro: 'teleprospecteur', formation: 'formation',
+  }
+
+  let emptyDealInclude: string[] | null = null   // contacts to INCLUDE (for is_not_empty on deal fields)
+  let emptyDealExclude: string[] = []             // contacts to EXCLUDE (for is_empty on deal fields)
+
+  const emptyDealFields = emptyFields.filter(f => f in DEAL_FIELD_MAP)
+  const notEmptyDealFields = notEmptyFields.filter(f => f in DEAL_FIELD_MAP)
+
+  // is_empty on deal fields → contacts that have a deal with non-null field value should be EXCLUDED
+  // (contacts without any deal naturally pass the filter since they have no value)
+  if (emptyDealFields.length > 0) {
+    // Find all contacts that have a deal with a non-null value for these fields
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = db.from('crm_deals').select('hubspot_contact_id')
+    // OR: any of the fields is not null → exclude those contacts
+    // We need contacts where ALL these fields are null on their deal
+    // So we exclude contacts that have ANY of these fields non-null
+    for (const f of emptyDealFields) {
+      q = q.not(DEAL_FIELD_MAP[f], 'is', null)
+    }
+    const { data: rows } = await q.limit(10000)
+    emptyDealExclude = [
+      ...new Set(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (rows ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
+      ),
+    ]
+  }
+
+  // is_not_empty on deal fields → contacts must have a deal with non-null value
+  if (notEmptyDealFields.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = db.from('crm_deals').select('hubspot_contact_id')
+    for (const f of notEmptyDealFields) {
+      q = q.not(DEAL_FIELD_MAP[f], 'is', null)
+    }
+    const { data: rows } = await q.limit(10000)
+    emptyDealInclude = [
+      ...new Set(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (rows ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
+      ),
+    ]
+  }
+
   // ── Étape 2 : Requête contacts avec COUNT exact + pagination SQL ───────────
   // count: 'exact' + .range() = pagination serveur indépendante de max_rows Supabase
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,6 +278,35 @@ export async function GET(req: NextRequest) {
   // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN
   if (excludeByDealFilter.length > 0) {
     query = query.not('hubspot_contact_id', 'in', `(${excludeByDealFilter.slice(0, 5000).join(',')})`)
+  }
+
+  // Empty deal fields → EXCLUDE contacts with non-null deal field
+  if (emptyDealExclude.length > 0) {
+    query = query.not('hubspot_contact_id', 'in', `(${emptyDealExclude.slice(0, 5000).join(',')})`)
+  }
+
+  // Not-empty deal fields → INCLUDE only contacts with non-null deal field
+  if (emptyDealInclude !== null) {
+    if (emptyDealInclude.length === 0) {
+      return NextResponse.json({ data: [], total: 0, page, limit })
+    }
+    query = query.in('hubspot_contact_id', emptyDealInclude.slice(0, 5000))
+  }
+
+  // Empty / not-empty on contact-level fields
+  const CONTACT_FIELD_MAP: Record<string, string> = {
+    lead_status: 'hs_lead_status', source: 'origine', zone: 'zone_localite',
+    departement: 'departement', search: 'email',
+  }
+  for (const f of emptyFields) {
+    if (f in CONTACT_FIELD_MAP) {
+      query = query.is(CONTACT_FIELD_MAP[f], null)
+    }
+  }
+  for (const f of notEmptyFields) {
+    if (f in CONTACT_FIELD_MAP) {
+      query = query.not(CONTACT_FIELD_MAP[f], 'is', null)
+    }
   }
 
   // Filtre classe SQL

@@ -765,6 +765,10 @@ export default function CRMPage() {
   const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
   const [pipelinesData,   setPipelinesData]   = useState<PipelineData[]>([])
 
+  // Empty / not-empty filters (is_empty / is_not_empty)
+  const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
+  const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
+
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
   const [allClasses, setAllClasses]     = useState(true)
@@ -933,6 +937,10 @@ export default function CRMPage() {
       if (pipeline)             params.set('pipeline', pipeline)
       if (pipelineNot)          params.set('pipeline_not', pipelineNot)
 
+      // Empty / not-empty filters
+      if (emptyFields)            params.set('empty_fields', emptyFields)
+      if (notEmptyFields)         params.set('not_empty_fields', notEmptyFields)
+
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
@@ -943,7 +951,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, emptyFields, notEmptyFields, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -966,6 +974,8 @@ export default function CRMPage() {
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
     setCloserNot(''); setTeleproNot(''); setFormationNot('')
     setPipeline(''); setPipelineNot('')
+    // Reset empty/not-empty filters
+    setEmptyFields(''); setNotEmptyFields('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
 
@@ -1005,6 +1015,13 @@ export default function CRMPage() {
             case 'departement': setDeptNot(val); break
             case 'pipeline':    setPipelineNot(val); break
           }
+        }
+        // Empty / not-empty filters
+        if (rule.operator === 'is_empty') {
+          setEmptyFields(prev => prev ? `${prev},${rule.field}` : rule.field)
+        }
+        if (rule.operator === 'is_not_empty') {
+          setNotEmptyFields(prev => prev ? `${prev},${rule.field}` : rule.field)
         }
       }
     }
@@ -2204,6 +2221,8 @@ export default function CRMPage() {
             if (closerNot)            p.set('closer_not', closerNot)
             if (teleproNot)           p.set('telepro_not', teleproNot)
             if (formationNot)         p.set('formation_not', formationNot)
+            if (emptyFields)          p.set('empty_fields', emptyFields)
+            if (notEmptyFields)       p.set('not_empty_fields', notEmptyFields)
             return p
           }}
           exporting={exporting}
@@ -2233,6 +2252,8 @@ export default function CRMPage() {
               if (closerNot)            params.set('closer_not', closerNot)
               if (teleproNot)           params.set('telepro_not', teleproNot)
               if (formationNot)         params.set('formation_not', formationNot)
+              if (emptyFields)          params.set('empty_fields', emptyFields)
+              if (notEmptyFields)       params.set('not_empty_fields', notEmptyFields)
 
               const res = await fetch(`/api/crm/contacts?${params.toString()}`)
               if (!res.ok) throw new Error('Export failed')
