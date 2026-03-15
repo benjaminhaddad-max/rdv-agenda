@@ -9,13 +9,15 @@ import {
   Zap, MessageSquare, Search, ExternalLink,
 } from 'lucide-react'
 
-type Props = { onClose: () => void }
+type Props = { onClose: () => void; role?: 'admin' | 'closer' | 'telepro' }
 
 type Section = {
   id: string
   icon: React.ReactNode
   title: string
   color: string
+  /** Roles qui peuvent voir cette section. Absent = tout le monde */
+  roles?: ('admin' | 'closer' | 'telepro')[]
   items: { emoji: string; title: string; desc: string }[]
 }
 
@@ -25,6 +27,7 @@ const SECTIONS: Section[] = [
     icon: <CalendarPlus size={18} />,
     title: 'Parcours Prospect — Prise de RDV',
     color: '#22c55e',
+    roles: ['admin', 'closer', 'telepro'],
     items: [
       {
         emoji: '1\uFE0F\u20E3',
@@ -63,6 +66,7 @@ const SECTIONS: Section[] = [
     icon: <Briefcase size={18} />,
     title: 'Dashboard Closer',
     color: '#6b87ff',
+    roles: ['admin', 'closer'],
     items: [
       {
         emoji: '\uD83D\uDCC5',
@@ -101,6 +105,7 @@ const SECTIONS: Section[] = [
     icon: <Phone size={18} />,
     title: 'Dashboard Télépro',
     color: '#a855f7',
+    roles: ['admin', 'telepro'],
     items: [
       {
         emoji: '\uD83D\uDCC5',
@@ -129,6 +134,7 @@ const SECTIONS: Section[] = [
     icon: <Shield size={18} />,
     title: 'Dashboard Admin (Pascal)',
     color: '#ccac71',
+    roles: ['admin'],
     items: [
       {
         emoji: '\uD83D\uDCE5',
@@ -182,6 +188,7 @@ const SECTIONS: Section[] = [
     icon: <ExternalLink size={18} />,
     title: 'Intégrations HubSpot',
     color: '#f97316',
+    roles: ['admin'],
     items: [
       {
         emoji: '\uD83D\uDCCB',
@@ -208,8 +215,9 @@ const SECTIONS: Section[] = [
   {
     id: 'sms',
     icon: <MessageSquare size={18} />,
-    title: 'Automatisations SMS (CRON)',
+    title: 'Automatisations SMS',
     color: '#06b6d4',
+    roles: ['admin', 'closer', 'telepro'],
     items: [
       {
         emoji: '\u23F0',
@@ -243,6 +251,7 @@ const SECTIONS: Section[] = [
     icon: <Video size={18} />,
     title: 'Types de Meeting',
     color: '#ec4899',
+    roles: ['admin', 'closer', 'telepro'],
     items: [
       {
         emoji: '\uD83C\uDFA5',
@@ -266,6 +275,7 @@ const SECTIONS: Section[] = [
     icon: <BarChart3 size={18} />,
     title: 'Cycle de vie d\'un RDV',
     color: '#eab308',
+    roles: ['admin', 'closer', 'telepro'],
     items: [
       { emoji: '\u26AA', title: 'Non assigné', desc: 'Le RDV est créé mais aucun closer n\'est assigné. Visible dans la file d\'attente admin.' },
       { emoji: '\uD83D\uDD35', title: 'Confirmé (assigné)', desc: 'Un closer est assigné. En attente de confirmation prospect.' },
@@ -280,8 +290,15 @@ const SECTIONS: Section[] = [
   },
 ]
 
-export default function PlatformGuide({ onClose }: Props) {
-  const [openSection, setOpenSection] = useState<string | null>('booking')
+const ROLE_TITLES: Record<string, string> = {
+  admin: 'Guide de la Plateforme',
+  closer: 'Guide Closer',
+  telepro: 'Guide Télépro',
+}
+
+export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
+  const filteredSections = SECTIONS.filter(s => !s.roles || s.roles.includes(role))
+  const [openSection, setOpenSection] = useState<string | null>(filteredSections[0]?.id ?? null)
 
   return (
     <div
@@ -328,7 +345,7 @@ export default function PlatformGuide({ onClose }: Props) {
             </div>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0', margin: 0 }}>
-                Guide de la Plateforme
+                {ROLE_TITLES[role] || 'Guide de la Plateforme'}
               </h2>
               <p style={{ fontSize: 13, color: '#555870', margin: 0 }}>
                 RDV Agenda — Diploma Sante
@@ -336,32 +353,34 @@ export default function PlatformGuide({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Stats banner */}
-          <div style={{
-            display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap',
-          }}>
-            {[
-              { label: 'Roles', value: '4', detail: 'Prospect, Telepro, Closer, Admin' },
-              { label: 'Integrations', value: '3', detail: 'HubSpot, Jitsi, SMS' },
-              { label: 'Automatisations', value: '5', detail: 'CRON SMS + Auto no-show' },
-              { label: 'Statuts RDV', value: '9', detail: 'De non-assigne a positif' },
-            ].map(s => (
-              <div key={s.label} style={{
-                flex: '1 1 180px',
-                background: '#1d2f4b', border: '1px solid #2d4a6b',
-                borderRadius: 12, padding: '12px 16px',
-              }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#ccac71' }}>{s.value}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#e8eaf0' }}>{s.label}</div>
-                <div style={{ fontSize: 11, color: '#555870', marginTop: 2 }}>{s.detail}</div>
-              </div>
-            ))}
-          </div>
+          {/* Stats banner — admin only */}
+          {role === 'admin' && (
+            <div style={{
+              display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap',
+            }}>
+              {[
+                { label: 'Roles', value: '4', detail: 'Prospect, Telepro, Closer, Admin' },
+                { label: 'Integrations', value: '3', detail: 'HubSpot, Jitsi, SMS' },
+                { label: 'Automatisations', value: '5', detail: 'CRON SMS + Auto no-show' },
+                { label: 'Statuts RDV', value: '9', detail: 'De non-assigne a positif' },
+              ].map(s => (
+                <div key={s.label} style={{
+                  flex: '1 1 180px',
+                  background: '#1d2f4b', border: '1px solid #2d4a6b',
+                  borderRadius: 12, padding: '12px 16px',
+                }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#ccac71' }}>{s.value}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#e8eaf0' }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: '#555870', marginTop: 2 }}>{s.detail}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Accordion sections */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {SECTIONS.map(section => {
+          {filteredSections.map(section => {
             const isOpen = openSection === section.id
             return (
               <div key={section.id} style={{

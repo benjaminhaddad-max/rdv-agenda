@@ -14,6 +14,7 @@ import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
+import PlatformGuide from '@/components/PlatformGuide'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -155,6 +156,7 @@ function generateJitsiLink() {
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
   const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop'>('planning')
+  const [showGuide, setShowGuide] = useState(false)
 
   // ── Historique ──
   const [histRdvs, setHistRdvs] = useState<HistRdv[]>([])
@@ -636,8 +638,23 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           ))}
         </div>
 
-        <LogoutButton />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setShowGuide(true)}
+            style={{
+              background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
+              borderRadius: 8, padding: '6px 12px', color: '#6b87ff',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            📖 Guide
+          </button>
+          <LogoutButton />
+        </div>
       </div>
+
+      {showGuide && <PlatformGuide role="closer" onClose={() => setShowGuide(false)} />}
 
       {/* ── Tab: Mon planning ──────────────────────────────────────────── */}
       {activeTab === 'planning' && (

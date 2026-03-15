@@ -13,6 +13,7 @@ import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
+import PlatformGuide from '@/components/PlatformGuide'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -440,6 +441,7 @@ export default function TeleproClient({
 }) {
   const isAdmin = teleproUser.role === 'admin'
   const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop'>('rdvs')
+  const [showGuide, setShowGuide] = useState(false)
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
@@ -1059,6 +1061,17 @@ export default function TeleproClient({
               }}>
                 🔁 Repop
               </button>
+              <button
+                onClick={() => setShowGuide(true)}
+                style={{
+                  background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
+                  borderRadius: 8, padding: '6px 12px', color: '#a855f7',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                📖 Guide
+              </button>
             </>
           )}
           {isAdmin && !previewMode && (
@@ -1069,6 +1082,8 @@ export default function TeleproClient({
           {!previewMode && <LogoutButton />}
         </div>
       </div>
+
+      {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
 
       {/* ── Modal fiche RDV ─────────────────────────────────────────────── */}
       {selectedRdv && (
