@@ -392,6 +392,140 @@ function FilterSelect({
   )
 }
 
+function FilterMultiSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string           // comma-separated IDs
+  onChange: (v: string) => void
+  options: SelectOption[] // first option = "all" (id='')
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = value ? value.split(',').filter(Boolean) : []
+  const isActive = selected.length > 0
+  const allLabel = options[0]?.label ?? placeholder ?? 'Tous'
+  const selectableOptions = options.filter(o => o.id !== '')
+
+  useEffect(() => {
+    if (!open) return
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]
+    onChange(next.join(','))
+  }
+
+  const displayLabel = isActive
+    ? selected.length === 1
+      ? (selectableOptions.find(o => o.id === selected[0])?.label ?? selected[0])
+      : `${selected.length} sélectionnés`
+    : allLabel
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(13,30,52,0.8)',
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
+          borderRadius: 8,
+          padding: '7px 11px',
+          color: isActive ? '#ccac71' : '#8b8fa8',
+          fontSize: 12,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontFamily: 'inherit',
+          fontWeight: isActive ? 600 : 400,
+          whiteSpace: 'nowrap',
+          minWidth: 120,
+          transition: 'all 0.15s',
+        }}
+      >
+        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>
+          {displayLabel}
+        </span>
+        <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: 4,
+          background: '#0d1e34',
+          border: '1px solid #2d4a6b',
+          borderRadius: 10,
+          zIndex: 200,
+          minWidth: '100%',
+          maxHeight: 280,
+          overflowY: 'auto',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          padding: '4px 0',
+        }}>
+          {/* "All" option — clears selection */}
+          <button
+            onClick={() => { onChange(''); setOpen(false) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%',
+              background: !isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
+              border: 'none',
+              padding: '8px 14px',
+              color: !isActive ? '#ccac71' : '#c8cad8',
+              fontSize: 12,
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: 'inherit',
+              fontWeight: !isActive ? 700 : 400,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {allLabel}
+          </button>
+          <div style={{ height: 1, background: '#1a2f45', margin: '2px 8px' }} />
+          {selectableOptions.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => toggle(opt.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '7px 14px', cursor: 'pointer', fontSize: 12, color: '#c8cad8',
+                background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
+                fontWeight: selected.includes(opt.id) ? 600 : 400,
+                border: 'none', textAlign: 'left', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+              onMouseLeave={e => (e.currentTarget.style.background = selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
+            >
+              <span style={{
+                width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
+                background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {selected.includes(opt.id) && <Check size={9} color="#0d1a28" strokeWidth={3} />}
+              </span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function CRMPage() {
@@ -1322,15 +1456,15 @@ export default function CRMPage() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <FilterSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
+          <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
           <FilterSelect value={formation} onChange={setFormation} options={FORMATION_OPTIONS} />
           <FilterSelect value={classe} onChange={setClasse} options={CLASSE_OPTIONS} />
-          <FilterSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
-          <FilterSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
+          <FilterMultiSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
+          <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
           <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
-          <FilterSelect value={leadStatus} onChange={v => { setLeadStatus(v); scheduleRefetch() }} options={leadStatusOptions} />
-          <FilterSelect value={source} onChange={v => { setSource(v); scheduleRefetch() }} options={sourceOptions} />
+          <FilterMultiSelect value={leadStatus} onChange={v => { setLeadStatus(v); scheduleRefetch() }} options={leadStatusOptions} />
+          <FilterMultiSelect value={source} onChange={v => { setSource(v); scheduleRefetch() }} options={sourceOptions} />
           {ownerExcludeOptions.length > 1 && (
             <>
               <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
@@ -1343,15 +1477,15 @@ export default function CRMPage() {
             <span style={{ fontSize: 11, color: '#3a5070' }}>Filtres :</span>
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
             {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
-            {stage && <FilterPill label={STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
+            {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
             {formation && <FilterPill label={formation} onRemove={() => setFormation('')} />}
             {classe && <FilterPill label={classe} onRemove={() => setClasse('')} />}
-            {closerHsId && <FilterPill label={closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
-            {teleproHsId && <FilterPill label={teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
+            {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
+            {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
             {ownerExclude && <FilterPill label={`Excl. ${ownerExcludeOptions.find(o => o.id === ownerExclude)?.label ?? 'propriétaire'}`} onRemove={() => { setOwnerExclude(''); scheduleRefetch() }} />}
             {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
-            {leadStatus && <FilterPill label={leadStatusOptions.find(o => o.id === leadStatus)?.label ?? leadStatus} onRemove={() => { setLeadStatus(''); scheduleRefetch() }} />}
-            {source && <FilterPill label={sourceOptions.find(o => o.id === source)?.label ?? source} onRemove={() => { setSource(''); scheduleRefetch() }} />}
+            {leadStatus && <FilterPill label={leadStatus.includes(',') ? `${leadStatus.split(',').length} statuts` : leadStatusOptions.find(o => o.id === leadStatus)?.label ?? leadStatus} onRemove={() => { setLeadStatus(''); scheduleRefetch() }} />}
+            {source && <FilterPill label={source.includes(',') ? `${source.split(',').length} origines` : sourceOptions.find(o => o.id === source)?.label ?? source} onRemove={() => { setSource(''); scheduleRefetch() }} />}
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
         )}
