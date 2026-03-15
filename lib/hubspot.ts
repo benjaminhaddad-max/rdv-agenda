@@ -39,7 +39,7 @@ export const STAGES = {
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
 export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
-const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,diploma_sante___formation_demandee,hubspot_owner_id,recent_conversion_date,recent_conversion_event_name,zone___localite'
+const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,recent_conversion_date,recent_conversion_event_name,zone___localite'
 
 export interface HubSpotContact {
   id: string
@@ -683,21 +683,17 @@ export async function getAllDealsForSync(after?: string): Promise<{
 }
 
 // ─── Sync CRM : contacts par classe (Terminale / Première / Seconde) ──────
-// Utilise l'API Search avec filtre IN sur classe_actuelle.
-// Pagine jusqu'à `maxPages` × 100 contacts (defaut 500 = 50 000 contacts max).
+// 3 filterGroups avec EQ (= OR entre groupes) — IN non supporté sur champs texte
 export async function getContactsByPriorityClass(
   after?: string,
 ): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
-  // Utilise l'opérateur IN (un seul filterGroup) — plus stable que 3 EQ séparés
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
-    filterGroups: [{
-      filters: [{
-        propertyName: 'classe_actuelle',
-        operator: 'IN',
-        values: ['Terminale', 'Premi\u00e8re', 'Seconde'],
-      }],
-    }],
+    filterGroups: [
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Terminale' }] },
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Premi\u00e8re' }] },
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Seconde' }] },
+    ],
     properties: CONTACT_PROPS.split(','),
     sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
     limit: 100,
@@ -709,8 +705,8 @@ export async function getContactsByPriorityClass(
     body: JSON.stringify(body),
   })
   return {
-    contacts: (data as { results?: HubSpotContact[]; paging?: { next?: { after?: string } } }).results ?? [],
-    nextCursor: (data as { results?: HubSpotContact[]; paging?: { next?: { after?: string } } }).paging?.next?.after,
+    contacts: data.results ?? [],
+    nextCursor: data.paging?.next?.after,
   }
 }
 

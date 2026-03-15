@@ -49,8 +49,11 @@ export async function GET(req: NextRequest) {
   let dealsUpserted    = 0
   let errorMessage: string | null = null
 
+  let currentPhase = 0
+
   try {
     // ── Phase 1 : Récupérer tous les deals du pipeline ────────────────────
+    currentPhase = 1
     const allDealRows: ReturnType<typeof buildDealRow>[] = []
     const allDealIds: string[] = []
     let dealCursor: string | undefined = undefined
@@ -67,6 +70,7 @@ export async function GET(req: NextRequest) {
     } while (dealCursor)
 
     // ── Phase 2 : Associations deals → contacts (batch v4) ───────────────
+    currentPhase = 2
     // Un seul appel par tranche de 100 deals (au lieu de N appels individuels)
     const dealToContact: Record<string, string> = {}
     const ASSOC_BATCH = 100
@@ -77,6 +81,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Phase 3 : Lier appt Supabase + upsert deals ───────────────────────
+    currentPhase = 3
     const DEAL_BATCH = 200
     for (let i = 0; i < allDealRows.length; i += DEAL_BATCH) {
       const chunk = allDealRows.slice(i, i + DEAL_BATCH)
@@ -103,6 +108,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Phase 4 : Batch-read des contacts liés aux deals ─────────────────
+    currentPhase = 4
     const uniqueContactIds = [...new Set(Object.values(dealToContact))]
     const CONTACT_BATCH = 100
     const now = new Date().toISOString()
@@ -119,6 +125,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Phase 5 : Sync incrémentale (contacts récents sans deal) ─────────
+    currentPhase = 5
     // Limité à 20 pages (2000 contacts) pour éviter le timeout
     const MAX_INCR = fullSync ? 50 : 20
     let incrCursor: string | undefined = undefined
@@ -140,6 +147,7 @@ export async function GET(req: NextRequest) {
     } while (incrCursor && incrRounds < MAX_INCR)
 
     // ── Phase 6 : Sync contacts prioritaires (Terminale / Première / Seconde) ──
+    currentPhase = 6
     // Ces ~30K contacts sont souvent sans deal → absents des phases 4 et 5.
     // On les pagine entièrement à chaque full sync, et les 200 derniers modifiés
     // lors d'un sync incrémental (2 pages × 100).
@@ -162,7 +170,8 @@ export async function GET(req: NextRequest) {
     } while (prioCursor && prioRounds < MAX_PRIO)
 
   } catch (err) {
-    errorMessage = err instanceof Error ? err.message : String(err)
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    errorMessage = `[Phase ${currentPhase}] ${rawMsg}`
     console.error('[crm-sync] Error:', errorMessage)
   }
 
