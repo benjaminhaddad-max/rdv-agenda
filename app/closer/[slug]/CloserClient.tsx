@@ -15,6 +15,7 @@ import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/Stat
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
+import ResourcesPanel from '@/components/ResourcesPanel'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [leadsLoading, setLeadsLoading] = useState(false)
   const [leadsTotal, setLeadsTotal] = useState(0)
   const [showGuide, setShowGuide] = useState(false)
+  const [showResources, setShowResources] = useState(false)
 
   // ── Historique ──
   const [histRdvs, setHistRdvs] = useState<HistRdv[]>([])
@@ -666,6 +668,17 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
+            onClick={() => setShowResources(true)}
+            style={{
+              background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
+              borderRadius: 8, padding: '6px 12px', color: '#6b87ff',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            📦 Outils
+          </button>
+          <button
             onClick={() => setShowGuide(true)}
             style={{
               background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
@@ -681,6 +694,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
       </div>
 
       {showGuide && <PlatformGuide role="closer" onClose={() => setShowGuide(false)} />}
+      {showResources && <ResourcesPanel role="closer" onClose={() => setShowResources(false)} />}
 
       {/* ── Tab: Mon planning ──────────────────────────────────────────── */}
       {activeTab === 'planning' && (

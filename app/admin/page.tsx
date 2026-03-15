@@ -17,6 +17,7 @@ import UnassignedQueue from '@/components/UnassignedQueue'
 import SiteContenusPanel from '@/components/SiteContenusPanel'
 import LogoutButton from '@/components/LogoutButton'
 import PlatformGuide from '@/components/PlatformGuide'
+import ResourcesPanel from '@/components/ResourcesPanel'
 
 export default function AdminPage() {
   const [calendarKey, setCalendarKey] = useState(0)
@@ -30,6 +31,7 @@ export default function AdminPage() {
   const [showQueue, setShowQueue]                 = useState(false)
   const [showSite, setShowSite]                   = useState(false)
   const [showGuide, setShowGuide]                 = useState(false)
+  const [showResources, setShowResources]         = useState(false)
   const [unassignedCount, setUnassignedCount]     = useState<number | null>(null)
 
   const fetchCount = useCallback(async () => {
@@ -78,6 +80,12 @@ export default function AdminPage() {
           <a href="/telepro" style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '5px 12px', color: '#ccac71', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Plus size={12} /> Nouveau RDV
           </a>
+          <button
+            onClick={() => setShowResources(true)}
+            style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 8, padding: '6px 14px', color: '#ccac71', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            📦 Boîte à outils
+          </button>
           <button
             onClick={() => setShowGuide(true)}
             style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)', borderRadius: 8, padding: '6px 14px', color: '#06b6d4', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
@@ -182,6 +190,7 @@ export default function AdminPage() {
       )}
 
       {showGuide && <PlatformGuide onClose={() => setShowGuide(false)} />}
+      {showResources && <ResourcesPanel role="admin" onClose={() => setShowResources(false)} />}
     </div>
   )
 }

@@ -14,6 +14,7 @@ import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/Stat
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
+import ResourcesPanel from '@/components/ResourcesPanel'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -444,6 +445,7 @@ export default function TeleproClient({
   const isAdmin = teleproUser.role === 'admin'
   const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
+  const [showResources, setShowResources] = useState(false)
   const [crmContacts, setCrmContacts] = useState<CRMContact[]>([])
   const [crmLoading, setCrmLoading] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -1104,6 +1106,17 @@ export default function TeleproClient({
                 🔁 Repop
               </button>
               <button
+                onClick={() => setShowResources(true)}
+                style={{
+                  background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
+                  borderRadius: 8, padding: '6px 12px', color: '#a855f7',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                📦 Outils
+              </button>
+              <button
                 onClick={() => setShowGuide(true)}
                 style={{
                   background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
@@ -1126,6 +1139,7 @@ export default function TeleproClient({
       </div>
 
       {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
+      {showResources && <ResourcesPanel role="telepro" onClose={() => setShowResources(false)} />}
 
       {/* ── Modal fiche RDV ─────────────────────────────────────────────── */}
       {selectedRdv && (
