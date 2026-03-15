@@ -34,8 +34,9 @@ export async function GET(req: NextRequest) {
   const teleproNot       = searchParams.get('telepro_not') ?? ''
   const formationNot     = searchParams.get('formation_not') ?? ''
 
+  const isExport         = searchParams.get('export') === '1'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
-  const limit            = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  const limit            = isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
   // ── Charger rdv_users ──────────────────────────────────────────────────────
   const { data: users } = await db
@@ -293,7 +294,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
-  const offset = page * limit
+  const offset = isExport ? 0 : page * limit
   const { data: contacts, count: totalCount, error } = await query
     .range(offset, offset + limit - 1)
 

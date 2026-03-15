@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
@@ -526,6 +526,129 @@ function FilterMultiSelect({
   )
 }
 
+// ── Export CSV modal ────────────────────────────────────────────────────────────
+
+const EXPORT_COLUMNS = [
+  { key: 'contact',             label: 'Contact (Prénom + Nom)' },
+  { key: 'email',               label: 'Email' },
+  { key: 'phone',               label: 'Téléphone' },
+  { key: 'formation_souhaitee', label: 'Formation souhaitée' },
+  { key: 'classe',              label: 'Classe' },
+  { key: 'zone',                label: 'Zone' },
+  { key: 'departement',         label: 'Département' },
+  { key: 'etape',               label: 'Étape' },
+  { key: 'lead_status',         label: 'Statut lead' },
+  { key: 'origine',             label: 'Origine' },
+  { key: 'closer',              label: 'Closer' },
+  { key: 'telepro',             label: 'Télépro' },
+  { key: 'createdat',           label: 'Date de création' },
+  { key: 'form_submission',     label: 'Soumission formulaire' },
+]
+
+function ExportCSVModal({ total, exporting, onClose, onExport }: {
+  total: number
+  exporting: boolean
+  onClose: () => void
+  onExport: (cols: string[]) => void
+}) {
+  const [selected, setSelected] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key))
+
+  const toggleCol = (key: string) => {
+    setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 14, width: 440, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2f45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>Exporter en CSV</div>
+            <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>{total.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflow: 'auto', padding: '16px 20px', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#c8cad8' }}>Colonnes à exporter</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setSelected(EXPORT_COLUMNS.map(c => c.key))} style={{ background: 'none', border: 'none', color: '#4cabdb', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                Tout cocher
+              </button>
+              <button onClick={() => setSelected([])} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                Tout décocher
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {EXPORT_COLUMNS.map(col => (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => toggleCol(col.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                  background: selected.includes(col.key) ? 'rgba(204,172,113,0.06)' : 'transparent',
+                  border: '1px solid', borderColor: selected.includes(col.key) ? 'rgba(204,172,113,0.2)' : 'transparent',
+                  fontFamily: 'inherit', fontSize: 13, color: '#c8cad8', textAlign: 'left',
+                }}
+              >
+                <span style={{
+                  width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                  border: selected.includes(col.key) ? '2px solid #ccac71' : '2px solid #3a5070',
+                  background: selected.includes(col.key) ? '#ccac71' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {selected.includes(col.key) && <Check size={11} color="#0d1a28" strokeWidth={3} />}
+                </span>
+                {col.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 20px', borderTop: '1px solid #1a2f45', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 8, color: '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Annuler
+          </button>
+          <button
+            onClick={() => selected.length > 0 && onExport(selected)}
+            disabled={selected.length === 0 || exporting}
+            style={{
+              flex: 1, padding: '10px',
+              background: selected.length > 0 ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+              border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#2d4a6b',
+              borderRadius: 8, color: selected.length > 0 ? '#ccac71' : '#555870',
+              fontSize: 13, fontWeight: 700, cursor: selected.length > 0 ? 'pointer' : 'default',
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              opacity: exporting ? 0.6 : 1,
+            }}
+          >
+            {exporting ? (
+              <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Export en cours…</>
+            ) : (
+              <><Download size={13} /> Exporter ({selected.length} col.)</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function CRMPage() {
@@ -550,6 +673,10 @@ export default function CRMPage() {
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+
+  // CSV export
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
@@ -1362,6 +1489,22 @@ export default function CRMPage() {
           </button>
         )}
 
+        {/* Export CSV button */}
+        <button
+          onClick={() => setExportModalOpen(true)}
+          style={{
+            padding: '7px 12px',
+            background: 'none',
+            border: '1px solid #1a2f45',
+            borderRadius: 8, color: '#4cabdb',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <Download size={12} /> Exporter CSV
+        </button>
+
         {/* Transactions link */}
         <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <a
@@ -1862,6 +2005,149 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Export CSV Modal ──────────────────────────────────────────────── */}
+      {exportModalOpen && (
+        <ExportCSVModal
+          total={total}
+          exporting={exporting}
+          onClose={() => setExportModalOpen(false)}
+          onExport={async (cols) => {
+            setExporting(true)
+            try {
+              const params = new URLSearchParams({ export: '1' })
+              if (search)               params.set('search', search)
+              if (stage)                params.set('stage', stage)
+              if (closerHsId)           params.set('closer_hs_id', closerHsId)
+              if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
+              if (noTelepro)            params.set('no_telepro', '1')
+              if (ownerExclude)         params.set('owner_exclude', ownerExclude)
+              if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+              if (showExternal)         params.set('show_external', '1')
+              if (allClasses)           params.set('all_classes', '1')
+              if (leadStatus)           params.set('lead_status', leadStatus)
+              if (source)               params.set('source', source)
+              if (zoneFilter)           params.set('zone', zoneFilter)
+              if (deptFilter)           params.set('departement', deptFilter)
+              if (stageNot)             params.set('stage_not', stageNot)
+              if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
+              if (sourceNot)            params.set('source_not', sourceNot)
+              if (zoneNot)              params.set('zone_not', zoneNot)
+              if (deptNot)              params.set('departement_not', deptNot)
+              if (closerNot)            params.set('closer_not', closerNot)
+              if (teleproNot)           params.set('telepro_not', teleproNot)
+              if (formationNot)         params.set('formation_not', formationNot)
+
+              const res = await fetch(`/api/crm/contacts?${params.toString()}`)
+              if (!res.ok) throw new Error('Export failed')
+              const data = await res.json()
+              const rows: CRMContact[] = data.data ?? []
+
+              // Stage label lookup
+              const stageLabel = (id?: string | null) => {
+                if (!id) return ''
+                const opt = STAGE_OPTIONS.find(o => o.id === id)
+                return opt ? opt.label.replace(/^[^\w]*/, '').trim() : id
+              }
+
+              // Build CSV
+              const BOM = '\uFEFF'
+              const SEP = ';'
+              const headers: string[] = []
+              const colMap: { key: string; extract: (c: CRMContact) => string }[] = []
+
+              for (const col of cols) {
+                switch (col) {
+                  case 'contact':
+                    headers.push('Prénom', 'Nom')
+                    colMap.push({ key: 'prenom', extract: c => c.firstname ?? '' })
+                    colMap.push({ key: 'nom', extract: c => c.lastname ?? '' })
+                    break
+                  case 'email':
+                    headers.push('Email')
+                    colMap.push({ key: 'email', extract: c => c.email ?? '' })
+                    break
+                  case 'phone':
+                    headers.push('Téléphone')
+                    colMap.push({ key: 'phone', extract: c => c.phone ?? '' })
+                    break
+                  case 'formation_souhaitee':
+                    headers.push('Formation souhaitée')
+                    colMap.push({ key: 'formation_souhaitee', extract: c => c.formation_souhaitee ?? '' })
+                    break
+                  case 'classe':
+                    headers.push('Classe')
+                    colMap.push({ key: 'classe', extract: c => c.classe_actuelle ?? '' })
+                    break
+                  case 'zone':
+                    headers.push('Zone')
+                    colMap.push({ key: 'zone', extract: c => c.zone_localite ?? '' })
+                    break
+                  case 'departement':
+                    headers.push('Département')
+                    colMap.push({ key: 'departement', extract: c => c.departement ?? '' })
+                    break
+                  case 'etape':
+                    headers.push('Étape')
+                    colMap.push({ key: 'etape', extract: c => stageLabel(c.deal?.dealstage) })
+                    break
+                  case 'lead_status':
+                    headers.push('Statut lead')
+                    colMap.push({ key: 'lead_status', extract: c => c.hs_lead_status ?? '' })
+                    break
+                  case 'origine':
+                    headers.push('Origine')
+                    colMap.push({ key: 'origine', extract: c => c.origine ?? '' })
+                    break
+                  case 'closer':
+                    headers.push('Closer')
+                    colMap.push({ key: 'closer', extract: c => c.deal?.closer?.name ?? c.contact_owner?.name ?? '' })
+                    break
+                  case 'telepro':
+                    headers.push('Télépro')
+                    colMap.push({ key: 'telepro', extract: c => c.deal?.telepro?.name ?? '' })
+                    break
+                  case 'createdat':
+                    headers.push('Date création')
+                    colMap.push({ key: 'createdat', extract: c => {
+                      const d = c.deal?.createdate ?? c.contact_createdate
+                      return d ? new Date(d).toLocaleDateString('fr-FR') : ''
+                    }})
+                    break
+                  case 'form_submission':
+                    headers.push('Formulaire', 'Date formulaire')
+                    colMap.push({ key: 'form_name', extract: c => c.recent_conversion_event ?? '' })
+                    colMap.push({ key: 'form_date', extract: c => c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '' })
+                    break
+                }
+              }
+
+              const esc = (v: string) => {
+                if (v.includes(SEP) || v.includes('"') || v.includes('\n')) return `"${v.replace(/"/g, '""')}"`
+                return v
+              }
+
+              const csvLines = [headers.map(esc).join(SEP)]
+              for (const row of rows) {
+                csvLines.push(colMap.map(c => esc(c.extract(row))).join(SEP))
+              }
+
+              const blob = new Blob([BOM + csvLines.join('\n')], { type: 'text/csv;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `crm-contacts-export-${new Date().toISOString().slice(0, 10)}.csv`
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
+              setExportModalOpen(false)
+            } finally {
+              setExporting(false)
+            }
+          }}
+        />
       )}
 
       {/* ── CRM Edit Drawer ─────────────────────────────────────────────────── */}
