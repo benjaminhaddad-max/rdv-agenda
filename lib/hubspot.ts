@@ -648,17 +648,18 @@ export async function getAllDealsForSync(after?: string): Promise<{
       diploma_sante___formation?: string; closedate?: string
       createdate?: string; description?: string
     }
-    associations?: { contacts?: { results: Array<{ id: string }> } }
   }>
   nextCursor?: string
 }> {
+  // NOTE: associations: ['contacts'] n'est PAS supporté dans le body du endpoint
+  // search v3 → 400 Bad Request. Les associations sont récupérées séparément
+  // via batchGetDealContactAssociations (v4).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
     filterGroups: [{
       filters: [{ propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID }],
     }],
     properties: DEAL_SYNC_PROPS.split(','),
-    associations: ['contacts'],
     limit: 100,
   }
   if (after) body.after = after
@@ -670,5 +671,29 @@ export async function getAllDealsForSync(after?: string): Promise<{
   return {
     deals: data.results ?? [],
     nextCursor: data.paging?.next?.after,
+  }
+}
+
+// ─── Sync CRM : associations deals → contacts (batch, API v4) ─────────────
+// Retourne un map dealId → contactId pour 100 deals max par appel
+export async function batchGetDealContactAssociations(
+  dealIds: string[]
+): Promise<Record<string, string>> {
+  if (dealIds.length === 0) return {}
+  try {
+    const data = await hubspotFetch('/crm/v4/associations/deals/contacts/batch/read', {
+      method: 'POST',
+      body: JSON.stringify({
+        inputs: dealIds.map(id => ({ id })),
+      }),
+    })
+    const result: Record<string, string> = {}
+    for (const item of data.results ?? []) {
+      const contactId = item.to?.[0]?.toObjectId
+      if (contactId) result[String(item.from.id)] = String(contactId)
+    }
+    return result
+  } catch {
+    return {}
   }
 }
