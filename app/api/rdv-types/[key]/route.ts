@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
 // PUT /api/rdv-types/[key] — admin only
-export async function PUT(req: NextRequest, { params }: { params: { key: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
+  const { key } = await params
   const db = createServiceClient()
   const body = await req.json()
 
@@ -15,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: { key: string 
   const { data, error } = await db
     .from('rdv_types')
     .update(update)
-    .eq('key', params.key)
+    .eq('key', key)
     .select()
     .single()
 
