@@ -822,7 +822,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation' | 'classe' | 'formation_demandee' | 'zone' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat'
+type ColKey = 'contact' | 'phone' | 'formation' | 'classe' | 'formation_demandee' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:           'Contact',
@@ -831,6 +831,7 @@ const COL_LABELS: Record<ColKey, string> = {
   classe:            'Classe',
   formation_demandee:'Formation dem.',
   zone:              'Zone',
+  departement:       'Département',
   etape:             'Étape',
   lead_status:       'Statut lead',
   origine:           'Origine',
@@ -846,6 +847,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   classe:            100,
   formation_demandee:110,
   zone:              100,
+  departement:       110,
   etape:             150,
   lead_status:       130,
   origine:           120,
@@ -856,7 +858,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
 
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','phone','formation','classe','formation_demandee',
-  'zone','etape','lead_status','origine','closer','telepro','createdat',
+  'zone','departement','etape','lead_status','origine','closer','telepro','createdat',
 ]
 
 export default function CRMContactsTable({
@@ -1092,9 +1094,18 @@ export default function CRMContactsTable({
       case 'zone':
         return (
           <InlineCellText
-            value={contact.zone_localite || contact.departement || ''}
+            value={contact.zone_localite || ''}
             onSave={v => handleContactFieldChange(contact.hubspot_contact_id, 'zone_localite', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:zone_localite`}
+          />
+        )
+
+      case 'departement':
+        return (
+          <InlineCellText
+            value={contact.departement || ''}
+            onSave={v => handleContactFieldChange(contact.hubspot_contact_id, 'departement', v)}
+            saving={savingContactField === `${contact.hubspot_contact_id}:departement`}
           />
         )
 

@@ -33,13 +33,17 @@ export async function GET() {
   const db = createServiceClient()
 
   // Appel HubSpot + Supabase en parallèle
-  const [hsLeadStatuses, hsSources, hsFormations, supabaseStatus, supabaseSource, supabaseFormation] = await Promise.all([
+  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, supabaseStatus, supabaseSource, supabaseFormation, supabaseZone, supabaseDept] = await Promise.all([
     fetchHubSpotPropertyOptions('hs_lead_status'),
     fetchHubSpotPropertyOptions('origine'),
     fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
+    fetchHubSpotPropertyOptions('zone___localite'),
+    fetchHubSpotPropertyOptions('departement'),
     db.from('crm_contacts').select('hs_lead_status').not('hs_lead_status', 'is', null).limit(5000),
     db.from('crm_contacts').select('origine').not('origine', 'is', null).limit(5000),
     db.from('crm_contacts').select('formation_demandee').not('formation_demandee', 'is', null).limit(5000),
+    db.from('crm_contacts').select('zone_localite').not('zone_localite', 'is', null).limit(5000),
+    db.from('crm_contacts').select('departement').not('departement', 'is', null).limit(5000),
   ])
 
   // Valeurs Supabase (fallback)
@@ -55,11 +59,21 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...new Set((supabaseFormation.data ?? []).map((r: any) => r.formation_demandee as string).filter(Boolean)),
   ]
+  const supabaseZones = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...new Set((supabaseZone.data ?? []).map((r: any) => r.zone_localite as string).filter(Boolean)),
+  ]
+  const supabaseDepts = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...new Set((supabaseDept.data ?? []).map((r: any) => r.departement as string).filter(Boolean)),
+  ]
 
   // Priorité HubSpot ; si vide, fallback Supabase
   const leadStatuses  = (hsLeadStatuses.length > 0  ? hsLeadStatuses  : supabaseLeadStatuses).sort()
   const sources       = (hsSources.length > 0       ? hsSources       : supabaseSources).sort()
   const formations    = (hsFormations.length > 0     ? hsFormations    : supabaseFormations).sort()
+  const zones         = (hsZones.length > 0          ? hsZones         : supabaseZones).sort()
+  const departements  = (hsDepts.length > 0          ? hsDepts         : supabaseDepts).sort()
 
-  return NextResponse.json({ leadStatuses, sources, formations })
+  return NextResponse.json({ leadStatuses, sources, formations, zones, departements })
 }

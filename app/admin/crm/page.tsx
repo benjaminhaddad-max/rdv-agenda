@@ -83,8 +83,8 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
   { key: 'telepro',     label: 'Télépro',       type: 'select' },
   { key: 'lead_status', label: 'Statut lead',   type: 'select' },
   { key: 'source',      label: 'Origine',       type: 'select' },
-  { key: 'zone',        label: 'Zone / Localité', type: 'text' },
-  { key: 'departement', label: 'Département',   type: 'text' },
+  { key: 'zone',        label: 'Zone / Localité', type: 'select' },
+  { key: 'departement', label: 'Département',   type: 'select' },
   { key: 'period',      label: 'Période',       type: 'select' },
   { key: 'search',      label: 'Recherche',     type: 'text' },
 ]
@@ -341,6 +341,8 @@ export default function CRMPage() {
   // Options dynamiques depuis HubSpot (valeurs réelles)
   const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts lead' }])
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
+  const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones' }])
+  const [deptOptions, setDeptOptions]               = useState<SelectOption[]>([{ id: '', label: 'Tous les départements' }])
   const [formationDemOptions, setFormationDemOptions] = useState<SelectOption[]>([])
 
   // Sélection en masse + drawer
@@ -381,6 +383,18 @@ export default function CRMPage() {
       }
       if (d.formations?.length) {
         setFormationDemOptions(d.formations.map((v: string) => ({ id: v, label: v })))
+      }
+      if (d.zones?.length) {
+        setZoneOptions([
+          { id: '', label: 'Toutes les zones' },
+          ...d.zones.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+      if (d.departements?.length) {
+        setDeptOptions([
+          { id: '', label: 'Tous les départements' },
+          ...d.departements.map((v: string) => ({ id: v, label: v })),
+        ])
       }
     })
   }, [])
@@ -1362,6 +1376,8 @@ export default function CRMPage() {
                       case 'telepro':     valueOptions = teleproOptions.filter(o => o.id); break
                       case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
                       case 'source':      valueOptions = sourceOptions.filter(o => o.id); break
+                      case 'zone':        valueOptions = zoneOptions.filter(o => o.id); break
+                      case 'departement': valueOptions = deptOptions.filter(o => o.id); break
                       case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
                     }
                     return (
