@@ -356,10 +356,10 @@ export default function CRMPage() {
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch('/api/users?role=commercial').then(r => r.json()).then(d => {
+    fetch('/api/users?role=closer').then(r => r.json()).then(d => {
       const arr = Array.isArray(d) ? d : []
       setClosers(arr)
-      setAllUsers(prev => [...prev.filter(u => u.role !== 'commercial'), ...arr])
+      setAllUsers(prev => [...prev.filter(u => u.role !== 'closer'), ...arr])
     })
     fetch('/api/users?role=telepro').then(r => r.json()).then(d => {
       const arr = Array.isArray(d) ? d : []
