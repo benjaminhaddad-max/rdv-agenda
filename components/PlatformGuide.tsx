@@ -32,12 +32,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '1\uFE0F\u20E3',
         title: 'Page de réservation publique',
-        desc: 'Le prospect accède à /book/[slug] (lien unique par closer). Il voit les créneaux disponibles sur 7 jours glissants, choisit un créneau de 30 min, remplit son nom + email + téléphone.',
+        desc: 'Le prospect accède à la page de réservation. Il voit les créneaux disponibles sur 7 jours glissants, choisit un créneau de 30 min, remplit son nom + email + téléphone. Le RDV tombe dans la file d\'attente admin.',
       },
       {
         emoji: '2\uFE0F\u20E3',
         title: 'Création du RDV + Deal HubSpot',
-        desc: 'Le RDV est créé en base (Supabase) + un deal HubSpot est créé automatiquement en "RDV Pris". Le deal est lié au contact HubSpot (créé ou retrouvé par email).',
+        desc: 'Le RDV est créé en base + un deal HubSpot est créé automatiquement en "RDV Pris". Le deal est lié au contact HubSpot (créé ou retrouvé par email). Le RDV reste non-assigné jusqu\'à ce que Pascal l\'assigne à un closer depuis la file d\'attente admin.',
       },
       {
         emoji: '3\uFE0F\u20E3',
