@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
@@ -129,19 +129,33 @@ const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
 ]
 
 function loadCRMViews(): CRMSavedView[] {
-  if (typeof window === 'undefined') return CRM_DEFAULT_VIEWS
-  try {
-    const raw = localStorage.getItem('crm-saved-views-v2')
-    if (raw) {
-      const parsed = JSON.parse(raw) as CRMSavedView[]
-      if (parsed.length > 0) return parsed
-    }
-  } catch { /* ignore */ }
   return CRM_DEFAULT_VIEWS
 }
 
-function persistCRMViews(views: CRMSavedView[]) {
-  localStorage.setItem('crm-saved-views-v2', JSON.stringify(views))
+async function persistViewCreate(view: CRMSavedView, position: number) {
+  await fetch('/api/crm/views', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: view.id,
+      name: view.name,
+      filter_groups: view.groups,
+      preset_flags: view.presetFlags ?? null,
+      position,
+    }),
+  })
+}
+
+async function persistViewUpdate(id: string, patch: { name?: string; filter_groups?: unknown; position?: number }) {
+  await fetch(`/api/crm/views/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+async function persistViewDelete(id: string) {
+  await fetch(`/api/crm/views/${id}`, { method: 'DELETE' })
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -301,6 +315,8 @@ export default function CRMPage() {
 
   // Saved views
   const [crmViews, setCrmViews] = useState<CRMSavedView[]>(loadCRMViews)
+  const [viewsLoaded, setViewsLoaded] = useState(false)
+  const [manageViewsOpen, setManageViewsOpen] = useState(false)
   const [activeViewId, setActiveViewId] = useState('all')
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -352,6 +368,25 @@ export default function CRMPage() {
 
   const LIMIT = 50
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Charger les vues sauvegardées ─────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/crm/views')
+      .then(r => r.json())
+      .then((rows: Array<{ id: string; name: string; filter_groups: unknown; preset_flags: unknown; position: number }>) => {
+        if (!Array.isArray(rows) || rows.length === 0) { setViewsLoaded(true); return }
+        const dbViews: CRMSavedView[] = rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          groups: (r.filter_groups as CRMFilterGroup[]) ?? [],
+          presetFlags: r.preset_flags as CRMSavedView['presetFlags'] ?? undefined,
+          isDefault: false,
+        }))
+        setCrmViews([...CRM_DEFAULT_VIEWS, ...dbViews])
+        setViewsLoaded(true)
+      })
+      .catch(() => setViewsLoaded(true))
+  }, [])
 
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
@@ -489,9 +524,10 @@ export default function CRMPage() {
       name: name || 'Nouvelle vue',
       groups: [...filterGroups],
     }
-    const updated = [...crmViews, newView]
-    setCrmViews(updated)
-    persistCRMViews(updated)
+    const customViews = crmViews.filter(v => !v.isDefault)
+    const position = customViews.length
+    setCrmViews(prev => [...prev, newView])
+    persistViewCreate(newView, position)
     setActiveViewId(id)
     setCreatingView(false)
     setNewViewName('')
@@ -500,14 +536,14 @@ export default function CRMPage() {
   function deleteCRMView(viewId: string) {
     const updated = crmViews.filter(v => v.id !== viewId)
     setCrmViews(updated)
-    persistCRMViews(updated)
+    persistViewDelete(viewId)
     if (activeViewId === viewId) applyCRMView(updated[0])
   }
 
   function renameCRMView(viewId: string, newName: string) {
     const updated = crmViews.map(v => v.id === viewId ? { ...v, name: newName || v.name } : v)
     setCrmViews(updated)
-    persistCRMViews(updated)
+    persistViewUpdate(viewId, { name: newName || (crmViews.find(v => v.id === viewId)?.name ?? '') })
     setRenamingViewId(null)
   }
 
@@ -516,7 +552,7 @@ export default function CRMPage() {
       v.id === viewId ? { ...v, groups: [...filterGroups] } : v
     )
     setCrmViews(updated)
-    persistCRMViews(updated)
+    persistViewUpdate(viewId, { filter_groups: filterGroups })
   }
 
   // ── Filter group CRUD ──────────────────────────────────────────────────────
@@ -1007,6 +1043,23 @@ export default function CRMPage() {
           </button>
         )}
 
+        {/* Manage views button */}
+        {crmViews.filter(v => !v.isDefault).length > 0 && (
+          <button
+            onClick={() => setManageViewsOpen(true)}
+            style={{
+              padding: '7px 10px', background: 'none', border: '1px solid transparent',
+              borderRadius: 6, color: '#3a5070', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#8b8fa8'; e.currentTarget.style.borderColor = '#2d4a6b' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#3a5070'; e.currentTarget.style.borderColor = 'transparent' }}
+          >
+            <SlidersHorizontal size={11} /> Gérer
+          </button>
+        )}
+
         {/* Create new view */}
         {creatingView ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', flexShrink: 0 }}>
@@ -1455,6 +1508,92 @@ export default function CRMPage() {
         ::-webkit-scrollbar-thumb { background: #2d4a6b; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
       `}</style>
+
+      {/* ── Manage Views Modal ──────────────────────────────────────────────── */}
+      {manageViewsOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setManageViewsOpen(false)}
+        >
+          <div
+            style={{ background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 14, width: 420, maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2f45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>Gérer les vues</span>
+              <button onClick={() => setManageViewsOpen(false)} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4 }}>
+                <X size={16} />
+              </button>
+            </div>
+            {/* Body */}
+            <div style={{ overflow: 'auto', padding: '12px 16px', flex: 1 }}>
+              {crmViews.filter(v => !v.isDefault).length === 0 ? (
+                <p style={{ color: '#555870', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucune vue personnalisée</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {crmViews.filter(v => !v.isDefault).map(view => {
+                    const isRenaming = renamingViewId === view.id
+                    const ruleCount = view.groups.reduce((s, g) => s + g.rules.length, 0)
+                    return (
+                      <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#101e30', border: '1px solid #1a2f45', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {isRenaming ? (
+                            <input
+                              autoFocus
+                              defaultValue={view.name}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { renameCRMView(view.id, (e.target as HTMLInputElement).value); }
+                                if (e.key === 'Escape') setRenamingViewId(null)
+                              }}
+                              onBlur={e => renameCRMView(view.id, e.target.value)}
+                              style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid #ccac71', borderRadius: 5, padding: '3px 8px', color: '#ccac71', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', width: '100%' }}
+                            />
+                          ) : (
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#c8cad8' }}>{view.name}</span>
+                              {ruleCount > 0 && (
+                                <span style={{ marginLeft: 8, fontSize: 11, color: '#3a5070' }}>{ruleCount} filtre{ruleCount > 1 ? 's' : ''}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => { setRenamingViewId(view.id); setRenameValue(view.name) }}
+                          title="Renommer"
+                          style={{ background: 'none', border: 'none', color: '#3a5070', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ccac71')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#3a5070')}
+                        >
+                          <Pen size={13} />
+                        </button>
+                        <button
+                          onClick={() => { deleteCRMView(view.id); if (crmViews.filter(v => !v.isDefault).length <= 1) setManageViewsOpen(false) }}
+                          title="Supprimer"
+                          style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#555870')}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #1a2f45' }}>
+              <button
+                onClick={() => setManageViewsOpen(false)}
+                style={{ width: '100%', padding: '9px', background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, color: '#4cabdb', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CRM Edit Drawer ─────────────────────────────────────────────────── */}
       {drawerContact && (

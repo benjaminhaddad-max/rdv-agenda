@@ -822,7 +822,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat'
+type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat' | 'form_submission'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -830,13 +830,14 @@ const COL_LABELS: Record<ColKey, string> = {
   formation_souhaitee:  'Formation souhaitée',
   classe:               'Classe',
   zone:                 'Zone',
-  departement:       'Département',
-  etape:             'Étape',
-  lead_status:       'Statut lead',
-  origine:           'Origine',
-  closer:            'Closer',
-  telepro:           'Télépro',
-  createdat:         'Créé le',
+  departement:          'Département',
+  etape:                'Étape',
+  lead_status:          'Statut lead',
+  origine:              'Origine',
+  closer:               'Closer',
+  telepro:              'Télépro',
+  createdat:            'Créé le',
+  form_submission:      'Soumission formulaire',
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
@@ -845,17 +846,18 @@ const COL_WIDTHS: Record<ColKey, number> = {
   formation_souhaitee:  140,
   classe:               100,
   zone:                 100,
-  departement:       110,
-  etape:             150,
-  lead_status:       130,
-  origine:           120,
-  closer:            120,
-  telepro:           110,
-  createdat:          90,
+  departement:          110,
+  etape:                150,
+  lead_status:          130,
+  origine:              120,
+  closer:               120,
+  telepro:              110,
+  createdat:             90,
+  form_submission:      130,
 }
 
 const DEFAULT_COL_ORDER: ColKey[] = [
-  'contact','phone','formation_souhaitee','classe',
+  'contact','phone','form_submission','formation_souhaitee','classe',
   'zone','departement','etape','lead_status','origine','closer','telepro','createdat',
 ]
 
@@ -1170,6 +1172,20 @@ export default function CRMContactsTable({
           ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
           : '—'
         return <span style={{ fontSize: 11, color: '#4a5568', whiteSpace: 'nowrap' }}>{dateStr}</span>
+      }
+
+      case 'form_submission': {
+        const raw = contact.recent_conversion_date
+        if (!raw) return <span style={{ fontSize: 11, color: '#4a5568' }}>—</span>
+        const d = new Date(raw)
+        const dateStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })
+        const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        return (
+          <div title={contact.recent_conversion_event ?? undefined}>
+            <span style={{ fontSize: 11, color: '#c8cad8', whiteSpace: 'nowrap' }}>{dateStr}</span>
+            <span style={{ fontSize: 10, color: '#555870', marginLeft: 4 }}>{timeStr}</span>
+          </div>
+        )
       }
 
       default:
