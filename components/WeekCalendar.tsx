@@ -369,14 +369,15 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
 
       {/* Calendar grid */}
       {view === 'week' ? (
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {/* Day headers */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Day headers — fixes, ne scrollent pas */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: '56px repeat(7, 1fr)',
             borderBottom: '1px solid #2d4a6b',
             background: '#1d2f4b',
             flexShrink: 0,
+            zIndex: 2,
           }}>
             <div style={{ borderRight: '1px solid #2d4a6b' }} />
             {weekDays.map(day => {
@@ -417,8 +418,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             })}
           </div>
 
-          {/* Time grid */}
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative' }}>
+          {/* Time grid — zone scrollable uniquement */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', height: `${HOURS.length * 60}px` }}>
             {/* Hour labels */}
             <div style={{ borderRight: '1px solid #2d4a6b' }}>
               {HOURS.map(h => (
@@ -529,6 +531,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               )
             })}
           </div>
+          </div>{/* fin overflow: auto */}
         </div>
       ) : (
         /* List view */
