@@ -1,37 +1,58 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
+const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN
+
+/**
+ * Récupère les options d'une propriété HubSpot via l'API Properties v3.
+ * Retourne un tableau de strings (valeur interne) ou [] si échec.
+ */
+async function fetchHubSpotPropertyOptions(propertyName: string): Promise<string[]> {
+  if (!HUBSPOT_TOKEN) return []
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/properties/contacts/${propertyName}`,
+      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` }, next: { revalidate: 3600 } }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data.options ?? []).map((o: any) => o.value as string).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 /**
  * GET /api/crm/field-options
- * Retourne les valeurs distinctes réellement stockées dans crm_contacts
- * pour les champs hs_lead_status et hs_analytics_source.
- * Pas de hardcode — on lit ce que HubSpot a réellement envoyé.
+ * 1. Essaie d'abord de récupérer les options depuis l'API HubSpot Properties
+ *    (source de vérité — toutes les options, même non encore synchro)
+ * 2. Si HubSpot ne répond pas, fallback sur les valeurs distinctes dans Supabase
  */
 export async function GET() {
   const db = createServiceClient()
 
-  const [statusRes, sourceRes] = await Promise.all([
-    db
-      .from('crm_contacts')
-      .select('hs_lead_status')
-      .not('hs_lead_status', 'is', null)
-      .limit(5000),
-    db
-      .from('crm_contacts')
-      .select('hs_analytics_source')
-      .not('hs_analytics_source', 'is', null)
-      .limit(5000),
+  // Appel HubSpot + Supabase en parallèle
+  const [hsLeadStatuses, hsSources, supabaseStatus, supabaseSource] = await Promise.all([
+    fetchHubSpotPropertyOptions('hs_lead_status'),
+    fetchHubSpotPropertyOptions('hs_analytics_source'),
+    db.from('crm_contacts').select('hs_lead_status').not('hs_lead_status', 'is', null).limit(5000),
+    db.from('crm_contacts').select('hs_analytics_source').not('hs_analytics_source', 'is', null).limit(5000),
   ])
 
-  const leadStatuses = [
+  // Valeurs Supabase (fallback)
+  const supabaseLeadStatuses = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((statusRes.data ?? []).map((r: any) => r.hs_lead_status as string).filter(Boolean)),
-  ].sort()
+    ...new Set((supabaseStatus.data ?? []).map((r: any) => r.hs_lead_status as string).filter(Boolean)),
+  ]
+  const supabaseSources = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...new Set((supabaseSource.data ?? []).map((r: any) => r.hs_analytics_source as string).filter(Boolean)),
+  ]
 
-  const sources = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((sourceRes.data ?? []).map((r: any) => r.hs_analytics_source as string).filter(Boolean)),
-  ].sort()
+  // Priorité HubSpot ; si vide, fallback Supabase
+  const leadStatuses = (hsLeadStatuses.length > 0 ? hsLeadStatuses : supabaseLeadStatuses).sort()
+  const sources      = (hsSources.length > 0      ? hsSources      : supabaseSources).sort()
 
   return NextResponse.json({ leadStatuses, sources })
 }
