@@ -349,8 +349,7 @@ function buildContactRow(c: any, now: string) {
     recent_conversion_date:     parseHubSpotDate(c.properties.recent_conversion_date),
     recent_conversion_event:    c.properties.recent_conversion_event_name ?? null,
     hs_lead_status:             c.properties.hs_lead_status ?? null,
-    hs_analytics_source:        c.properties.hs_analytics_source ?? null,
-    hs_analytics_source_data_1: c.properties.hs_analytics_source_data_1 ?? null,
+    origine:                    c.properties.origine ?? null,
     formation_demandee:         c.properties.diploma_sante___formation_demandee ?? null,
     synced_at:                  now,
   }

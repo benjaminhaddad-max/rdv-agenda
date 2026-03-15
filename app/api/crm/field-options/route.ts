@@ -35,10 +35,10 @@ export async function GET() {
   // Appel HubSpot + Supabase en parallèle
   const [hsLeadStatuses, hsSources, hsFormations, supabaseStatus, supabaseSource, supabaseFormation] = await Promise.all([
     fetchHubSpotPropertyOptions('hs_lead_status'),
-    fetchHubSpotPropertyOptions('hs_analytics_source'),
+    fetchHubSpotPropertyOptions('origine'),
     fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
     db.from('crm_contacts').select('hs_lead_status').not('hs_lead_status', 'is', null).limit(5000),
-    db.from('crm_contacts').select('hs_analytics_source').not('hs_analytics_source', 'is', null).limit(5000),
+    db.from('crm_contacts').select('origine').not('origine', 'is', null).limit(5000),
     db.from('crm_contacts').select('formation_demandee').not('formation_demandee', 'is', null).limit(5000),
   ])
 
@@ -49,7 +49,7 @@ export async function GET() {
   ]
   const supabaseSources = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseSource.data ?? []).map((r: any) => r.hs_analytics_source as string).filter(Boolean)),
+    ...new Set((supabaseSource.data ?? []).map((r: any) => r.origine as string).filter(Boolean)),
   ]
   const supabaseFormations = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

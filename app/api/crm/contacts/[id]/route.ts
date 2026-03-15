@@ -10,7 +10,7 @@ const FIELD_MAP: Record<string, string> = {
   phone:                'phone',
   classe_actuelle:      'classe_actuelle',
   hs_lead_status:       'hs_lead_status',
-  hs_analytics_source:  'hs_analytics_source',
+  origine:              'origine',
   hubspot_owner_id:     'hubspot_owner_id',
   zone_localite:        'zone___localite',           // propriété HubSpot avec triple _
   formation_demandee:   'diploma_sante___formation_demandee',

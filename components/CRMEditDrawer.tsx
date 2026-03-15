@@ -44,8 +44,7 @@ interface CRMContact {
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
-  hs_analytics_source?: string | null
-  hs_analytics_source_data_1?: string | null
+  origine?: string | null
   contact_owner?: { id: string; name: string; role: string; avatar_color: string } | null
   deal?: {
     hubspot_deal_id: string
@@ -401,9 +400,9 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             </div>
             <SelectField
               label="Origine"
-              value={c.hs_analytics_source || ''}
+              value={c.origine || ''}
               options={sourceOpts}
-              onSave={v => patchContact({ hs_analytics_source: v })}
+              onSave={v => patchContact({ origine: v })}
             />
             {/* Soumission de formulaire (read-only) */}
             <div style={{ marginBottom: 12 }}>

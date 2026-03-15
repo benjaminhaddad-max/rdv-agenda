@@ -376,12 +376,15 @@ export default function CRMPage() {
   async function handleSync(full = false) {
     setSyncing(true)
     setSyncProgress(null)
-    const headers = { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET ?? ''}` }
 
     try {
       if (!full) {
         // Sync incrémental : un seul appel
-        const res = await fetch('/api/cron/crm-sync?force=1', { headers })
+        const res = await fetch('/api/admin/crm-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full: false }),
+        })
         const data = await res.json()
         setLastSync({
           synced_at: new Date().toISOString(),
@@ -393,7 +396,11 @@ export default function CRMPage() {
       } else {
         // Sync complet : premier appel (deals + premier chunk contacts)
         setSyncProgress({ done: 0, label: 'Sync deals + premiers contacts…' })
-        const res1 = await fetch('/api/cron/crm-sync?full=1&force=1', { headers })
+        const res1 = await fetch('/api/admin/crm-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full: true }),
+        })
         const data1 = await res1.json()
 
         let totalContacts = data1.contacts_upserted ?? 0
@@ -403,7 +410,11 @@ export default function CRMPage() {
 
         // Chunks suivants tant qu'il y a un cursor
         while (cursor) {
-          const res = await fetch(`/api/cron/crm-sync?contact_cursor=${encodeURIComponent(cursor)}&force=1`, { headers })
+          const res = await fetch('/api/admin/crm-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cursor }),
+          })
           const data = await res.json()
 
           totalContacts += data.contacts_upserted ?? 0

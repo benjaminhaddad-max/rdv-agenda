@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
        departement, classe_actuelle, zone_localite,
        formation_demandee, contact_createdate,
        hubspot_owner_id, recent_conversion_date, recent_conversion_event,
-       hs_lead_status, hs_analytics_source, hs_analytics_source_data_1,
+       hs_lead_status, origine,
        crm_deals (
          hubspot_deal_id, dealstage, pipeline, formation,
          hubspot_owner_id, teleprospecteur, closedate, createdate,
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
 
   // Origine (analytics source)
   if (source) {
-    query = query.eq('hs_analytics_source', source)
+    query = query.eq('origine', source)
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
@@ -215,8 +215,7 @@ export async function GET(req: NextRequest) {
       recent_conversion_date:  c.recent_conversion_date,
       recent_conversion_event: c.recent_conversion_event,
       hs_lead_status:          c.hs_lead_status,
-      hs_analytics_source:     c.hs_analytics_source,
-      hs_analytics_source_data_1: c.hs_analytics_source_data_1,
+      origine:                 c.origine,
       contact_owner:           contactOwner,
       deal: deal ? {
         hubspot_deal_id:  deal.hubspot_deal_id,
