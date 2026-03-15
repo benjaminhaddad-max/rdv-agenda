@@ -768,6 +768,21 @@ export default function CRMPage() {
 
   // Toutes les options de stages : pipeline actuel + anciens pipelines (préfixés par l'année)
   // Pour les anciens pipelines, on n'affiche que les stages >= preinscription (hors fermé/perdu)
+  // Helper : pour un pipeline donné, retourne les stages >= preinscription
+  // Stratégie : 1) match label "preinscription", 2) fallback moitié sup des étapes positives
+  function getPreinscPlusStages(p: PipelineData) {
+    const negRe = /perdu|lost|ferm[eé]|annul|rejet/i
+    const positiveStages = p.stages.filter(s => !negRe.test(s.label))
+    // 1) Chercher par label
+    let pivot = positiveStages.find(s => /pr[eé]inscription/i.test(s.label))
+    // 2) Fallback : moitié supérieure des étapes positives (stages avancés)
+    if (!pivot && positiveStages.length > 0) {
+      pivot = positiveStages[Math.floor(positiveStages.length / 2)]
+    }
+    const minOrder = pivot?.displayOrder ?? Infinity
+    return p.stages.filter(s => s.displayOrder >= minOrder && !negRe.test(s.label))
+  }
+
   const allStageOptions = useMemo<SelectOption[]>(() => {
     const current = STAGE_OPTIONS.filter(o => o.id)
     const currentIds = new Set(current.map(o => o.id))
@@ -776,15 +791,14 @@ export default function CRMPage() {
       if (p.id === CURRENT_PIPELINE_ID) continue
       const yearMatch = p.label.match(/(\d{4})[^\d]*(\d{2,4})/)
       const yearTag = yearMatch ? `${yearMatch[1]}-${String(yearMatch[2]).slice(-2)}` : p.label
-      const preinscStage = p.stages.find(s => /pr[eé]inscription/i.test(s.label))
-      const minOrder = preinscStage?.displayOrder ?? Infinity
-      for (const s of p.stages) {
-        if (!currentIds.has(s.id) && s.displayOrder >= minOrder && !/perdu|lost|ferm[eé]/i.test(s.label)) {
+      for (const s of getPreinscPlusStages(p)) {
+        if (!currentIds.has(s.id)) {
           extra.push({ id: s.id, label: `[${yearTag}] ${s.label}` })
         }
       }
     }
     return [...current, ...extra]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelinesData])
 
   // Empty / not-empty filters (is_empty / is_not_empty)
@@ -1097,18 +1111,11 @@ export default function CRMPage() {
   // ── Filter group CRUD ──────────────────────────────────────────────────────
 
   function applyPriorPreinscriptionFilter() {
-    // Pour chaque ancien pipeline, trouver la preinscription par son label
-    // puis inclure TOUTES les étapes à partir de ce displayOrder (sauf "Fermé/Perdu")
+    // Pour chaque ancien pipeline : preinscription+ par label ou fallback moitié sup
     const prevStageIds: string[] = []
     for (const p of pipelinesData) {
       if (p.id === CURRENT_PIPELINE_ID) continue
-      const preinscStage = p.stages.find(s => /pr[eé]inscription/i.test(s.label))
-      const minOrder = preinscStage?.displayOrder ?? Infinity
-      for (const s of p.stages) {
-        if (s.displayOrder >= minOrder && !/perdu|lost|ferm[eé]/i.test(s.label)) {
-          prevStageIds.push(s.id)
-        }
-      }
+      for (const s of getPreinscPlusStages(p)) prevStageIds.push(s.id)
     }
     const t = Date.now()
     const rules: CRMFilterRule[] = [
