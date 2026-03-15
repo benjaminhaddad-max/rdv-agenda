@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
@@ -58,29 +58,89 @@ const PERIOD_OPTIONS = [
 // Ces listes sont chargées dynamiquement depuis /api/crm/field-options
 // (valeurs réellement présentes dans crm_contacts, telles que renvoyées par HubSpot)
 
-// ── Vues prédéfinies ───────────────────────────────────────────────────────────
-type ViewPreset = 'all' | 'a_attribuer' | 'recents'
+// ── Advanced filter system ───────────────────────────────────────────────────
 
-const VIEW_PRESETS: { id: ViewPreset; label: string; description: string; icon: typeof List }[] = [
-  {
-    id: 'all',
-    label: 'Tous les leads',
-    description: 'Vue complète sans filtre',
-    icon: List,
-  },
-  {
-    id: 'a_attribuer',
-    label: 'À attribuer',
-    description: 'Sans télépro assigné (+ exclure un propriétaire)',
-    icon: Zap,
-  },
-  {
-    id: 'recents',
-    label: 'Formulaires récents',
-    description: 'Formulaire soumis dans les 3 derniers mois',
-    icon: Bell,
-  },
+type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search'
+type CRMFilterOp = 'is' | 'is_not' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
+
+interface CRMFilterRule {
+  id: string
+  field: CRMFilterField
+  operator: CRMFilterOp
+  value: string
+}
+
+interface CRMFilterGroup {
+  id: string
+  rules: CRMFilterRule[]
+}
+
+const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
+  { key: 'stage',       label: 'Étape',         type: 'select' },
+  { key: 'formation',   label: 'Formation',     type: 'select' },
+  { key: 'classe',      label: 'Classe',        type: 'select' },
+  { key: 'closer',      label: 'Closer',        type: 'select' },
+  { key: 'telepro',     label: 'Télépro',       type: 'select' },
+  { key: 'lead_status', label: 'Statut lead',   type: 'select' },
+  { key: 'source',      label: 'Origine',       type: 'select' },
+  { key: 'period',      label: 'Période',       type: 'select' },
+  { key: 'search',      label: 'Recherche',     type: 'text' },
 ]
+
+const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'is',           label: 'est' },
+  { key: 'is_not',       label: "n'est pas" },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+const TEXT_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'contains',     label: 'contient' },
+  { key: 'not_contains', label: 'ne contient pas' },
+  { key: 'is',           label: 'est exactement' },
+  { key: 'is_empty',     label: 'est vide' },
+]
+
+function opsForField(field: CRMFilterField) {
+  const f = CRM_FILTER_FIELDS.find(ff => ff.key === field)
+  return f?.type === 'select' ? SELECT_OPS : TEXT_OPS
+}
+
+function opNeedsValue(op: CRMFilterOp) {
+  return op !== 'is_empty' && op !== 'is_not_empty'
+}
+
+// ── Saved views ─────────────────────────────────────────────────────────────
+
+interface CRMSavedView {
+  id: string
+  name: string
+  groups: CRMFilterGroup[]
+  presetFlags?: { noTelepro?: boolean; recentFormMonths?: number }
+  isDefault?: boolean
+}
+
+const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
+  { id: 'all',         name: 'Tous les leads',       groups: [], isDefault: true },
+  { id: 'a_attribuer', name: 'À attribuer',          groups: [], presetFlags: { noTelepro: true }, isDefault: true },
+  { id: 'recents',     name: 'Formulaires récents',  groups: [], presetFlags: { recentFormMonths: 3 }, isDefault: true },
+]
+
+function loadCRMViews(): CRMSavedView[] {
+  if (typeof window === 'undefined') return CRM_DEFAULT_VIEWS
+  try {
+    const raw = localStorage.getItem('crm-saved-views-v2')
+    if (raw) {
+      const parsed = JSON.parse(raw) as CRMSavedView[]
+      if (parsed.length > 0) return parsed
+    }
+  } catch { /* ignore */ }
+  return CRM_DEFAULT_VIEWS
+}
+
+function persistCRMViews(views: CRMSavedView[]) {
+  localStorage.setItem('crm-saved-views-v2', JSON.stringify(views))
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -237,8 +297,17 @@ export default function CRMPage() {
   const [syncProgress, setSyncProgress] = useState<{ done: number; label: string } | null>(null)
   const [lastSync, setLastSync]       = useState<SyncLog | null>(null)
 
-  // Vue prédéfinie
-  const [viewPreset, setViewPreset] = useState<ViewPreset>('all')
+  // Saved views
+  const [crmViews, setCrmViews] = useState<CRMSavedView[]>(loadCRMViews)
+  const [activeViewId, setActiveViewId] = useState('all')
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [creatingView, setCreatingView] = useState(false)
+  const [newViewName, setNewViewName] = useState('')
+
+  // Advanced filter panel
+  const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
 
   // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
@@ -252,8 +321,8 @@ export default function CRMPage() {
   const [source, setSource]           = useState('')
 
   // Overrides des filtres par défaut
-  const [showExternal, setShowExternal] = useState(false)  // montrer équipe externe (ex. Benjamin Delacour)
-  const [allClasses, setAllClasses]     = useState(true)   // true = toutes classes (défaut) ; false = Terminale/Première/Seconde + récents seulement
+  const [showExternal, setShowExternal] = useState(false)
+  const [allClasses, setAllClasses]     = useState(true)
 
   // Client-side filters (appliqués sur les données déjà chargées)
   const [formation, setFormation] = useState('')
@@ -355,20 +424,147 @@ export default function CRMPage() {
     debounceRef.current = setTimeout(() => fetchContacts(true), 300)
   }
 
-  // ── Appliquer un preset de vue ────────────────────────────────────────────────
+  // ── View management ──────────────────────────────────────────────────────────
 
-  function applyPreset(preset: ViewPreset) {
-    setViewPreset(preset)
-    // Reset les filtres server-side qui changent avec le preset
-    setNoTelepro(preset === 'a_attribuer')
-    setRecentFormMonths(preset === 'recents' ? 3 : 0)
-    // Reset les filtres qui peuvent devenir incohérents
-    if (preset !== 'all') {
-      setStage(''); setCloserHsId(''); setTeleproHsId('')
+  function applyGroupsToFilters(groups: CRMFilterGroup[], flags?: CRMSavedView['presetFlags']) {
+    // Reset all
+    setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
+    setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource('')
+    setNoTelepro(flags?.noTelepro ?? false)
+    setRecentFormMonths(flags?.recentFormMonths ?? 0)
+
+    // Apply first group rules (AND) to the simple filter params
+    const firstGroup = groups[0]
+    if (firstGroup) {
+      for (const rule of firstGroup.rules) {
+        if (rule.operator !== 'is' || !rule.value) continue
+        switch (rule.field) {
+          case 'stage':       setStage(rule.value); break
+          case 'formation':   setFormation(rule.value); break
+          case 'classe':      setClasse(rule.value); break
+          case 'closer':      setCloserHsId(rule.value); break
+          case 'telepro':     setTeleproHsId(rule.value); break
+          case 'lead_status': setLeadStatus(rule.value); break
+          case 'source':      setSource(rule.value); break
+          case 'period':      setPeriod(rule.value); break
+          case 'search':      setSearch(rule.value); break
+        }
+      }
     }
-    // ownerExclude et search restent inchangés (Pascal peut les ajuster)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchContacts(true), 100)
+  }
+
+  function applyCRMView(view: CRMSavedView) {
+    setActiveViewId(view.id)
+    setFilterGroups(view.groups)
+    applyGroupsToFilters(view.groups, view.presetFlags)
+    scheduleRefetch()
+  }
+
+  function createCRMView(name: string) {
+    const id = `v_${Date.now()}`
+    const newView: CRMSavedView = {
+      id,
+      name: name || 'Nouvelle vue',
+      groups: [...filterGroups],
+    }
+    const updated = [...crmViews, newView]
+    setCrmViews(updated)
+    persistCRMViews(updated)
+    setActiveViewId(id)
+    setCreatingView(false)
+    setNewViewName('')
+  }
+
+  function deleteCRMView(viewId: string) {
+    const updated = crmViews.filter(v => v.id !== viewId)
+    setCrmViews(updated)
+    persistCRMViews(updated)
+    if (activeViewId === viewId) applyCRMView(updated[0])
+  }
+
+  function renameCRMView(viewId: string, newName: string) {
+    const updated = crmViews.map(v => v.id === viewId ? { ...v, name: newName || v.name } : v)
+    setCrmViews(updated)
+    persistCRMViews(updated)
+    setRenamingViewId(null)
+  }
+
+  function updateCRMViewFilters(viewId: string) {
+    const updated = crmViews.map(v =>
+      v.id === viewId ? { ...v, groups: [...filterGroups] } : v
+    )
+    setCrmViews(updated)
+    persistCRMViews(updated)
+  }
+
+  // ── Filter group CRUD ──────────────────────────────────────────────────────
+
+  function addFilterGroup() {
+    const g: CRMFilterGroup = {
+      id: `g_${Date.now()}`,
+      rules: [{ id: `r_${Date.now()}`, field: 'stage', operator: 'is', value: '' }],
+    }
+    setFilterGroups(prev => [...prev, g])
+  }
+
+  function deleteFilterGroup(gid: string) {
+    const updated = filterGroups.filter(g => g.id !== gid)
+    setFilterGroups(updated)
+    applyGroupsToFilters(updated)
+    scheduleRefetch()
+  }
+
+  function duplicateFilterGroup(gid: string) {
+    const g = filterGroups.find(g => g.id === gid)
+    if (!g) return
+    const dup: CRMFilterGroup = {
+      id: `g_${Date.now()}`,
+      rules: g.rules.map(r => ({ ...r, id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` })),
+    }
+    const idx = filterGroups.indexOf(g)
+    const updated = [...filterGroups]
+    updated.splice(idx + 1, 0, dup)
+    setFilterGroups(updated)
+  }
+
+  function addRuleToGroup(gid: string) {
+    const updated = filterGroups.map(g => {
+      if (g.id !== gid) return g
+      return {
+        ...g,
+        rules: [...g.rules, { id: `r_${Date.now()}`, field: 'stage' as CRMFilterField, operator: 'is' as CRMFilterOp, value: '' }],
+      }
+    })
+    setFilterGroups(updated)
+  }
+
+  function updateRule(gid: string, rid: string, patch: Partial<CRMFilterRule>) {
+    const updated = filterGroups.map(g => {
+      if (g.id !== gid) return g
+      return {
+        ...g,
+        rules: g.rules.map(r => {
+          if (r.id !== rid) return r
+          const merged = { ...r, ...patch }
+          if (patch.field && patch.field !== r.field) merged.value = ''
+          if (patch.operator && !opNeedsValue(patch.operator)) merged.value = ''
+          return merged
+        }),
+      }
+    })
+    setFilterGroups(updated)
+    applyGroupsToFilters(updated)
+    scheduleRefetch()
+  }
+
+  function removeRule(gid: string, rid: string) {
+    let updated = filterGroups.map(g => {
+      if (g.id !== gid) return g
+      return { ...g, rules: g.rules.filter(r => r.id !== rid) }
+    }).filter(g => g.rules.length > 0)
+    setFilterGroups(updated)
+    applyGroupsToFilters(updated)
+    scheduleRefetch()
   }
 
   // ── HubSpot sync ─────────────────────────────────────────────────────────────
@@ -466,14 +662,21 @@ export default function CRMPage() {
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
   const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || leadStatus || source
+  const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
+
+  // Check if current filters changed from active view
+  const activeCRMView = crmViews.find(v => v.id === activeViewId)
+  const crmViewChanged = activeCRMView ? (
+    JSON.stringify(filterGroups) !== JSON.stringify(activeCRMView.groups)
+  ) : false
 
   function resetAll() {
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
     setLeadStatus(''); setSource('')
-    setViewPreset('all')
-    // On ne reset PAS showExternal ni allClasses (ce sont des préférences de vue, pas des filtres)
+    setFilterGroups([])
+    setActiveViewId('all')
   }
 
   // ── Sélection en masse ────────────────────────────────────────────────────────
@@ -657,174 +860,243 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* ── Vue presets ─────────────────────────────────────────────────────── */}
+      {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
       <div style={{
-        padding: '10px 20px 0',
-        background: '#0b1624',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        borderBottom: '1px solid #1a2f45',
-        paddingBottom: 0,
+        padding: '0 20px', background: '#0b1624',
+        borderBottom: '1px solid #1a2f45', flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 0,
+        overflowX: 'auto', overflowY: 'hidden',
       }}>
-        {VIEW_PRESETS.map(preset => {
-          const Icon = preset.icon
-          const isActive = viewPreset === preset.id
-          const accentColor = preset.id === 'a_attribuer' ? '#ccac71' : preset.id === 'recents' ? '#4cabdb' : '#8b8fa8'
+        {crmViews.map(view => {
+          const isActive = activeViewId === view.id
+          const isRenaming = renamingViewId === view.id
+          const Icon = view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
+
           return (
-            <button
-              key={preset.id}
-              onClick={() => applyPreset(preset.id)}
-              title={preset.description}
+            <div
+              key={view.id}
+              onClick={() => { if (!isRenaming) applyCRMView(view) }}
+              onDoubleClick={() => {
+                if (!view.isDefault) {
+                  setRenamingViewId(view.id)
+                  setRenameValue(view.name)
+                }
+              }}
               style={{
-                background: 'transparent',
-                border: 'none',
-                borderBottom: isActive ? `2px solid ${accentColor}` : '2px solid transparent',
-                padding: '8px 14px 9px',
-                color: isActive ? accentColor : '#555870',
-                fontSize: 12,
-                fontWeight: isActive ? 700 : 400,
+                padding: '10px 14px',
+                borderBottom: `2px solid ${isActive ? '#ccac71' : 'transparent'}`,
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontFamily: 'inherit',
-                transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+                flexShrink: 0,
               }}
             >
-              <Icon size={12} />
-              {preset.label}
-            </button>
+              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#ccac71' : '#555870' }} />}
+
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') renameCRMView(view.id, renameValue)
+                    if (e.key === 'Escape') setRenamingViewId(null)
+                  }}
+                  onBlur={() => renameCRMView(view.id, renameValue)}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    background: 'rgba(204,172,113,0.08)', border: '1px solid #ccac71',
+                    borderRadius: 4, padding: '2px 6px', color: '#ccac71',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                    outline: 'none', width: Math.max(60, renameValue.length * 8),
+                  }}
+                />
+              ) : (
+                <span style={{
+                  fontSize: 12, fontWeight: isActive ? 700 : 400,
+                  color: isActive ? '#ccac71' : '#6b7a90',
+                }}>
+                  {view.name}
+                </span>
+              )}
+
+              {/* Badge: filter count for custom views */}
+              {!view.isDefault && view.groups.length > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: isActive ? '#ccac71' : '#3a5070',
+                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
+                  borderRadius: 8, padding: '1px 6px',
+                }}>
+                  {view.groups.reduce((s, g) => s + g.rules.length, 0)} filtre{view.groups.reduce((s, g) => s + g.rules.length, 0) > 1 ? 's' : ''}
+                </span>
+              )}
+
+              {/* Delete button */}
+              {!view.isDefault && isActive && !isRenaming && (
+                <button
+                  onClick={e => { e.stopPropagation(); deleteCRMView(view.id) }}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    color: '#555870', cursor: 'pointer', display: 'flex', marginLeft: 2,
+                  }}
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
           )
         })}
 
-        {/* Séparateur + indicateur actif */}
-        {viewPreset !== 'all' && (
-          <span style={{ marginLeft: 6, fontSize: 11, color: '#3a5070' }}>
-            {viewPreset === 'a_attribuer' && '— leads sans télépro assigné'}
-            {viewPreset === 'recents' && '— formulaire soumis il y a moins de 3 mois'}
-          </span>
+        {/* Separator */}
+        <div style={{ width: 1, height: 20, background: '#1a2f45', margin: '0 6px', flexShrink: 0 }} />
+
+        {/* Filtres avancés button */}
+        <button
+          onClick={() => setFilterPanelOpen(o => !o)}
+          style={{
+            padding: '7px 12px',
+            background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
+            border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
+            borderRadius: 6, color: totalFilterRules > 0 ? '#ccac71' : '#6b7a90',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontFamily: 'inherit', fontWeight: totalFilterRules > 0 ? 600 : 400,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <SlidersHorizontal size={12} />
+          Filtres avancés{totalFilterRules > 0 ? ` (${totalFilterRules})` : ''}
+        </button>
+
+        {/* Save view filters */}
+        {crmViewChanged && activeViewId !== 'all' && !activeCRMView?.isDefault && (
+          <button
+            onClick={() => updateCRMViewFilters(activeViewId)}
+            style={{
+              padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
+              border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
+              color: '#ccac71', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <Save size={10} /> Sauvegarder
+          </button>
         )}
 
-        {/* Lien Transactions 2026-2027 */}
-        <div style={{ marginLeft: 'auto' }}>
+        {/* Create new view */}
+        {creatingView ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', flexShrink: 0 }}>
+            <input
+              autoFocus
+              value={newViewName}
+              onChange={e => setNewViewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') createCRMView(newViewName)
+                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+              }}
+              placeholder="Nom de la vue…"
+              style={{
+                background: 'rgba(204,172,113,0.08)', border: '1px solid #ccac71',
+                borderRadius: 4, padding: '3px 8px', color: '#ccac71',
+                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
+              }}
+            />
+            <button onClick={() => createCRMView(newViewName)} style={{ background: '#ccac71', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}>
+              <Check size={12} color="#0b1624" />
+            </button>
+            <button onClick={() => { setCreatingView(false); setNewViewName('') }} style={{ background: 'none', border: 'none', padding: 0, color: '#555870', cursor: 'pointer', display: 'flex' }}>
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreatingView(true)}
+            style={{
+              padding: '8px 12px', background: 'none', border: 'none',
+              color: '#3a5070', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#ccac71')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#3a5070')}
+          >
+            <Plus size={12} /> Enregistrer la vue
+          </button>
+        )}
+
+        {/* Transactions link */}
+        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <a
             href="/admin/crm/transactions"
             style={{
               background: 'rgba(204,172,113,0.10)',
               border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8,
-              padding: '6px 14px',
-              color: '#ccac71',
-              fontSize: 12,
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s',
+              borderRadius: 8, padding: '6px 14px', color: '#ccac71',
+              fontSize: 12, textDecoration: 'none', display: 'flex',
+              alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap',
             }}
           >
-            <GraduationCap size={13} />
-            Transactions 2026-2027
+            <GraduationCap size={13} /> Transactions 2026-2027
           </a>
         </div>
       </div>
 
-      {/* ── Bandeau filtres par défaut ──────────────────────────────────────── */}
+      {/* ── Quick filters bar ─────────────────────────────────────────────── */}
       <div style={{
         padding: '6px 20px',
         background: '#090f1a',
         borderBottom: '1px solid #1a2f45',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        flexWrap: 'wrap',
-        flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0,
       }}>
         <span style={{ fontSize: 10, color: '#3a5070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>
           Filtres auto
         </span>
-
-        {/* Toggle : filtre classe/date */}
         <button
           onClick={() => { setAllClasses(v => !v); scheduleRefetch() }}
-          title={allClasses ? 'Toutes classes affichées — cliquer pour filtrer sur Terminale/Première/Seconde + récents' : 'Filtre actif : Terminale · Première · Seconde + formulaires depuis sept. 2025'}
           style={{
             background: allClasses ? 'rgba(76,171,219,0.1)' : 'rgba(204,172,113,0.1)',
             border: `1px solid ${allClasses ? 'rgba(76,171,219,0.3)' : 'rgba(204,172,113,0.35)'}`,
-            borderRadius: 20,
-            padding: '3px 10px',
+            borderRadius: 20, padding: '3px 10px',
             color: allClasses ? '#4cabdb' : '#ccac71',
-            fontSize: 11,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            transition: 'all 0.15s',
+            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 5,
           }}
         >
           <span style={{ fontSize: 9 }}>●</span>
           {allClasses ? 'Toutes classes' : 'Terminale · Première · Seconde + récents'}
         </button>
-
-        {/* Toggle : exclure équipe externe */}
         <button
           onClick={() => { setShowExternal(v => !v); scheduleRefetch() }}
-          title={showExternal ? 'Équipe externe incluse' : 'Contacts équipe externe masqués (ex. Benjamin Delacour)'}
           style={{
             background: showExternal ? 'rgba(239,68,68,0.1)' : 'rgba(76,171,219,0.1)',
             border: `1px solid ${showExternal ? 'rgba(239,68,68,0.3)' : 'rgba(76,171,219,0.3)'}`,
-            borderRadius: 20,
-            padding: '3px 10px',
+            borderRadius: 20, padding: '3px 10px',
             color: showExternal ? '#ef4444' : '#4cabdb',
-            fontSize: 11,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            transition: 'all 0.15s',
+            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 5,
           }}
         >
           <span style={{ fontSize: 9 }}>{showExternal ? '○' : '●'}</span>
           {showExternal ? 'Équipe externe visible' : 'Équipe externe masquée'}
-          {showExternal && <span style={{ opacity: 0.5 }}>✕</span>}
         </button>
-
-        <span style={{ fontSize: 10, color: '#2d4a6b', marginLeft: 4 }}>
-          — cliquer pour activer/désactiver
-        </span>
       </div>
 
-      {/* ── Filters ─────────────────────────────────────────────────────────── */}
+      {/* ── Search + quick dropdowns ──────────────────────────────────────── */}
       <div style={{
-        padding: '10px 20px',
-        background: '#0d1a28',
-        borderBottom: '1px solid #1a2f45',
-        flexShrink: 0,
+        padding: '10px 20px', background: '#0d1a28',
+        borderBottom: '1px solid #1a2f45', flexShrink: 0,
       }}>
-        {/* Row 1: Search + reset */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: '#0b1624',
-            border: '1px solid #2d4a6b',
-            borderRadius: 8,
-            padding: '7px 12px',
-            flex: '1 1 auto',
-            maxWidth: 380,
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8,
+            padding: '7px 12px', flex: '1 1 auto', maxWidth: 380,
           }}>
             <Search size={13} style={{ color: '#3a5070', flexShrink: 0 }} />
             <input
-              type="text"
-              placeholder="Nom, email, téléphone…"
+              type="text" placeholder="Nom, email, téléphone…"
               value={search}
               onChange={e => { setSearch(e.target.value); scheduleRefetch() }}
               onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
@@ -836,96 +1108,39 @@ export default function CRMPage() {
               </button>
             )}
           </div>
-
           {hasActiveFilters && (
-            <button
-              onClick={resetAll}
-              style={{
-                background: 'rgba(239,68,68,0.08)',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 8,
-                padding: '7px 12px',
-                color: '#ef4444',
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <button onClick={() => { resetAll(); scheduleRefetch() }} style={{
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 8, padding: '7px 12px', color: '#ef4444', fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+              gap: 5, fontWeight: 600, whiteSpace: 'nowrap',
+            }}>
               <X size={11} /> Réinitialiser
             </button>
           )}
         </div>
-
-        {/* Row 2: Dropdowns */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <FilterSelect
-            value={stage}
-            onChange={v => { setStage(v); scheduleRefetch() }}
-            options={STAGE_OPTIONS}
-          />
-          <FilterSelect
-            value={formation}
-            onChange={setFormation}
-            options={FORMATION_OPTIONS}
-          />
-          <FilterSelect
-            value={classe}
-            onChange={setClasse}
-            options={CLASSE_OPTIONS}
-          />
-          <FilterSelect
-            value={closerHsId}
-            onChange={v => { setCloserHsId(v); scheduleRefetch() }}
-            options={closerOptions}
-          />
-          <FilterSelect
-            value={teleproHsId}
-            onChange={v => { setTeleproHsId(v); scheduleRefetch() }}
-            options={teleproOptions}
-          />
-          <FilterSelect
-            value={period}
-            onChange={setPeriod}
-            options={PERIOD_OPTIONS}
-          />
-
+          <FilterSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
+          <FilterSelect value={formation} onChange={setFormation} options={FORMATION_OPTIONS} />
+          <FilterSelect value={classe} onChange={setClasse} options={CLASSE_OPTIONS} />
+          <FilterSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
+          <FilterSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
+          <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
           <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
-          <FilterSelect
-            value={leadStatus}
-            onChange={v => { setLeadStatus(v); scheduleRefetch() }}
-            options={leadStatusOptions}
-          />
-          <FilterSelect
-            value={source}
-            onChange={v => { setSource(v); scheduleRefetch() }}
-            options={sourceOptions}
-          />
-
-          {/* Exclure propriétaire — utile en vue "À attribuer" pour exclure ex. Benjamin Delacour */}
+          <FilterSelect value={leadStatus} onChange={v => { setLeadStatus(v); scheduleRefetch() }} options={leadStatusOptions} />
+          <FilterSelect value={source} onChange={v => { setSource(v); scheduleRefetch() }} options={sourceOptions} />
           {ownerExcludeOptions.length > 1 && (
             <>
               <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
-              <FilterSelect
-                value={ownerExclude}
-                onChange={v => { setOwnerExclude(v); scheduleRefetch() }}
-                options={ownerExcludeOptions}
-                placeholder="Exclure propriétaire"
-              />
+              <FilterSelect value={ownerExclude} onChange={v => { setOwnerExclude(v); scheduleRefetch() }} options={ownerExcludeOptions} placeholder="Exclure propriétaire" />
             </>
           )}
         </div>
-
-        {/* Active filter pills */}
         {hasActiveFilters && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: '#3a5070' }}>Filtres :</span>
-            {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); setViewPreset('all'); scheduleRefetch() }} />}
-            {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); setViewPreset('all'); scheduleRefetch() }} />}
+            {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
+            {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
             {stage && <FilterPill label={STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
             {formation && <FilterPill label={formation} onRemove={() => setFormation('')} />}
             {classe && <FilterPill label={classe} onRemove={() => setClasse('')} />}
@@ -939,6 +1154,268 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+
+      {/* ── Table + Advanced Filter Panel ─────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+      {/* ── Advanced Filter Side Panel (HubSpot-style) ───────────────────── */}
+      {filterPanelOpen && (
+        <div style={{
+          width: 380, flexShrink: 0,
+          background: '#0d1a28', borderRight: '1px solid #1a2f45',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
+          {/* Panel header */}
+          <div style={{
+            padding: '14px 16px', borderBottom: '1px solid #1a2f45',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#e8eaf0' }}>Tous les filtres</span>
+            <button onClick={() => setFilterPanelOpen(false)} style={{
+              background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2,
+            }}>
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Panel body */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8', marginBottom: 12 }}>
+              Filtres avancés
+            </div>
+
+            {filterGroups.map((group, gi) => (
+              <div key={group.id}>
+                {/* OU separator */}
+                {gi > 0 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    margin: '12px 0',
+                  }}>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                    <span style={{
+                      fontSize: 12, fontWeight: 700, color: '#555870',
+                      background: '#0d1a28', padding: '2px 10px',
+                      border: '1px solid #1a2f45', borderRadius: 4,
+                    }}>
+                      ou
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                  </div>
+                )}
+
+                {/* Group card */}
+                <div style={{
+                  background: '#101e30', border: '1px solid #1a2f45',
+                  borderRadius: 10, padding: '12px',
+                }}>
+                  {/* Group header */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 10,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#c8cad8' }}>
+                      Groupe {gi + 1}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => duplicateFilterGroup(group.id)} title="Dupliquer le groupe" style={{
+                        background: 'none', border: 'none', color: '#3a5070', cursor: 'pointer', display: 'flex', padding: 3,
+                      }}>
+                        <Copy size={13} />
+                      </button>
+                      <button onClick={() => deleteFilterGroup(group.id)} title="Supprimer le groupe" style={{
+                        background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 3,
+                      }}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Rules */}
+                  {group.rules.map((rule, ri) => {
+                    const ops = opsForField(rule.field)
+                    const showVal = opNeedsValue(rule.operator)
+                    const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
+
+                    // Build options for this field
+                    let valueOptions: SelectOption[] = []
+                    switch (rule.field) {
+                      case 'stage':       valueOptions = STAGE_OPTIONS.filter(o => o.id); break
+                      case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
+                      case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
+                      case 'closer':      valueOptions = closerOptions.filter(o => o.id); break
+                      case 'telepro':     valueOptions = teleproOptions.filter(o => o.id); break
+                      case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
+                      case 'source':      valueOptions = sourceOptions.filter(o => o.id); break
+                      case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
+                    }
+
+                    return (
+                      <div key={rule.id}>
+                        {ri > 0 && (
+                          <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>
+                        )}
+                        <div style={{
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                          background: '#0b1624', border: '1px solid #1a2f45',
+                          borderRadius: 8, padding: '8px 10px',
+                          position: 'relative',
+                        }}>
+                          {/* Delete rule X */}
+                          <button
+                            onClick={() => removeRule(group.id, rule.id)}
+                            style={{
+                              position: 'absolute', top: 6, right: 6,
+                              background: 'none', border: 'none', color: '#555870',
+                              cursor: 'pointer', display: 'flex', padding: 2,
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+
+                          {/* Field */}
+                          <select
+                            value={rule.field}
+                            onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })}
+                            style={{
+                              background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+                              padding: '6px 8px', color: '#c8cad8', fontSize: 12,
+                              fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
+                            }}
+                          >
+                            {CRM_FILTER_FIELDS.map(f => (
+                              <option key={f.key} value={f.key}>{f.label}</option>
+                            ))}
+                          </select>
+
+                          {/* Operator */}
+                          <select
+                            value={rule.operator}
+                            onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })}
+                            style={{
+                              background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+                              padding: '6px 8px', color: '#c8cad8', fontSize: 12,
+                              fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
+                            }}
+                          >
+                            {ops.map(op => (
+                              <option key={op.key} value={op.key}>{op.label}</option>
+                            ))}
+                          </select>
+
+                          {/* Value */}
+                          {showVal && (
+                            fieldDef?.type === 'select' && valueOptions.length > 0 ? (
+                              <select
+                                value={rule.value}
+                                onChange={e => updateRule(group.id, rule.id, { value: e.target.value })}
+                                style={{
+                                  background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+                                  padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12,
+                                  fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
+                                }}
+                              >
+                                <option value="">Rechercher…</option>
+                                {valueOptions.map(opt => (
+                                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={rule.value}
+                                onChange={e => updateRule(group.id, rule.id, { value: e.target.value })}
+                                placeholder="Valeur…"
+                                style={{
+                                  background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
+                                  padding: '6px 8px', color: '#e8eaf0', fontSize: 12,
+                                  fontFamily: 'inherit', outline: 'none', width: '100%',
+                                }}
+                              />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {/* Add filter to group */}
+                  <button
+                    onClick={() => addRuleToGroup(group.id)}
+                    style={{
+                      marginTop: 8, padding: '6px 12px',
+                      background: 'transparent', border: '1px solid #1a2f45',
+                      borderRadius: 6, color: '#4cabdb', fontSize: 12,
+                      cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    <Plus size={11} /> Ajouter un filtre
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Add group */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              marginTop: filterGroups.length > 0 ? 12 : 0,
+            }}>
+              {filterGroups.length > 0 && (
+                <>
+                  <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                </>
+              )}
+              <button
+                onClick={addFilterGroup}
+                style={{
+                  padding: '8px 14px',
+                  background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
+                  borderRadius: 6, color: '#4cabdb', fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Plus size={12} /> Ajouter un groupe de filtres
+              </button>
+            </div>
+          </div>
+
+          {/* Panel footer */}
+          {totalFilterRules > 0 && (
+            <div style={{
+              padding: '10px 16px', borderTop: '1px solid #1a2f45',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <button
+                onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }}
+                style={{
+                  flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6,
+                  color: '#ef4444', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Tout effacer
+              </button>
+              <button
+                onClick={() => setCreatingView(true)}
+                style={{
+                  flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)',
+                  border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
+                  color: '#ccac71', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Enregistrer comme vue
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
@@ -1072,6 +1549,8 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+
+      </div>{/* end flex container (table + side panel) */}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
