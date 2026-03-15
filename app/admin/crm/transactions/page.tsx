@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   Search, X, ChevronDown, ChevronUp, LayoutDashboard, Users, ExternalLink,
   ArrowUpDown, GraduationCap, MapPin, BookOpen, Phone, Mail, RefreshCw,
-  LayoutGrid, List,
+  LayoutGrid, List, Plus, Save, Check,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import TransactionBoard from '@/components/TransactionBoard'
@@ -66,6 +66,45 @@ const CLASSE_OPTIONS = [
 
 type SortCol = 'dealname' | 'formation' | 'classe' | 'zone' | 'stage' | 'created'
 type ViewMode = 'board' | 'list'
+
+// ── Saved Views ──────────────────────────────────────────────────────────────
+
+interface ViewFilters {
+  search: string
+  stage: string
+  formation: string
+  classe: string
+}
+
+interface SavedView {
+  id: string
+  name: string
+  filters: ViewFilters
+  isDefault?: boolean
+}
+
+const DEFAULT_VIEWS: SavedView[] = [
+  { id: 'all',   name: 'Toutes',           filters: { search: '', stage: '', formation: '', classe: '' }, isDefault: true },
+  { id: 'rdv',   name: 'RDV Pris',         filters: { search: '', stage: '3165428980', formation: '', classe: '' }, isDefault: true },
+  { id: 'pre',   name: 'Pré-inscription',  filters: { search: '', stage: '3165428982', formation: '', classe: '' }, isDefault: true },
+  { id: 'lost',  name: 'Fermé Perdu',      filters: { search: '', stage: '3165428985', formation: '', classe: '' }, isDefault: true },
+]
+
+function loadSavedViews(): SavedView[] {
+  if (typeof window === 'undefined') return DEFAULT_VIEWS
+  try {
+    const raw = localStorage.getItem('tx-saved-views')
+    if (raw) {
+      const parsed = JSON.parse(raw) as SavedView[]
+      if (parsed.length > 0) return parsed
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_VIEWS
+}
+
+function persistViews(views: SavedView[]) {
+  localStorage.setItem('tx-saved-views', JSON.stringify(views))
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,6 +271,14 @@ export default function TransactionsPage() {
   const [stage, setStage]         = useState('')
   const [formation, setFormation] = useState('')
   const [classe, setClasse]       = useState('')
+
+  // Saved views
+  const [views, setViews] = useState<SavedView[]>(loadSavedViews)
+  const [activeViewId, setActiveViewId] = useState('all')
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [creatingView, setCreatingView] = useState(false)
+  const [newViewName, setNewViewName] = useState('')
 
   // Sort (list only)
   const [sortCol, setSortCol]     = useState<SortCol>('created')
@@ -510,8 +557,66 @@ export default function TransactionsPage() {
   const displayTotal = viewMode === 'board' ? boardTotal : total
   const displayStats = viewMode === 'board' ? boardStats : stats
 
+  // Check if current filters differ from active view
+  const activeView = views.find(v => v.id === activeViewId)
+  const viewFiltersChanged = activeView ? (
+    search !== activeView.filters.search ||
+    stage !== activeView.filters.stage ||
+    formation !== activeView.filters.formation ||
+    classe !== activeView.filters.classe
+  ) : false
+
   function resetFilters() {
     setSearch(''); setStage(''); setFormation(''); setClasse('')
+  }
+
+  function applyView(view: SavedView) {
+    setActiveViewId(view.id)
+    setSearch(view.filters.search)
+    setStage(view.filters.stage)
+    setFormation(view.filters.formation)
+    setClasse(view.filters.classe)
+    scheduleRefetch()
+  }
+
+  function createView(name: string) {
+    const id = `view_${Date.now()}`
+    const newView: SavedView = {
+      id,
+      name: name || 'Nouvelle vue',
+      filters: { search, stage, formation, classe },
+    }
+    const updated = [...views, newView]
+    setViews(updated)
+    persistViews(updated)
+    setActiveViewId(id)
+    setCreatingView(false)
+    setNewViewName('')
+  }
+
+  function deleteView(viewId: string) {
+    const updated = views.filter(v => v.id !== viewId)
+    setViews(updated)
+    persistViews(updated)
+    if (activeViewId === viewId) {
+      const allView = updated[0]
+      if (allView) applyView(allView)
+    }
+  }
+
+  function renameView(viewId: string, newName: string) {
+    const updated = views.map(v => v.id === viewId ? { ...v, name: newName || v.name } : v)
+    setViews(updated)
+    persistViews(updated)
+    setRenamingViewId(null)
+  }
+
+  function updateViewFilters(viewId: string) {
+    const updated = views.map(v =>
+      v.id === viewId ? { ...v, filters: { search, stage, formation, classe } } : v
+    )
+    setViews(updated)
+    persistViews(updated)
   }
 
   const stageOptions = ['', ...Object.keys(STAGE_MAP)]
@@ -644,6 +749,167 @@ export default function TransactionsPage() {
             Rafraîchir
           </button>
         </div>
+      </div>
+
+      {/* ── Views Tab Bar ───────────────────────────────────────────────────── */}
+      <div style={{
+        padding: '0 20px', background: '#0d1a28',
+        borderBottom: '1px solid #1a2f45', flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 0,
+        overflowX: 'auto', overflowY: 'hidden',
+      }}>
+        {views.map(view => {
+          const isActive = activeViewId === view.id
+          const isRenaming = renamingViewId === view.id
+
+          return (
+            <div
+              key={view.id}
+              onClick={() => { if (!isRenaming) applyView(view) }}
+              onDoubleClick={() => {
+                if (!view.isDefault) {
+                  setRenamingViewId(view.id)
+                  setRenameValue(view.name)
+                }
+              }}
+              style={{
+                padding: '10px 14px',
+                borderBottom: `2px solid ${isActive ? '#ccac71' : 'transparent'}`,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') renameView(view.id, renameValue)
+                    if (e.key === 'Escape') setRenamingViewId(null)
+                  }}
+                  onBlur={() => renameView(view.id, renameValue)}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    background: 'rgba(204,172,113,0.08)', border: '1px solid #ccac71',
+                    borderRadius: 4, padding: '2px 6px', color: '#ccac71',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                    outline: 'none', width: Math.max(60, renameValue.length * 8),
+                  }}
+                />
+              ) : (
+                <span style={{
+                  fontSize: 12, fontWeight: isActive ? 700 : 400,
+                  color: isActive ? '#ccac71' : '#6b7a90',
+                }}>
+                  {view.name}
+                </span>
+              )}
+
+              {/* Stage count badge for stage-filtered views */}
+              {view.filters.stage && displayStats?.stages[view.filters.stage] != null && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: isActive ? '#ccac71' : '#3a5070',
+                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
+                  borderRadius: 8, padding: '1px 6px',
+                }}>
+                  {displayStats.stages[view.filters.stage]}
+                </span>
+              )}
+
+              {/* Delete button (not for defaults) */}
+              {!view.isDefault && isActive && !isRenaming && (
+                <button
+                  onClick={e => { e.stopPropagation(); deleteView(view.id) }}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    color: '#555870', cursor: 'pointer', display: 'flex',
+                    marginLeft: 2,
+                  }}
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Update view button */}
+        {viewFiltersChanged && activeViewId !== 'all' && (
+          <button
+            onClick={() => updateViewFilters(activeViewId)}
+            style={{
+              padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
+              border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
+              color: '#ccac71', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              whiteSpace: 'nowrap', margin: '0 4px', flexShrink: 0,
+            }}
+          >
+            <Save size={10} /> Mettre à jour
+          </button>
+        )}
+
+        {/* Create new view */}
+        {creatingView ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '6px 8px', flexShrink: 0,
+          }}>
+            <input
+              autoFocus
+              value={newViewName}
+              onChange={e => setNewViewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') createView(newViewName)
+                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+              }}
+              placeholder="Nom de la vue…"
+              style={{
+                background: 'rgba(204,172,113,0.08)', border: '1px solid #ccac71',
+                borderRadius: 4, padding: '3px 8px', color: '#ccac71',
+                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
+              }}
+            />
+            <button
+              onClick={() => createView(newViewName)}
+              style={{
+                background: '#ccac71', border: 'none', borderRadius: 4,
+                padding: '3px 6px', cursor: 'pointer', display: 'flex',
+              }}
+            >
+              <Check size={12} color="#0b1624" />
+            </button>
+            <button
+              onClick={() => { setCreatingView(false); setNewViewName('') }}
+              style={{
+                background: 'none', border: 'none', padding: 0,
+                color: '#555870', cursor: 'pointer', display: 'flex',
+              }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreatingView(true)}
+            style={{
+              padding: '8px 12px', background: 'none', border: 'none',
+              color: '#3a5070', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
+              whiteSpace: 'nowrap', flexShrink: 0,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#ccac71')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#3a5070')}
+          >
+            <Plus size={12} /> Vue
+          </button>
+        )}
       </div>
 
       {/* ── Filters (list view only) ─────────────────────────────────────────── */}
