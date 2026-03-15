@@ -20,6 +20,8 @@ type RepopEntry = {
   repop_form_date: string
   repop_form_date_label: string
   repop_form_name: string | null
+  classe: string | null
+  zone_localite: string | null
 }
 
 type Props = {
@@ -36,9 +38,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   const [orphans, setOrphans] = useState<OrphanRepopEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
-  // Sub-filters for orphans tab
-  const [orphanClasse, setOrphanClasse] = useState<string>('')
-  const [orphanZone, setOrphanZone] = useState<string>('')
+  // Sub-filters (shared across all tabs)
+  const [filterClasse, setFilterClasse] = useState<string>('')
+  const [filterZone, setFilterZone] = useState<string>('')
+  // Formulaire candidature filter — orphans only
   const [orphanCandidatureOnly, setOrphanCandidatureOnly] = useState(false)
 
   const fetchRepops = useCallback(async () => {
@@ -69,20 +72,22 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   useEffect(() => { fetchRepops() }, [fetchRepops])
 
-  // Filtrer par stage
+  // Filtrer par stage + classe/zone
   const filtered = entries.filter(e => {
-    if (activeFilter === 'all') return true
-    if (activeFilter === 'a_replanifier') return e.hs_stage_label === 'À replanifier'
-    if (activeFilter === 'delai_reflexion') return e.hs_stage_label === 'Délai de réflexion'
-    return false // orphans tab → hide deal entries
+    if (activeFilter === 'orphans') return false
+    if (activeFilter === 'a_replanifier' && e.hs_stage_label !== 'À replanifier') return false
+    if (activeFilter === 'delai_reflexion' && e.hs_stage_label !== 'Délai de réflexion') return false
+    if (filterClasse && e.classe !== filterClasse) return false
+    if (filterZone && e.zone_localite !== filterZone) return false
+    return true
   })
 
   const showOrphans = activeFilter === 'all' || activeFilter === 'orphans'
 
-  // Sub-filter orphans
+  // Sub-filter orphans (classe/zone shared + candidature only for orphans)
   const filteredOrphans = orphans.filter(o => {
-    if (orphanClasse && o.classe !== orphanClasse) return false
-    if (orphanZone && o.zone_localite !== orphanZone) return false
+    if (filterClasse && o.classe !== filterClasse) return false
+    if (filterZone && o.zone_localite !== filterZone) return false
     if (orphanCandidatureOnly) {
       const hasCandidature = [o.first_form_name, o.repop_form_name].some(
         n => n && /candidat/i.test(n)
@@ -92,9 +97,15 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
     return true
   })
 
-  // Unique values for sub-filter dropdowns
-  const uniqueClasses = [...new Set(orphans.map(o => o.classe).filter(Boolean) as string[])].sort()
-  const uniqueZones = [...new Set(orphans.map(o => o.zone_localite).filter(Boolean) as string[])].sort()
+  // Unique values from ALL data (entries + orphans)
+  const uniqueClasses = [...new Set([
+    ...entries.map(e => e.classe),
+    ...orphans.map(o => o.classe),
+  ].filter(Boolean) as string[])].sort()
+  const uniqueZones = [...new Set([
+    ...entries.map(e => e.zone_localite),
+    ...orphans.map(o => o.zone_localite),
+  ].filter(Boolean) as string[])].sort()
 
   const countByStage = {
     a_replanifier: entries.filter(e => e.hs_stage_label === 'À replanifier').length,
@@ -189,6 +200,52 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         </div>
       )}
 
+      {/* Sous-filtres Classe / Zone — visibles sur tous les onglets */}
+      {totalCount > 0 && (
+        <div style={{
+          display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          <FilterIcon size={13} style={{ color: '#555870' }} />
+          <select
+            value={filterClasse}
+            onChange={e => setFilterClasse(e.target.value)}
+            style={subFilterSelectStyle}
+          >
+            <option value="">Classe</option>
+            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={filterZone}
+            onChange={e => setFilterZone(e.target.value)}
+            style={subFilterSelectStyle}
+          >
+            <option value="">Zone / Localité</option>
+            {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          {/* Formulaire candidature — seulement sur l'onglet orphans */}
+          {activeFilter === 'orphans' && (
+            <button
+              onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
+              style={{
+                background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#152438',
+                border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2d4a6b'}`,
+                borderRadius: 8, padding: '5px 12px',
+                color: orphanCandidatureOnly ? '#a855f7' : '#8b8fa8',
+                fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
+                cursor: 'pointer',
+              }}
+            >
+              Formulaire candidature
+            </button>
+          )}
+          {(filterClasse || filterZone || orphanCandidatureOnly) && (
+            <span style={{ fontSize: 11, color: '#555870' }}>
+              {filtered.length + (showOrphans ? filteredOrphans.length : 0)} résultat{(filtered.length + (showOrphans ? filteredOrphans.length : 0)) !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Vide */}
       {totalCount === 0 && (
         <div style={{
@@ -223,49 +280,6 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             }}>
               <UserX size={14} />
               Sans transaction ({filteredOrphans.length})
-            </div>
-          )}
-
-          {/* Sub-filters for orphans */}
-          {activeFilter === 'orphans' && (
-            <div style={{
-              display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center',
-            }}>
-              <FilterIcon size={13} style={{ color: '#555870' }} />
-              <select
-                value={orphanClasse}
-                onChange={e => setOrphanClasse(e.target.value)}
-                style={subFilterSelectStyle}
-              >
-                <option value="">Classe</option>
-                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select
-                value={orphanZone}
-                onChange={e => setOrphanZone(e.target.value)}
-                style={subFilterSelectStyle}
-              >
-                <option value="">Zone / Localité</option>
-                {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
-              </select>
-              <button
-                onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
-                style={{
-                  background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#152438',
-                  border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2d4a6b'}`,
-                  borderRadius: 8, padding: '5px 12px',
-                  color: orphanCandidatureOnly ? '#a855f7' : '#8b8fa8',
-                  fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
-                  cursor: 'pointer',
-                }}
-              >
-                Formulaire candidature
-              </button>
-              {(orphanClasse || orphanZone || orphanCandidatureOnly) && (
-                <span style={{ fontSize: 11, color: '#555870' }}>
-                  {filteredOrphans.length} résultat{filteredOrphans.length !== 1 ? 's' : ''}
-                </span>
-              )}
             </div>
           )}
 

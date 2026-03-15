@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
   const contactByDealId = new Map<string, {
     email?: string; phone?: string; firstname?: string; lastname?: string
     recent_conversion_date?: string; recent_conversion_event_name?: string
+    classe_actuelle?: string; zone___localite?: string
   }>()
 
   const BATCH_SIZE = 15
@@ -93,6 +94,8 @@ export async function GET(req: NextRequest) {
             lastname: contact.properties.lastname,
             recent_conversion_date: contact.properties.recent_conversion_date,
             recent_conversion_event_name: contact.properties.recent_conversion_event_name,
+            classe_actuelle: contact.properties.classe_actuelle,
+            zone___localite: contact.properties.zone___localite,
           })
         }
       } catch { /* ignore */ }
@@ -174,6 +177,8 @@ export async function GET(req: NextRequest) {
       repop_form_date: new Date(repopMs).toISOString(),
       repop_form_date_label: format(new Date(repopMs), "d MMM 'à' HH'h'mm", { locale: fr }),
       repop_form_name: contact.recent_conversion_event_name ?? null,
+      classe: contact.classe_actuelle ?? null,
+      zone_localite: contact.zone___localite ?? null,
     }
   })
 
