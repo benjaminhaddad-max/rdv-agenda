@@ -402,21 +402,27 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           >
             <ExternalLink size={10} /> HubSpot
           </a>
-          <button
-            onClick={onDismiss}
-            disabled={isDismissing}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#22c55e',
-              fontSize: 11, fontWeight: 600, cursor: isDismissing ? 'wait' : 'pointer',
-              opacity: isDismissing ? 0.5 : 1, fontFamily: 'inherit',
-            }}
-          >
-            <Check size={10} /> {isDismissing ? '...' : 'Traité'}
-          </button>
         </div>
       </div>
+
+      {/* Bouton Marquer traité — pleine largeur */}
+      <button
+        onClick={onDismiss}
+        disabled={isDismissing}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: '100%',
+          background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.08)',
+          border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.25)'}`,
+          borderRadius: 8, padding: '8px 16px',
+          color: isDismissing ? '#22c55e' : '#ccac71',
+          fontSize: 13, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+          opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        <Check size={14} /> {isDismissing ? 'En cours…' : 'Marquer comme traité'}
+      </button>
 
       {/* Ligne 2 : téléphone + email + closer/telepro */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -548,21 +554,27 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
           >
             <ExternalLink size={10} /> HubSpot
           </a>
-          <button
-            onClick={onDismiss}
-            disabled={isDismissing}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#22c55e',
-              fontSize: 11, fontWeight: 600, cursor: isDismissing ? 'wait' : 'pointer',
-              opacity: isDismissing ? 0.5 : 1, fontFamily: 'inherit',
-            }}
-          >
-            <Check size={10} /> {isDismissing ? '...' : 'Traité'}
-          </button>
         </div>
       </div>
+
+      {/* Bouton Marquer traité — pleine largeur */}
+      <button
+        onClick={onDismiss}
+        disabled={isDismissing}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: '100%',
+          background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
+          border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
+          borderRadius: 8, padding: '8px 16px',
+          color: isDismissing ? '#22c55e' : '#a855f7',
+          fontSize: 13, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+          opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        <Check size={14} /> {isDismissing ? 'En cours…' : 'Marquer comme traité'}
+      </button>
 
       {/* Ligne 2 : téléphone + email */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
