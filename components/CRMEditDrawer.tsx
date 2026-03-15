@@ -18,17 +18,8 @@ const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428985': { label: 'Fermé Perdu',           color: '#555870' },
 }
 
-const LEAD_STATUS_OPTIONS = [
-  { id: '', label: '—' },
-  { id: 'NEW', label: 'Nouveau' },
-  { id: 'OPEN', label: 'Ouvert' },
-  { id: 'IN_PROGRESS', label: 'En cours' },
-  { id: 'OPEN_DEAL', label: 'Deal ouvert' },
-  { id: 'UNQUALIFIED', label: 'Non qualifié' },
-  { id: 'ATTEMPTED_TO_CONTACT', label: 'Tentative contact' },
-  { id: 'CONNECTED', label: 'Connecté' },
-  { id: 'BAD_TIMING', label: 'Mauvais timing' },
-]
+// LEAD_STATUS_OPTIONS — chargé dynamiquement depuis /api/crm/field-options
+// (valeurs réelles HubSpot, pas de hardcode)
 
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
@@ -221,9 +212,23 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
 
+  // Valeurs réelles HubSpot chargées depuis Supabase
+  const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
+
   useEffect(() => {
     setLocalContact(contact)
   }, [contact])
+
+  useEffect(() => {
+    fetch('/api/crm/field-options').then(r => r.json()).then(d => {
+      if (d.leadStatuses?.length) {
+        setLeadStatusOpts([
+          { id: '', label: '—' },
+          ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+    })
+  }, [])
 
   if (!localContact) return null
 
@@ -273,11 +278,6 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   ]
 
   const classeOptionList = CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))
-  const leadStatusColorMap: Record<string, string> = {
-    NEW: '#4cabdb', OPEN: '#22c55e', IN_PROGRESS: '#ccac71',
-    OPEN_DEAL: '#a855f7', UNQUALIFIED: '#555870',
-    ATTEMPTED_TO_CONTACT: '#f97316', CONNECTED: '#16a34a', BAD_TIMING: '#ef4444',
-  }
 
   // Source label mapping
   const sourceLabel = c.hs_analytics_source
@@ -369,9 +369,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             <SelectField
               label="Statut du lead"
               value={c.hs_lead_status || ''}
-              options={LEAD_STATUS_OPTIONS}
+              options={leadStatusOpts}
               onSave={v => patchContact({ hs_lead_status: v })}
-              colorMap={leadStatusColorMap}
             />
             {/* Date de création (read-only) */}
             <div style={{ marginBottom: 12 }}>

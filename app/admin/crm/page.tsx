@@ -55,6 +55,9 @@ const PERIOD_OPTIONS = [
   { id: 'month',  label: 'Ce mois' },
 ]
 
+// Ces listes sont chargées dynamiquement depuis /api/crm/field-options
+// (valeurs réellement présentes dans crm_contacts, telles que renvoyées par HubSpot)
+
 // ── Vues prédéfinies ───────────────────────────────────────────────────────────
 type ViewPreset = 'all' | 'a_attribuer' | 'recents'
 
@@ -245,6 +248,8 @@ export default function CRMPage() {
   const [noTelepro, setNoTelepro]     = useState(false)
   const [ownerExclude, setOwnerExclude] = useState('')
   const [recentFormMonths, setRecentFormMonths] = useState(0)
+  const [leadStatus, setLeadStatus]   = useState('')
+  const [source, setSource]           = useState('')
 
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)  // montrer équipe externe (ex. Benjamin Delacour)
@@ -259,6 +264,10 @@ export default function CRMPage() {
   const [closers, setClosers]     = useState<RdvUser[]>([])
   const [telepros, setTelepros]   = useState<RdvUser[]>([])
   const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
+
+  // Options dynamiques depuis HubSpot (valeurs réelles)
+  const [leadStatusOptions, setLeadStatusOptions] = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts lead' }])
+  const [sourceOptions, setSourceOptions]         = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
 
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -281,6 +290,21 @@ export default function CRMPage() {
       const arr = Array.isArray(d) ? d : []
       setTelepros(arr)
       setAllUsers(prev => [...prev.filter(u => u.role !== 'telepro'), ...arr])
+    })
+    // Charger les valeurs réelles HubSpot pour statut lead + origine
+    fetch('/api/crm/field-options').then(r => r.json()).then(d => {
+      if (d.leadStatuses?.length) {
+        setLeadStatusOptions([
+          { id: '', label: 'Tous les statuts lead' },
+          ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+      if (d.sources?.length) {
+        setSourceOptions([
+          { id: '', label: 'Toutes les origines' },
+          ...d.sources.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
     })
   }, [])
 
@@ -305,6 +329,8 @@ export default function CRMPage() {
       if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
       if (showExternal)         params.set('show_external', '1')
       if (allClasses)           params.set('all_classes', '1')
+      if (leadStatus)           params.set('lead_status', leadStatus)
+      if (source)               params.set('source', source)
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
@@ -316,7 +342,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -424,12 +450,13 @@ export default function CRMPage() {
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0
+  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || leadStatus || source
 
   function resetAll() {
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
+    setLeadStatus(''); setSource('')
     setViewPreset('all')
     // On ne reset PAS showExternal ni allClasses (ce sont des préférences de vue, pas des filtres)
   }
@@ -844,6 +871,18 @@ export default function CRMPage() {
             options={PERIOD_OPTIONS}
           />
 
+          <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
+          <FilterSelect
+            value={leadStatus}
+            onChange={v => { setLeadStatus(v); scheduleRefetch() }}
+            options={leadStatusOptions}
+          />
+          <FilterSelect
+            value={source}
+            onChange={v => { setSource(v); scheduleRefetch() }}
+            options={sourceOptions}
+          />
+
           {/* Exclure propriétaire — utile en vue "À attribuer" pour exclure ex. Benjamin Delacour */}
           {ownerExcludeOptions.length > 1 && (
             <>
@@ -871,6 +910,8 @@ export default function CRMPage() {
             {teleproHsId && <FilterPill label={teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
             {ownerExclude && <FilterPill label={`Excl. ${ownerExcludeOptions.find(o => o.id === ownerExclude)?.label ?? 'propriétaire'}`} onRemove={() => { setOwnerExclude(''); scheduleRefetch() }} />}
             {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
+            {leadStatus && <FilterPill label={leadStatusOptions.find(o => o.id === leadStatus)?.label ?? leadStatus} onRemove={() => { setLeadStatus(''); scheduleRefetch() }} />}
+            {source && <FilterPill label={sourceOptions.find(o => o.id === source)?.label ?? source} onRemove={() => { setSource(''); scheduleRefetch() }} />}
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
         )}

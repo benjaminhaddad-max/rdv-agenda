@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
   const recentFormMonths = parseInt(searchParams.get('recent_form_months') ?? '0', 10)
   const showExternal     = searchParams.get('show_external') === '1'
   const allClasses       = searchParams.get('all_classes') === '1'
+  const leadStatus       = searchParams.get('lead_status') ?? ''
+  const source           = searchParams.get('source') ?? ''
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -169,6 +171,16 @@ export async function GET(req: NextRequest) {
     const since = new Date()
     since.setMonth(since.getMonth() - recentFormMonths)
     query = query.gte('recent_conversion_date', since.toISOString())
+  }
+
+  // Statut du lead
+  if (leadStatus) {
+    query = query.eq('hs_lead_status', leadStatus)
+  }
+
+  // Origine (analytics source)
+  if (source) {
+    query = query.eq('hs_analytics_source', source)
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
