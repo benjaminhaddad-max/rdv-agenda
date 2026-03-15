@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   LayoutDashboard, Calendar, Clock, Users, Briefcase,
-  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox,
+  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
@@ -14,6 +14,7 @@ import DealsDoublonsManager from '@/components/DealsDoublonsManager'
 import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import RepopJournal from '@/components/RepopJournal'
 import UnassignedQueue from '@/components/UnassignedQueue'
+import LinksManager from '@/components/LinksManager'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminPage() {
@@ -26,6 +27,7 @@ export default function AdminPage() {
   const [showCheckRdv, setShowCheckRdv]             = useState(false)
   const [showRepop, setShowRepop]                   = useState(false)
   const [showQueue, setShowQueue]                   = useState(false)
+  const [showLinks, setShowLinks]                   = useState(false)
   const [unassignedCount, setUnassignedCount]       = useState<number | null>(null)
 
   // Compteur de la file d'attente pour le badge
@@ -137,6 +139,7 @@ export default function AdminPage() {
           <ToolBtn icon={<GitMerge size={12} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
           <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac" onClick={() => setShowDealsDoublons(true)} color="red" />
           <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"    onClick={() => setShowRepop(true)} />
+          <ToolBtn icon={<Link2 size={12} />}         label="Liens & Campagnes" onClick={() => setShowLinks(true)} color="blue" />
         </div>
       </div>
 
@@ -170,6 +173,7 @@ export default function AdminPage() {
       {showDoublons      && <DoublonsManager       onClose={() => setShowDoublons(false)} />}
       {showDealsDoublons && <DealsDoublonsManager  onClose={() => setShowDealsDoublons(false)} />}
       {showCheckRdv      && <CheckRdvCloserPanel   onClose={() => setShowCheckRdv(false)} />}
+      {showLinks         && <LinksManager           onClose={() => setShowLinks(false)} />}
 
       {showRepop && (
         <div
@@ -187,12 +191,13 @@ export default function AdminPage() {
 }
 
 function ToolBtn({ icon, label, onClick, color = 'gold' }: {
-  icon: React.ReactNode; label: string; onClick: () => void; color?: 'gold' | 'green' | 'red'
+  icon: React.ReactNode; label: string; onClick: () => void; color?: 'gold' | 'green' | 'red' | 'blue'
 }) {
   const p = {
     gold:  { bg: 'rgba(204,172,113,0.1)', border: 'rgba(204,172,113,0.25)', text: '#ccac71' },
     green: { bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.25)',   text: '#22c55e' },
     red:   { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',   text: '#ef4444' },
+    blue:  { bg: 'rgba(76,171,219,0.1)',  border: 'rgba(76,171,219,0.25)',  text: '#4cabdb' },
   }[color]
   return (
     <button onClick={onClick} style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: 7, padding: '4px 11px', color: p.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
