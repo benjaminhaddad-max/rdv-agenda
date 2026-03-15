@@ -16,6 +16,7 @@ import RepopJournal from '@/components/RepopJournal'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import LinksManager from '@/components/LinksManager'
 import LogoutButton from '@/components/LogoutButton'
+import PlatformGuide from '@/components/PlatformGuide'
 
 export default function AdminPage() {
   const [calendarKey, setCalendarKey] = useState(0)
@@ -28,6 +29,7 @@ export default function AdminPage() {
   const [showRepop, setShowRepop]                   = useState(false)
   const [showQueue, setShowQueue]                   = useState(false)
   const [showLinks, setShowLinks]                   = useState(false)
+  const [showGuide, setShowGuide]                   = useState(false)
   const [unassignedCount, setUnassignedCount]       = useState<number | null>(null)
 
   // Compteur de la file d'attente pour le badge
@@ -77,6 +79,18 @@ export default function AdminPage() {
           <a href="/telepro" style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '5px 12px', color: '#ccac71', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Plus size={12} /> Nouveau RDV
           </a>
+          <button
+            onClick={() => setShowGuide(true)}
+            style={{
+              background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#06b6d4', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            📖 Guide
+          </button>
           <LogoutButton />
         </div>
       </div>
@@ -185,6 +199,10 @@ export default function AdminPage() {
             <RepopJournal scope="admin" />
           </div>
         </div>
+      )}
+      {/* Guide de la plateforme */}
+      {showGuide && (
+        <PlatformGuide onClose={() => setShowGuide(false)} />
       )}
     </div>
   )
