@@ -8,6 +8,7 @@ import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
 import DoublonsManager from '@/components/DoublonsManager'
+import DealsDoublonsManager from '@/components/DealsDoublonsManager'
 import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import RepopJournal from '@/components/RepopJournal'
 import LogoutButton from '@/components/LogoutButton'
@@ -18,6 +19,7 @@ export default function AdminPage() {
   const [showTelepros, setShowTelepros] = useState(false)
   const [showClosers, setShowClosers] = useState(false)
   const [showDoublons, setShowDoublons] = useState(false)
+  const [showDealsDoublons, setShowDealsDoublons] = useState(false)
   const [showCheckRdv, setShowCheckRdv] = useState(false)
   const [showRepop, setShowRepop] = useState(false)
 
@@ -102,6 +104,18 @@ export default function AdminPage() {
           >
             <GitMerge size={13} />
             Doublons
+          </button>
+          <button
+            onClick={() => setShowDealsDoublons(true)}
+            style={{
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 8, padding: '6px 14px',
+              color: '#ef4444', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            🔁 Doublons transac
           </button>
           <button
             onClick={() => setShowRepop(true)}
@@ -194,9 +208,13 @@ export default function AdminPage() {
       {showClosers && (
         <CloserManager onClose={() => setShowClosers(false)} />
       )}
-      {/* Panel doublons */}
+      {/* Panel doublons contacts */}
       {showDoublons && (
         <DoublonsManager onClose={() => setShowDoublons(false)} />
+      )}
+      {/* Panel doublons transactions 2026-2027 */}
+      {showDealsDoublons && (
+        <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />
       )}
       {/* Panel check RDV closer */}
       {showCheckRdv && (
