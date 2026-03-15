@@ -1274,8 +1274,6 @@ export default function CRMContactsTable({
                     position: 'sticky',
                     top: 0,
                     zIndex: 10,
-                    /* relative needed for resize handle absolute positioning —
-                       sticky already creates a positioning context, so this is safe */
                     whiteSpace: 'nowrap',
                     userSelect: 'none',
                     cursor: 'grab',
@@ -1286,23 +1284,39 @@ export default function CRMContactsTable({
                     opacity: dragIdx === idx ? 0.5 : 1,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
                     <GripVertical size={10} style={{ color: '#2d4a6b', flexShrink: 0, opacity: 0.6 }} />
                     {COL_LABELS[key]}
                   </div>
-                  {/* Resize handle */}
+                  {/* Resize handle — positionné par rapport au th (sticky = containing block) */}
                   <div
-                    onMouseDown={e => handleResizeStart(e, key)}
+                    draggable={false}
+                    onMouseDown={e => { e.stopPropagation(); handleResizeStart(e, key) }}
                     style={{
                       position: 'absolute', top: 0, right: 0,
-                      width: 6, height: '100%',
+                      width: 8, height: '100%',
                       cursor: 'col-resize',
-                      background: 'transparent',
-                      zIndex: 11,
+                      zIndex: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(204,172,113,0.4)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
-                  />
+                    onMouseEnter={e => {
+                      const line = e.currentTarget.querySelector('div') as HTMLDivElement
+                      if (line) line.style.opacity = '1'
+                    }}
+                    onMouseLeave={e => {
+                      const line = e.currentTarget.querySelector('div') as HTMLDivElement
+                      if (line) line.style.opacity = '0'
+                    }}
+                  >
+                    <div style={{
+                      width: 2, height: '70%',
+                      background: BLUE,
+                      borderRadius: 2,
+                      opacity: 0,
+                      transition: 'opacity 0.15s',
+                      pointerEvents: 'none',
+                    }} />
+                  </div>
                 </th>
               ))}
 
