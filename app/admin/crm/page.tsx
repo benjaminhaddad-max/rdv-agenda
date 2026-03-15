@@ -6,6 +6,9 @@ import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
 
+// Pipeline actuel (Diploma Santé 2026-2027)
+const CURRENT_PIPELINE_ID = '2313043166'
+
 // ── Static option lists ────────────────────────────────────────────────────────
 
 const STAGE_OPTIONS = [
@@ -60,7 +63,7 @@ const PERIOD_OPTIONS = [
 
 // ── Advanced filter system ───────────────────────────────────────────────────
 
-type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
+type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement' | 'pipeline'
 type CRMFilterOp = 'is' | 'is_not' | 'is_any' | 'is_none' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
 
 interface CRMFilterRule {
@@ -86,6 +89,7 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
   { key: 'zone',        label: 'Zone / Localité', type: 'select' },
   { key: 'departement', label: 'Département',   type: 'select' },
   { key: 'period',      label: 'Période',       type: 'select' },
+  { key: 'pipeline',    label: 'Pipeline (Année)', type: 'select' },
   { key: 'search',      label: 'Recherche',     type: 'text' },
 ]
 
@@ -242,6 +246,7 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'source':      p.set('source', val); break
           case 'zone':        p.set('zone', val); break
           case 'departement': p.set('departement', val); break
+          case 'pipeline':    p.set('pipeline', val); break
         }
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {
@@ -254,6 +259,7 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'source':      p.set('source_not', val); break
           case 'zone':        p.set('zone_not', val); break
           case 'departement': p.set('departement_not', val); break
+          case 'pipeline':    p.set('pipeline_not', val); break
         }
       }
     }
@@ -751,6 +757,13 @@ export default function CRMPage() {
   const [closerNot, setCloserNot]         = useState('')
   const [teleproNot, setTeleproNot]       = useState('')
   const [formationNot, setFormationNot]   = useState('')
+  const [pipeline,     setPipeline]       = useState('')
+  const [pipelineNot,  setPipelineNot]    = useState('')
+
+  // Pipelines HubSpot (chargés dynamiquement)
+  type PipelineData = { id: string; label: string; stages: { id: string; label: string; displayOrder: number }[] }
+  const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
+  const [pipelinesData,   setPipelinesData]   = useState<PipelineData[]>([])
 
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
@@ -801,6 +814,18 @@ export default function CRMPage() {
         setViewsLoaded(true)
       })
       .catch(() => setViewsLoaded(true))
+  }, [])
+
+  // ── Charger les pipelines HubSpot ─────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/crm/pipelines')
+      .then(r => r.json())
+      .then((rows: Array<{ id: string; label: string; stages: { id: string; label: string; displayOrder: number }[] }>) => {
+        if (!Array.isArray(rows)) return
+        setPipelineOptions(rows.map(p => ({ id: p.id, label: p.label })))
+        setPipelinesData(rows)
+      })
+      .catch(() => {})
   }, [])
 
   // ── Pré-charger les counts de toutes les vues ─────────────────────────────
@@ -905,6 +930,8 @@ export default function CRMPage() {
       if (closerNot)            params.set('closer_not', closerNot)
       if (teleproNot)           params.set('telepro_not', teleproNot)
       if (formationNot)         params.set('formation_not', formationNot)
+      if (pipeline)             params.set('pipeline', pipeline)
+      if (pipelineNot)          params.set('pipeline_not', pipelineNot)
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
@@ -916,7 +943,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -938,6 +965,7 @@ export default function CRMPage() {
     // Reset all exclusion filters
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
     setCloserNot(''); setTeleproNot(''); setFormationNot('')
+    setPipeline(''); setPipelineNot('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
 
@@ -961,6 +989,7 @@ export default function CRMPage() {
             case 'search':      setSearch(val); break
             case 'zone':        setZoneFilter(val); break
             case 'departement': setDeptFilter(val); break
+            case 'pipeline':    setPipeline(val); break
           }
         }
         // Exclusion filters: is_not, is_none
@@ -974,6 +1003,7 @@ export default function CRMPage() {
             case 'source':      setSourceNot(val); break
             case 'zone':        setZoneNot(val); break
             case 'departement': setDeptNot(val); break
+            case 'pipeline':    setPipelineNot(val); break
           }
         }
       }
@@ -1026,6 +1056,29 @@ export default function CRMPage() {
   }
 
   // ── Filter group CRUD ──────────────────────────────────────────────────────
+
+  function applyPriorPreinscriptionFilter() {
+    // Collecter les stage IDs "preinscription ou +" des pipelines précédents
+    const prevStageIds: string[] = []
+    for (const p of pipelinesData) {
+      if (p.id === CURRENT_PIPELINE_ID) continue
+      for (const s of p.stages) {
+        if (/inscription/i.test(s.label)) prevStageIds.push(s.id)
+      }
+    }
+    const t = Date.now()
+    const rules: CRMFilterRule[] = [
+      { id: `r_${t}_1`, field: 'pipeline', operator: 'is_not', value: CURRENT_PIPELINE_ID },
+    ]
+    if (prevStageIds.length > 0) {
+      rules.push({ id: `r_${t}_2`, field: 'stage', operator: 'is_any', value: prevStageIds.join(',') })
+    }
+    const newGroup: CRMFilterGroup = { id: `g_${t}`, rules }
+    const updated = [newGroup]
+    setFilterGroups(updated)
+    applyGroupsToFilters(updated)
+    scheduleRefetch()
+  }
 
   function addFilterGroup() {
     const g: CRMFilterGroup = {
@@ -1889,6 +1942,30 @@ export default function CRMPage() {
               Filtres avancés
             </div>
 
+            {/* ── Raccourcis ───────────────────────────────────────────── */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Raccourcis
+              </div>
+              <button
+                onClick={applyPriorPreinscriptionFilter}
+                style={{
+                  width: '100%', padding: '8px 12px',
+                  background: 'rgba(99,102,241,0.07)',
+                  border: '1px solid rgba(99,102,241,0.2)',
+                  borderRadius: 8, color: '#a5b4fc',
+                  fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', textAlign: 'left',
+                  fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                🎓 Pré-inscrits années précédentes
+              </button>
+            </div>
+
+            <div style={{ height: 1, background: '#1a2f45', marginBottom: 14 }} />
+
             {filterGroups.map((group, gi) => (
               <div key={group.id}>
                 {gi > 0 && (
@@ -1924,6 +2001,7 @@ export default function CRMPage() {
                       case 'zone':        valueOptions = zoneOptions.filter(o => o.id); break
                       case 'departement': valueOptions = deptOptions.filter(o => o.id); break
                       case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
+                      case 'pipeline':    valueOptions = pipelineOptions; break
                     }
                     return (
                       <div key={rule.id}>

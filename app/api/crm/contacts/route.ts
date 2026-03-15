@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
   const closerNot        = searchParams.get('closer_not') ?? ''
   const teleproNot       = searchParams.get('telepro_not') ?? ''
   const formationNot     = searchParams.get('formation_not') ?? ''
+  const pipeline         = searchParams.get('pipeline') ?? ''
+  const pipelineNot      = searchParams.get('pipeline_not') ?? ''
 
   const isExport         = searchParams.get('export') === '1'
   const countOnly        = searchParams.get('limit') === '0'
@@ -70,7 +72,7 @@ export async function GET(req: NextRequest) {
   const splitMulti = (v: string) => v.split(',').filter(Boolean)
 
   // A) Filtres positifs deal
-  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro)
+  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro || pipeline || pipelineNot)
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
@@ -91,6 +93,16 @@ export async function GET(req: NextRequest) {
     if (formation) {
       const formations = splitMulti(formation)
       dealQ = formations.length > 1 ? dealQ.in('formation', formations) : dealQ.eq('formation', formation)
+    }
+    if (pipeline) dealQ = dealQ.eq('pipeline', pipeline)
+    if (pipelineNot) {
+      const vals = splitMulti(pipelineNot)
+      // On INCLUT les deals dont le pipeline n'est PAS dans la liste
+      if (vals.length > 1) {
+        dealQ = dealQ.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
+      } else {
+        dealQ = dealQ.neq('pipeline', pipelineNot)
+      }
     }
     if (withTelepro) dealQ = dealQ.not('teleprospecteur', 'is', null)
     if (!showExternal && excludedUserIds.length > 0) {
