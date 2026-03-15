@@ -557,6 +557,31 @@ export default function CRMPage() {
             {viewPreset === 'recents' && '— formulaire soumis il y a moins de 3 mois'}
           </span>
         )}
+
+        {/* Lien Transactions 2026-2027 */}
+        <div style={{ marginLeft: 'auto' }}>
+          <a
+            href="/admin/crm/transactions"
+            style={{
+              background: 'rgba(204,172,113,0.10)',
+              border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 8,
+              padding: '6px 14px',
+              color: '#ccac71',
+              fontSize: 12,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s',
+            }}
+          >
+            <GraduationCap size={13} />
+            Transactions 2026-2027
+          </a>
+        </div>
       </div>
 
       {/* ── Bandeau filtres par défaut ──────────────────────────────────────── */}
