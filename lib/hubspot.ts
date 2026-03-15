@@ -39,7 +39,7 @@ export const STAGES = {
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
 export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
-const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,createdate,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,origine,diploma_sante___formation_demandee'
+const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,createdate,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,origine,diploma_sante___formation_demandee,formation_souhaitee'
 
 export interface HubSpotContact {
   id: string
@@ -51,6 +51,7 @@ export interface HubSpotContact {
     departement?: string
     classe_actuelle?: string
     diploma_sante___formation_demandee?: string
+    formation_souhaitee?: string
     hubspot_owner_id?: string
     /** ms timestamp en string — date de la dernière soumission de formulaire */
     recent_conversion_date?: string

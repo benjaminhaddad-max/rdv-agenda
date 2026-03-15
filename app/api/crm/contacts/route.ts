@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     .select(
       `hubspot_contact_id, firstname, lastname, email, phone,
        departement, classe_actuelle, zone_localite,
-       formation_demandee, contact_createdate,
+       formation_demandee, formation_souhaitee, contact_createdate,
        hubspot_owner_id, recent_conversion_date, recent_conversion_event,
        hs_lead_status, origine,
        crm_deals (
@@ -222,6 +222,7 @@ export async function GET(req: NextRequest) {
       classe_actuelle:         c.classe_actuelle,
       zone_localite:           c.zone_localite,
       formation_demandee:      c.formation_demandee,
+      formation_souhaitee:     c.formation_souhaitee,
       contact_createdate:      c.contact_createdate,
       hubspot_owner_id:        c.hubspot_owner_id,
       recent_conversion_date:  c.recent_conversion_date,

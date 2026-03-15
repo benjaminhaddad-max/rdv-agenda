@@ -428,6 +428,7 @@ export interface CRMContact {
   classe_actuelle?: string | null
   zone_localite?: string | null
   formation_demandee?: string | null
+  formation_souhaitee?: string | null
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
   recent_conversion_date?: string | null
@@ -462,7 +463,6 @@ interface Props {
   onOpenDrawer?: (contact: CRMContact) => void
   leadStatusOptions?: { id: string; label: string }[]
   sourceOptions?: { id: string; label: string }[]
-  formationOptions?: { id: string; label: string }[]
   closerSelectOptions?: { id: string; label: string }[]
   teleproSelectOptions?: { id: string; label: string }[]
 }
@@ -822,15 +822,14 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation' | 'classe' | 'formation_demandee' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat'
+type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat'
 
 const COL_LABELS: Record<ColKey, string> = {
-  contact:           'Contact',
-  phone:             'Tél',
-  formation:         'Formation',
-  classe:            'Classe',
-  formation_demandee:'Formation dem.',
-  zone:              'Zone',
+  contact:              'Contact',
+  phone:                'Tél',
+  formation_souhaitee:  'Formation demandée',
+  classe:               'Classe',
+  zone:                 'Zone',
   departement:       'Département',
   etape:             'Étape',
   lead_status:       'Statut lead',
@@ -841,12 +840,11 @@ const COL_LABELS: Record<ColKey, string> = {
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
-  contact:           200,
-  phone:             120,
-  formation:         100,
-  classe:            100,
-  formation_demandee:110,
-  zone:              100,
+  contact:              200,
+  phone:                120,
+  formation_souhaitee:  140,
+  classe:               100,
+  zone:                 100,
   departement:       110,
   etape:             150,
   lead_status:       130,
@@ -857,7 +855,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
 }
 
 const DEFAULT_COL_ORDER: ColKey[] = [
-  'contact','phone','formation','classe','formation_demandee',
+  'contact','phone','formation_souhaitee','classe',
   'zone','departement','etape','lead_status','origine','closer','telepro','createdat',
 ]
 
@@ -873,7 +871,6 @@ export default function CRMContactsTable({
   onOpenDrawer,
   leadStatusOptions,
   sourceOptions,
-  formationOptions,
   closerSelectOptions,
   teleproSelectOptions,
 }: Props) {
@@ -997,7 +994,6 @@ export default function CRMContactsTable({
 
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
-    if (key === 'formation_demandee' && !formationOptions?.length) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
     if (key === 'origine'            && !sourceOptions?.length)     return false
     if (key === 'closer'             && mode === 'telepro')         return false
@@ -1066,9 +1062,9 @@ export default function CRMContactsTable({
           </a>
         ) : <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
 
-      case 'formation':
-        return deal?.formation
-          ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{deal.formation}</span>
+      case 'formation_souhaitee':
+        return contact.formation_souhaitee
+          ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{contact.formation_souhaitee}</span>
           : <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
 
       case 'classe':
@@ -1078,16 +1074,6 @@ export default function CRMContactsTable({
             options={CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))}
             onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'classe_actuelle', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:classe_actuelle`}
-          />
-        )
-
-      case 'formation_demandee':
-        return (
-          <InlineCellSelect
-            value={contact.formation_demandee || ''}
-            options={(formationOptions || []).map(o => ({ id: o.id, label: o.label }))}
-            onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'formation_demandee', v)}
-            saving={savingContactField === `${contact.hubspot_contact_id}:formation_demandee`}
           />
         )
 
@@ -1380,7 +1366,7 @@ export default function CRMContactsTable({
                       <td
                         key={key}
                         style={{ padding: '10px 12px' }}
-                        onClick={['classe','formation_demandee','zone','etape','lead_status','origine'].includes(key) ? e => e.stopPropagation() : undefined}
+                        onClick={['classe','zone','etape','lead_status','origine'].includes(key) ? e => e.stopPropagation() : undefined}
                       >
                         {renderCell(key, contact)}
                       </td>

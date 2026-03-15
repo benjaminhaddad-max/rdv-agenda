@@ -343,7 +343,6 @@ export default function CRMPage() {
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
   const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones' }])
   const [deptOptions, setDeptOptions]               = useState<SelectOption[]>([{ id: '', label: 'Tous les départements' }])
-  const [formationDemOptions, setFormationDemOptions] = useState<SelectOption[]>([])
 
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -380,9 +379,6 @@ export default function CRMPage() {
           { id: '', label: 'Toutes les origines' },
           ...d.sources.map((v: string) => ({ id: v, label: v })),
         ])
-      }
-      if (d.formations?.length) {
-        setFormationDemOptions(d.formations.map((v: string) => ({ id: v, label: v })))
       }
       if (d.zones?.length) {
         setZoneOptions([
@@ -1260,7 +1256,6 @@ export default function CRMPage() {
           onOpenDrawer={setDrawerContact}
           leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
           sourceOptions={sourceOptions.filter(o => o.id !== '')}
-          formationOptions={formationDemOptions}
           closerSelectOptions={closerOptions.filter(o => o.id !== '')}
           teleproSelectOptions={teleproOptions.filter(o => o.id !== '')}
         /></div>

@@ -351,6 +351,7 @@ function buildContactRow(c: any, now: string) {
     hs_lead_status:             c.properties.hs_lead_status ?? null,
     origine:                    c.properties.origine ?? null,
     formation_demandee:         c.properties.diploma_sante___formation_demandee ?? null,
+    formation_souhaitee:        c.properties.formation_souhaitee ?? null,
     synced_at:                  now,
   }
 }
