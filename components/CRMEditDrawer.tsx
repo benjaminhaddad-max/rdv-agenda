@@ -39,6 +39,7 @@ interface CRMContact {
   classe_actuelle?: string | null
   zone_localite?: string | null
   formation_demandee?: string | null
+  contact_createdate?: string | null
   hubspot_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
@@ -393,8 +394,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date de création</div>
               <div style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#555870', fontSize: 13 }}>
-                {deal?.createdate
-                  ? new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+                {(deal?.createdate ?? c.contact_createdate)
+                  ? new Date((deal?.createdate ?? c.contact_createdate)!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
               </div>
             </div>
