@@ -110,11 +110,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
           await db
             .from('rdv_appointments')
-            .update({ hubspot_deal_id: deal.id })
+            .update({ hubspot_deal_id: deal.id, hubspot_synced_at: new Date().toISOString() })
             .eq('id', id)
 
           updated.hubspot_deal_id = deal.id
         }
+        // Anti-boucle : marquer la synchro pour que le CRON ignore ce changement
+        await db
+          .from('rdv_appointments')
+          .update({ hubspot_synced_at: new Date().toISOString() })
+          .eq('id', id)
       } catch (e) {
         console.error('HubSpot deal sync on assign failed:', e)
       }
@@ -286,6 +291,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         contactId: appointment.hubspot_contact_id || null,
         body: noteLines,
       })
+
+      // Anti-boucle : marquer la synchro pour que le CRON ignore ce changement
+      await db
+        .from('rdv_appointments')
+        .update({ hubspot_synced_at: new Date().toISOString() })
+        .eq('id', id)
     } catch (e) {
       console.error('HubSpot update failed:', e)
     }

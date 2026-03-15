@@ -500,6 +500,61 @@ export async function searchDealsByStages(
   }
 }
 
+// ─── Chercher les deals récemment modifiés (pour sync bidirectionnelle) ───
+// Retourne les deals du pipeline modifiés dans les N dernières minutes.
+// Inclut hs_lastmodifieddate, dealstage, hubspot_owner_id pour la comparaison.
+export async function searchRecentlyModifiedDeals(
+  pipelineId: string,
+  sinceMinutes: number = 10
+): Promise<Array<{
+  id: string
+  properties: {
+    dealname: string
+    dealstage: string
+    hubspot_owner_id: string
+    hs_lastmodifieddate: string
+    description?: string
+  }
+}>> {
+  const sinceMs = Date.now() - sinceMinutes * 60 * 1000
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allResults: any[] = []
+  let after: string | undefined = undefined
+
+  try {
+    do {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: any = {
+        filterGroups: [{
+          filters: [
+            { propertyName: 'pipeline', operator: 'EQ', value: pipelineId },
+            { propertyName: 'hs_lastmodifieddate', operator: 'GTE', value: String(sinceMs) },
+          ],
+        }],
+        properties: ['dealname', 'dealstage', 'hubspot_owner_id', 'hs_lastmodifieddate', 'description'],
+        sorts: [{ propertyName: 'hs_lastmodifieddate', direction: 'DESCENDING' }],
+        limit: 100,
+      }
+      if (after) body.after = after
+
+      const data = await hubspotFetch('/crm/v3/objects/deals/search', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: any[] = data.results ?? []
+      allResults.push(...results)
+      after = data.paging?.next?.after ?? undefined
+    } while (after)
+
+    return allResults
+  } catch {
+    return allResults
+  }
+}
+
 // ─── Fusionner deux contacts HubSpot ──────────────────────────────────────
 export async function mergeContacts(primaryContactId: string, secondaryContactId: string) {
   return hubspotFetch('/crm/v3/objects/contacts/merge', {
