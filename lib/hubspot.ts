@@ -622,15 +622,17 @@ export async function batchGetContacts(contactIds: string[]): Promise<HubSpotCon
 }
 
 // ─── Sync CRM : récupérer tous les contacts (paginé, pour sync Supabase) ──
-// @deprecated — utiliser getContactsModifiedSince + batchGetContacts
+// Utilise l'endpoint GET (pas Search) → pas de limite 10K, itère TOUS les contacts.
+// Les props sont passées en paramètres répétés (?properties=a&properties=b)
+// car HubSpot GET n'accepte pas le format comma-separated en un seul param.
 export async function getAllContactsForSync(after?: string): Promise<{
   contacts: HubSpotContact[]
   nextCursor?: string
 }> {
-  const params = new URLSearchParams({
-    properties: CONTACT_PROPS,
-    limit: '100',
-  })
+  const params = new URLSearchParams({ limit: '100' })
+  for (const prop of CONTACT_PROPS.split(',')) {
+    params.append('properties', prop.trim())
+  }
   if (after) params.set('after', after)
 
   const data = await hubspotFetch(`/crm/v3/objects/contacts?${params.toString()}`)
