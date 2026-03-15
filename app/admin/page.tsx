@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   LayoutDashboard, Calendar, Clock, Users, Briefcase,
-  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2, ChevronDown,
+  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
@@ -14,28 +14,24 @@ import DealsDoublonsManager from '@/components/DealsDoublonsManager'
 import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import RepopJournal from '@/components/RepopJournal'
 import UnassignedQueue from '@/components/UnassignedQueue'
-import LinksManager from '@/components/LinksManager'
-import RdvTypesManager from '@/components/RdvTypesManager'
+import SiteContenusPanel from '@/components/SiteContenusPanel'
 import LogoutButton from '@/components/LogoutButton'
 import PlatformGuide from '@/components/PlatformGuide'
 
 export default function AdminPage() {
   const [calendarKey, setCalendarKey] = useState(0)
-  const [showAvailability, setShowAvailability]     = useState(false)
-  const [showTelepros, setShowTelepros]             = useState(false)
-  const [showClosers, setShowClosers]               = useState(false)
-  const [showDoublons, setShowDoublons]             = useState(false)
-  const [showDealsDoublons, setShowDealsDoublons]   = useState(false)
-  const [showCheckRdv, setShowCheckRdv]             = useState(false)
-  const [showRepop, setShowRepop]                   = useState(false)
-  const [showQueue, setShowQueue]                   = useState(false)
-  const [showLinks, setShowLinks]                   = useState(false)
-  const [showRdvTypes, setShowRdvTypes]             = useState(false)
-  const [showSiteMenu, setShowSiteMenu]             = useState(false)
-  const [showGuide, setShowGuide]                   = useState(false)
-  const [unassignedCount, setUnassignedCount]       = useState<number | null>(null)
+  const [showAvailability, setShowAvailability]   = useState(false)
+  const [showTelepros, setShowTelepros]           = useState(false)
+  const [showClosers, setShowClosers]             = useState(false)
+  const [showDoublons, setShowDoublons]           = useState(false)
+  const [showDealsDoublons, setShowDealsDoublons] = useState(false)
+  const [showCheckRdv, setShowCheckRdv]           = useState(false)
+  const [showRepop, setShowRepop]                 = useState(false)
+  const [showQueue, setShowQueue]                 = useState(false)
+  const [showSite, setShowSite]                   = useState(false)
+  const [showGuide, setShowGuide]                 = useState(false)
+  const [unassignedCount, setUnassignedCount]     = useState<number | null>(null)
 
-  // Compteur de la file d'attente pour le badge
   const fetchCount = useCallback(async () => {
     try {
       const res = await fetch('/api/appointments?unassigned=true')
@@ -58,9 +54,7 @@ export default function AdminPage() {
 
       {/* ── Topbar principale ── */}
       <div style={{
-        padding: '0 20px',
-        height: 52,
-        background: '#1d2f4b',
+        padding: '0 20px', height: 52, background: '#1d2f4b',
         borderBottom: '1px solid #2d4a6b',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0, zIndex: 10,
@@ -74,7 +68,6 @@ export default function AdminPage() {
             <span style={{ fontSize: 12, color: '#8b8fa8', fontWeight: 600 }}>Dashboard Admin</span>
           </div>
         </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <a href="/closer" style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '5px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Calendar size={12} /> Mon agenda
@@ -84,13 +77,7 @@ export default function AdminPage() {
           </a>
           <button
             onClick={() => setShowGuide(true)}
-            style={{
-              background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#06b6d4', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
-            }}
+            style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)', borderRadius: 8, padding: '6px 14px', color: '#06b6d4', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
             📖 Guide
           </button>
@@ -100,14 +87,12 @@ export default function AdminPage() {
 
       {/* ── Barre secondaire — groupes d'outils ── */}
       <div style={{
-        padding: '0 20px',
-        height: 44,
-        background: '#152438',
+        padding: '0 20px', height: 44, background: '#152438',
         borderBottom: '1px solid #2d4a6b',
         display: 'flex', alignItems: 'center', gap: 0,
         flexShrink: 0, overflowX: 'auto',
       }}>
-        {/* File d'attente badge */}
+        {/* File d'attente */}
         <button
           onClick={() => setShowQueue(true)}
           style={{
@@ -124,14 +109,7 @@ export default function AdminPage() {
           <Inbox size={12} />
           File d&apos;attente
           {unassignedCount !== null && (
-            <span style={{
-              background: unassignedCount > 0 ? '#4cabdb' : '#243d5c',
-              color: 'white',
-              borderRadius: '50%',
-              width: 18, height: 18,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, fontWeight: 800, lineHeight: 1, flexShrink: 0,
-            }}>
+            <span style={{ background: unassignedCount > 0 ? '#4cabdb' : '#243d5c', color: 'white', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>
               {unassignedCount}
             </span>
           )}
@@ -139,70 +117,36 @@ export default function AdminPage() {
 
         <div style={{ width: 1, height: 22, background: '#2d4a6b', marginRight: 16 }} />
 
-        {/* Groupe : Équipe */}
+        {/* Équipe */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 16 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Équipe</span>
-          <ToolBtn icon={<Users size={12} />}    label="Télépros"        onClick={() => setShowTelepros(true)} />
-          <ToolBtn icon={<Briefcase size={12} />} label="Closers"        onClick={() => setShowClosers(true)} />
-          <ToolBtn icon={<Clock size={12} />}     label="Disponibilités" onClick={() => setShowAvailability(true)} color="green" />
+          <ToolBtn icon={<Users size={12} />}     label="Télépros"        onClick={() => setShowTelepros(true)} />
+          <ToolBtn icon={<Briefcase size={12} />} label="Closers"         onClick={() => setShowClosers(true)} />
+          <ToolBtn icon={<Clock size={12} />}     label="Disponibilités"  onClick={() => setShowAvailability(true)} color="green" />
         </div>
 
         <div style={{ width: 1, height: 22, background: '#2d4a6b', marginRight: 16 }} />
 
-        {/* Groupe : Outils */}
+        {/* Outils */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
-          <ToolBtn icon={<AlertTriangle size={12} />} label="Check RDV"        onClick={() => setShowCheckRdv(true)} />
+          <ToolBtn icon={<AlertTriangle size={12} />} label="Check RDV"         onClick={() => setShowCheckRdv(true)} />
           <ToolBtn icon={<GitMerge size={12} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
-          <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac" onClick={() => setShowDealsDoublons(true)} color="red" />
-          <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"    onClick={() => setShowRepop(true)} />
-          {/* Dropdown Site & Contenus */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowSiteMenu(v => !v)}
-              style={{ background: showSiteMenu ? 'rgba(76,171,219,0.18)' : 'rgba(76,171,219,0.1)', border: `1px solid ${showSiteMenu ? 'rgba(76,171,219,0.5)' : 'rgba(76,171,219,0.25)'}`, borderRadius: 7, padding: '4px 11px', color: '#4cabdb', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
-            >
-              <Link2 size={12} /> Site & Contenus <ChevronDown size={10} style={{ transition: 'transform 0.15s', transform: showSiteMenu ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-            </button>
-            {showSiteMenu && (
-              <>
-                {/* Overlay pour fermer */}
-                <div style={{ position: 'fixed', inset: 0, zIndex: 89 }} onClick={() => setShowSiteMenu(false)} />
-                <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 90, background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 10, padding: '6px', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <button
-                    onClick={() => { setShowLinks(true); setShowSiteMenu(false) }}
-                    style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '8px 12px', color: '#4cabdb', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', width: '100%' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(76,171,219,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Link2 size={12} /> Liens &amp; Campagnes
-                  </button>
-                  <button
-                    onClick={() => { setShowRdvTypes(true); setShowSiteMenu(false) }}
-                    style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '8px 12px', color: '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', width: '100%' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(204,172,113,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <BookOpen size={12} /> Contenus /rdv
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
+          <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
+          <ToolBtn icon={<Link2 size={12} />}         label="Site & Contenus"   onClick={() => setShowSite(true)} color="blue" />
         </div>
       </div>
 
-      {/* ── Calendrier — prend tout l'espace restant ── */}
+      {/* ── Calendrier ── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <WeekCalendar key={calendarKey} adminMode />
       </div>
 
       {/* ── Drawer File d'attente ── */}
       {showQueue && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowQueue(false) }}
-        >
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowQueue(false) }}>
           <div style={{ width: '100%', maxWidth: 620, background: '#1d2f4b', borderLeft: '1px solid #2d4a6b', height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '16px 20px', borderBottom: '2px solid #ccac71', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 700, fontSize: 14, color: '#ccac71' }}>📥 File d&apos;attente — RDV non assignés</span>
@@ -218,28 +162,23 @@ export default function AdminPage() {
       {/* ── Modals ── */}
       {showAvailability  && <AdminAvailability   onClose={() => setShowAvailability(false)} />}
       {showTelepros      && <TeleproManager       onClose={() => setShowTelepros(false)} />}
-      {showClosers       && <CloserManager         onClose={() => setShowClosers(false)} />}
-      {showDoublons      && <DoublonsManager       onClose={() => setShowDoublons(false)} />}
-      {showDealsDoublons && <DealsDoublonsManager  onClose={() => setShowDealsDoublons(false)} />}
-      {showCheckRdv      && <CheckRdvCloserPanel   onClose={() => setShowCheckRdv(false)} />}
-      {showLinks         && <LinksManager           onClose={() => setShowLinks(false)} />}
-      {showRdvTypes      && <RdvTypesManager        onClose={() => setShowRdvTypes(false)} />}
+      {showClosers       && <CloserManager        onClose={() => setShowClosers(false)} />}
+      {showDoublons      && <DoublonsManager      onClose={() => setShowDoublons(false)} />}
+      {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
+      {showCheckRdv      && <CheckRdvCloserPanel  onClose={() => setShowCheckRdv(false)} />}
+      {showSite          && <SiteContenusPanel    onClose={() => setShowSite(false)} />}
 
       {showRepop && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
-        >
+        <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}>
           <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
             <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
             <RepopJournal scope="admin" />
           </div>
         </div>
       )}
-      {/* Guide de la plateforme */}
-      {showGuide && (
-        <PlatformGuide onClose={() => setShowGuide(false)} />
-      )}
+
+      {showGuide && <PlatformGuide onClose={() => setShowGuide(false)} />}
     </div>
   )
 }
