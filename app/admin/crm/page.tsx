@@ -1372,15 +1372,30 @@ export default function CRMPage() {
                 </span>
               )}
 
-              {/* Badge: filter count for custom views */}
-              {!view.isDefault && view.groups.length > 0 && (
+              {/* Badge count sur l'onglet actif */}
+              {isActive && !loading && total > 0 && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: '#c8cad8',
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 6, padding: '1px 7px',
+                  letterSpacing: '0.01em',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {fmtCount(total)}
+                </span>
+              )}
+
+              {/* Badge nb filtres (vues custom inactives) */}
+              {!view.isDefault && !isActive && view.groups.length > 0 && (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#ccac71' : '#3a5070',
-                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
+                  color: '#3a5070',
+                  background: 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
-                  {view.groups.reduce((s, g) => s + g.rules.length, 0)} filtre{view.groups.reduce((s, g) => s + g.rules.length, 0) > 1 ? 's' : ''}
+                  {view.groups.reduce((s, g) => s + g.rules.length, 0)}f
                 </span>
               )}
 
@@ -2240,6 +2255,12 @@ export default function CRMPage() {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('fr', { maximumFractionDigits: 1 })} M`
+  if (n >= 1_000)     return `${(n / 1_000).toLocaleString('fr', { maximumFractionDigits: 1 })} K`
+  return n.toLocaleString('fr')
+}
 
 function StatChip({ value, label, color }: { value: number; label: string; color: string }) {
   return (
