@@ -33,11 +33,13 @@ export async function GET() {
   const db = createServiceClient()
 
   // Appel HubSpot + Supabase en parallèle
-  const [hsLeadStatuses, hsSources, supabaseStatus, supabaseSource] = await Promise.all([
+  const [hsLeadStatuses, hsSources, hsFormations, supabaseStatus, supabaseSource, supabaseFormation] = await Promise.all([
     fetchHubSpotPropertyOptions('hs_lead_status'),
     fetchHubSpotPropertyOptions('hs_analytics_source'),
+    fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
     db.from('crm_contacts').select('hs_lead_status').not('hs_lead_status', 'is', null).limit(5000),
     db.from('crm_contacts').select('hs_analytics_source').not('hs_analytics_source', 'is', null).limit(5000),
+    db.from('crm_contacts').select('formation_demandee').not('formation_demandee', 'is', null).limit(5000),
   ])
 
   // Valeurs Supabase (fallback)
@@ -49,10 +51,15 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...new Set((supabaseSource.data ?? []).map((r: any) => r.hs_analytics_source as string).filter(Boolean)),
   ]
+  const supabaseFormations = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...new Set((supabaseFormation.data ?? []).map((r: any) => r.formation_demandee as string).filter(Boolean)),
+  ]
 
   // Priorité HubSpot ; si vide, fallback Supabase
-  const leadStatuses = (hsLeadStatuses.length > 0 ? hsLeadStatuses : supabaseLeadStatuses).sort()
-  const sources      = (hsSources.length > 0      ? hsSources      : supabaseSources).sort()
+  const leadStatuses  = (hsLeadStatuses.length > 0  ? hsLeadStatuses  : supabaseLeadStatuses).sort()
+  const sources       = (hsSources.length > 0       ? hsSources       : supabaseSources).sort()
+  const formations    = (hsFormations.length > 0     ? hsFormations    : supabaseFormations).sort()
 
-  return NextResponse.json({ leadStatuses, sources })
+  return NextResponse.json({ leadStatuses, sources, formations })
 }

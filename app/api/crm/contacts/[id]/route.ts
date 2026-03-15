@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 
-// Mapping champ Supabase → propriété HubSpot (attention zone___localite = triple _)
+// Mapping champ Supabase → propriété HubSpot
 const FIELD_MAP: Record<string, string> = {
   firstname:            'firstname',
   lastname:             'lastname',
@@ -12,7 +12,8 @@ const FIELD_MAP: Record<string, string> = {
   hs_lead_status:       'hs_lead_status',
   hs_analytics_source:  'hs_analytics_source',
   hubspot_owner_id:     'hubspot_owner_id',
-  zone_localite:        'zone___localite',  // propriété HubSpot avec triple _
+  zone_localite:        'zone___localite',           // propriété HubSpot avec triple _
+  formation_demandee:   'diploma_sante___formation_demandee',
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

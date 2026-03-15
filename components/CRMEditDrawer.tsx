@@ -38,6 +38,7 @@ interface CRMContact {
   departement?: string | null
   classe_actuelle?: string | null
   zone_localite?: string | null
+  formation_demandee?: string | null
   hubspot_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
@@ -215,6 +216,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   // Valeurs réelles HubSpot chargées depuis l'API Properties
   const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
   const [sourceOpts, setSourceOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
+  const [formationOpts, setFormationOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
 
   useEffect(() => {
     setLocalContact(contact)
@@ -232,6 +234,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
         setSourceOpts([
           { id: '', label: '—' },
           ...d.sources.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+      if (d.formations?.length) {
+        setFormationOpts([
+          { id: '', label: '—' },
+          ...d.formations.map((v: string) => ({ id: v, label: v })),
         ])
       }
     })
@@ -362,6 +370,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
               onSave={v => patchContact({ classe_actuelle: v })}
             />
             <EditField label="Zone / Localité" value={c.zone_localite || ''} onSave={v => patchContact({ zone_localite: v })} />
+            <SelectField
+              label="Formation demandée"
+              value={c.formation_demandee || ''}
+              options={formationOpts}
+              onSave={v => patchContact({ formation_demandee: v })}
+            />
           </div>
 
           {/* Section : Qualification */}

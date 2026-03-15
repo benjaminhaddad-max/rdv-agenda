@@ -300,6 +300,8 @@ export interface CRMContact {
   departement?: string | null
   classe_actuelle?: string | null
   zone_localite?: string | null
+  formation_demandee?: string | null
+  contact_createdate?: string | null
   hubspot_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
@@ -333,6 +335,8 @@ interface Props {
   leadStatusOptions?: { id: string; label: string }[]
   /** Options dynamiques HubSpot pour l'origine */
   sourceOptions?: { id: string; label: string }[]
+  /** Options dynamiques HubSpot pour la formation demandée */
+  formationOptions?: { id: string; label: string }[]
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -661,7 +665,7 @@ function ExpandedDetail({
   )
 }
 
-export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer, leadStatusOptions, sourceOptions }: Props) {
+export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer, leadStatusOptions, sourceOptions, formationOptions }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [noteModal, setNoteModal] = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel, setAssignPanel] = useState<{
@@ -736,6 +740,7 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
     { label: 'Tél',         width: 120 },
     { label: 'Formation',   width: 100 },
     { label: 'Classe',      width: 100 },
+    { label: 'Formation dem.', width: 110, hidden: !formationOptions?.length },
     { label: 'Zone',        width: 100 },
     { label: 'Étape',       width: 150 },
     { label: 'Statut lead', width: 130, hidden: !leadStatusOptions?.length },
@@ -801,9 +806,10 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
                   ? 'rgba(29,47,75,0.8)'
                   : 'rgba(13,22,36,0.6)'
 
-              // Format date: "12 jan"
-              const createdStr = deal?.createdate
-                ? new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+              // Format date: deal.createdate OU contact_createdate (fallback)
+              const rawDate = deal?.createdate ?? contact.contact_createdate
+              const createdStr = rawDate
+                ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
                 : '—'
 
               // Zone display
@@ -890,6 +896,18 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
                         saving={savingContactField === `${contact.hubspot_contact_id}:classe_actuelle`}
                       />
                     </td>
+
+                    {/* 4b. Formation demandée */}
+                    {formationOptions && formationOptions.length > 0 && (
+                      <td style={{ padding: '10px 12px' }}>
+                        <InlineCellSelect
+                          value={contact.formation_demandee || ''}
+                          options={formationOptions.map(o => ({ id: o.id, label: o.label }))}
+                          onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'formation_demandee', v)}
+                          saving={savingContactField === `${contact.hubspot_contact_id}:formation_demandee`}
+                        />
+                      </td>
+                    )}
 
                     {/* 5. Zone */}
                     <td style={{ padding: '10px 12px' }}>

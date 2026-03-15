@@ -266,8 +266,9 @@ export default function CRMPage() {
   const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
 
   // Options dynamiques depuis HubSpot (valeurs réelles)
-  const [leadStatusOptions, setLeadStatusOptions] = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts lead' }])
-  const [sourceOptions, setSourceOptions]         = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
+  const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts lead' }])
+  const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
+  const [formationDemOptions, setFormationDemOptions] = useState<SelectOption[]>([])
 
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -304,6 +305,9 @@ export default function CRMPage() {
           { id: '', label: 'Toutes les origines' },
           ...d.sources.map((v: string) => ({ id: v, label: v })),
         ])
+      }
+      if (d.formations?.length) {
+        setFormationDemOptions(d.formations.map((v: string) => ({ id: v, label: v })))
       }
     })
   }, [])
@@ -991,6 +995,7 @@ export default function CRMPage() {
           onOpenDrawer={setDrawerContact}
           leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
           sourceOptions={sourceOptions.filter(o => o.id !== '')}
+          formationOptions={formationDemOptions}
         /></div>
 
         {/* Pagination */}
