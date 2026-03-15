@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -54,6 +54,30 @@ const PERIOD_OPTIONS = [
   { id: 'month',  label: 'Ce mois' },
 ]
 
+// ── Vues prédéfinies ───────────────────────────────────────────────────────────
+type ViewPreset = 'all' | 'a_attribuer' | 'recents'
+
+const VIEW_PRESETS: { id: ViewPreset; label: string; description: string; icon: typeof List }[] = [
+  {
+    id: 'all',
+    label: 'Tous les leads',
+    description: 'Vue complète sans filtre',
+    icon: List,
+  },
+  {
+    id: 'a_attribuer',
+    label: 'À attribuer',
+    description: 'Sans télépro assigné (+ exclure un propriétaire)',
+    icon: Zap,
+  },
+  {
+    id: 'recents',
+    label: 'Formulaires récents',
+    description: 'Formulaire soumis dans les 3 derniers mois',
+    icon: Bell,
+  },
+]
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface RdvUser {
@@ -80,16 +104,12 @@ function isPeriodMatch(contact: CRMContact, period: string): boolean {
   if (!dateStr) return false
   const d = new Date(dateStr)
   const now = new Date()
-  if (period === 'today') {
-    return d.toDateString() === now.toDateString()
-  }
+  if (period === 'today') return d.toDateString() === now.toDateString()
   if (period === 'week') {
     const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7)
     return d >= weekAgo
   }
-  if (period === 'month') {
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  }
+  if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   return true
 }
 
@@ -212,32 +232,47 @@ export default function CRMPage() {
   const [syncing, setSyncing]     = useState(false)
   const [lastSync, setLastSync]   = useState<SyncLog | null>(null)
 
-  // Server-side filters (trigger API call)
+  // Vue prédéfinie
+  const [viewPreset, setViewPreset] = useState<ViewPreset>('all')
+
+  // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
   const [stage, setStage]             = useState('')
   const [closerHsId, setCloserHsId]   = useState('')
   const [teleproHsId, setTeleproHsId] = useState('')
+  const [noTelepro, setNoTelepro]     = useState(false)
+  const [ownerExclude, setOwnerExclude] = useState('')
+  const [recentFormMonths, setRecentFormMonths] = useState(0)
 
-  // Client-side filters (applied after data is loaded)
+  // Client-side filters (appliqués sur les données déjà chargées)
   const [formation, setFormation] = useState('')
   const [classe, setClasse]       = useState('')
   const [period, setPeriod]       = useState('')
 
-  // Dropdown user lists
-  const [closers, setClosers]   = useState<RdvUser[]>([])
-  const [telepros, setTelepros] = useState<RdvUser[]>([])
+  // Listes utilisateurs pour les dropdowns
+  const [closers, setClosers]     = useState<RdvUser[]>([])
+  const [telepros, setTelepros]   = useState<RdvUser[]>([])
+  const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
 
   const LIMIT = 50
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── Load users + initial fetch ───────────────────────────────────────────────
+  // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch('/api/users?role=commercial').then(r => r.json()).then(d => setClosers(Array.isArray(d) ? d : []))
-    fetch('/api/users?role=telepro').then(r => r.json()).then(d => setTelepros(Array.isArray(d) ? d : []))
+    fetch('/api/users?role=commercial').then(r => r.json()).then(d => {
+      const arr = Array.isArray(d) ? d : []
+      setClosers(arr)
+      setAllUsers(prev => [...prev.filter(u => u.role !== 'commercial'), ...arr])
+    })
+    fetch('/api/users?role=telepro').then(r => r.json()).then(d => {
+      const arr = Array.isArray(d) ? d : []
+      setTelepros(arr)
+      setAllUsers(prev => [...prev.filter(u => u.role !== 'telepro'), ...arr])
+    })
   }, [])
 
-  // ── Fetch contacts from API ──────────────────────────────────────────────────
+  // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
     setLoading(true)
@@ -249,10 +284,13 @@ export default function CRMPage() {
         limit: String(LIMIT),
         page: String(currentPage),
       })
-      if (search)      params.set('search', search)
-      if (stage)       params.set('stage', stage)
-      if (closerHsId)  params.set('closer_hs_id', closerHsId)
-      if (teleproHsId) params.set('telepro_hs_id', teleproHsId)
+      if (search)              params.set('search', search)
+      if (stage)               params.set('stage', stage)
+      if (closerHsId)          params.set('closer_hs_id', closerHsId)
+      if (teleproHsId)         params.set('telepro_hs_id', teleproHsId)
+      if (noTelepro)           params.set('no_telepro', '1')
+      if (ownerExclude)        params.set('owner_exclude', ownerExclude)
+      if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
@@ -263,23 +301,39 @@ export default function CRMPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, stage, closerHsId, teleproHsId, page])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
-
-  // ── Auto-apply server-side filters with debounce ─────────────────────────────
 
   function scheduleRefetch() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchContacts(true), 300)
   }
 
-  // ── HubSpot sync ────────────────────────────────────────────────────────────
+  // ── Appliquer un preset de vue ────────────────────────────────────────────────
 
-  async function handleSync() {
+  function applyPreset(preset: ViewPreset) {
+    setViewPreset(preset)
+    // Reset les filtres server-side qui changent avec le preset
+    setNoTelepro(preset === 'a_attribuer')
+    setRecentFormMonths(preset === 'recents' ? 3 : 0)
+    // Reset les filtres qui peuvent devenir incohérents
+    if (preset !== 'all') {
+      setStage(''); setCloserHsId(''); setTeleproHsId('')
+    }
+    // ownerExclude et search restent inchangés (Pascal peut les ajuster)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchContacts(true), 100)
+  }
+
+  // ── HubSpot sync ─────────────────────────────────────────────────────────────
+
+  async function handleSync(full = false) {
     setSyncing(true)
     try {
-      const res = await fetch('/api/cron/crm-sync?force=1', {
+      const url = `/api/cron/crm-sync?force=1${full ? '&full=1' : ''}`
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET ?? ''}` },
       })
       const data = await res.json()
@@ -304,23 +358,25 @@ export default function CRMPage() {
     return `il y a ${h}h`
   }
 
-  // ── Client-side filtering ────────────────────────────────────────────────────
+  // ── Filtres client-side ───────────────────────────────────────────────────────
 
   const displayed = filterClientSide(contacts, period, formation, classe)
-
   const totalPages = Math.ceil(total / LIMIT)
 
-  const hasWithDeal = contacts.filter(c => !!c.deal).length
-  const hasNoCloser = contacts.filter(c => c.deal && !c.deal.closer).length
+  const hasWithDeal  = contacts.filter(c => !!c.deal).length
+  const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
+  const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period
+  const hasActiveFilters = search || stage || closerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0
 
   function resetAll() {
     setSearch(''); setStage(''); setCloserHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
+    setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
+    setViewPreset('all')
   }
 
-  // Closer dropdown options
+  // Dropdown options
   const closerOptions: SelectOption[] = [
     { id: '', label: 'Tous les closers' },
     ...closers.map(c => ({ id: c.hubspot_owner_id ?? c.id, label: c.name })),
@@ -329,11 +385,18 @@ export default function CRMPage() {
     { id: '', label: 'Tous les télépros' },
     ...telepros.map(t => ({ id: t.hubspot_user_id ?? t.id, label: t.name })),
   ]
+  // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
+  const ownerExcludeOptions: SelectOption[] = [
+    { id: '', label: 'Aucune exclusion' },
+    ...allUsers
+      .filter(u => u.hubspot_owner_id)
+      .map(u => ({ id: u.hubspot_owner_id!, label: u.name })),
+  ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
-      {/* ── Topbar ─────────────────────────────────────────────────────────────── */}
+      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div style={{
         padding: '0 20px',
         height: 52,
@@ -361,7 +424,7 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* ── Sync bar ───────────────────────────────────────────────────────────── */}
+      {/* ── Sync bar ────────────────────────────────────────────────────────── */}
       <div style={{
         padding: '8px 20px',
         background: '#101e30',
@@ -372,10 +435,9 @@ export default function CRMPage() {
         flexShrink: 0,
         gap: 12,
       }}>
-        {/* Left: sync button + last sync info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            onClick={handleSync}
+            onClick={() => handleSync(false)}
             disabled={syncing}
             style={{
               background: syncing ? 'rgba(76,171,219,0.08)' : 'rgba(76,171,219,0.15)',
@@ -396,36 +458,106 @@ export default function CRMPage() {
             <RefreshCw size={12} style={{ animation: syncing ? 'spin 0.8s linear infinite' : 'none' }} />
             {syncing ? 'Synchronisation…' : 'Sync HubSpot'}
           </button>
+          <button
+            onClick={() => handleSync(true)}
+            disabled={syncing}
+            title="Sync complet depuis sept. 2024 (premier lancement)"
+            style={{
+              background: 'transparent',
+              border: '1px solid #1a2f45',
+              borderRadius: 8,
+              padding: '6px 10px',
+              color: '#3a5070',
+              fontSize: 11,
+              cursor: syncing ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s',
+            }}
+          >
+            Sync complet
+          </button>
           {lastSync && (
             <span style={{ fontSize: 11, color: lastSync.error_message ? '#ef4444' : '#3a5070' }}>
               {lastSync.error_message
-                ? `⚠ Erreur: ${lastSync.error_message}`
+                ? `⚠ ${lastSync.error_message}`
                 : `✓ ${formatSyncTime(lastSync.synced_at)} · ${lastSync.contacts_upserted} contacts · ${lastSync.deals_upserted} deals · ${lastSync.duration_ms}ms`
               }
             </span>
           )}
         </div>
 
-        {/* Right: quick stats */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <StatChip value={total} label="contacts" color="#8b8fa8" />
           <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
           <StatChip value={hasWithDeal} label="avec deal" color="#4cabdb" />
           <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
-          <StatChip value={hasNoCloser} label="sans closer" color="#ccac71" />
+          <StatChip value={hasNoTelepro} label="sans télépro" color="#ccac71" />
+          <div style={{ width: 1, height: 16, background: '#2d4a6b' }} />
+          <StatChip value={hasNoCloser} label="sans closer" color="#ef4444" />
         </div>
       </div>
 
-      {/* ── Filters ────────────────────────────────────────────────────────────── */}
+      {/* ── Vue presets ─────────────────────────────────────────────────────── */}
+      <div style={{
+        padding: '10px 20px 0',
+        background: '#0b1624',
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        borderBottom: '1px solid #1a2f45',
+        paddingBottom: 0,
+      }}>
+        {VIEW_PRESETS.map(preset => {
+          const Icon = preset.icon
+          const isActive = viewPreset === preset.id
+          const accentColor = preset.id === 'a_attribuer' ? '#ccac71' : preset.id === 'recents' ? '#4cabdb' : '#8b8fa8'
+          return (
+            <button
+              key={preset.id}
+              onClick={() => applyPreset(preset.id)}
+              title={preset.description}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderBottom: isActive ? `2px solid ${accentColor}` : '2px solid transparent',
+                padding: '8px 14px 9px',
+                color: isActive ? accentColor : '#555870',
+                fontSize: 12,
+                fontWeight: isActive ? 700 : 400,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon size={12} />
+              {preset.label}
+            </button>
+          )
+        })}
+
+        {/* Séparateur + indicateur actif */}
+        {viewPreset !== 'all' && (
+          <span style={{ marginLeft: 6, fontSize: 11, color: '#3a5070' }}>
+            {viewPreset === 'a_attribuer' && '— leads sans télépro assigné'}
+            {viewPreset === 'recents' && '— formulaire soumis il y a moins de 3 mois'}
+          </span>
+        )}
+      </div>
+
+      {/* ── Filters ─────────────────────────────────────────────────────────── */}
       <div style={{
         padding: '10px 20px',
         background: '#0d1a28',
         borderBottom: '1px solid #1a2f45',
         flexShrink: 0,
       }}>
-        {/* Row 1: Search */}
+        {/* Row 1: Search + reset */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          {/* Search */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -435,13 +567,12 @@ export default function CRMPage() {
             borderRadius: 8,
             padding: '7px 12px',
             flex: '1 1 auto',
-            maxWidth: 420,
-            transition: 'border-color 0.15s',
+            maxWidth: 380,
           }}>
             <Search size={13} style={{ color: '#3a5070', flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Rechercher par nom, email, téléphone…"
+              placeholder="Nom, email, téléphone…"
               value={search}
               onChange={e => { setSearch(e.target.value); scheduleRefetch() }}
               onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
@@ -454,7 +585,6 @@ export default function CRMPage() {
             )}
           </div>
 
-          {/* Reset button — only when filters active */}
           {hasActiveFilters && (
             <button
               onClick={resetAll}
@@ -511,26 +641,41 @@ export default function CRMPage() {
             onChange={setPeriod}
             options={PERIOD_OPTIONS}
           />
+
+          {/* Exclure propriétaire — utile en vue "À attribuer" pour exclure ex. Benjamin Delacour */}
+          {ownerExcludeOptions.length > 1 && (
+            <>
+              <div style={{ width: 1, height: 24, background: '#2d4a6b', flexShrink: 0 }} />
+              <FilterSelect
+                value={ownerExclude}
+                onChange={v => { setOwnerExclude(v); scheduleRefetch() }}
+                options={ownerExcludeOptions}
+                placeholder="Exclure propriétaire"
+              />
+            </>
+          )}
         </div>
 
-        {/* Active filters summary */}
+        {/* Active filter pills */}
         {hasActiveFilters && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: '#3a5070' }}>Filtres actifs :</span>
+            <span style={{ fontSize: 11, color: '#3a5070' }}>Filtres :</span>
+            {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); setViewPreset('all'); scheduleRefetch() }} />}
+            {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); setViewPreset('all'); scheduleRefetch() }} />}
             {stage && <FilterPill label={STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
             {formation && <FilterPill label={formation} onRemove={() => setFormation('')} />}
             {classe && <FilterPill label={classe} onRemove={() => setClasse('')} />}
             {closerHsId && <FilterPill label={closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
+            {ownerExclude && <FilterPill label={`Excl. ${ownerExcludeOptions.find(o => o.id === ownerExclude)?.label ?? 'propriétaire'}`} onRemove={() => { setOwnerExclude(''); scheduleRefetch() }} />}
             {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
         )}
       </div>
 
-      {/* ── Table area ─────────────────────────────────────────────────────────── */}
+      {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
-        {/* Results count when client-side filters are active */}
         {(formation || classe || period) && !loading && (
           <div style={{ padding: '10px 0 6px', fontSize: 12, color: '#3a5070' }}>
             {displayed.length} résultat{displayed.length !== 1 ? 's' : ''} affiché{displayed.length !== 1 ? 's' : ''} sur {contacts.length} chargés
@@ -556,7 +701,6 @@ export default function CRMPage() {
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                // Show pages near current, first and last
                 const p = totalPages <= 7 ? i : (
                   i === 0 ? 0 :
                   i === 6 ? totalPages - 1 :
