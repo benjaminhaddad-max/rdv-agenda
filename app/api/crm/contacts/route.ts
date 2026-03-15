@@ -1,8 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { hubspotFetch, PIPELINE_ID } from '@/lib/hubspot'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
+
+// Retourne les stage IDs "preinscription ou +" de tous les anciens pipelines
+async function getPriorPreinscStageIds(): Promise<string[]> {
+  const negRe = /perdu|lost|ferm[eé]|annul|rejet/i
+  function preinscPlusOf(stages: { id: string; label: string; displayOrder: number }[]) {
+    const pos = stages.filter(s => !negRe.test(s.label))
+    let pivot = pos.find(s => /pr[eé]inscription/i.test(s.label))
+    if (!pivot && pos.length > 0) pivot = pos[Math.floor(pos.length / 2)]
+    const min = pivot?.displayOrder ?? Infinity
+    return stages.filter(s => s.displayOrder >= min && !negRe.test(s.label)).map(s => s.id)
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await hubspotFetch('/crm/v3/pipelines/deals')
+    const ids: string[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (data.results ?? []) as any[]) {
+      if (p.id === PIPELINE_ID) continue
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stages = (p.stages ?? []).map((s: any) => ({ id: s.id as string, label: s.label as string, displayOrder: s.displayOrder as number }))
+      ids.push(...preinscPlusOf(stages))
+    }
+    return [...new Set(ids)]
+  } catch { return [] }
+}
 
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
@@ -33,8 +59,9 @@ export async function GET(req: NextRequest) {
   const closerNot        = searchParams.get('closer_not') ?? ''
   const teleproNot       = searchParams.get('telepro_not') ?? ''
   const formationNot     = searchParams.get('formation_not') ?? ''
-  const pipeline         = searchParams.get('pipeline') ?? ''
-  const pipelineNot      = searchParams.get('pipeline_not') ?? ''
+  const pipeline            = searchParams.get('pipeline') ?? ''
+  const pipelineNot         = searchParams.get('pipeline_not') ?? ''
+  const priorPreinscription = searchParams.get('prior_preinscription') === '1'
 
   // Empty / not-empty filters (comma-separated field names)
   const emptyFields      = (searchParams.get('empty_fields') ?? '').split(',').filter(Boolean)
@@ -76,7 +103,7 @@ export async function GET(req: NextRequest) {
   const splitMulti = (v: string) => v.split(',').filter(Boolean)
 
   // A) Filtres positifs deal
-  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro || pipeline || pipelineNot)
+  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro || pipeline || pipelineNot || priorPreinscription)
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
@@ -110,6 +137,13 @@ export async function GET(req: NextRequest) {
       } else {
         dealQ = dealQ.neq('pipeline', pipelineNot)
       }
+    }
+    if (priorPreinscription) {
+      const priorIds = await getPriorPreinscStageIds()
+      if (priorIds.length === 0) {
+        return NextResponse.json({ data: [], total: 0, page, limit })
+      }
+      dealQ = dealQ.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
     }
     if (withTelepro) dealQ = dealQ.not('teleprospecteur', 'is', null)
     if (!showExternal && excludedUserIds.length > 0) {

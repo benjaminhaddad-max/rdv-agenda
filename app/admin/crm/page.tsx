@@ -63,7 +63,7 @@ const PERIOD_OPTIONS = [
 
 // ── Advanced filter system ───────────────────────────────────────────────────
 
-type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement' | 'pipeline'
+type CRMFilterField = 'stage' | 'formation' | 'classe' | 'closer' | 'telepro' | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement' | 'pipeline' | 'prior_preinscription'
 type CRMFilterOp = 'is' | 'is_not' | 'is_any' | 'is_none' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
 
 interface CRMFilterRule {
@@ -89,8 +89,9 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
   { key: 'zone',        label: 'Zone / Localité', type: 'select' },
   { key: 'departement', label: 'Département',   type: 'select' },
   { key: 'period',      label: 'Période',       type: 'select' },
-  { key: 'pipeline',    label: 'Pipeline (Année)', type: 'select' },
-  { key: 'search',      label: 'Recherche',     type: 'text' },
+  { key: 'pipeline',           label: 'Pipeline (Année)',             type: 'select' },
+  { key: 'prior_preinscription', label: '🎓 Pré-inscrits années préc.', type: 'select' },
+  { key: 'search',             label: 'Recherche',                    type: 'text' },
 ]
 
 const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -120,166 +121,6 @@ function opNeedsValue(op: CRMFilterOp) {
 
 function opIsMulti(op: CRMFilterOp) {
   return op === 'is_any' || op === 'is_none'
-}
-
-// ── Searchable field selector (like HubSpot) ──────────────────────────────
-
-function FilterFieldSearchSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const filtered = search
-    ? CRM_FILTER_FIELDS.filter(f => f.label.toLowerCase().includes(search.toLowerCase()))
-    : CRM_FILTER_FIELDS
-
-  const selectedLabel = CRM_FILTER_FIELDS.find(f => f.key === value)?.label ?? value
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 30)
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    function onClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [open])
-
-  return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <button
-        onClick={() => { setOpen(o => !o); setSearch('') }}
-        style={{
-          width: '100%', background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-          padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit',
-          cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span>{selectedLabel}</span>
-        <ChevronDown size={11} style={{ color: '#555870' }} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 2,
-          background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 60, overflow: 'hidden',
-        }}>
-          <div style={{ padding: '6px 8px', borderBottom: '1px solid #1a2f45' }}>
-            <input
-              ref={inputRef}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher un champ…"
-              style={{
-                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2d4a6b',
-                borderRadius: 5, padding: '5px 8px', color: '#e8eaf0', fontSize: 12,
-                fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-              }}
-            />
-          </div>
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-            {filtered.length === 0 ? (
-              <div style={{ padding: '8px 12px', color: '#555870', fontSize: 11 }}>Aucun résultat</div>
-            ) : (
-              filtered.map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => { onChange(f.key); setOpen(false); setSearch('') }}
-                  style={{
-                    display: 'block', width: '100%', background: f.key === value ? 'rgba(204,172,113,0.12)' : 'transparent',
-                    border: 'none', padding: '7px 12px', color: f.key === value ? '#ccac71' : '#c8cad8',
-                    fontSize: 12, fontWeight: f.key === value ? 600 : 400, cursor: 'pointer',
-                    fontFamily: 'inherit', textAlign: 'left',
-                  }}
-                  onMouseEnter={e => { if (f.key !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                  onMouseLeave={e => { if (f.key !== value) e.currentTarget.style.background = 'transparent' }}
-                >
-                  {f.label}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Field picker panel (HubSpot-style search-first) ───────────────────────
-
-function FieldPickerPanel({ onSelect, onClose }: { onSelect: (field: CRMFilterField) => void; onClose: () => void }) {
-  const [search, setSearch] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const filtered = search
-    ? CRM_FILTER_FIELDS.filter(f => f.label.toLowerCase().includes(search.toLowerCase()))
-    : CRM_FILTER_FIELDS
-
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 30)
-  }, [])
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [onClose])
-
-  return (
-    <div ref={containerRef} style={{
-      marginTop: 8, background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 10,
-      boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
-    }}>
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a2f45' }}>
-        <div style={{ fontSize: 11, color: '#7a8ba5', marginBottom: 6, fontWeight: 600 }}>Sélectionner un champ à filtrer</div>
-        <div style={{ position: 'relative' }}>
-          <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#555870' }} />
-          <input
-            ref={inputRef}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un champ…"
-            style={{
-              width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2d4a6b',
-              borderRadius: 6, padding: '7px 10px 7px 28px', color: '#e8eaf0', fontSize: 12,
-              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
-      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding: '12px 14px', color: '#555870', fontSize: 11 }}>Aucun résultat</div>
-        ) : (
-          filtered.map(f => (
-            <button
-              key={f.key}
-              onClick={() => onSelect(f.key)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                background: 'transparent', border: 'none', padding: '9px 14px',
-                color: '#c8cad8', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-                textAlign: 'left',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(76,171,219,0.08)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <SlidersHorizontal size={12} style={{ color: '#4cabdb', flexShrink: 0 }} />
-              {f.label}
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  )
 }
 
 // ── Multi-select dropdown for filters ─────────────────────────────────────
@@ -408,6 +249,7 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'zone':        p.set('zone', val); break
           case 'departement': p.set('departement', val); break
           case 'pipeline':    p.set('pipeline', val); break
+          case 'prior_preinscription': if (val === '1') p.set('prior_preinscription', '1'); break
         }
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {
@@ -891,8 +733,6 @@ export default function CRMPage() {
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
-  // Field picker: when adding a filter, show searchable field list first (HubSpot-style)
-  const [fieldPickerTarget, setFieldPickerTarget] = useState<{ type: 'newGroup' } | { type: 'addRule'; groupId: string } | null>(null)
 
   // CSV export
   const [exportModalOpen, setExportModalOpen] = useState(false)
@@ -920,8 +760,9 @@ export default function CRMPage() {
   const [closerNot, setCloserNot]         = useState('')
   const [teleproNot, setTeleproNot]       = useState('')
   const [formationNot, setFormationNot]   = useState('')
-  const [pipeline,     setPipeline]       = useState('')
-  const [pipelineNot,  setPipelineNot]    = useState('')
+  const [pipeline,            setPipeline]           = useState('')
+  const [pipelineNot,         setPipelineNot]        = useState('')
+  const [priorPreinscription, setPriorPreinscription] = useState(false)
 
   // Pipelines HubSpot (chargés dynamiquement)
   type PipelineData = { id: string; label: string; stages: { id: string; label: string; displayOrder: number }[] }
@@ -1134,6 +975,7 @@ export default function CRMPage() {
       if (formationNot)         params.set('formation_not', formationNot)
       if (pipeline)             params.set('pipeline', pipeline)
       if (pipelineNot)          params.set('pipeline_not', pipelineNot)
+      if (priorPreinscription)  params.set('prior_preinscription', '1')
 
       // Empty / not-empty filters
       if (emptyFields)            params.set('empty_fields', emptyFields)
@@ -1149,7 +991,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, emptyFields, notEmptyFields, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1172,6 +1014,7 @@ export default function CRMPage() {
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
     setCloserNot(''); setTeleproNot(''); setFormationNot('')
     setPipeline(''); setPipelineNot('')
+    setPriorPreinscription(false)
     // Reset empty/not-empty filters
     setEmptyFields(''); setNotEmptyFields('')
     setNoTelepro(flags?.noTelepro ?? false)
@@ -1198,6 +1041,7 @@ export default function CRMPage() {
             case 'zone':        setZoneFilter(val); break
             case 'departement': setDeptFilter(val); break
             case 'pipeline':    setPipeline(val); break
+            case 'prior_preinscription': if (val === '1') setPriorPreinscription(true); break
           }
         }
         // Exclusion filters: is_not, is_none
@@ -1272,31 +1116,10 @@ export default function CRMPage() {
 
   // ── Filter group CRUD ──────────────────────────────────────────────────────
 
-  function applyPriorPreinscriptionFilter() {
-    // Pour chaque ancien pipeline : preinscription+ par label ou fallback moitié sup
-    const prevStageIds: string[] = []
-    for (const p of pipelinesData) {
-      if (p.id === CURRENT_PIPELINE_ID) continue
-      for (const s of getPreinscPlusStages(p)) prevStageIds.push(s.id)
-    }
-    const t = Date.now()
-    const rules: CRMFilterRule[] = [
-      { id: `r_${t}_1`, field: 'pipeline', operator: 'is_not', value: CURRENT_PIPELINE_ID },
-    ]
-    if (prevStageIds.length > 0) {
-      rules.push({ id: `r_${t}_2`, field: 'stage', operator: 'is_any', value: prevStageIds.join(',') })
-    }
-    const newGroup: CRMFilterGroup = { id: `g_${t}`, rules }
-    const updated = [newGroup]
-    setFilterGroups(updated)
-    applyGroupsToFilters(updated)
-    scheduleRefetch()
-  }
-
-  function addFilterGroup(field: CRMFilterField = 'stage') {
+  function addFilterGroup() {
     const g: CRMFilterGroup = {
       id: `g_${Date.now()}`,
-      rules: [{ id: `r_${Date.now()}`, field, operator: 'is', value: '' }],
+      rules: [{ id: `r_${Date.now()}`, field: 'stage', operator: 'is', value: '' }],
     }
     setFilterGroups(prev => [...prev, g])
   }
@@ -1321,12 +1144,12 @@ export default function CRMPage() {
     setFilterGroups(updated)
   }
 
-  function addRuleToGroup(gid: string, field: CRMFilterField = 'stage') {
+  function addRuleToGroup(gid: string) {
     const updated = filterGroups.map(g => {
       if (g.id !== gid) return g
       return {
         ...g,
-        rules: [...g.rules, { id: `r_${Date.now()}`, field, operator: 'is' as CRMFilterOp, value: '' }],
+        rules: [...g.rules, { id: `r_${Date.now()}`, field: 'stage' as CRMFilterField, operator: 'is' as CRMFilterOp, value: '' }],
       }
     })
     setFilterGroups(updated)
@@ -2155,7 +1978,6 @@ export default function CRMPage() {
               Filtres avancés
             </div>
 
-            <div style={{ height: 1, background: '#1a2f45', marginBottom: 14 }} />
 
             {filterGroups.map((group, gi) => (
               <div key={group.id}>
@@ -2193,16 +2015,16 @@ export default function CRMPage() {
                       case 'departement': valueOptions = deptOptions.filter(o => o.id); break
                       case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
                       case 'pipeline':    valueOptions = pipelineOptions; break
+                      case 'prior_preinscription': valueOptions = [{ id: '1', label: '✅ Oui' }]; break
                     }
                     return (
                       <div key={rule.id}>
                         {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#0b1624', border: '1px solid #1a2f45', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
                           <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
-                          <FilterFieldSearchSelect
-                            value={rule.field}
-                            onChange={v => updateRule(group.id, rule.id, { field: v as CRMFilterField })}
-                          />
+                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                            {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                          </select>
                           <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                           </select>
@@ -2229,46 +2051,24 @@ export default function CRMPage() {
                     )
                   })}
 
-                  {fieldPickerTarget && fieldPickerTarget.type === 'addRule' && fieldPickerTarget.groupId === group.id ? (
-                    <FieldPickerPanel
-                      onSelect={f => { addRuleToGroup(group.id, f); setFieldPickerTarget(null) }}
-                      onClose={() => setFieldPickerTarget(null)}
-                    />
-                  ) : (
-                    <button onClick={() => setFieldPickerTarget({ type: 'addRule', groupId: group.id })} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #1a2f45', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Plus size={11} /> Ajouter un filtre
-                    </button>
-                  )}
+                  <button onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #1a2f45', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={11} /> Ajouter un filtre
+                  </button>
                 </div>
               </div>
             ))}
 
-            {fieldPickerTarget && fieldPickerTarget.type === 'newGroup' ? (
-              <div style={{ marginTop: filterGroups.length > 0 ? 12 : 0 }}>
-                {filterGroups.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
-                  </div>
-                )}
-                <FieldPickerPanel
-                  onSelect={f => { addFilterGroup(f); setFieldPickerTarget(null) }}
-                  onClose={() => setFieldPickerTarget(null)}
-                />
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
-                {filterGroups.length > 0 && (
-                  <>
-                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
-                  </>
-                )}
-                <button onClick={() => setFieldPickerTarget({ type: 'newGroup' })} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                  <Plus size={12} /> Ajouter un groupe de filtres
-                </button>
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
+              {filterGroups.length > 0 && (
+                <>
+                  <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                </>
+              )}
+              <button onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                <Plus size={12} /> Ajouter un groupe de filtres
+              </button>
+            </div>
           </div>
 
           {/* Panel footer */}
