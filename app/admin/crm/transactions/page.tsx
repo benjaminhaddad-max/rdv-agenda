@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import TransactionBoard from '@/components/TransactionBoard'
+import type { UndoAction } from '@/components/TransactionBoard'
 import TransactionDetailPanel from '@/components/TransactionDetailPanel'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
 
@@ -223,6 +224,9 @@ export default function TransactionsPage() {
   // Selected deal for detail panel
   const [selectedDeal, setSelectedDeal] = useState<TransactionDetail | null>(null)
 
+  // Undo
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null)
+
   // Filters
   const [search, setSearch]       = useState('')
   const [stage, setStage]         = useState('')
@@ -318,9 +322,42 @@ export default function TransactionsPage() {
     }
   }
 
+  // ── Stage map for labels ────────────────────────────────────────────────────
+
+  const STAGE_LABELS: Record<string, string> = {
+    '3165428979': 'À Replanifier',
+    '3165428980': 'RDV Pris',
+    '3165428981': 'Délai Réflexion',
+    '3165428982': 'Pré-inscription',
+    '3165428983': 'Finalisation',
+    '3165428984': 'Inscription Confirmée',
+    '3165428985': 'Fermé Perdu',
+  }
+
   // ── Board stage change (drag & drop) ───────────────────────────────────────
 
   async function handleStageChange(dealId: string, newStage: string) {
+    // Find original stage for undo
+    let fromStage = ''
+    for (const [stageId, deals] of Object.entries(boardColumns)) {
+      if (deals.some(d => d.hubspot_deal_id === dealId)) {
+        fromStage = stageId
+        break
+      }
+    }
+
+    // Don't move to same stage
+    if (fromStage === newStage) return
+
+    // Save undo action
+    setUndoAction({
+      type: 'stage_change',
+      dealIds: [dealId],
+      fromStage,
+      toStage: newStage,
+      label: `1 transaction déplacée de "${STAGE_LABELS[fromStage] ?? fromStage}" vers "${STAGE_LABELS[newStage] ?? newStage}"`,
+    })
+
     // Optimistic update
     setBoardColumns(prev => {
       const next = { ...prev }
@@ -351,6 +388,29 @@ export default function TransactionsPage() {
   // ── Batch stage change (multi-select drag & drop) ──────────────────────────
 
   async function handleBatchStageChange(dealIds: string[], newStage: string) {
+    // Find original stages for undo (collect unique source stages)
+    const fromStages = new Set<string>()
+    for (const [stageId, deals] of Object.entries(boardColumns)) {
+      for (const deal of deals) {
+        if (dealIds.includes(deal.hubspot_deal_id)) {
+          fromStages.add(stageId)
+        }
+      }
+    }
+    const fromStage = fromStages.size === 1 ? Array.from(fromStages)[0] : Array.from(fromStages)[0] ?? ''
+
+    // Don't move to same stage
+    if (fromStages.size === 1 && fromStage === newStage) return
+
+    // Save undo action
+    setUndoAction({
+      type: 'stage_change',
+      dealIds,
+      fromStage,
+      toStage: newStage,
+      label: `${dealIds.length} transaction${dealIds.length > 1 ? 's' : ''} déplacée${dealIds.length > 1 ? 's' : ''} vers "${STAGE_LABELS[newStage] ?? newStage}"`,
+    })
+
     // Optimistic update
     setBoardColumns(prev => {
       const next = { ...prev }
@@ -378,6 +438,52 @@ export default function TransactionsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dealIds, dealstage: newStage }),
     })
+  }
+
+  // ── Undo handler ──────────────────────────────────────────────────────────
+
+  async function handleUndo() {
+    if (!undoAction) return
+
+    const { dealIds, fromStage } = undoAction
+
+    // Optimistic revert
+    setBoardColumns(prev => {
+      const next = { ...prev }
+      const movedDeals: TransactionDetail[] = []
+
+      for (const stageId of Object.keys(next)) {
+        const remaining: TransactionDetail[] = []
+        for (const deal of next[stageId]) {
+          if (dealIds.includes(deal.hubspot_deal_id)) {
+            movedDeals.push({ ...deal, dealstage: fromStage })
+          } else {
+            remaining.push(deal)
+          }
+        }
+        next[stageId] = remaining
+      }
+
+      next[fromStage] = [...(next[fromStage] ?? []), ...movedDeals]
+      return next
+    })
+
+    setUndoAction(null)
+
+    // Persist revert
+    if (dealIds.length === 1) {
+      await fetch(`/api/crm/deals/${dealIds[0]}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealstage: fromStage }),
+      })
+    } else {
+      await fetch('/api/crm/deals/batch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealIds, dealstage: fromStage }),
+      })
+    }
   }
 
   // ── Deal selection (for detail panel) ──────────────────────────────────────
@@ -629,6 +735,8 @@ export default function TransactionsPage() {
               onStageChange={handleStageChange}
               onBatchStageChange={handleBatchStageChange}
               onSelectDeal={handleSelectDeal}
+              undoAction={undoAction}
+              onUndo={handleUndo}
             />
           )
         )}

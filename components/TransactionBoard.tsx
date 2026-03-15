@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { TransactionDetail } from './TransactionDetailPanel'
 
 // ── Stage config ─────────────────────────────────────────────────────────────
 
-const STAGE_ORDER = [
+const DEFAULT_STAGE_ORDER = [
   '3165428980', // RDV Pris
   '3165428979', // À Replanifier
   '3165428981', // Délai Réflexion
@@ -25,6 +25,16 @@ const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }>
   '3165428985': { label: 'Fermé Perdu',           color: '#555870', emoji: '⚫' },
 }
 
+// ── Undo action type ─────────────────────────────────────────────────────────
+
+export interface UndoAction {
+  type: 'stage_change'
+  dealIds: string[]
+  fromStage: string
+  toStage: string
+  label: string
+}
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -32,6 +42,8 @@ interface Props {
   onStageChange: (dealId: string, newStage: string) => void
   onBatchStageChange: (dealIds: string[], newStage: string) => void
   onSelectDeal: (deal: TransactionDetail) => void
+  undoAction: UndoAction | null
+  onUndo: () => void
 }
 
 // ── Deal Card ────────────────────────────────────────────────────────────────
@@ -58,7 +70,6 @@ function DealCard({
     <div
       draggable
       onDragStart={e => {
-        // Create a drag image with count badge
         if (dragCount > 1) {
           const badge = document.createElement('div')
           badge.textContent = `${dragCount} transactions`
@@ -70,7 +81,6 @@ function DealCard({
         onDragStart(e)
       }}
       onClick={e => {
-        // If shift-click or ctrl-click → toggle select
         if (e.shiftKey || e.ctrlKey || e.metaKey) {
           e.stopPropagation()
           onToggleSelect()
@@ -86,31 +96,21 @@ function DealCard({
         borderRadius: 8,
         padding: '10px 12px',
         cursor: 'grab',
-        opacity: 1,
         transition: 'all 0.12s',
         userSelect: 'none',
         position: 'relative',
       }}
     >
-      {/* Checkbox */}
       {showCheckbox && (
         <div
           onClick={e => { e.stopPropagation(); onToggleSelect() }}
           style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 18,
-            height: 18,
+            position: 'absolute', top: 6, right: 6, width: 18, height: 18,
             borderRadius: 4,
             border: `2px solid ${isSelected ? '#ccac71' : '#3a5a7a'}`,
             background: isSelected ? '#ccac71' : 'rgba(13,22,36,0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.12s',
-            zIndex: 2,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', transition: 'all 0.12s', zIndex: 2,
           }}
         >
           {isSelected && (
@@ -121,7 +121,6 @@ function DealCard({
         </div>
       )}
 
-      {/* Deal name */}
       <div style={{
         fontSize: 12, fontWeight: 600, color: '#e8eaf0',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -130,14 +129,12 @@ function DealCard({
         {deal.dealname || '(sans nom)'}
       </div>
 
-      {/* Contact name */}
       {contactName && (
         <div style={{ fontSize: 11, color: '#6b7a90', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {contactName}
         </div>
       )}
 
-      {/* Bottom row: formation + closer avatar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
         {deal.formation ? (
           <span style={{
@@ -176,14 +173,15 @@ function DealCard({
 // ── Board Column ─────────────────────────────────────────────────────────────
 
 function BoardColumn({
-  stageId, deals, onStageChange, onSelectDeal,
+  stageId, deals, onSelectDeal,
   dragOverStage, setDragOverStage,
   selectedDeals, onToggleSelect, onSelectAllInColumn, onDragStartMulti,
-  onDragColumnStart,
+  onDropDeals,
+  // Column reorder
+  columnDragOver, setColumnDragOver, onColumnDragStart,
 }: {
   stageId: string
   deals: TransactionDetail[]
-  onStageChange: (dealId: string, newStage: string) => void
   onSelectDeal: (deal: TransactionDetail) => void
   dragOverStage: string | null
   setDragOverStage: (s: string | null) => void
@@ -191,7 +189,10 @@ function BoardColumn({
   onToggleSelect: (dealId: string) => void
   onSelectAllInColumn: (stageId: string) => void
   onDragStartMulti: (e: React.DragEvent, dealId: string) => void
-  onDragColumnStart: (e: React.DragEvent, stageId: string) => void
+  onDropDeals: (dealIds: string[], targetStage: string) => void
+  columnDragOver: string | null
+  setColumnDragOver: (s: string | null) => void
+  onColumnDragStart: (e: React.DragEvent, stageId: string) => void
 }) {
   const [headerHovered, setHeaderHovered] = useState(false)
   const stage = STAGE_MAP[stageId]
@@ -199,37 +200,56 @@ function BoardColumn({
 
   const isOver = dragOverStage === stageId
   const selectionActive = selectedDeals.size > 0
-  // Check if all deals in this column are selected
   const allInColumnSelected = deals.length > 0 && deals.every(d => selectedDeals.has(d.hubspot_deal_id))
+  const isColumnDragTarget = columnDragOver === stageId
 
   return (
     <div
-      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverStage(stageId) }}
+      onDragOver={e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        // Check if this is a card drag or column drag
+        // Column drags have 'columnId' data type
+        const types = Array.from(e.dataTransfer.types)
+        if (types.includes('columnid')) {
+          setColumnDragOver(stageId)
+        } else {
+          setDragOverStage(stageId)
+        }
+      }}
       onDragLeave={e => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
           setDragOverStage(null)
+          setColumnDragOver(null)
         }
       }}
       onDrop={e => {
         e.preventDefault()
         setDragOverStage(null)
+        setColumnDragOver(null)
+
+        // Check if it's a column reorder drop
+        const colId = e.dataTransfer.getData('columnId')
+        if (colId) {
+          // Column reorder — dispatch event to parent
+          const evt = new CustomEvent('columnReorder', { detail: { draggedStageId: colId, targetStageId: stageId } })
+          document.dispatchEvent(evt)
+          return
+        }
+
+        // Card drop
         const raw = e.dataTransfer.getData('dealIds')
         if (raw) {
           try {
             const dealIds = JSON.parse(raw) as string[]
-            if (dealIds.length === 1) {
-              onStageChange(dealIds[0], stageId)
-            } else if (dealIds.length > 1) {
-              const evt = new CustomEvent('batchDrop', { detail: { dealIds, newStage: stageId } })
-              document.dispatchEvent(evt)
-            }
+            onDropDeals(dealIds, stageId)
           } catch {
             const dealId = e.dataTransfer.getData('dealId')
-            if (dealId) onStageChange(dealId, stageId)
+            if (dealId) onDropDeals([dealId], stageId)
           }
         } else {
           const dealId = e.dataTransfer.getData('dealId')
-          if (dealId) onStageChange(dealId, stageId)
+          if (dealId) onDropDeals([dealId], stageId)
         }
       }}
       style={{
@@ -238,17 +258,20 @@ function BoardColumn({
         maxWidth: 280,
         display: 'flex',
         flexDirection: 'column',
-        background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
+        background: isOver ? 'rgba(204,172,113,0.08)' : isColumnDragTarget ? 'rgba(76,171,219,0.08)' : 'transparent',
         borderRadius: 10,
-        border: `2px solid ${isOver ? '#ccac71' : '#1a2f45'}`,
+        border: `2px solid ${isOver ? '#ccac71' : isColumnDragTarget ? '#4cabdb' : '#1a2f45'}`,
         transition: 'all 0.15s',
         overflow: 'hidden',
       }}
     >
-      {/* Header — draggable to move entire column */}
+      {/* Header — draggable to REORDER columns */}
       <div
-        draggable={deals.length > 0}
-        onDragStart={e => onDragColumnStart(e, stageId)}
+        draggable
+        onDragStart={e => {
+          e.stopPropagation()
+          onColumnDragStart(e, stageId)
+        }}
         onMouseEnter={() => setHeaderHovered(true)}
         onMouseLeave={() => setHeaderHovered(false)}
         style={{
@@ -259,12 +282,11 @@ function BoardColumn({
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0,
-          cursor: deals.length > 0 ? 'grab' : 'default',
+          cursor: 'grab',
           userSelect: 'none',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Select-all checkbox for column */}
           {(headerHovered || selectionActive) && deals.length > 0 && (
             <div
               onClick={e => { e.stopPropagation(); e.preventDefault(); onSelectAllInColumn(stageId) }}
@@ -289,9 +311,9 @@ function BoardColumn({
           <span style={{ fontSize: 11, fontWeight: 700, color: stage.color }}>{stage.label}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {headerHovered && deals.length > 0 && (
+          {headerHovered && (
             <span style={{ fontSize: 9, color: '#555870', whiteSpace: 'nowrap' }}>
-              ⇄ glisser
+              ⇄ réordonner
             </span>
           )}
           <span style={{
@@ -307,15 +329,22 @@ function BoardColumn({
         </div>
       </div>
 
-      {/* Drop zone indicator */}
+      {/* Column reorder indicator */}
+      {isColumnDragTarget && (
+        <div style={{
+          padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
+          color: '#4cabdb', background: 'rgba(76,171,219,0.06)',
+          borderBottom: '1px solid rgba(76,171,219,0.15)',
+        }}>
+          ⇄ Insérer la colonne ici
+        </div>
+      )}
+
+      {/* Deal drop indicator */}
       {isOver && (
         <div style={{
-          padding: '6px 0',
-          textAlign: 'center',
-          fontSize: 11,
-          fontWeight: 700,
-          color: '#ccac71',
-          background: 'rgba(204,172,113,0.06)',
+          padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
+          color: '#ccac71', background: 'rgba(204,172,113,0.06)',
           borderBottom: '1px solid rgba(204,172,113,0.15)',
         }}>
           ↓ Déposer ici
@@ -324,12 +353,8 @@ function BoardColumn({
 
       {/* Cards */}
       <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '8px 6px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
+        flex: 1, overflowY: 'auto', padding: '8px 6px',
+        display: 'flex', flexDirection: 'column', gap: 6,
       }}>
         {deals.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px 10px', color: '#2d4a6b', fontSize: 11 }}>
@@ -360,29 +385,52 @@ function BoardColumn({
 
 // ── Main Board ───────────────────────────────────────────────────────────────
 
-export default function TransactionBoard({ columns, onStageChange, onBatchStageChange, onSelectDeal }: Props) {
+export default function TransactionBoard({
+  columns, onStageChange, onBatchStageChange, onSelectDeal,
+  undoAction, onUndo,
+}: Props) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
+  const [columnDragOver, setColumnDragOver] = useState<string | null>(null)
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set())
-
-  // Listen for batch drop events
-  useEffect(() => {
-    function handleBatchDrop(e: Event) {
-      const { dealIds, newStage } = (e as CustomEvent).detail
-      onBatchStageChange(dealIds, newStage)
-      setSelectedDeals(new Set())
+  const [stageOrder, setStageOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tx-column-order')
+      if (saved) try { return JSON.parse(saved) } catch { /* ignore */ }
     }
-    document.addEventListener('batchDrop', handleBatchDrop)
-    return () => document.removeEventListener('batchDrop', handleBatchDrop)
-  }, [onBatchStageChange])
+    return DEFAULT_STAGE_ORDER
+  })
+
+  // Listen for column reorder events
+  useEffect(() => {
+    function handleColumnReorder(e: Event) {
+      const { draggedStageId, targetStageId } = (e as CustomEvent).detail
+      if (draggedStageId === targetStageId) return
+
+      setStageOrder(prev => {
+        const next = prev.filter(id => id !== draggedStageId)
+        const targetIdx = next.indexOf(targetStageId)
+        next.splice(targetIdx, 0, draggedStageId)
+        localStorage.setItem('tx-column-order', JSON.stringify(next))
+        return next
+      })
+    }
+    document.addEventListener('columnReorder', handleColumnReorder)
+    return () => document.removeEventListener('columnReorder', handleColumnReorder)
+  }, [])
 
   // Escape to clear selection
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setSelectedDeals(new Set())
+      // Ctrl+Z / Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && undoAction) {
+        e.preventDefault()
+        onUndo()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [undoAction, onUndo])
 
   function toggleSelect(dealId: string) {
     setSelectedDeals(prev => {
@@ -393,52 +441,54 @@ export default function TransactionBoard({ columns, onStageChange, onBatchStageC
     })
   }
 
-  function handleDragStart(e: React.DragEvent, dealId: string) {
-    e.dataTransfer.effectAllowed = 'move'
-
-    if (selectedDeals.has(dealId) && selectedDeals.size > 1) {
-      // Multi-drag: send all selected deal IDs
-      const dealIds = Array.from(selectedDeals)
-      e.dataTransfer.setData('dealIds', JSON.stringify(dealIds))
-    } else {
-      // Single drag
-      e.dataTransfer.setData('dealIds', JSON.stringify([dealId]))
-      e.dataTransfer.setData('dealId', dealId)
-    }
-  }
-
-  function handleDragColumnStart(e: React.DragEvent, stageId: string) {
-    const deals = columns[stageId] ?? []
-    if (deals.length === 0) { e.preventDefault(); return }
-
-    const dealIds = deals.map(d => d.hubspot_deal_id)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('dealIds', JSON.stringify(dealIds))
-
-    // Create drag image badge
-    const stageName = STAGE_MAP[stageId]?.label ?? stageId
-    const badge = document.createElement('div')
-    badge.textContent = `${stageName} — ${deals.length} transactions`
-    badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#ccac71;color:#0b1624;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
-    document.body.appendChild(badge)
-    e.dataTransfer.setDragImage(badge, 0, 0)
-    setTimeout(() => document.body.removeChild(badge), 0)
-  }
-
   function selectAllInColumn(stageId: string) {
     const deals = columns[stageId] ?? []
     setSelectedDeals(prev => {
       const next = new Set(prev)
       const allSelected = deals.every(d => next.has(d.hubspot_deal_id))
       if (allSelected) {
-        // Deselect all in column
         for (const d of deals) next.delete(d.hubspot_deal_id)
       } else {
-        // Select all in column
         for (const d of deals) next.add(d.hubspot_deal_id)
       }
       return next
     })
+  }
+
+  function handleDragStart(e: React.DragEvent, dealId: string) {
+    e.dataTransfer.effectAllowed = 'move'
+    if (selectedDeals.has(dealId) && selectedDeals.size > 1) {
+      const dealIds = Array.from(selectedDeals)
+      e.dataTransfer.setData('dealIds', JSON.stringify(dealIds))
+    } else {
+      e.dataTransfer.setData('dealIds', JSON.stringify([dealId]))
+      e.dataTransfer.setData('dealId', dealId)
+    }
+  }
+
+  function handleColumnDragStart(e: React.DragEvent, stageId: string) {
+    e.dataTransfer.effectAllowed = 'move'
+    // Use a custom type to distinguish column drags from card drags
+    e.dataTransfer.setData('columnId', stageId)
+    // Also set a lowercase version for the types array check
+    e.dataTransfer.setData('columnid', stageId)
+
+    const stageName = STAGE_MAP[stageId]?.label ?? stageId
+    const badge = document.createElement('div')
+    badge.textContent = `⇄ ${stageName}`
+    badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#4cabdb;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+    document.body.appendChild(badge)
+    e.dataTransfer.setDragImage(badge, 0, 0)
+    setTimeout(() => document.body.removeChild(badge), 0)
+  }
+
+  function handleDropDeals(dealIds: string[], targetStage: string) {
+    if (dealIds.length === 1) {
+      onStageChange(dealIds[0], targetStage)
+    } else {
+      onBatchStageChange(dealIds, targetStage)
+    }
+    setSelectedDeals(new Set())
   }
 
   const hasSelection = selectedDeals.size > 0
@@ -446,18 +496,38 @@ export default function TransactionBoard({ columns, onStageChange, onBatchStageC
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
+      {/* Undo bar */}
+      {undoAction && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 16px',
+          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 12, color: '#ef4444' }}>
+            {undoAction.label}
+          </span>
+          <button
+            onClick={onUndo}
+            style={{
+              background: '#ef4444', border: 'none',
+              borderRadius: 6, padding: '5px 14px', color: '#fff', fontSize: 12,
+              cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            ↩ Annuler (Ctrl+Z)
+          </button>
+        </div>
+      )}
+
       {/* Selection bar */}
       {hasSelection && (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 16px',
-          background: 'rgba(204,172,113,0.08)',
-          border: '1px solid rgba(204,172,113,0.25)',
-          borderRadius: 8,
-          margin: '8px 0 0',
-          flexShrink: 0,
+          background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
+          borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#ccac71' }}>
@@ -482,19 +552,14 @@ export default function TransactionBoard({ columns, onStageChange, onBatchStageC
 
       {/* Columns */}
       <div style={{
-        display: 'flex',
-        gap: 8,
-        flex: 1,
-        overflowX: 'auto',
-        overflowY: 'hidden',
-        padding: '12px 0',
+        display: 'flex', gap: 8, flex: 1,
+        overflowX: 'auto', overflowY: 'hidden', padding: '12px 0',
       }}>
-        {STAGE_ORDER.map(stageId => (
+        {stageOrder.map(stageId => (
           <BoardColumn
             key={stageId}
             stageId={stageId}
             deals={columns[stageId] ?? []}
-            onStageChange={onStageChange}
             onSelectDeal={onSelectDeal}
             dragOverStage={dragOverStage}
             setDragOverStage={setDragOverStage}
@@ -502,7 +567,10 @@ export default function TransactionBoard({ columns, onStageChange, onBatchStageC
             onToggleSelect={toggleSelect}
             onSelectAllInColumn={selectAllInColumn}
             onDragStartMulti={handleDragStart}
-            onDragColumnStart={handleDragColumnStart}
+            onDropDeals={handleDropDeals}
+            columnDragOver={columnDragOver}
+            setColumnDragOver={setColumnDragOver}
+            onColumnDragStart={handleColumnDragStart}
           />
         ))}
       </div>
