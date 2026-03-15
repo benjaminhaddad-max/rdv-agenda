@@ -1158,265 +1158,6 @@ export default function CRMPage() {
       {/* ── Table + Advanced Filter Panel ─────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-      {/* ── Advanced Filter Side Panel (HubSpot-style) ───────────────────── */}
-      {filterPanelOpen && (
-        <div style={{
-          width: 380, flexShrink: 0,
-          background: '#0d1a28', borderRight: '1px solid #1a2f45',
-          display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          {/* Panel header */}
-          <div style={{
-            padding: '14px 16px', borderBottom: '1px solid #1a2f45',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#e8eaf0' }}>Tous les filtres</span>
-            <button onClick={() => setFilterPanelOpen(false)} style={{
-              background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2,
-            }}>
-              <X size={16} />
-            </button>
-          </div>
-
-          {/* Panel body */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8', marginBottom: 12 }}>
-              Filtres avancés
-            </div>
-
-            {filterGroups.map((group, gi) => (
-              <div key={group.id}>
-                {/* OU separator */}
-                {gi > 0 && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    margin: '12px 0',
-                  }}>
-                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                    <span style={{
-                      fontSize: 12, fontWeight: 700, color: '#555870',
-                      background: '#0d1a28', padding: '2px 10px',
-                      border: '1px solid #1a2f45', borderRadius: 4,
-                    }}>
-                      ou
-                    </span>
-                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                  </div>
-                )}
-
-                {/* Group card */}
-                <div style={{
-                  background: '#101e30', border: '1px solid #1a2f45',
-                  borderRadius: 10, padding: '12px',
-                }}>
-                  {/* Group header */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 10,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#c8cad8' }}>
-                      Groupe {gi + 1}
-                    </span>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => duplicateFilterGroup(group.id)} title="Dupliquer le groupe" style={{
-                        background: 'none', border: 'none', color: '#3a5070', cursor: 'pointer', display: 'flex', padding: 3,
-                      }}>
-                        <Copy size={13} />
-                      </button>
-                      <button onClick={() => deleteFilterGroup(group.id)} title="Supprimer le groupe" style={{
-                        background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 3,
-                      }}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Rules */}
-                  {group.rules.map((rule, ri) => {
-                    const ops = opsForField(rule.field)
-                    const showVal = opNeedsValue(rule.operator)
-                    const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
-
-                    // Build options for this field
-                    let valueOptions: SelectOption[] = []
-                    switch (rule.field) {
-                      case 'stage':       valueOptions = STAGE_OPTIONS.filter(o => o.id); break
-                      case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
-                      case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
-                      case 'closer':      valueOptions = closerOptions.filter(o => o.id); break
-                      case 'telepro':     valueOptions = teleproOptions.filter(o => o.id); break
-                      case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
-                      case 'source':      valueOptions = sourceOptions.filter(o => o.id); break
-                      case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
-                    }
-
-                    return (
-                      <div key={rule.id}>
-                        {ri > 0 && (
-                          <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>
-                        )}
-                        <div style={{
-                          display: 'flex', flexDirection: 'column', gap: 6,
-                          background: '#0b1624', border: '1px solid #1a2f45',
-                          borderRadius: 8, padding: '8px 10px',
-                          position: 'relative',
-                        }}>
-                          {/* Delete rule X */}
-                          <button
-                            onClick={() => removeRule(group.id, rule.id)}
-                            style={{
-                              position: 'absolute', top: 6, right: 6,
-                              background: 'none', border: 'none', color: '#555870',
-                              cursor: 'pointer', display: 'flex', padding: 2,
-                            }}
-                          >
-                            <X size={12} />
-                          </button>
-
-                          {/* Field */}
-                          <select
-                            value={rule.field}
-                            onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })}
-                            style={{
-                              background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-                              padding: '6px 8px', color: '#c8cad8', fontSize: 12,
-                              fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
-                            }}
-                          >
-                            {CRM_FILTER_FIELDS.map(f => (
-                              <option key={f.key} value={f.key}>{f.label}</option>
-                            ))}
-                          </select>
-
-                          {/* Operator */}
-                          <select
-                            value={rule.operator}
-                            onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })}
-                            style={{
-                              background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-                              padding: '6px 8px', color: '#c8cad8', fontSize: 12,
-                              fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
-                            }}
-                          >
-                            {ops.map(op => (
-                              <option key={op.key} value={op.key}>{op.label}</option>
-                            ))}
-                          </select>
-
-                          {/* Value */}
-                          {showVal && (
-                            fieldDef?.type === 'select' && valueOptions.length > 0 ? (
-                              <select
-                                value={rule.value}
-                                onChange={e => updateRule(group.id, rule.id, { value: e.target.value })}
-                                style={{
-                                  background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-                                  padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12,
-                                  fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
-                                }}
-                              >
-                                <option value="">Rechercher…</option>
-                                {valueOptions.map(opt => (
-                                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type="text"
-                                value={rule.value}
-                                onChange={e => updateRule(group.id, rule.id, { value: e.target.value })}
-                                placeholder="Valeur…"
-                                style={{
-                                  background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-                                  padding: '6px 8px', color: '#e8eaf0', fontSize: 12,
-                                  fontFamily: 'inherit', outline: 'none', width: '100%',
-                                }}
-                              />
-                            )
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Add filter to group */}
-                  <button
-                    onClick={() => addRuleToGroup(group.id)}
-                    style={{
-                      marginTop: 8, padding: '6px 12px',
-                      background: 'transparent', border: '1px solid #1a2f45',
-                      borderRadius: 6, color: '#4cabdb', fontSize: 12,
-                      cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}
-                  >
-                    <Plus size={11} /> Ajouter un filtre
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Add group */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              marginTop: filterGroups.length > 0 ? 12 : 0,
-            }}>
-              {filterGroups.length > 0 && (
-                <>
-                  <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
-                </>
-              )}
-              <button
-                onClick={addFilterGroup}
-                style={{
-                  padding: '8px 14px',
-                  background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
-                  borderRadius: 6, color: '#4cabdb', fontSize: 12,
-                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Plus size={12} /> Ajouter un groupe de filtres
-              </button>
-            </div>
-          </div>
-
-          {/* Panel footer */}
-          {totalFilterRules > 0 && (
-            <div style={{
-              padding: '10px 16px', borderTop: '1px solid #1a2f45',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <button
-                onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }}
-                style={{
-                  flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)',
-                  border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6,
-                  color: '#ef4444', fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                Tout effacer
-              </button>
-              <button
-                onClick={() => setCreatingView(true)}
-                style={{
-                  flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)',
-                  border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
-                  color: '#ccac71', fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                Enregistrer comme vue
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
         {(formation || classe || period) && !loading && (
@@ -1549,6 +1290,127 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+
+      {/* ── Advanced Filter Side Panel — RIGHT (HubSpot-style) ────────────── */}
+      {filterPanelOpen && (
+        <div style={{
+          width: 380, flexShrink: 0,
+          background: '#0d1a28', borderLeft: '1px solid #1a2f45',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
+          {/* Panel header */}
+          <div style={{
+            padding: '14px 16px', borderBottom: '1px solid #1a2f45',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#e8eaf0' }}>Tous les filtres</span>
+            <button onClick={() => setFilterPanelOpen(false)} style={{
+              background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2,
+            }}>
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Panel body */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8', marginBottom: 12 }}>
+              Filtres avancés
+            </div>
+
+            {filterGroups.map((group, gi) => (
+              <div key={group.id}>
+                {gi > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870', background: '#0d1a28', padding: '2px 10px', border: '1px solid #1a2f45', borderRadius: 4 }}>ou</span>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                  </div>
+                )}
+
+                <div style={{ background: '#101e30', border: '1px solid #1a2f45', borderRadius: 10, padding: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#c8cad8' }}>Groupe {gi + 1}</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => duplicateFilterGroup(group.id)} title="Dupliquer" style={{ background: 'none', border: 'none', color: '#3a5070', cursor: 'pointer', display: 'flex', padding: 3 }}><Copy size={13} /></button>
+                      <button onClick={() => deleteFilterGroup(group.id)} title="Supprimer" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 3 }}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+
+                  {group.rules.map((rule, ri) => {
+                    const ops = opsForField(rule.field)
+                    const showVal = opNeedsValue(rule.operator)
+                    const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
+                    let valueOptions: SelectOption[] = []
+                    switch (rule.field) {
+                      case 'stage':       valueOptions = STAGE_OPTIONS.filter(o => o.id); break
+                      case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
+                      case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
+                      case 'closer':      valueOptions = closerOptions.filter(o => o.id); break
+                      case 'telepro':     valueOptions = teleproOptions.filter(o => o.id); break
+                      case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
+                      case 'source':      valueOptions = sourceOptions.filter(o => o.id); break
+                      case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
+                    }
+                    return (
+                      <div key={rule.id}>
+                        {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#0b1624', border: '1px solid #1a2f45', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
+                          <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
+                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                            {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                          </select>
+                          <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                            {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
+                          </select>
+                          {showVal && (
+                            fieldDef?.type === 'select' && valueOptions.length > 0 ? (
+                              <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                                <option value="">Rechercher…</option>
+                                {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                              </select>
+                            ) : (
+                              <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#e8eaf0', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }} />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  <button onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #1a2f45', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={11} /> Ajouter un filtre
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
+              {filterGroups.length > 0 && (
+                <>
+                  <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                </>
+              )}
+              <button onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                <Plus size={12} /> Ajouter un groupe de filtres
+              </button>
+            </div>
+          </div>
+
+          {/* Panel footer */}
+          {totalFilterRules > 0 && (
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #1a2f45', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Tout effacer
+              </button>
+              <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Enregistrer comme vue
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       </div>{/* end flex container (table + side panel) */}
 
