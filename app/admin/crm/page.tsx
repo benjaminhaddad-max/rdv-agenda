@@ -1387,18 +1387,6 @@ export default function CRMPage() {
                 </span>
               )}
 
-              {/* Badge nb filtres (vues custom inactives) */}
-              {!view.isDefault && !isActive && view.groups.length > 0 && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: '#3a5070',
-                  background: 'rgba(58,80,112,0.15)',
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  {view.groups.reduce((s, g) => s + g.rules.length, 0)}f
-                </span>
-              )}
-
               {/* Delete button */}
               {!view.isDefault && isActive && !isRenaming && (
                 <button
