@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon } from 'lucide-react'
 import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
@@ -36,6 +36,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   const [orphans, setOrphans] = useState<OrphanRepopEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<Filter>('all')
+  // Sub-filters for orphans tab
+  const [orphanClasse, setOrphanClasse] = useState<string>('')
+  const [orphanDept, setOrphanDept] = useState<string>('')
+  const [orphanCandidatureOnly, setOrphanCandidatureOnly] = useState(false)
 
   const fetchRepops = useCallback(async () => {
     setLoading(true)
@@ -74,6 +78,23 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   })
 
   const showOrphans = activeFilter === 'all' || activeFilter === 'orphans'
+
+  // Sub-filter orphans
+  const filteredOrphans = orphans.filter(o => {
+    if (orphanClasse && o.classe !== orphanClasse) return false
+    if (orphanDept && o.departement !== orphanDept) return false
+    if (orphanCandidatureOnly) {
+      const hasCandidature = [o.first_form_name, o.repop_form_name].some(
+        n => n && /candidature/i.test(n)
+      )
+      if (!hasCandidature) return false
+    }
+    return true
+  })
+
+  // Unique values for sub-filter dropdowns
+  const uniqueClasses = [...new Set(orphans.map(o => o.classe).filter(Boolean) as string[])].sort()
+  const uniqueDepts = [...new Set(orphans.map(o => o.departement).filter(Boolean) as string[])].sort()
 
   const countByStage = {
     a_replanifier: entries.filter(e => e.hs_stage_label === 'À replanifier').length,
@@ -201,11 +222,55 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
               fontSize: 13, fontWeight: 700, color: '#a855f7',
             }}>
               <UserX size={14} />
-              Sans transaction ({orphans.length})
+              Sans transaction ({filteredOrphans.length})
             </div>
           )}
+
+          {/* Sub-filters for orphans */}
+          {activeFilter === 'orphans' && (
+            <div style={{
+              display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center',
+            }}>
+              <FilterIcon size={13} style={{ color: '#555870' }} />
+              <select
+                value={orphanClasse}
+                onChange={e => setOrphanClasse(e.target.value)}
+                style={subFilterSelectStyle}
+              >
+                <option value="">Classe</option>
+                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={orphanDept}
+                onChange={e => setOrphanDept(e.target.value)}
+                style={subFilterSelectStyle}
+              >
+                <option value="">Département</option>
+                {uniqueDepts.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <button
+                onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
+                style={{
+                  background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#1e2130',
+                  border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2a2d3e'}`,
+                  borderRadius: 8, padding: '5px 12px',
+                  color: orphanCandidatureOnly ? '#a855f7' : '#8b8fa8',
+                  fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
+                  cursor: 'pointer',
+                }}
+              >
+                Formulaire candidature
+              </button>
+              {(orphanClasse || orphanDept || orphanCandidatureOnly) && (
+                <span style={{ fontSize: 11, color: '#555870' }}>
+                  {filteredOrphans.length} résultat{filteredOrphans.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {orphans.map(entry => (
+            {filteredOrphans.map(entry => (
               <OrphanCard key={entry.contact_id} entry={entry} />
             ))}
           </div>
@@ -344,6 +409,14 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
               {entry.formation}
             </span>
           )}
+          {entry.departement && (
+            <span style={{
+              background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#6b87ff',
+            }}>
+              Dpt {entry.departement}
+            </span>
+          )}
           <a
             href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
             target="_blank"
@@ -415,6 +488,12 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
       </div>
     </div>
   )
+}
+
+const subFilterSelectStyle: React.CSSProperties = {
+  background: '#1e2130', border: '1px solid #2a2d3e', borderRadius: 8,
+  padding: '5px 10px', color: '#8b8fa8', fontSize: 12, cursor: 'pointer',
+  appearance: 'auto' as const,
 }
 
 /** Convertit #rrggbb en "r,g,b" pour rgba() */

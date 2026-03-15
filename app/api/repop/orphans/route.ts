@@ -39,6 +39,7 @@ export type OrphanRepopEntry = {
   prospect_email: string
   classe: string | null
   formation: string | null
+  departement: string | null
   first_form_date: string
   first_form_date_label: string
   first_form_name: string | null
@@ -49,7 +50,7 @@ export type OrphanRepopEntry = {
 
 const PROPS = [
   'email', 'firstname', 'lastname', 'phone',
-  'classe_actuelle', 'diploma_sante___formation_demandee',
+  'classe_actuelle', 'diploma_sante___formation_demandee', 'departement',
   'recent_conversion_date', 'recent_conversion_event_name',
   'first_conversion_date', 'first_conversion_event_name',
   'createdate',
@@ -102,13 +103,17 @@ export async function GET() {
     console.error('Orphan repop search error:', e)
   }
 
-  // 2. Filter: keep only contacts where first_conversion_date !== recent_conversion_date
+  // 2. Filter: keep only contacts where first and recent conversion are >= 7 days apart
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
   const orphans = allContacts.filter(c => {
     const first = c.properties.first_conversion_date
     const recent = c.properties.recent_conversion_date
     if (!first || !recent) return false
-    // Different dates = at least 2 form submissions
-    return first !== recent
+    const firstMs = new Date(first).getTime()
+    const recentMs = new Date(recent).getTime()
+    if (isNaN(firstMs) || isNaN(recentMs)) return false
+    // At least 7 days between 1st and 2nd form submission
+    return (recentMs - firstMs) >= SEVEN_DAYS_MS
   })
 
   // 3. Build result
@@ -128,6 +133,7 @@ export async function GET() {
       prospect_email: p.email ?? '',
       classe: p.classe_actuelle ?? null,
       formation,
+      departement: p.departement ?? null,
       first_form_date: firstDate.toISOString(),
       first_form_date_label: format(firstDate, "d MMM yyyy", { locale: fr }),
       first_form_name: p.first_conversion_event_name ?? null,
