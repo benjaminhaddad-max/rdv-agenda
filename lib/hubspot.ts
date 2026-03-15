@@ -1,7 +1,7 @@
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
-export async function hubspotFetch(path: string, options: RequestInit = {}) {
+export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<unknown> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -10,6 +10,13 @@ export async function hubspotFetch(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   })
+  // Retry sur 429 (rate limit) avec backoff exponentiel — max 4 tentatives
+  if (res.status === 429 && _retry < 4) {
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '1', 10)
+    const waitMs = Math.max(retryAfter * 1000, (2 ** _retry) * 600)
+    await new Promise(r => setTimeout(r, waitMs))
+    return hubspotFetch(path, options, _retry + 1)
+  }
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`HubSpot ${res.status}: ${err}`)

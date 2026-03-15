@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// Classes prioritaires — toujours affichées quelle que soit la date
+// Classes prioritaires — filtrées côté SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
-
-// Seuil pour les "autres classes" — leads antérieurs à cette date ignorés
-const OTHER_CLASSES_SINCE = new Date('2025-09-01T00:00:00.000Z')
 
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
@@ -44,10 +41,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Requête Supabase — filtres SQL simples uniquement ─────────────────────
-  // Le filtre classe/date est fait en JS (plus fiable que PostgREST .or()
-  // avec timestamps ISO et caractères accentués).
-  // On remonte jusqu'à 5000 lignes pour couvrir le pipeline complet.
+  // ── Requête Supabase ──────────────────────────────────────────────────────
+  // .range(0, 4999) utilise le header Range (bypass PostgREST max_rows=1000)
+  // Le filtre classe est poussé en SQL avec .in() quand allClasses=false
   let query = db
     .from('crm_contacts')
     .select(`
@@ -60,57 +56,45 @@ export async function GET(req: NextRequest) {
         supabase_appt_id
       )
     `)
-    .order('recent_conversion_date', { ascending: false, nullsFirst: false })
-    .limit(5000)
+    .order('synced_at', { ascending: false })
+    .range(0, 4999)
 
-  // Recherche textuelle (SQL — pas de chars spéciaux dans les valeurs user)
+  // Filtre classe côté SQL — .in() est fiable avec les accents (pas de .or())
+  if (!allClasses) {
+    query = query.in('classe_actuelle', PRIORITY_CLASSES)
+  }
+
+  // Recherche textuelle
   if (search) {
     query = query.or(
       `firstname.ilike.%${search}%,lastname.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
     )
   }
 
-  // Exclusion équipe externe — filtre SQL (NOT IN sur hubspot_owner_id)
+  // Exclusion équipe externe
   if (!showExternal && excludedOwnerIds.length > 0) {
     query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
   }
 
-  // Exclure un propriétaire manuellement sélectionné par Pascal
+  // Exclure un propriétaire manuellement
   if (ownerExclude) {
     query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${ownerExclude}`)
+  }
+
+  // Formulaires récents — filtre sur recent_conversion_date côté SQL
+  if (recentFormMonths > 0) {
+    const since = new Date()
+    since.setMonth(since.getMonth() - recentFormMonths)
+    query = query.gte('recent_conversion_date', since.toISOString())
   }
 
   const { data: contacts, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // ── Filtrage JS ───────────────────────────────────────────────────────────
+  // ── Filtrage JS — uniquement pour les champs deal ─────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rows = (contacts ?? []) as any[]
-
-  // ── Filtre classe / date (JS — évite les problèmes PostgREST) ─────────────
-  if (!allClasses) {
-    rows = rows.filter(c => {
-      // Terminale / Première / Seconde → toujours affichés
-      if (PRIORITY_CLASSES.includes(c.classe_actuelle ?? '')) return true
-      // Autres classes → seulement depuis sept. 2025
-      if (c.recent_conversion_date) {
-        const convDate = new Date(c.recent_conversion_date)
-        if (!isNaN(convDate.getTime()) && convDate >= OTHER_CLASSES_SINCE) return true
-      }
-      return false
-    })
-  }
-
-  // Formulaires récents
-  if (recentFormMonths > 0) {
-    const since = new Date()
-    since.setMonth(since.getMonth() - recentFormMonths)
-    rows = rows.filter(c => {
-      if (!c.recent_conversion_date) return false
-      return new Date(c.recent_conversion_date) >= since
-    })
-  }
 
   rows = rows.filter(c => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,10 +105,10 @@ export async function GET(req: NextRequest) {
 
     if (noTelepro   && deal?.teleprospecteur)  return false
     if (withTelepro && !deal?.teleprospecteur) return false
-    if (stage       && (!deal || deal.dealstage        !== stage))      return false
-    if (closerHsId  && (!deal || deal.hubspot_owner_id !== closerHsId)) return false
+    if (stage       && (!deal || deal.dealstage        !== stage))       return false
+    if (closerHsId  && (!deal || deal.hubspot_owner_id !== closerHsId))  return false
     if (teleproHsId && (!deal || deal.teleprospecteur  !== teleproHsId)) return false
-    if (formation   && (!deal || deal.formation        !== formation))   return false
+    if (formation   && (!deal || deal.formation        !== formation))    return false
 
     return true
   })
