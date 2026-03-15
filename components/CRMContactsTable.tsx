@@ -196,7 +196,7 @@ function InlineCellSelect({
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0 ? (
               <div style={{ padding: '14px', fontSize: 12, color: '#aab0bc', textAlign: 'center' }}>
-                Aucun résultat
+                {options.length === 0 ? 'Chargement…' : 'Aucun résultat'}
               </div>
             ) : (
               filtered.map(o => (
@@ -434,6 +434,7 @@ export interface CRMContact {
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
   origine?: string | null
+  teleprospecteur?: string | null
   contact_owner?: { id: string; name: string; role: string; avatar_color: string } | null
   deal?: {
     hubspot_deal_id: string
@@ -482,6 +483,18 @@ function formatPhone(raw: string): string {
     return `0${n[0]} ${n.slice(1,3)} ${n.slice(3,5)} ${n.slice(5,7)} ${n.slice(7,9)}`
   }
   return raw
+}
+
+// Helper pour afficher un user (avatar + nom) dans InlineCellSelect
+function renderUserOption(v: string, opts?: { id: string; label: string }[]) {
+  const opt = (opts ?? []).find(o => o.id === v)
+  if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <ContactAvatar name={opt.label} size={22} />
+      <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+    </div>
+  )
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -1076,47 +1089,43 @@ export default function CRMContactsTable({
           />
         )
 
-      case 'closer':
-        if (!deal) return <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+      case 'closer': {
+        const cVal    = deal ? (deal.hubspot_owner_id || '') : (contact.hubspot_owner_id || '')
+        const cSaving = deal
+          ? savingDealField === `${deal.hubspot_deal_id}:hubspot_owner_id`
+          : savingContactField === `${contact.hubspot_contact_id}:hubspot_owner_id`
+        const cOnSel  = (v: string) => deal
+          ? handleDealFieldChange(deal.hubspot_deal_id, 'hubspot_owner_id', v)
+          : handleContactFieldChange(contact.hubspot_contact_id, 'hubspot_owner_id', v)
         return (
           <InlineCellSelect
-            value={deal.hubspot_owner_id || ''}
+            value={cVal}
             options={closerSelectOptions ?? []}
-            onSelect={v => handleDealFieldChange(deal.hubspot_deal_id, 'hubspot_owner_id', v)}
-            saving={savingDealField === `${deal.hubspot_deal_id}:hubspot_owner_id`}
-            renderValue={v => {
-              const opt = (closerSelectOptions ?? []).find(o => o.id === v)
-              if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ContactAvatar name={opt.label} size={22} />
-                  <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
-                </div>
-              )
-            }}
+            onSelect={cOnSel}
+            saving={cSaving}
+            renderValue={v => renderUserOption(v, closerSelectOptions)}
           />
         )
+      }
 
-      case 'telepro':
-        if (!deal) return <span style={{ color: '#2d4a6b', fontSize: 11 }}>—</span>
+      case 'telepro': {
+        const tVal    = deal ? (deal.teleprospecteur || '') : (contact.teleprospecteur || '')
+        const tSaving = deal
+          ? savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`
+          : savingContactField === `${contact.hubspot_contact_id}:teleprospecteur`
+        const tOnSel  = (v: string) => deal
+          ? handleDealFieldChange(deal.hubspot_deal_id, 'teleprospecteur', v)
+          : handleContactFieldChange(contact.hubspot_contact_id, 'teleprospecteur', v)
         return (
           <InlineCellSelect
-            value={deal.teleprospecteur || ''}
+            value={tVal}
             options={teleproSelectOptions ?? []}
-            onSelect={v => handleDealFieldChange(deal.hubspot_deal_id, 'teleprospecteur', v)}
-            saving={savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`}
-            renderValue={v => {
-              const opt = (teleproSelectOptions ?? []).find(o => o.id === v)
-              if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ContactAvatar name={opt.label} size={22} />
-                  <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
-                </div>
-              )
-            }}
+            onSelect={tOnSel}
+            saving={tSaving}
+            renderValue={v => renderUserOption(v, teleproSelectOptions)}
           />
         )
+      }
 
       case 'createdat': {
         const rawDate  = deal?.createdate ?? contact.contact_createdate

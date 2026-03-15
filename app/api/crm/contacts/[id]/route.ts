@@ -56,8 +56,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  // Téléprospecteur → update deals liés à ce contact
+  // Téléprospecteur → stocker sur le contact + propaguer aux deals liés
   if (teleprospecteur !== undefined) {
+    // Stocker directement sur le contact (pour les contacts sans deal)
+    await db
+      .from('crm_contacts')
+      .update({ teleprospecteur, synced_at: new Date().toISOString() })
+      .eq('hubspot_contact_id', contactId)
+
     const { data: deals } = await db
       .from('crm_deals')
       .select('hubspot_deal_id')

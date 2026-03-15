@@ -216,6 +216,7 @@ export async function GET(req: NextRequest) {
       recent_conversion_event: c.recent_conversion_event,
       hs_lead_status:          c.hs_lead_status,
       origine:                 c.origine,
+      teleprospecteur:         c.teleprospecteur ?? null,
       contact_owner:           contactOwner,
       deal: deal ? {
         hubspot_deal_id:  deal.hubspot_deal_id,
