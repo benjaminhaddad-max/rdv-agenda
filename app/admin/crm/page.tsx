@@ -229,8 +229,9 @@ export default function CRMPage() {
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(0)
   const [loading, setLoading]     = useState(true)
-  const [syncing, setSyncing]     = useState(false)
-  const [lastSync, setLastSync]   = useState<SyncLog | null>(null)
+  const [syncing, setSyncing]         = useState(false)
+  const [syncProgress, setSyncProgress] = useState<{ done: number; label: string } | null>(null)
+  const [lastSync, setLastSync]       = useState<SyncLog | null>(null)
 
   // Vue prédéfinie
   const [viewPreset, setViewPreset] = useState<ViewPreset>('all')
@@ -337,22 +338,65 @@ export default function CRMPage() {
 
   async function handleSync(full = false) {
     setSyncing(true)
+    setSyncProgress(null)
+    const headers = { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET ?? ''}` }
+
     try {
-      const url = `/api/cron/crm-sync?force=1${full ? '&full=1' : ''}`
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET ?? ''}` },
-      })
-      const data = await res.json()
-      setLastSync({
-        synced_at: new Date().toISOString(),
-        contacts_upserted: data.contacts_upserted ?? 0,
-        deals_upserted: data.deals_upserted ?? 0,
-        duration_ms: data.duration_ms ?? 0,
-        error_message: data.error ?? null,
-      })
+      if (!full) {
+        // Sync incrémental : un seul appel
+        const res = await fetch('/api/cron/crm-sync?force=1', { headers })
+        const data = await res.json()
+        setLastSync({
+          synced_at: new Date().toISOString(),
+          contacts_upserted: data.contacts_upserted ?? 0,
+          deals_upserted: data.deals_upserted ?? 0,
+          duration_ms: data.duration_ms ?? 0,
+          error_message: data.error ?? null,
+        })
+      } else {
+        // Sync complet : premier appel (deals + premier chunk contacts)
+        setSyncProgress({ done: 0, label: 'Sync deals + premiers contacts…' })
+        const res1 = await fetch('/api/cron/crm-sync?full=1&force=1', { headers })
+        const data1 = await res1.json()
+
+        let totalContacts = data1.contacts_upserted ?? 0
+        let cursor: string | null = data1.next_cursor ?? null
+
+        setSyncProgress({ done: totalContacts, label: `${totalContacts.toLocaleString('fr')} contacts synchro…` })
+
+        // Chunks suivants tant qu'il y a un cursor
+        while (cursor) {
+          const res = await fetch(`/api/cron/crm-sync?contact_cursor=${encodeURIComponent(cursor)}&force=1`, { headers })
+          const data = await res.json()
+
+          totalContacts += data.contacts_upserted ?? 0
+          cursor = data.next_cursor ?? null
+
+          setSyncProgress({
+            done: totalContacts,
+            label: cursor
+              ? `${totalContacts.toLocaleString('fr')} contacts synchro…`
+              : `✓ ${totalContacts.toLocaleString('fr')} contacts synchronisés`,
+          })
+
+          if (data.error) break
+        }
+
+        setLastSync({
+          synced_at: new Date().toISOString(),
+          contacts_upserted: totalContacts,
+          deals_upserted: data1.deals_upserted ?? 0,
+          duration_ms: 0,
+          error_message: null,
+        })
+      }
+
       await fetchContacts(true)
     } catch { /* silent */ }
-    finally { setSyncing(false) }
+    finally {
+      setSyncing(false)
+      setTimeout(() => setSyncProgress(null), 4000)
+    }
   }
 
   function formatSyncTime(isoDate: string) {
@@ -486,11 +530,21 @@ export default function CRMPage() {
           >
             Sync complet
           </button>
-          {lastSync && (
+          {syncProgress && syncing && (
+            <span style={{ fontSize: 11, color: '#4cabdb', fontWeight: 600 }}>
+              {syncProgress.label}
+            </span>
+          )}
+          {!syncing && syncProgress && (
+            <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>
+              {syncProgress.label}
+            </span>
+          )}
+          {!syncProgress && lastSync && (
             <span style={{ fontSize: 11, color: lastSync.error_message ? '#ef4444' : '#3a5070' }}>
               {lastSync.error_message
                 ? `⚠ ${lastSync.error_message}`
-                : `✓ ${formatSyncTime(lastSync.synced_at)} · ${lastSync.contacts_upserted} contacts · ${lastSync.deals_upserted} deals · ${lastSync.duration_ms}ms`
+                : `✓ ${formatSyncTime(lastSync.synced_at)} · ${lastSync.contacts_upserted.toLocaleString('fr')} contacts · ${lastSync.deals_upserted} deals`
               }
             </span>
           )}

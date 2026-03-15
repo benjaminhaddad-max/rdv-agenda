@@ -7,6 +7,10 @@ export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
 
+// Nombre de pages HubSpot (×100 contacts) max par appel
+// 50 pages = 5 000 contacts ≈ 8-10 secondes — bien en dessous du timeout
+const MAX_PAGES_PER_CHUNK = 50
+
 export async function GET(req: NextRequest) {
   // Auth
   const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
@@ -15,10 +19,77 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const force    = req.nextUrl.searchParams.get('force') === '1'
-  const fullSync = req.nextUrl.searchParams.get('full') === '1'
-  const db       = createServiceClient()
-  const startMs  = Date.now()
+  const force         = req.nextUrl.searchParams.get('force') === '1'
+  const fullSync      = req.nextUrl.searchParams.get('full') === '1'
+  // Paramètre de reprise pour le sync complet (chunked)
+  const contactCursor = req.nextUrl.searchParams.get('contact_cursor') ?? null
+  const db            = createServiceClient()
+  const startMs       = Date.now()
+  const now           = new Date().toISOString()
+
+  // ── Mode reprise (contact_cursor fourni) : uniquement Phase 6 ─────────────
+  // Le frontend appelle ce mode en boucle après le premier appel full=1
+  if (contactCursor !== null) {
+    let contactsUpserted = 0
+    let errorMessage: string | null = null
+    let nextContactCursor: string | null = null
+
+    try {
+      let cursor: string | undefined = contactCursor
+      let rounds = 0
+      const buffer: ReturnType<typeof buildContactRow>[] = []
+
+      while (rounds < MAX_PAGES_PER_CHUNK) {
+        const { contacts: batch, nextCursor } = await getAllContactsForSync(cursor)
+
+        if (batch.length > 0) {
+          buffer.push(...batch.map(c => buildContactRow(c, now)))
+        }
+
+        cursor = nextCursor
+        rounds++
+
+        if (!nextCursor) break
+      }
+
+      // Upsert en une seule fois (moins de round-trips Supabase)
+      if (buffer.length > 0) {
+        await db.from('crm_contacts').upsert(buffer, { onConflict: 'hubspot_contact_id' })
+        contactsUpserted = buffer.length
+      }
+
+      nextContactCursor = cursor ?? null
+
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[crm-sync] Chunk error:', errorMessage)
+    }
+
+    const durationMs = Date.now() - startMs
+
+    // Log uniquement si c'est le dernier chunk (pas de cursor suivant)
+    if (!nextContactCursor) {
+      await db.from('crm_sync_log').insert({
+        contacts_upserted: contactsUpserted,
+        deals_upserted:    0,
+        duration_ms:       durationMs,
+        error_message:     errorMessage,
+      })
+    }
+
+    return NextResponse.json({
+      ok:                !errorMessage,
+      contacts_upserted: contactsUpserted,
+      deals_upserted:    0,
+      duration_ms:       durationMs,
+      error:             errorMessage,
+      mode:              'full_chunk',
+      next_cursor:       nextContactCursor,
+      done:              !nextContactCursor,
+    })
+  }
+
+  // ── Mode normal (incremental ou premier appel full) ────────────────────────
 
   // Dernier sync réussi
   const { data: lastSync } = await db
@@ -48,6 +119,7 @@ export async function GET(req: NextRequest) {
   let contactsUpserted = 0
   let dealsUpserted    = 0
   let errorMessage: string | null = null
+  let nextContactCursor: string | null = null
 
   let currentPhase = 0
 
@@ -71,7 +143,6 @@ export async function GET(req: NextRequest) {
 
     // ── Phase 2 : Associations deals → contacts (batch v4) ───────────────
     currentPhase = 2
-    // Un seul appel par tranche de 100 deals (au lieu de N appels individuels)
     const dealToContact: Record<string, string> = {}
     const ASSOC_BATCH = 100
     for (let i = 0; i < allDealIds.length; i += ASSOC_BATCH) {
@@ -87,12 +158,10 @@ export async function GET(req: NextRequest) {
       const chunk = allDealRows.slice(i, i + DEAL_BATCH)
       const chunkIds = chunk.map(r => r.hubspot_deal_id)
 
-      // Contact ID depuis les associations
       for (const row of chunk) {
         row.hubspot_contact_id = dealToContact[row.hubspot_deal_id] ?? null
       }
 
-      // Lier aux RDV Supabase existants
       const { data: linkedAppts } = await db
         .from('rdv_appointments')
         .select('id, hubspot_deal_id')
@@ -111,7 +180,6 @@ export async function GET(req: NextRequest) {
     currentPhase = 4
     const uniqueContactIds = [...new Set(Object.values(dealToContact))]
     const CONTACT_BATCH = 100
-    const now = new Date().toISOString()
 
     for (let i = 0; i < uniqueContactIds.length; i += CONTACT_BATCH) {
       const chunk = uniqueContactIds.slice(i, i + CONTACT_BATCH)
@@ -126,7 +194,6 @@ export async function GET(req: NextRequest) {
 
     // ── Phase 5 : Sync incrémentale (contacts récents sans deal) ─────────
     currentPhase = 5
-    // Limité à 20 pages (2000 contacts) pour éviter le timeout
     const MAX_INCR = fullSync ? 50 : 20
     let incrCursor: string | undefined = undefined
     let incrRounds = 0
@@ -137,7 +204,6 @@ export async function GET(req: NextRequest) {
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
         await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
-        // Compter seulement les nouveaux (pas déjà dans les deal-contacts)
         const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
         contactsUpserted += newOnes.length
       }
@@ -150,29 +216,36 @@ export async function GET(req: NextRequest) {
     currentPhase = 6
 
     if (fullSync) {
-      // Sync complet : endpoint GET (pas Search) → pas de limite 10K, tous les contacts
-      // 2000 pages × 100 = 200K max — couvre les 156K HubSpot
-      // Au ~100-150ms/appel : 1600 contacts/s → 156K ≈ 2-3 min
-      const MAX_ALL = 2000
+      // Sync complet : premier chunk de MAX_PAGES_PER_CHUNK pages
+      // Le reste est traité par les appels suivants (contact_cursor)
       let allCursor: string | undefined = undefined
       let allRounds = 0
+      const buffer: ReturnType<typeof buildContactRow>[] = []
 
-      do {
+      while (allRounds < MAX_PAGES_PER_CHUNK) {
         const { contacts: batch, nextCursor } = await getAllContactsForSync(allCursor)
 
         if (batch.length > 0) {
-          const rows = batch.map(c => buildContactRow(c, now))
-          await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
-          const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
-          contactsUpserted += newOnes.length
+          buffer.push(...batch.map(c => buildContactRow(c, now)))
         }
 
         allCursor = nextCursor
         allRounds++
-      } while (allCursor && allRounds < MAX_ALL)
+
+        if (!nextCursor) break
+      }
+
+      if (buffer.length > 0) {
+        await db.from('crm_contacts').upsert(buffer, { onConflict: 'hubspot_contact_id' })
+        const newOnes = buffer.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
+        contactsUpserted += newOnes.length
+      }
+
+      // Retourner le curseur pour le prochain chunk
+      nextContactCursor = allCursor ?? null
 
     } else {
-      // Sync incrémental : classes prioritaires uniquement (1 page × 3 classes = 300 contacts)
+      // Sync incrémental : classes prioritaires uniquement
       const PRIORITY_CLASSES_SYNC = ['Terminale', 'Premi\u00e8re', 'Seconde']
 
       for (const classe of PRIORITY_CLASSES_SYNC) {
@@ -218,6 +291,8 @@ export async function GET(req: NextRequest) {
     error:              errorMessage,
     mode:               fullSync ? 'full' : 'incremental',
     contact_since:      contactSince,
+    next_cursor:        nextContactCursor,
+    done:               !nextContactCursor,
   })
 }
 
@@ -230,11 +305,10 @@ export async function GET(req: NextRequest) {
  */
 function parseHubSpotDate(raw?: string | null): string | null {
   if (!raw) return null
-  // Si c'est une suite de chiffres (Unix ms), Number() le parse correctement
   const asNum = /^\d+$/.test(raw.trim()) ? Number(raw) : NaN
   const d = !isNaN(asNum) && asNum > 1e10
-    ? new Date(asNum)           // Unix ms valide (> année 2001)
-    : new Date(raw)             // ISO string ou date string
+    ? new Date(asNum)
+    : new Date(raw)
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
@@ -242,7 +316,7 @@ function parseHubSpotDate(raw?: string | null): string | null {
 function buildDealRow(d: any) {
   return {
     hubspot_deal_id:    d.id,
-    hubspot_contact_id: null as string | null,  // rempli en phase 3
+    hubspot_contact_id: null as string | null,
     dealname:           d.properties.dealname   ?? null,
     dealstage:          d.properties.dealstage  ?? null,
     pipeline:           d.properties.pipeline   ?? null,
@@ -254,7 +328,7 @@ function buildDealRow(d: any) {
     createdate:         d.properties.createdate
       ? new Date(d.properties.createdate).toISOString() : null,
     description:        d.properties.description ?? null,
-    supabase_appt_id:   null as string | null,  // rempli en phase 3
+    supabase_appt_id:   null as string | null,
     synced_at:          new Date().toISOString(),
   }
 }
