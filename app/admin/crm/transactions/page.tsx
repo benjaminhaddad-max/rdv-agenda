@@ -399,7 +399,7 @@ export default function TransactionsPage() {
           onChange={v => { setStage(v); scheduleRefetch() }}
           options={stageOptions}
           placeholder="Toutes les étapes"
-          format={v => STAGE_MAP[v]?.emoji + ' ' + STAGE_MAP[v]?.label ?? v}
+          format={v => (STAGE_MAP[v] ? STAGE_MAP[v].emoji + ' ' + STAGE_MAP[v].label : v)}
         />
         <DropFilter
           value={formation}
