@@ -79,7 +79,7 @@ function InlineCellSelect({
           background: open ? '#eaf4fd' : 'transparent',
           border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
           borderRadius: 4,
-          padding: '3px 8px',
+          padding: '5px 10px',
           cursor: saving ? 'not-allowed' : 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
