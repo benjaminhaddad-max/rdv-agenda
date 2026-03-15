@@ -566,7 +566,55 @@ export async function mergeContacts(primaryContactId: string, secondaryContactId
   })
 }
 
+// ─── Sync CRM : récupérer les contacts modifiés depuis une date ───────────
+// Utilise l'API Search (plus efficace que GET all) avec filtre lastmodifieddate
+// Pour le sync incrémental horaire : since = dernier sync (~50-500 contacts)
+// Pour le sync initial : since = '2024-09-01' (début année scolaire)
+export async function getContactsModifiedSince(
+  since: string, // ISO date string
+  after?: string,
+): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = {
+    filterGroups: [{
+      filters: [{
+        propertyName: 'lastmodifieddate',
+        operator: 'GTE',
+        value: new Date(since).getTime().toString(),
+      }],
+    }],
+    properties: CONTACT_PROPS.split(','),
+    sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
+    limit: 100,
+  }
+  if (after) body.after = after
+
+  const data = await hubspotFetch('/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return {
+    contacts: data.results ?? [],
+    nextCursor: data.paging?.next?.after,
+  }
+}
+
+// ─── Sync CRM : batch-read de contacts par IDs ────────────────────────────
+// 100 IDs max par requête — beaucoup plus rapide que paginer toute la base
+export async function batchGetContacts(contactIds: string[]): Promise<HubSpotContact[]> {
+  if (contactIds.length === 0) return []
+  const data = await hubspotFetch('/crm/v3/objects/contacts/batch/read', {
+    method: 'POST',
+    body: JSON.stringify({
+      inputs: contactIds.map(id => ({ id })),
+      properties: CONTACT_PROPS.split(','),
+    }),
+  })
+  return data.results ?? []
+}
+
 // ─── Sync CRM : récupérer tous les contacts (paginé, pour sync Supabase) ──
+// @deprecated — utiliser getContactsModifiedSince + batchGetContacts
 export async function getAllContactsForSync(after?: string): Promise<{
   contacts: HubSpotContact[]
   nextCursor?: string
