@@ -222,6 +222,47 @@ function loadCRMViews(): CRMSavedView[] {
   return CRM_DEFAULT_VIEWS
 }
 
+// Convertit les filtres d'une vue en URLSearchParams pour l'API
+function viewToParams(view: CRMSavedView): URLSearchParams {
+  const p = new URLSearchParams()
+  p.set('all_classes', '1') // toujours toutes classes pour les counts
+  const flags = view.presetFlags
+  if (flags?.noTelepro)        p.set('no_telepro', '1')
+  if (flags?.recentFormMonths) p.set('recent_form_months', String(flags.recentFormMonths))
+  const firstGroup = view.groups[0]
+  if (firstGroup) {
+    for (const rule of firstGroup.rules) {
+      if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
+      const val = rule.value
+      if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
+        switch (rule.field) {
+          case 'stage':       p.set('stage', val); break
+          case 'formation':   p.set('formation', val); break
+          case 'closer':      p.set('closer_hs_id', val); break
+          case 'telepro':     p.set('telepro_hs_id', val); break
+          case 'lead_status': p.set('lead_status', val); break
+          case 'source':      p.set('source', val); break
+          case 'zone':        p.set('zone', val); break
+          case 'departement': p.set('departement', val); break
+        }
+      }
+      if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+        switch (rule.field) {
+          case 'stage':       p.set('stage_not', val); break
+          case 'formation':   p.set('formation_not', val); break
+          case 'closer':      p.set('closer_not', val); break
+          case 'telepro':     p.set('telepro_not', val); break
+          case 'lead_status': p.set('lead_status_not', val); break
+          case 'source':      p.set('source_not', val); break
+          case 'zone':        p.set('zone_not', val); break
+          case 'departement': p.set('departement_not', val); break
+        }
+      }
+    }
+  }
+  return p
+}
+
 async function persistViewCreate(view: CRMSavedView, position: number) {
   await fetch('/api/crm/views', {
     method: 'POST',
@@ -732,6 +773,9 @@ export default function CRMPage() {
   const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones' }])
   const [deptOptions, setDeptOptions]               = useState<SelectOption[]>([{ id: '', label: 'Tous les départements' }])
 
+  // Counts pré-chargés par vue
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
+
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkTeleproId, setBulkTeleproId] = useState('')
@@ -759,6 +803,31 @@ export default function CRMPage() {
       })
       .catch(() => setViewsLoaded(true))
   }, [])
+
+  // ── Pré-charger les counts de toutes les vues ─────────────────────────────
+  useEffect(() => {
+    if (!viewsLoaded) return
+    Promise.all(
+      crmViews.map(async view => {
+        const p = viewToParams(view)
+        p.set('limit', '0')
+        try {
+          const res = await fetch(`/api/crm/contacts?${p.toString()}`)
+          if (!res.ok) return [view.id, 0] as [string, number]
+          const data = await res.json()
+          return [view.id, data.total ?? 0] as [string, number]
+        } catch {
+          return [view.id, 0] as [string, number]
+        }
+      })
+    ).then(results => setViewCounts(Object.fromEntries(results)))
+  }, [viewsLoaded, crmViews.length])
+
+  // Mettre à jour le count de la vue active quand total change
+  useEffect(() => {
+    if (!activeViewId || loading) return
+    setViewCounts(prev => ({ ...prev, [activeViewId]: total }))
+  }, [total, activeViewId, loading])
 
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
@@ -1372,18 +1441,19 @@ export default function CRMPage() {
                 </span>
               )}
 
-              {/* Badge count sur l'onglet actif */}
-              {isActive && !loading && total > 0 && (
+              {/* Badge count — tous les onglets */}
+              {viewCounts[view.id] !== undefined && viewCounts[view.id] > 0 && (
                 <span style={{
                   fontSize: 11, fontWeight: 700,
-                  color: '#c8cad8',
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: isActive ? '#c8cad8' : '#4a6080',
+                  background: isActive ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
                   borderRadius: 6, padding: '1px 7px',
                   letterSpacing: '0.01em',
                   fontVariantNumeric: 'tabular-nums',
+                  transition: 'all 0.2s',
                 }}>
-                  {fmtCount(total)}
+                  {fmtCount(viewCounts[view.id])}
                 </span>
               )}
 
