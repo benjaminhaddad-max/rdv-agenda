@@ -210,6 +210,78 @@ function FilterFieldSearchSelect({ value, onChange }: { value: string; onChange:
   )
 }
 
+// ── Field picker panel (HubSpot-style search-first) ───────────────────────
+
+function FieldPickerPanel({ onSelect, onClose }: { onSelect: (field: CRMFilterField) => void; onClose: () => void }) {
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const filtered = search
+    ? CRM_FILTER_FIELDS.filter(f => f.label.toLowerCase().includes(search.toLowerCase()))
+    : CRM_FILTER_FIELDS
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 30)
+  }, [])
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [onClose])
+
+  return (
+    <div ref={containerRef} style={{
+      marginTop: 8, background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 10,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
+    }}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a2f45' }}>
+        <div style={{ fontSize: 11, color: '#7a8ba5', marginBottom: 6, fontWeight: 600 }}>Sélectionner un champ à filtrer</div>
+        <div style={{ position: 'relative' }}>
+          <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#555870' }} />
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un champ…"
+            style={{
+              width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2d4a6b',
+              borderRadius: 6, padding: '7px 10px 7px 28px', color: '#e8eaf0', fontSize: 12,
+              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      </div>
+      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '12px 14px', color: '#555870', fontSize: 11 }}>Aucun résultat</div>
+        ) : (
+          filtered.map(f => (
+            <button
+              key={f.key}
+              onClick={() => onSelect(f.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                background: 'transparent', border: 'none', padding: '9px 14px',
+                color: '#c8cad8', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                textAlign: 'left',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(76,171,219,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <SlidersHorizontal size={12} style={{ color: '#4cabdb', flexShrink: 0 }} />
+              {f.label}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Multi-select dropdown for filters ─────────────────────────────────────
 
 function MultiSelectDropdown({ options, value, onChange }: {
@@ -819,6 +891,8 @@ export default function CRMPage() {
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  // Field picker: when adding a filter, show searchable field list first (HubSpot-style)
+  const [fieldPickerTarget, setFieldPickerTarget] = useState<{ type: 'newGroup' } | { type: 'addRule'; groupId: string } | null>(null)
 
   // CSV export
   const [exportModalOpen, setExportModalOpen] = useState(false)
@@ -1219,10 +1293,10 @@ export default function CRMPage() {
     scheduleRefetch()
   }
 
-  function addFilterGroup() {
+  function addFilterGroup(field: CRMFilterField = 'stage') {
     const g: CRMFilterGroup = {
       id: `g_${Date.now()}`,
-      rules: [{ id: `r_${Date.now()}`, field: 'stage', operator: 'is', value: '' }],
+      rules: [{ id: `r_${Date.now()}`, field, operator: 'is', value: '' }],
     }
     setFilterGroups(prev => [...prev, g])
   }
@@ -1247,12 +1321,12 @@ export default function CRMPage() {
     setFilterGroups(updated)
   }
 
-  function addRuleToGroup(gid: string) {
+  function addRuleToGroup(gid: string, field: CRMFilterField = 'stage') {
     const updated = filterGroups.map(g => {
       if (g.id !== gid) return g
       return {
         ...g,
-        rules: [...g.rules, { id: `r_${Date.now()}`, field: 'stage' as CRMFilterField, operator: 'is' as CRMFilterOp, value: '' }],
+        rules: [...g.rules, { id: `r_${Date.now()}`, field, operator: 'is' as CRMFilterOp, value: '' }],
       }
     })
     setFilterGroups(updated)
@@ -2155,24 +2229,46 @@ export default function CRMPage() {
                     )
                   })}
 
-                  <button onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #1a2f45', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Plus size={11} /> Ajouter un filtre
-                  </button>
+                  {fieldPickerTarget && fieldPickerTarget.type === 'addRule' && fieldPickerTarget.groupId === group.id ? (
+                    <FieldPickerPanel
+                      onSelect={f => { addRuleToGroup(group.id, f); setFieldPickerTarget(null) }}
+                      onClose={() => setFieldPickerTarget(null)}
+                    />
+                  ) : (
+                    <button onClick={() => setFieldPickerTarget({ type: 'addRule', groupId: group.id })} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #1a2f45', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Plus size={11} /> Ajouter un filtre
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
-              {filterGroups.length > 0 && (
-                <>
-                  <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
-                </>
-              )}
-              <button onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                <Plus size={12} /> Ajouter un groupe de filtres
-              </button>
-            </div>
+            {fieldPickerTarget && fieldPickerTarget.type === 'newGroup' ? (
+              <div style={{ marginTop: filterGroups.length > 0 ? 12 : 0 }}>
+                {filterGroups.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                  </div>
+                )}
+                <FieldPickerPanel
+                  onSelect={f => { addFilterGroup(f); setFieldPickerTarget(null) }}
+                  onClose={() => setFieldPickerTarget(null)}
+                />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
+                {filterGroups.length > 0 && (
+                  <>
+                    <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                  </>
+                )}
+                <button onClick={() => setFieldPickerTarget({ type: 'newGroup' })} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <Plus size={12} /> Ajouter un groupe de filtres
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Panel footer */}
