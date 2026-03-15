@@ -37,7 +37,7 @@ const SECTIONS: Section[] = [
       {
         emoji: '2\uFE0F\u20E3',
         title: 'Création du RDV + Deal HubSpot',
-        desc: 'Le RDV est créé en base + un deal HubSpot est créé automatiquement en "RDV Pris". Le deal est lié au contact HubSpot (créé ou retrouvé par email). Le RDV reste non-assigné jusqu\'à ce que Pascal l\'assigne à un closer depuis la file d\'attente admin.',
+        desc: 'Le RDV est créé et un deal HubSpot est créé automatiquement en "RDV Pris". Le deal est lié au contact HubSpot (créé ou retrouvé par email). Le RDV reste non-assigné jusqu\'à ce que Pascal l\'assigne à un closer depuis la file d\'attente admin.',
       },
       {
         emoji: '3\uFE0F\u20E3',
@@ -242,7 +242,7 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDEAB',
         title: 'Auto No-Show (2h du matin)',
-        desc: 'CRON nightly : si 30+ min après l\'heure du RDV et toujours "confirmé" → passage en no-show + deal HubSpot en "A replanifier" + SMS de replanification envoyé 24h après.',
+        desc: 'Automatique chaque nuit : si 30+ min après l\'heure du RDV et toujours "confirmé" → passage en no-show + deal HubSpot en "A replanifier" + SMS de replanification envoyé 24h après.',
       },
     ],
   },
@@ -361,7 +361,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
               {[
                 { label: 'Roles', value: '4', detail: 'Prospect, Telepro, Closer, Admin' },
                 { label: 'Integrations', value: '3', detail: 'HubSpot, Jitsi, SMS' },
-                { label: 'Automatisations', value: '5', detail: 'CRON SMS + Auto no-show' },
+                { label: 'Automatisations', value: '5', detail: 'SMS automatiques + Auto no-show' },
                 { label: 'Statuts RDV', value: '9', detail: 'De non-assigne a positif' },
               ].map(s => (
                 <div key={s.label} style={{
@@ -464,7 +464,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
           marginTop: 24, textAlign: 'center',
           fontSize: 11, color: '#555870', lineHeight: 1.6,
         }}>
-          Plateforme construite sur Next.js + Supabase + HubSpot CRM + Jitsi Meet
+          RDV Agenda — Diploma Santé © 2026
         </div>
       </div>
     </div>
