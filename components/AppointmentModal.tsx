@@ -38,6 +38,7 @@ type Appointment = {
   jpo_invitation?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
   sms_confirmed_at?: string | null
+  email_parent?: string | null
 }
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
@@ -104,6 +105,7 @@ export default function AppointmentModal({
   const [contexteConcurrence, setContexteConcurrence] = useState<string | null>(appointment.contexte_concurrence || null)
   const [financement, setFinancement] = useState<string | null>(appointment.financement || null)
   const [jpoInvitation, setJpoInvitation] = useState<string | null>(appointment.jpo_invitation || null)
+  const [emailParent, setEmailParent] = useState(appointment.email_parent || '')
 
   // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
   // et que la souris glisse légèrement sur le backdrop avant le mouseup
@@ -254,6 +256,7 @@ export default function AppointmentModal({
           notes,
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
+          email_parent: emailParent.trim() || null,
           ...buildExtraFields(),
         }),
       })
@@ -346,6 +349,21 @@ export default function AppointmentModal({
                 <span>{appointment.prospect_phone}</span>
               </div>
             )}
+            {/* Email parent — éditable */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Mail size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
+              <input
+                type="email"
+                value={emailParent}
+                onChange={(e) => setEmailParent(e.target.value)}
+                placeholder="Email parent (facultatif)"
+                style={{
+                  flex: 1, background: 'transparent', border: 'none',
+                  borderBottom: '1px solid #2a2d3e', color: emailParent ? '#c4b5fd' : '#555870',
+                  fontSize: 13, padding: '2px 0', outline: 'none', fontFamily: 'inherit',
+                }}
+              />
+            </div>
             {appointment.formation_type && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#8b8fa8' }}>
                 <Tag size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />

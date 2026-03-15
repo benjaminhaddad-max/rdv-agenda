@@ -11,6 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     negatif_reason, negatif_reason_detail, interlocuteur_principal,
     consigne_text, consigne_echeance, consigne_rien_a_faire,
     contexte_concurrence, financement, jpo_invitation,
+    email_parent,
   } = body
 
   const db = createServiceClient()
@@ -22,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       hubspot_deal_id, status, commercial_id,
       prospect_name, prospect_email, prospect_phone,
       start_at, formation_type,
-      hubspot_contact_id, notes, departement, classe_actuelle
+      hubspot_contact_id, notes, departement, classe_actuelle, email_parent
     `)
     .eq('id', id)
     .single()
@@ -141,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // === CAS 2b : NOTE INTERNE SEULEMENT (pas de statut) ===
-  if (notes !== undefined && status === undefined) {
+  if (notes !== undefined && status === undefined && email_parent === undefined) {
     const { data, error } = await db
       .from('rdv_appointments')
       .update({ notes: notes || null })
@@ -149,6 +150,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
+  // === CAS 2d : EMAIL PARENT SEULEMENT ===
+  if (email_parent !== undefined && status === undefined && notes === undefined) {
+    const { data, error } = await db
+      .from('rdv_appointments')
+      .update({ email_parent: email_parent || null })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Sync HubSpot
+    if (appointment.hubspot_contact_id && email_parent) {
+      try {
+        await updateContact(appointment.hubspot_contact_id, { email_parent })
+      } catch (_e) {
+        console.error('HubSpot email_parent update failed:', _e)
+      }
+    }
     return NextResponse.json(data)
   }
 
@@ -177,6 +199,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (contexte_concurrence !== undefined) updatePayload.contexte_concurrence = contexte_concurrence || null
   if (financement !== undefined) updatePayload.financement = financement || null
   if (jpo_invitation !== undefined) updatePayload.jpo_invitation = jpo_invitation || null
+  if (email_parent !== undefined) updatePayload.email_parent = email_parent || null
 
   const { data, error } = await db
     .from('rdv_appointments')

@@ -467,6 +467,7 @@ export default function TeleproClient({
   const [email, setEmail] = useState('')
   const [emailSynced, setEmailSynced] = useState(false)
   const emailOriginalRef = useRef('')
+  const [emailParent, setEmailParent] = useState('')
   const [phone, setPhone] = useState('')
   const [departement, setDepartement] = useState('')
   const [classeActuelle, setClasseActuelle] = useState('')
@@ -914,6 +915,7 @@ export default function TeleproClient({
         body: JSON.stringify({
           prospect_name: contactName || contactEmail,
           prospect_email: contactEmail, prospect_phone: phone,
+          email_parent: emailParent.trim() || null,
           start_at: selectedSlot!.start, end_at: selectedSlot!.end,
           source: 'telepro', formation_type: formationLabel, formation_hs_value: formation,
           hubspot_contact_id: contact!.id, departement, classe_actuelle: classeActuelle,
@@ -1654,6 +1656,10 @@ export default function TeleproClient({
                     {emailSynced && <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>MAJ HubSpot OK</span>}
                   </div>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail} placeholder="email@exemple.com" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={labelStyle}><Mail size={12} style={{ color: '#a78bfa' }} /> Email parent <span style={{ fontSize: 10, color: '#555870', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(facultatif)</span></div>
+                  <input type="email" value={emailParent} onChange={e => setEmailParent(e.target.value)} placeholder="parent@exemple.com" style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
                   <div style={labelStyle}><Phone size={12} style={{ color: '#6b87ff' }} /> Téléphone *</div>

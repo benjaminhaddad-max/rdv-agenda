@@ -106,6 +106,7 @@ export default function CloserNewRdvModal({
   const [name,          setName]          = useState('')
   const [email,         setEmail]         = useState('')
   const [phone,         setPhone]         = useState('')
+  const [emailParent,   setEmailParent]   = useState('')
   const [formation,     setFormation]     = useState('')
   const [department,    setDepartment]    = useState('')
   const [selectedDate,  setSelectedDate]  = useState('')
@@ -221,6 +222,7 @@ export default function CloserNewRdvModal({
         prospect_name:      name.trim(),
         prospect_email:     email.trim(),
         prospect_phone:     phone.trim() || null,
+        email_parent:       emailParent.trim() || null,
         start_at:           startAt.toISOString(),
         end_at:             endAt.toISOString(),
         source:             'admin',
@@ -489,6 +491,16 @@ export default function CloserNewRdvModal({
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="06 01 02 03 04"
+                    style={inp}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={label}>Email parent (facultatif)</label>
+                  <input
+                    value={emailParent}
+                    onChange={e => setEmailParent(e.target.value)}
+                    type="email"
+                    placeholder="parent@exemple.com"
                     style={inp}
                   />
                 </div>

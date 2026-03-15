@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     prospect_name,
     prospect_email,
     prospect_phone,
+    email_parent,           // optionnel — email du/des parent(s)
     start_at,
     end_at,
     source = 'telepro',     // 'telepro' | 'prospect' | 'admin'
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
       prospect_name,
       prospect_email,
       prospect_phone: prospect_phone || null,
+      email_parent: email_parent || null,
       start_at,
       end_at,
       status: commercial_id ? 'confirme' : 'non_assigne',
@@ -120,8 +122,8 @@ export async function POST(req: NextRequest) {
       if (prospect_phone)    propsToUpdate.phone = prospect_phone
       if (departement)       propsToUpdate.departement = parseInt(String(departement)) || departement
       if (classe_actuelle)   propsToUpdate.classe_actuelle = classe_actuelle
-      // Mettre à jour la formation demandée (propriété enum HubSpot)
       if (formation_hs_value) propsToUpdate.diploma_sante___formation_demandee = formation_hs_value
+      if (email_parent)      propsToUpdate.email_parent = email_parent
 
       if (Object.keys(propsToUpdate).length > 0) {
         await updateContact(hubspot_contact_id, propsToUpdate)
