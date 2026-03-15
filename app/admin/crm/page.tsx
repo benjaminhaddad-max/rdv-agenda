@@ -1993,28 +1993,6 @@ export default function CRMPage() {
               Filtres avancés
             </div>
 
-            {/* ── Raccourcis ───────────────────────────────────────────── */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Raccourcis
-              </div>
-              <button
-                onClick={applyPriorPreinscriptionFilter}
-                style={{
-                  width: '100%', padding: '8px 12px',
-                  background: 'rgba(99,102,241,0.07)',
-                  border: '1px solid rgba(99,102,241,0.2)',
-                  borderRadius: 8, color: '#a5b4fc',
-                  fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', textAlign: 'left',
-                  fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}
-              >
-                🎓 Pré-inscrits années précédentes
-              </button>
-            </div>
-
             <div style={{ height: 1, background: '#1a2f45', marginBottom: 14 }} />
 
             {filterGroups.map((group, gi) => (
