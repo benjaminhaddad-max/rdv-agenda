@@ -580,7 +580,8 @@ const EXPORT_COLUMNS = [
   { key: 'origine',             label: 'Origine' },
   { key: 'closer',              label: 'Closer' },
   { key: 'telepro',             label: 'Télépro' },
-  { key: 'createdat',           label: 'Date de création' },
+  { key: 'createdat_contact',   label: 'Date création (contact)' },
+  { key: 'createdat_deal',      label: 'Date création (deal)' },
   { key: 'form_submission',     label: 'Soumission formulaire' },
 ]
 
@@ -2224,10 +2225,17 @@ export default function CRMPage() {
                     headers.push('Télépro')
                     colMap.push({ key: 'telepro', extract: c => c.deal?.telepro?.name ?? '' })
                     break
-                  case 'createdat':
-                    headers.push('Date création')
-                    colMap.push({ key: 'createdat', extract: c => {
-                      const d = c.deal?.createdate ?? c.contact_createdate
+                  case 'createdat_contact':
+                    headers.push('Date création (contact)')
+                    colMap.push({ key: 'createdat_contact', extract: c => {
+                      const d = c.contact_createdate
+                      return d ? new Date(d).toLocaleDateString('fr-FR') : ''
+                    }})
+                    break
+                  case 'createdat_deal':
+                    headers.push('Date création (deal)')
+                    colMap.push({ key: 'createdat_deal', extract: c => {
+                      const d = c.deal?.createdate
                       return d ? new Date(d).toLocaleDateString('fr-FR') : ''
                     }})
                     break

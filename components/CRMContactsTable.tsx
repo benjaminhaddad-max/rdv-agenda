@@ -822,7 +822,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat' | 'form_submission'
+type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -836,7 +836,8 @@ const COL_LABELS: Record<ColKey, string> = {
   origine:              'Origine',
   closer:               'Closer',
   telepro:              'Télépro',
-  createdat:            'Créé le',
+  createdat_contact:    'Créé le (contact)',
+  createdat_deal:       'Créé le (deal)',
   form_submission:      'Soumission formulaire',
 }
 
@@ -852,13 +853,14 @@ const COL_WIDTHS: Record<ColKey, number> = {
   origine:              120,
   closer:               120,
   telepro:              110,
-  createdat:             90,
+  createdat_contact:     100,
+  createdat_deal:        100,
   form_submission:      160,
 }
 
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','phone','form_submission','formation_souhaitee','classe',
-  'zone','departement','etape','lead_status','origine','closer','telepro','createdat',
+  'zone','departement','etape','lead_status','origine','closer','telepro','createdat_contact','createdat_deal',
 ]
 
 export default function CRMContactsTable({
@@ -1216,8 +1218,16 @@ export default function CRMContactsTable({
         )
       }
 
-      case 'createdat': {
-        const rawDate  = deal?.createdate ?? contact.contact_createdate
+      case 'createdat_contact': {
+        const rawDate  = contact.contact_createdate
+        const dateStr  = rawDate
+          ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+          : '—'
+        return <span style={{ fontSize: 11, color: '#4a5568', whiteSpace: 'nowrap' }}>{dateStr}</span>
+      }
+
+      case 'createdat_deal': {
+        const rawDate  = contact.deal?.createdate
         const dateStr  = rawDate
           ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
           : '—'
