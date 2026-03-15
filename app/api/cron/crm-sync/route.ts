@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByPriorityClass } from '@/lib/hubspot'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -139,6 +139,28 @@ export async function GET(req: NextRequest) {
       incrRounds++
     } while (incrCursor && incrRounds < MAX_INCR)
 
+    // ── Phase 6 : Sync contacts prioritaires (Terminale / Première / Seconde) ──
+    // Ces ~30K contacts sont souvent sans deal → absents des phases 4 et 5.
+    // On les pagine entièrement à chaque full sync, et les 200 derniers modifiés
+    // lors d'un sync incrémental (2 pages × 100).
+    const MAX_PRIO = fullSync ? 350 : 2  // 350×100 = 35 000 max (couvre les 30K)
+    let prioCursor: string | undefined = undefined
+    let prioRounds = 0
+
+    do {
+      const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByPriorityClass(prioCursor)
+
+      if (prioContacts.length > 0) {
+        const rows = prioContacts.map(c => buildContactRow(c, now))
+        await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+        const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
+        contactsUpserted += newOnes.length
+      }
+
+      prioCursor = prioNext
+      prioRounds++
+    } while (prioCursor && prioRounds < MAX_PRIO)
+
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err)
     console.error('[crm-sync] Error:', errorMessage)
@@ -165,6 +187,21 @@ export async function GET(req: NextRequest) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * HubSpot renvoie recent_conversion_date soit comme Unix ms en string ("1710498600000")
+ * soit comme ISO string ("2025-03-15T10:30:00.000Z").
+ * parseInt("2025-03-15T...") = 2025 → new Date(2025) = 1970 — on évite ça.
+ */
+function parseHubSpotDate(raw?: string | null): string | null {
+  if (!raw) return null
+  // Si c'est une suite de chiffres (Unix ms), Number() le parse correctement
+  const asNum = /^\d+$/.test(raw.trim()) ? Number(raw) : NaN
+  const d = !isNaN(asNum) && asNum > 1e10
+    ? new Date(asNum)           // Unix ms valide (> année 2001)
+    : new Date(raw)             // ISO string ou date string
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildDealRow(d: any) {
@@ -199,9 +236,7 @@ function buildContactRow(c: any, now: string) {
     classe_actuelle:         c.properties.classe_actuelle ?? null,
     zone_localite:           c.properties.zone___localite ?? null,
     hubspot_owner_id:        c.properties.hubspot_owner_id ?? null,
-    recent_conversion_date:  c.properties.recent_conversion_date
-      ? new Date(parseInt(c.properties.recent_conversion_date)).toISOString()
-      : null,
+    recent_conversion_date:  parseHubSpotDate(c.properties.recent_conversion_date),
     recent_conversion_event: c.properties.recent_conversion_event_name ?? null,
     synced_at:               now,
   }

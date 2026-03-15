@@ -674,6 +674,35 @@ export async function getAllDealsForSync(after?: string): Promise<{
   }
 }
 
+// ─── Sync CRM : contacts par classe (Terminale / Première / Seconde) ──────
+// Utilise l'API Search avec filtre IN sur classe_actuelle.
+// Pagine jusqu'à `maxPages` × 100 contacts (defaut 500 = 50 000 contacts max).
+export async function getContactsByPriorityClass(
+  after?: string,
+): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = {
+    filterGroups: [
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Terminale' }] },
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Première' }] },
+      { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: 'Seconde' }] },
+    ],
+    properties: CONTACT_PROPS.split(','),
+    sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
+    limit: 100,
+  }
+  if (after) body.after = after
+
+  const data = await hubspotFetch('/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return {
+    contacts: data.results ?? [],
+    nextCursor: data.paging?.next?.after,
+  }
+}
+
 // ─── Sync CRM : associations deals → contacts (batch, API v4) ─────────────
 // Retourne un map dealId → contactId pour 100 deals max par appel
 export async function batchGetDealContactAssociations(

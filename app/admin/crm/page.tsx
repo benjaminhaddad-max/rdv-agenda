@@ -246,7 +246,7 @@ export default function CRMPage() {
 
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)  // montrer équipe externe (ex. Benjamin Delacour)
-  const [allClasses, setAllClasses]     = useState(false)  // bypass filtre classe/date
+  const [allClasses, setAllClasses]     = useState(true)   // true = toutes classes (défaut) ; false = Terminale/Première/Seconde + récents seulement
 
   // Client-side filters (appliqués sur les données déjà chargées)
   const [formation, setFormation] = useState('')
@@ -574,13 +574,13 @@ export default function CRMPage() {
         {/* Toggle : filtre classe/date */}
         <button
           onClick={() => { setAllClasses(v => !v); scheduleRefetch() }}
-          title={allClasses ? 'Affiche toutes les classes (filtre désactivé)' : 'Terminale / Première / Seconde toujours · Autres classes depuis sept. 2025'}
+          title={allClasses ? 'Toutes classes affichées — cliquer pour filtrer sur Terminale/Première/Seconde + récents' : 'Filtre actif : Terminale · Première · Seconde + formulaires depuis sept. 2025'}
           style={{
-            background: allClasses ? 'rgba(85,88,112,0.15)' : 'rgba(76,171,219,0.1)',
-            border: `1px solid ${allClasses ? '#2d4a6b' : 'rgba(76,171,219,0.3)'}`,
+            background: allClasses ? 'rgba(76,171,219,0.1)' : 'rgba(204,172,113,0.1)',
+            border: `1px solid ${allClasses ? 'rgba(76,171,219,0.3)' : 'rgba(204,172,113,0.35)'}`,
             borderRadius: 20,
             padding: '3px 10px',
-            color: allClasses ? '#555870' : '#4cabdb',
+            color: allClasses ? '#4cabdb' : '#ccac71',
             fontSize: 11,
             cursor: 'pointer',
             fontFamily: 'inherit',
@@ -590,9 +590,8 @@ export default function CRMPage() {
             transition: 'all 0.15s',
           }}
         >
-          <span style={{ fontSize: 9 }}>{allClasses ? '○' : '●'}</span>
+          <span style={{ fontSize: 9 }}>●</span>
           {allClasses ? 'Toutes classes' : 'Terminale · Première · Seconde + récents'}
-          {!allClasses && <span style={{ opacity: 0.5 }}>✕</span>}
         </button>
 
         {/* Toggle : exclure équipe externe */}
