@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, addDays, startOfToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Clock, ChevronLeft, ChevronRight, CheckCircle, MapPin, Video, Phone, Building2 } from 'lucide-react'
@@ -10,51 +10,42 @@ const NAVY  = '#1d2f4b'
 const BLUE  = '#4cabdb'
 const GOLD  = '#ccac71'
 
-// ─── Types de rendez-vous ─────────────────────────────────────────────────────
-const RDV_TYPES = [
-  {
-    key: 'parcoursup',
-    title: 'Accompagnement Parcoursup',
-    subtitle: 'Optimisez votre dossier d\'admission',
-    description: 'Un expert vous guide pas-à-pas dans la construction de vos vœux Parcoursup pour maximiser vos chances d\'admission.',
-    icon: '🎓',
-    btnLabel: 'Parler à un Expert Parcoursup',
-    formation: 'Accompagnement Parcoursup',
-    tag: 'Parcoursup',
-  },
-  {
-    key: 'medecine',
-    title: 'Coaching Orientation Médecine',
-    subtitle: 'Spécial PASS / L.AS / 3ème année',
-    description: 'Vous êtes en reconversion depuis la médecine ? Découvrez les filières paramédicales adaptées à votre profil.',
-    icon: '🩺',
-    btnLabel: 'Étudiant en 3ème année de médecine',
-    formation: 'Coaching Orientation Médecine',
-    tag: 'Médecine',
-  },
-  {
-    key: 'information',
-    title: "Rendez-vous d'information",
-    subtitle: 'Découvrez nos formations',
-    description: 'Orthophonie, kinésithérapie, sage-femme… Explorez nos programmes, les conditions d\'accès et les débouchés.',
-    icon: '💡',
-    btnLabel: 'Prendre un RDV d\'information',
-    formation: "Rendez-vous d'information",
-    tag: 'Information',
-  },
-  {
-    key: 'inscription',
-    title: "Rendez-vous d'inscription",
-    subtitle: 'Rejoindre Diploma Santé',
-    description: 'Rencontrez notre responsable des admissions pour finaliser votre dossier et intégrer une de nos formations.',
-    icon: '✍️',
-    btnLabel: 'Responsable des admissions',
-    formation: "Rendez-vous d'inscription",
-    tag: 'Inscription',
-  },
-]
+// ─── Type DB → local ──────────────────────────────────────────────────────────
+type RdvTypeDB = {
+  id: number
+  key: string
+  title: string
+  subtitle: string
+  description: string
+  icon: string
+  btn_label: string
+  formation: string
+  tag: string
+  active: boolean
+}
 
-type RdvType = typeof RDV_TYPES[number]
+type RdvType = {
+  key: string
+  title: string
+  subtitle: string
+  description: string
+  icon: string
+  btnLabel: string
+  formation: string
+  tag: string
+}
+
+function dbToLocal(t: RdvTypeDB): RdvType {
+  return { key: t.key, title: t.title, subtitle: t.subtitle, description: t.description, icon: t.icon, btnLabel: t.btn_label, formation: t.formation, tag: t.tag }
+}
+
+// Fallback si l'API est indisponible
+const FALLBACK_TYPES: RdvType[] = [
+  { key: 'parcoursup', title: 'Accompagnement Parcoursup', subtitle: "Optimisez votre dossier d'admission", description: "Un expert vous guide pas-à-pas dans la construction de vos vœux Parcoursup pour maximiser vos chances d'admission.", icon: '🎓', btnLabel: 'Parler à un Expert Parcoursup', formation: 'Accompagnement Parcoursup', tag: 'Parcoursup' },
+  { key: 'medecine', title: 'Coaching Orientation Médecine', subtitle: 'Spécial PASS / L.AS / 3ème année', description: 'Vous êtes en reconversion depuis la médecine ? Découvrez les filières paramédicales adaptées à votre profil.', icon: '🩺', btnLabel: 'Étudiant en 3ème année de médecine', formation: 'Coaching Orientation Médecine', tag: 'Médecine' },
+  { key: 'information', title: "Rendez-vous d'information", subtitle: 'Découvrez nos formations', description: "Orthophonie, kinésithérapie, sage-femme… Explorez nos programmes, les conditions d'accès et les débouchés.", icon: '💡', btnLabel: "Prendre un RDV d'information", formation: "Rendez-vous d'information", tag: 'Information' },
+  { key: 'inscription', title: "Rendez-vous d'inscription", subtitle: 'Rejoindre Diploma Santé', description: 'Rencontrez notre responsable des admissions pour finaliser votre dossier et intégrer une de nos formations.', icon: '✍️', btnLabel: 'Responsable des admissions', formation: "Rendez-vous d'inscription", tag: 'Inscription' },
+]
 type Step = 'dashboard' | 'date' | 'slot' | 'form' | 'success'
 type Slot = { start: string; end: string }
 type MeetingType = 'visio' | 'telephone' | 'presentiel'
@@ -76,7 +67,18 @@ export default function RdvPublicDashboard({
   utmContent: string | null
   ref: string | null
 }) {
-  const preselected = RDV_TYPES.find(t => t.key === defaultType) ?? null
+  const [rdvTypes, setRdvTypes] = useState<RdvType[]>(FALLBACK_TYPES)
+
+  useEffect(() => {
+    fetch('/api/rdv-types')
+      .then(r => r.json())
+      .then((data: RdvTypeDB[]) => {
+        if (Array.isArray(data) && data.length > 0) setRdvTypes(data.map(dbToLocal))
+      })
+      .catch(() => { /* fallback déjà en place */ })
+  }, [])
+
+  const preselected = rdvTypes.find(t => t.key === defaultType) ?? null
 
   const [step, setStep]                 = useState<Step>(preselected ? 'date' : 'dashboard')
   const [selectedType, setSelectedType] = useState<RdvType | null>(preselected)
@@ -275,7 +277,7 @@ export default function RdvPublicDashboard({
       {step === 'dashboard' && (
         <div style={{ maxWidth: 860, margin: '0 auto', padding: '28px 24px 32px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-            {RDV_TYPES.map(type => (
+            {rdvTypes.map(type => (
               <div
                 key={type.key}
                 onClick={() => pickType(type)}

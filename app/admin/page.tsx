@@ -15,6 +15,7 @@ import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import RepopJournal from '@/components/RepopJournal'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import LinksManager from '@/components/LinksManager'
+import RdvTypesManager from '@/components/RdvTypesManager'
 import LogoutButton from '@/components/LogoutButton'
 import PlatformGuide from '@/components/PlatformGuide'
 
@@ -29,6 +30,7 @@ export default function AdminPage() {
   const [showRepop, setShowRepop]                   = useState(false)
   const [showQueue, setShowQueue]                   = useState(false)
   const [showLinks, setShowLinks]                   = useState(false)
+  const [showRdvTypes, setShowRdvTypes]             = useState(false)
   const [showGuide, setShowGuide]                   = useState(false)
   const [unassignedCount, setUnassignedCount]       = useState<number | null>(null)
 
@@ -154,6 +156,7 @@ export default function AdminPage() {
           <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac" onClick={() => setShowDealsDoublons(true)} color="red" />
           <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"    onClick={() => setShowRepop(true)} />
           <ToolBtn icon={<Link2 size={12} />}         label="Liens & Campagnes" onClick={() => setShowLinks(true)} color="blue" />
+          <ToolBtn icon={<BookOpen size={12} />}      label="Contenus /rdv"     onClick={() => setShowRdvTypes(true)} color="gold" />
         </div>
       </div>
 
@@ -188,6 +191,7 @@ export default function AdminPage() {
       {showDealsDoublons && <DealsDoublonsManager  onClose={() => setShowDealsDoublons(false)} />}
       {showCheckRdv      && <CheckRdvCloserPanel   onClose={() => setShowCheckRdv(false)} />}
       {showLinks         && <LinksManager           onClose={() => setShowLinks(false)} />}
+      {showRdvTypes      && <RdvTypesManager        onClose={() => setShowRdvTypes(false)} />}
 
       {showRepop && (
         <div
