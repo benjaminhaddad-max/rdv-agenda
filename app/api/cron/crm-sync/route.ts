@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync } from '@/lib/hubspot'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -146,30 +146,53 @@ export async function GET(req: NextRequest) {
       incrRounds++
     } while (incrCursor && incrRounds < MAX_INCR)
 
-    // ── Phase 6 : Sync contacts prioritaires (une classe à la fois) ──────────
-    // HubSpot Search limite à 10K résultats/requête → on sépare Terminale,
-    // Première, Seconde en 3 boucles indépendantes (3 × 10K = 30K max).
+    // ── Phase 6 : Sync contacts ───────────────────────────────────────────────
     currentPhase = 6
-    const MAX_PER_CLASS = fullSync ? 100 : 1  // 100×100=10K par classe (full), 100 (incr)
-    const PRIORITY_CLASSES_SYNC = ['Terminale', 'Premi\u00e8re', 'Seconde']
 
-    for (const classe of PRIORITY_CLASSES_SYNC) {
-      let classCursor: string | undefined = undefined
-      let classRounds = 0
+    if (fullSync) {
+      // Sync complet : endpoint GET (pas Search) → pas de limite 10K, tous les contacts
+      // 2000 pages × 100 = 200K max — couvre les 156K HubSpot
+      // Au ~100-150ms/appel : 1600 contacts/s → 156K ≈ 2-3 min
+      const MAX_ALL = 2000
+      let allCursor: string | undefined = undefined
+      let allRounds = 0
 
       do {
-        const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByClass(classe, classCursor)
+        const { contacts: batch, nextCursor } = await getAllContactsForSync(allCursor)
 
-        if (prioContacts.length > 0) {
-          const rows = prioContacts.map(c => buildContactRow(c, now))
+        if (batch.length > 0) {
+          const rows = batch.map(c => buildContactRow(c, now))
           await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
           const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
           contactsUpserted += newOnes.length
         }
 
-        classCursor = prioNext
-        classRounds++
-      } while (classCursor && classRounds < MAX_PER_CLASS)
+        allCursor = nextCursor
+        allRounds++
+      } while (allCursor && allRounds < MAX_ALL)
+
+    } else {
+      // Sync incrémental : classes prioritaires uniquement (1 page × 3 classes = 300 contacts)
+      const PRIORITY_CLASSES_SYNC = ['Terminale', 'Premi\u00e8re', 'Seconde']
+
+      for (const classe of PRIORITY_CLASSES_SYNC) {
+        let classCursor: string | undefined = undefined
+        let classRounds = 0
+
+        do {
+          const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByClass(classe, classCursor)
+
+          if (prioContacts.length > 0) {
+            const rows = prioContacts.map(c => buildContactRow(c, now))
+            await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+            const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
+            contactsUpserted += newOnes.length
+          }
+
+          classCursor = prioNext
+          classRounds++
+        } while (classCursor && classRounds < 1)
+      }
     }
 
   } catch (err) {
