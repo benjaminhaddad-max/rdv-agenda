@@ -10,6 +10,7 @@ import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
 import DoublonsManager from '@/components/DoublonsManager'
+import ExternalDoublonsManager from '@/components/ExternalDoublonsManager'
 import DealsDoublonsManager from '@/components/DealsDoublonsManager'
 import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
 import RepopJournal from '@/components/RepopJournal'
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [showSite, setShowSite]                   = useState(false)
   const [showGuide, setShowGuide]                 = useState(false)
   const [showResources, setShowResources]         = useState(false)
+  const [showExtDoublons, setShowExtDoublons]     = useState(false)
   const [unassignedCount, setUnassignedCount]     = useState<number | null>(null)
 
   const fetchCount = useCallback(async () => {
@@ -143,6 +145,7 @@ export default function AdminPage() {
           <span style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
           <ToolBtn icon={<AlertTriangle size={12} />} label="Check RDV"         onClick={() => setShowCheckRdv(true)} />
           <ToolBtn icon={<GitMerge size={12} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
+          <ToolBtn icon={<Users size={12} />}         label="Doublons externe"  onClick={() => setShowExtDoublons(true)} color="gold" />
           <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
           <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
           <ToolBtn icon={<Link2 size={12} />}         label="Site & Contenus"   onClick={() => setShowSite(true)} color="blue" />
@@ -191,6 +194,7 @@ export default function AdminPage() {
 
       {showGuide && <PlatformGuide onClose={() => setShowGuide(false)} />}
       {showResources && <ResourcesPanel role="admin" onClose={() => setShowResources(false)} />}
+      {showExtDoublons && <ExternalDoublonsManager onClose={() => setShowExtDoublons(false)} />}
     </div>
   )
 }
