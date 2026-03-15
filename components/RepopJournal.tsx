@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon, Check } from 'lucide-react'
 import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
@@ -43,6 +43,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   const [filterZone, setFilterZone] = useState<string>('')
   // Formulaire candidature filter — orphans only
   const [orphanCandidatureOnly, setOrphanCandidatureOnly] = useState(false)
+  // Dismissed repops
+  const [dismissedDeals, setDismissedDeals] = useState<Set<string>>(new Set())
+  const [dismissedContacts, setDismissedContacts] = useState<Set<string>>(new Set())
+  const [dismissing, setDismissing] = useState<Record<string, boolean>>({})
 
   const fetchRepops = useCallback(async () => {
     setLoading(true)
@@ -58,13 +62,19 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         if (hubspotOwnerId) params.set('hubspot_owner_id', hubspotOwnerId)
       }
 
-      const [repopRes, orphansRes] = await Promise.all([
+      const [repopRes, orphansRes, dismissedRes] = await Promise.all([
         fetch(`/api/repop?${params.toString()}`),
         fetch('/api/repop/orphans'),
+        fetch('/api/repop/dismiss'),
       ])
 
       if (repopRes.ok) setEntries(await repopRes.json())
       if (orphansRes.ok) setOrphans(await orphansRes.json())
+      if (dismissedRes.ok) {
+        const d = await dismissedRes.json()
+        setDismissedDeals(new Set(d.deals ?? []))
+        setDismissedContacts(new Set(d.contacts ?? []))
+      }
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
@@ -72,8 +82,36 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   useEffect(() => { fetchRepops() }, [fetchRepops])
 
-  // Filtrer par stage + classe/zone
+  // Dismiss handler
+  const handleDismiss = async (type: 'deal' | 'orphan', id: string) => {
+    const key = `${type}-${id}`
+    if (dismissing[key]) return
+    setDismissing(prev => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch('/api/repop/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          type === 'deal'
+            ? { type: 'deal', hubspot_deal_id: id }
+            : { type: 'orphan', contact_id: id }
+        ),
+      })
+      if (res.ok) {
+        if (type === 'deal') {
+          setDismissedDeals(prev => new Set([...prev, id]))
+        } else {
+          setDismissedContacts(prev => new Set([...prev, id]))
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setDismissing(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
+  // Filtrer par stage + classe/zone + dismissed
   const filtered = entries.filter(e => {
+    if (dismissedDeals.has(e.hubspot_deal_id)) return false
     if (activeFilter === 'orphans') return false
     if (activeFilter === 'a_replanifier' && e.hs_stage_label !== 'À replanifier') return false
     if (activeFilter === 'delai_reflexion' && e.hs_stage_label !== 'Délai de réflexion') return false
@@ -84,8 +122,9 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   const showOrphans = activeFilter === 'all' || activeFilter === 'orphans'
 
-  // Sub-filter orphans (classe/zone shared + candidature only for orphans)
+  // Sub-filter orphans (classe/zone shared + candidature only for orphans + dismissed)
   const filteredOrphans = orphans.filter(o => {
+    if (dismissedContacts.has(o.contact_id)) return false
     if (filterClasse && o.classe !== filterClasse) return false
     if (filterZone && o.zone_localite !== filterZone) return false
     if (orphanCandidatureOnly) {
@@ -266,7 +305,13 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {/* Liste deals repop */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.map(entry => (
-          <RepopCard key={entry.hubspot_deal_id} entry={entry} showCloser={scope === 'admin' || scope === 'telepro'} />
+          <RepopCard
+            key={entry.hubspot_deal_id}
+            entry={entry}
+            showCloser={scope === 'admin' || scope === 'telepro'}
+            onDismiss={() => handleDismiss('deal', entry.hubspot_deal_id)}
+            isDismissing={!!dismissing[`deal-${entry.hubspot_deal_id}`]}
+          />
         ))}
       </div>
 
@@ -285,7 +330,12 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filteredOrphans.map(entry => (
-              <OrphanCard key={entry.contact_id} entry={entry} />
+              <OrphanCard
+                key={entry.contact_id}
+                entry={entry}
+                onDismiss={() => handleDismiss('orphan', entry.contact_id)}
+                isDismissing={!!dismissing[`orphan-${entry.contact_id}`]}
+              />
             ))}
           </div>
         </>
@@ -294,7 +344,9 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   )
 }
 
-function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boolean }) {
+function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
+  entry: RepopEntry; showCloser: boolean; onDismiss: () => void; isDismissing: boolean
+}) {
   return (
     <div style={{
       background: '#152438',
@@ -305,7 +357,7 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
       display: 'flex', flexDirection: 'column', gap: 10,
     }}>
 
-      {/* Ligne 1 : badge repop + nom + formation + stage + HubSpot */}
+      {/* Ligne 1 : badge repop + nom + formation + stage + HubSpot + Traité */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
@@ -350,6 +402,19 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
           >
             <ExternalLink size={10} /> HubSpot
           </a>
+          <button
+            onClick={onDismiss}
+            disabled={isDismissing}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
+              borderRadius: 6, padding: '3px 9px', color: '#22c55e',
+              fontSize: 11, fontWeight: 600, cursor: isDismissing ? 'wait' : 'pointer',
+              opacity: isDismissing ? 0.5 : 1, fontFamily: 'inherit',
+            }}
+          >
+            <Check size={10} /> {isDismissing ? '...' : 'Traité'}
+          </button>
         </div>
       </div>
 
@@ -417,7 +482,9 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
 const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 
-function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
+function OrphanCard({ entry, onDismiss, isDismissing }: {
+  entry: OrphanRepopEntry; onDismiss: () => void; isDismissing: boolean
+}) {
   return (
     <div style={{
       background: '#152438',
@@ -481,6 +548,19 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
           >
             <ExternalLink size={10} /> HubSpot
           </a>
+          <button
+            onClick={onDismiss}
+            disabled={isDismissing}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
+              borderRadius: 6, padding: '3px 9px', color: '#22c55e',
+              fontSize: 11, fontWeight: 600, cursor: isDismissing ? 'wait' : 'pointer',
+              opacity: isDismissing ? 0.5 : 1, fontFamily: 'inherit',
+            }}
+          >
+            <Check size={10} /> {isDismissing ? '...' : 'Traité'}
+          </button>
         </div>
       </div>
 
