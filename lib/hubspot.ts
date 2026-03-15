@@ -1,7 +1,8 @@
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
-export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
