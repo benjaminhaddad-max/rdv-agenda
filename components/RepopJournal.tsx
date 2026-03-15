@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User, UserX } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight } from 'lucide-react'
 import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
@@ -298,6 +298,9 @@ function RepopCard({ entry, showCloser }: { entry: RepopEntry; showCloser: boole
   )
 }
 
+const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
+const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
+
 function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
   return (
     <div style={{
@@ -306,10 +309,10 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
       borderLeft: '3px solid #a855f7',
       borderRadius: 12,
       padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 8,
+      display: 'flex', flexDirection: 'column', gap: 10,
     }}>
 
-      {/* Ligne 1 : badge + nom */}
+      {/* Ligne 1 : badge + nom + classe/formation + lien HubSpot */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
@@ -324,7 +327,7 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
             {entry.prospect_name}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {entry.classe && (
             <span style={{
               background: 'rgba(107,135,255,0.12)', border: '1px solid rgba(107,135,255,0.3)',
@@ -341,6 +344,19 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
               {entry.formation}
             </span>
           )}
+          <a
+            href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.25)',
+              borderRadius: 6, padding: '3px 9px', color: '#6b87ff',
+              fontSize: 11, fontWeight: 600, textDecoration: 'none',
+            }}
+          >
+            <ExternalLink size={10} /> HubSpot
+          </a>
         </div>
       </div>
 
@@ -362,25 +378,40 @@ function OrphanCard({ entry }: { entry: OrphanRepopEntry }) {
         )}
       </div>
 
-      {/* Ligne 3 : 1er formulaire + repop */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555870' }}>
-          <Calendar size={12} />
-          1er formulaire le {entry.first_form_date_label}
-          {entry.first_form_name && <span style={{ color: '#555870' }}>({entry.first_form_name})</span>}
-        </span>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          fontSize: 12, color: '#a855f7', fontWeight: 600,
-          background: 'rgba(168,85,247,0.08)',
-          borderRadius: 6, padding: '2px 8px',
-        }}>
-          <FileText size={12} />
-          {entry.repop_form_name
-            ? `"${entry.repop_form_name}" — resoumis le ${entry.repop_form_date_label}`
-            : `Formulaire resoumis le ${entry.repop_form_date_label}`
-          }
-        </span>
+      {/* Ligne 3 : timeline 1er formulaire → nouveau formulaire */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 6,
+        background: '#151823', borderRadius: 8, padding: '10px 12px',
+      }}>
+        {/* 1er formulaire */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%', background: '#555870', flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+            <strong style={{ color: '#c8cadb' }}>{entry.first_form_date_label}</strong>
+            {' — '}
+            {entry.first_form_name || 'Formulaire soumis'}
+          </span>
+        </div>
+
+        {/* Flèche */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
+          <div style={{ width: 2, height: 12, background: '#2a2d3e', marginLeft: 0 }} />
+          <ArrowRight size={10} style={{ color: '#555870' }} />
+        </div>
+
+        {/* Nouveau formulaire */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%', background: '#a855f7', flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 12, color: '#a855f7', fontWeight: 600 }}>
+            <strong>{entry.repop_form_date_label}</strong>
+            {' — '}
+            {entry.repop_form_name || 'Nouveau formulaire soumis'}
+          </span>
+        </div>
       </div>
     </div>
   )
