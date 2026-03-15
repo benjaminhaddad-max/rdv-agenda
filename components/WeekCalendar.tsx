@@ -405,10 +405,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   </div>
                   {dayAppts.length > 0 && (
                     <div style={{
-                      marginTop: 3, fontSize: 10, fontWeight: 600,
-                      color: today ? '#ccac71' : '#8b8fa8',
-                      background: today ? 'rgba(204,172,113,0.15)' : '#243d5c',
-                      borderRadius: 10, padding: '1px 7px', display: 'inline-block',
+                      marginTop: 4,
+                      width: 20, height: 20,
+                      background: '#4cabdb',
+                      borderRadius: '50%',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 800, color: 'white', lineHeight: 1,
                     }}>
                       {dayAppts.length}
                     </div>

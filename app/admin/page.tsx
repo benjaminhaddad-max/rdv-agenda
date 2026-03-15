@@ -58,13 +58,13 @@ export default function AdminPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0, zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <LayoutDashboard size={16} style={{ color: '#ccac71' }} />
-          </div>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: '#e8eaf0' }}>Dashboard Admin</span>
-            <span style={{ marginLeft: 8, fontSize: 11, color: '#555870' }}>Vue Pascal — Chef des closers</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto', display: 'block' }} />
+          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <LayoutDashboard size={13} style={{ color: '#ccac71' }} />
+            <span style={{ fontSize: 12, color: '#8b8fa8', fontWeight: 600 }}>Dashboard Admin</span>
           </div>
         </div>
 
@@ -106,9 +106,12 @@ export default function AdminPage() {
           File d&apos;attente
           {unassignedCount !== null && (
             <span style={{
-              background: unassignedCount > 0 ? '#ccac71' : '#2d4a6b',
-              color: unassignedCount > 0 ? '#0b1624' : '#555870',
-              borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, lineHeight: 1.4,
+              background: unassignedCount > 0 ? '#4cabdb' : '#243d5c',
+              color: 'white',
+              borderRadius: '50%',
+              width: 18, height: 18,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 800, lineHeight: 1, flexShrink: 0,
             }}>
               {unassignedCount}
             </span>
