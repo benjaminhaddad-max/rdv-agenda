@@ -40,8 +40,11 @@ function InlineCellSelect({
       if (popoverRef.current?.contains(e.target as Node)) return
       setOpen(false)
     }
-    // Fermer aussi si scroll (recalc de position sinon décalé)
-    function onScroll() { setOpen(false) }
+    // Fermer si scroll HORS du popover (ne pas fermer quand on scroll dans la liste)
+    function onScroll(e: Event) {
+      if (popoverRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
 
     document.addEventListener('mousedown', onMouseDown)
     window.addEventListener('scroll', onScroll, true)
