@@ -1400,13 +1400,24 @@ export default function CRMPage() {
 
           {/* Panel footer */}
           {totalFilterRules > 0 && (
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #1a2f45', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Tout effacer
-              </button>
-              <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Enregistrer comme vue
-              </button>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #1a2f45', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Update current view — shown when filters changed on a custom (non-default) view */}
+              {crmViewChanged && activeCRMView && !activeCRMView.isDefault && (
+                <button
+                  onClick={() => { updateCRMViewFilters(activeViewId); }}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(76,171,219,0.12)', border: '1px solid rgba(76,171,219,0.35)', borderRadius: 8, color: '#4cabdb', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <Save size={13} /> Mettre à jour « {activeCRMView.name} »
+                </button>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Tout effacer
+                </button>
+                <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#ccac71', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  + Nouvelle vue
+                </button>
+              </div>
             </div>
           )}
         </div>
