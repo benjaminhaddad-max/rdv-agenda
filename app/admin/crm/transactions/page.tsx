@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   Search, X, ChevronDown, ChevronUp, LayoutDashboard, Users, ExternalLink,
   ArrowUpDown, GraduationCap, MapPin, BookOpen, Phone, Mail, RefreshCw,
-  LayoutGrid, List, Plus, Save, Check,
+  LayoutGrid, List, Plus, Save, Check, SlidersHorizontal, Trash2, Copy,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import TransactionBoard from '@/components/TransactionBoard'
@@ -67,33 +67,88 @@ const CLASSE_OPTIONS = [
 type SortCol = 'dealname' | 'formation' | 'classe' | 'zone' | 'stage' | 'created'
 type ViewMode = 'board' | 'list'
 
-// ── Saved Views ──────────────────────────────────────────────────────────────
+// ── Advanced Filter System ───────────────────────────────────────────────────
 
-interface ViewFilters {
-  search: string
-  stage: string
-  formation: string
-  classe: string
+type FilterField = 'stage' | 'formation' | 'classe' | 'zone' | 'closer' | 'dealname'
+type FilterOperator = 'is' | 'is_not' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
+
+interface FilterRule {
+  id: string
+  field: FilterField
+  operator: FilterOperator
+  value: string
 }
+
+const FILTER_FIELDS: { key: FilterField; label: string; type: 'select' | 'text' }[] = [
+  { key: 'stage',     label: 'Étape',            type: 'select' },
+  { key: 'formation', label: 'Formation',        type: 'select' },
+  { key: 'classe',    label: 'Classe actuelle',  type: 'select' },
+  { key: 'zone',      label: 'Zone / Localité',  type: 'text' },
+  { key: 'closer',    label: 'Closer',           type: 'text' },
+  { key: 'dealname',  label: 'Nom transaction',  type: 'text' },
+]
+
+const OPERATORS_SELECT: { key: FilterOperator; label: string }[] = [
+  { key: 'is',           label: 'est' },
+  { key: 'is_not',       label: "n'est pas" },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+const OPERATORS_TEXT: { key: FilterOperator; label: string }[] = [
+  { key: 'contains',     label: 'contient' },
+  { key: 'not_contains', label: 'ne contient pas' },
+  { key: 'is',           label: 'est exactement' },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+function getFieldOptions(field: FilterField): string[] {
+  switch (field) {
+    case 'stage':     return Object.keys(STAGE_MAP)
+    case 'formation': return FORMATION_OPTIONS.filter(Boolean)
+    case 'classe':    return CLASSE_OPTIONS.filter(Boolean)
+    default:          return []
+  }
+}
+
+function formatFieldValue(field: FilterField, value: string): string {
+  if (field === 'stage') {
+    const s = STAGE_MAP[value]
+    return s ? `${s.emoji} ${s.label}` : value
+  }
+  return value
+}
+
+function operatorsForField(field: FilterField) {
+  const f = FILTER_FIELDS.find(ff => ff.key === field)
+  return f?.type === 'select' ? OPERATORS_SELECT : OPERATORS_TEXT
+}
+
+function needsValue(op: FilterOperator) {
+  return op !== 'is_empty' && op !== 'is_not_empty'
+}
+
+// ── Saved Views ──────────────────────────────────────────────────────────────
 
 interface SavedView {
   id: string
   name: string
-  filters: ViewFilters
+  rules: FilterRule[]
   isDefault?: boolean
 }
 
 const DEFAULT_VIEWS: SavedView[] = [
-  { id: 'all',   name: 'Toutes',           filters: { search: '', stage: '', formation: '', classe: '' }, isDefault: true },
-  { id: 'rdv',   name: 'RDV Pris',         filters: { search: '', stage: '3165428980', formation: '', classe: '' }, isDefault: true },
-  { id: 'pre',   name: 'Pré-inscription',  filters: { search: '', stage: '3165428982', formation: '', classe: '' }, isDefault: true },
-  { id: 'lost',  name: 'Fermé Perdu',      filters: { search: '', stage: '3165428985', formation: '', classe: '' }, isDefault: true },
+  { id: 'all',  name: 'Toutes',          rules: [], isDefault: true },
+  { id: 'rdv',  name: 'RDV Pris',        rules: [{ id: 'r1', field: 'stage', operator: 'is', value: '3165428980' }], isDefault: true },
+  { id: 'pre',  name: 'Pré-inscription', rules: [{ id: 'r2', field: 'stage', operator: 'is', value: '3165428982' }], isDefault: true },
+  { id: 'lost', name: 'Fermé Perdu',     rules: [{ id: 'r3', field: 'stage', operator: 'is', value: '3165428985' }], isDefault: true },
 ]
 
 function loadSavedViews(): SavedView[] {
   if (typeof window === 'undefined') return DEFAULT_VIEWS
   try {
-    const raw = localStorage.getItem('tx-saved-views')
+    const raw = localStorage.getItem('tx-saved-views-v2')
     if (raw) {
       const parsed = JSON.parse(raw) as SavedView[]
       if (parsed.length > 0) return parsed
@@ -103,7 +158,49 @@ function loadSavedViews(): SavedView[] {
 }
 
 function persistViews(views: SavedView[]) {
-  localStorage.setItem('tx-saved-views', JSON.stringify(views))
+  localStorage.setItem('tx-saved-views-v2', JSON.stringify(views))
+}
+
+// Convert filter rules to simple query params for the API
+function rulesToParams(rules: FilterRule[]): { search: string; stage: string; formation: string; classe: string } {
+  const params = { search: '', stage: '', formation: '', classe: '' }
+  for (const rule of rules) {
+    if (rule.operator === 'is') {
+      if (rule.field === 'stage') params.stage = rule.value
+      else if (rule.field === 'formation') params.formation = rule.value
+      else if (rule.field === 'classe') params.classe = rule.value
+      else if (rule.field === 'dealname') params.search = rule.value
+    } else if (rule.operator === 'contains' && rule.field === 'dealname') {
+      params.search = rule.value
+    }
+  }
+  return params
+}
+
+// Check if a deal matches filter rules (for board client-side filtering)
+function dealMatchesRules(deal: Transaction | TransactionDetail, rules: FilterRule[]): boolean {
+  for (const rule of rules) {
+    let fieldVal = ''
+    switch (rule.field) {
+      case 'stage':     fieldVal = deal.dealstage ?? ''; break
+      case 'formation': fieldVal = deal.formation ?? ''; break
+      case 'classe':    fieldVal = deal.contact?.classe_actuelle ?? ''; break
+      case 'zone':      fieldVal = deal.contact?.zone_localite ?? deal.contact?.departement ?? ''; break
+      case 'closer':    fieldVal = deal.closer?.name ?? ''; break
+      case 'dealname':  fieldVal = deal.dealname ?? ''; break
+    }
+    const v = rule.value?.toLowerCase() ?? ''
+    const fv = fieldVal.toLowerCase()
+    switch (rule.operator) {
+      case 'is':           if (fv !== v) return false; break
+      case 'is_not':       if (fv === v) return false; break
+      case 'contains':     if (!fv.includes(v)) return false; break
+      case 'not_contains': if (fv.includes(v)) return false; break
+      case 'is_empty':     if (fieldVal.trim() !== '') return false; break
+      case 'is_not_empty': if (fieldVal.trim() === '') return false; break
+    }
+  }
+  return true
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -266,11 +363,15 @@ export default function TransactionsPage() {
   // Undo
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null)
 
-  // Filters
+  // Filters (derived from active rules for API calls)
   const [search, setSearch]       = useState('')
   const [stage, setStage]         = useState('')
   const [formation, setFormation] = useState('')
   const [classe, setClasse]       = useState('')
+
+  // Advanced filter rules (active working set)
+  const [filterRules, setFilterRules] = useState<FilterRule[]>([])
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
 
   // Saved views
   const [views, setViews] = useState<SavedView[]>(loadSavedViews)
@@ -551,31 +652,34 @@ export default function TransactionsPage() {
     setSelectedDeal(null)
   }
 
-  const hasFilters = search || stage || formation || classe
+  const hasFilters = filterRules.length > 0
   const totalPages = Math.ceil(total / LIMIT)
   const loading = viewMode === 'board' ? boardLoading : listLoading
   const displayTotal = viewMode === 'board' ? boardTotal : total
   const displayStats = viewMode === 'board' ? boardStats : stats
 
-  // Check if current filters differ from active view
+  // Sync rules → simple params for API
+  function applyRulesToParams(rules: FilterRule[]) {
+    const p = rulesToParams(rules)
+    setSearch(p.search); setStage(p.stage); setFormation(p.formation); setClasse(p.classe)
+  }
+
+  // Check if current rules differ from active view
   const activeView = views.find(v => v.id === activeViewId)
   const viewFiltersChanged = activeView ? (
-    search !== activeView.filters.search ||
-    stage !== activeView.filters.stage ||
-    formation !== activeView.filters.formation ||
-    classe !== activeView.filters.classe
+    JSON.stringify(filterRules) !== JSON.stringify(activeView.rules)
   ) : false
 
   function resetFilters() {
+    setFilterRules([])
     setSearch(''); setStage(''); setFormation(''); setClasse('')
   }
 
   function applyView(view: SavedView) {
     setActiveViewId(view.id)
-    setSearch(view.filters.search)
-    setStage(view.filters.stage)
-    setFormation(view.filters.formation)
-    setClasse(view.filters.classe)
+    setFilterRules(view.rules)
+    applyRulesToParams(view.rules)
+    setFilterPanelOpen(false)
     scheduleRefetch()
   }
 
@@ -584,7 +688,7 @@ export default function TransactionsPage() {
     const newView: SavedView = {
       id,
       name: name || 'Nouvelle vue',
-      filters: { search, stage, formation, classe },
+      rules: [...filterRules],
     }
     const updated = [...views, newView]
     setViews(updated)
@@ -613,10 +717,55 @@ export default function TransactionsPage() {
 
   function updateViewFilters(viewId: string) {
     const updated = views.map(v =>
-      v.id === viewId ? { ...v, filters: { search, stage, formation, classe } } : v
+      v.id === viewId ? { ...v, rules: [...filterRules] } : v
     )
     setViews(updated)
     persistViews(updated)
+  }
+
+  // ── Filter rule CRUD ──────────────────────────────────────────────────────
+
+  function addFilterRule() {
+    const newRule: FilterRule = {
+      id: `fr_${Date.now()}`,
+      field: 'stage',
+      operator: 'is',
+      value: '',
+    }
+    const updated = [...filterRules, newRule]
+    setFilterRules(updated)
+  }
+
+  function updateFilterRule(ruleId: string, patch: Partial<FilterRule>) {
+    const updated = filterRules.map(r => {
+      if (r.id !== ruleId) return r
+      const merged = { ...r, ...patch }
+      // Reset value if field changed (options change)
+      if (patch.field && patch.field !== r.field) merged.value = ''
+      // Reset value if operator doesn't need one
+      if (patch.operator && !needsValue(patch.operator)) merged.value = ''
+      return merged
+    })
+    setFilterRules(updated)
+    applyRulesToParams(updated)
+    scheduleRefetch()
+  }
+
+  function removeFilterRule(ruleId: string) {
+    const updated = filterRules.filter(r => r.id !== ruleId)
+    setFilterRules(updated)
+    applyRulesToParams(updated)
+    scheduleRefetch()
+  }
+
+  function duplicateFilterRule(ruleId: string) {
+    const rule = filterRules.find(r => r.id === ruleId)
+    if (!rule) return
+    const idx = filterRules.indexOf(rule)
+    const dup = { ...rule, id: `fr_${Date.now()}` }
+    const updated = [...filterRules]
+    updated.splice(idx + 1, 0, dup)
+    setFilterRules(updated)
   }
 
   const stageOptions = ['', ...Object.keys(STAGE_MAP)]
@@ -761,6 +910,7 @@ export default function TransactionsPage() {
         {views.map(view => {
           const isActive = activeViewId === view.id
           const isRenaming = renamingViewId === view.id
+          const stageRule = view.rules.find(r => r.field === 'stage' && r.operator === 'is')
 
           return (
             <div
@@ -809,17 +959,26 @@ export default function TransactionsPage() {
                 </span>
               )}
 
-              {/* Stage count badge for stage-filtered views */}
-              {view.filters.stage && displayStats?.stages[view.filters.stage] != null && (
+              {/* Badge: count of rules or stage count */}
+              {stageRule && displayStats?.stages[stageRule.value] != null ? (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
                   color: isActive ? '#ccac71' : '#3a5070',
                   background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
-                  {displayStats.stages[view.filters.stage]}
+                  {displayStats.stages[stageRule.value]}
                 </span>
-              )}
+              ) : view.rules.length > 0 && !stageRule ? (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: isActive ? '#ccac71' : '#3a5070',
+                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
+                  borderRadius: 8, padding: '1px 6px',
+                }}>
+                  {view.rules.length} filtre{view.rules.length > 1 ? 's' : ''}
+                </span>
+              ) : null}
 
               {/* Delete button (not for defaults) */}
               {!view.isDefault && isActive && !isRenaming && (
@@ -838,6 +997,25 @@ export default function TransactionsPage() {
           )
         })}
 
+        {/* Separator */}
+        <div style={{ width: 1, height: 20, background: '#1a2f45', margin: '0 4px', flexShrink: 0 }} />
+
+        {/* Filtres avancés button */}
+        <button
+          onClick={() => setFilterPanelOpen(o => !o)}
+          style={{
+            padding: '7px 12px', background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
+            border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
+            borderRadius: 6, color: filterRules.length > 0 ? '#ccac71' : '#6b7a90',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontFamily: 'inherit', fontWeight: filterRules.length > 0 ? 600 : 400,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <SlidersHorizontal size={12} />
+          Filtres{filterRules.length > 0 ? ` (${filterRules.length})` : ''}
+        </button>
+
         {/* Update view button */}
         {viewFiltersChanged && activeViewId !== 'all' && (
           <button
@@ -850,7 +1028,7 @@ export default function TransactionsPage() {
               whiteSpace: 'nowrap', margin: '0 4px', flexShrink: 0,
             }}
           >
-            <Save size={10} /> Mettre à jour
+            <Save size={10} /> Sauvegarder
           </button>
         )}
 
@@ -912,72 +1090,175 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* ── Filters (list view only) ─────────────────────────────────────────── */}
-      {viewMode === 'list' && (
+      {/* ── Advanced Filter Panel ─────────────────────────────────────────────── */}
+      {filterPanelOpen && (
         <div style={{
-          padding: '10px 20px', background: '#0d1a28',
+          padding: '16px 20px', background: '#0b1624',
           borderBottom: '1px solid #1a2f45', flexShrink: 0,
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
         }}>
-          {/* Search */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8,
-            padding: '6px 12px', flex: '1 1 auto', maxWidth: 340,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: filterRules.length > 0 ? 12 : 0,
           }}>
-            <Search size={13} style={{ color: '#3a5070', flexShrink: 0 }} />
-            <input
-              type="text"
-              placeholder="Rechercher une transaction…"
-              value={search}
-              onChange={e => { setSearch(e.target.value); scheduleRefetch() }}
-              onKeyDown={e => { if (e.key === 'Enter') fetchList(true) }}
-              style={{
-                background: 'transparent', border: 'none', color: '#e8eaf0',
-                fontSize: 13, outline: 'none', flex: 1, fontFamily: 'inherit',
-              }}
-            />
-            {search && (
-              <button onClick={() => { setSearch(''); scheduleRefetch() }} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                <X size={13} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0' }}>
+              Filtres avancés
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {hasFilters && (
+                <button
+                  onClick={() => { resetFilters(); scheduleRefetch() }}
+                  style={{
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                    borderRadius: 6, padding: '4px 10px', color: '#ef4444', fontSize: 11,
+                    cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+                    gap: 4, fontWeight: 600,
+                  }}
+                >
+                  <X size={10} /> Tout effacer
+                </button>
+              )}
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                style={{
+                  background: 'none', border: 'none', padding: 2,
+                  color: '#555870', cursor: 'pointer', display: 'flex',
+                }}
+              >
+                <X size={14} />
               </button>
-            )}
+            </div>
           </div>
 
-          {/* Dropdowns */}
-          <DropFilter
-            value={stage}
-            onChange={v => { setStage(v); scheduleRefetch() }}
-            options={stageOptions}
-            placeholder="Toutes les étapes"
-            format={v => (STAGE_MAP[v] ? STAGE_MAP[v].emoji + ' ' + STAGE_MAP[v].label : v)}
-          />
-          <DropFilter
-            value={formation}
-            onChange={v => { setFormation(v); scheduleRefetch() }}
-            options={FORMATION_OPTIONS}
-            placeholder="Toutes formations"
-          />
-          <DropFilter
-            value={classe}
-            onChange={v => { setClasse(v); scheduleRefetch() }}
-            options={CLASSE_OPTIONS}
-            placeholder="Toutes classes"
-          />
+          {/* Filter rules */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filterRules.map((rule, idx) => {
+              const fieldDef = FILTER_FIELDS.find(f => f.key === rule.field)
+              const operators = operatorsForField(rule.field)
+              const options = getFieldOptions(rule.field)
+              const showValue = needsValue(rule.operator)
+              const isSelectField = fieldDef?.type === 'select'
 
-          {hasFilters && (
-            <button
-              onClick={() => { resetFilters(); scheduleRefetch() }}
-              style={{
-                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12,
-                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-                gap: 5, fontWeight: 600,
-              }}
-            >
-              <X size={11} /> Reset
-            </button>
-          )}
+              return (
+                <div key={rule.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: '#101e30', borderRadius: 8,
+                  border: '1px solid #1a2f45', padding: '8px 12px',
+                }}>
+                  {/* AND label */}
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: '#3a5070',
+                    width: 24, textAlign: 'center', flexShrink: 0,
+                  }}>
+                    {idx === 0 ? 'OÙ' : 'ET'}
+                  </span>
+
+                  {/* Field selector */}
+                  <select
+                    value={rule.field}
+                    onChange={e => updateFilterRule(rule.id, { field: e.target.value as FilterField })}
+                    style={{
+                      background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                      padding: '5px 8px', color: '#c8cad8', fontSize: 12,
+                      fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
+                      minWidth: 130,
+                    }}
+                  >
+                    {FILTER_FIELDS.map(f => (
+                      <option key={f.key} value={f.key}>{f.label}</option>
+                    ))}
+                  </select>
+
+                  {/* Operator selector */}
+                  <select
+                    value={rule.operator}
+                    onChange={e => updateFilterRule(rule.id, { operator: e.target.value as FilterOperator })}
+                    style={{
+                      background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                      padding: '5px 8px', color: '#c8cad8', fontSize: 12,
+                      fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
+                      minWidth: 120,
+                    }}
+                  >
+                    {operators.map(op => (
+                      <option key={op.key} value={op.key}>{op.label}</option>
+                    ))}
+                  </select>
+
+                  {/* Value input */}
+                  {showValue && (
+                    isSelectField && options.length > 0 ? (
+                      <select
+                        value={rule.value}
+                        onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
+                        style={{
+                          background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                          padding: '5px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12,
+                          fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
+                          flex: 1, minWidth: 140,
+                        }}
+                      >
+                        <option value="">Sélectionner…</option>
+                        {options.map(opt => (
+                          <option key={opt} value={opt}>
+                            {formatFieldValue(rule.field, opt)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={rule.value}
+                        onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
+                        placeholder="Valeur…"
+                        style={{
+                          background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                          padding: '5px 8px', color: '#e8eaf0', fontSize: 12,
+                          fontFamily: 'inherit', outline: 'none',
+                          flex: 1, minWidth: 120,
+                        }}
+                      />
+                    )
+                  )}
+
+                  {/* Actions */}
+                  <button
+                    onClick={() => duplicateFilterRule(rule.id)}
+                    title="Dupliquer"
+                    style={{
+                      background: 'none', border: 'none', padding: 3,
+                      color: '#3a5070', cursor: 'pointer', display: 'flex', flexShrink: 0,
+                    }}
+                  >
+                    <Copy size={12} />
+                  </button>
+                  <button
+                    onClick={() => removeFilterRule(rule.id)}
+                    title="Supprimer"
+                    style={{
+                      background: 'none', border: 'none', padding: 3,
+                      color: '#ef4444', cursor: 'pointer', display: 'flex', flexShrink: 0,
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Add filter button */}
+          <button
+            onClick={addFilterRule}
+            style={{
+              marginTop: 10, padding: '7px 14px',
+              background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
+              borderRadius: 6, color: '#4cabdb', fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <Plus size={12} /> Ajouter un filtre
+          </button>
         </div>
       )}
 
