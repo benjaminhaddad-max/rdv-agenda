@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN
+const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
 /**
  * Récupère les options d'une propriété HubSpot via l'API Properties v3.
@@ -12,7 +12,7 @@ async function fetchHubSpotPropertyOptions(propertyName: string): Promise<string
   try {
     const res = await fetch(
       `https://api.hubapi.com/crm/v3/properties/contacts/${propertyName}`,
-      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` }, next: { revalidate: 3600 } }
+      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
     )
     if (!res.ok) return []
     const data = await res.json()

@@ -989,6 +989,7 @@ export default function CRMPage() {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onOpenDrawer={setDrawerContact}
+          leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
         /></div>
 
         {/* Pagination */}

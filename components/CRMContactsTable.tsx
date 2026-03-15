@@ -5,6 +5,127 @@ import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLi
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 
+// ── Inline cell select ──────────────────────────────────────────────────────
+// Composant réutilisable : affiche la valeur actuelle + dropdown au clic
+// Stoppe la propagation pour ne pas déclencher l'expand/drawer de la ligne
+function InlineCellSelect({
+  value,
+  displayValue,
+  options,
+  onSelect,
+  saving,
+  renderValue,
+}: {
+  value: string
+  displayValue?: string
+  options: { id: string; label: string; color?: string }[]
+  onSelect: (id: string) => void
+  saving?: boolean
+  renderValue?: (value: string) => React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={e => { e.stopPropagation(); if (!saving) setOpen(o => !o) }}
+        style={{
+          background: open ? 'rgba(76,171,219,0.08)' : 'transparent',
+          border: `1px solid ${open ? 'rgba(76,171,219,0.4)' : 'transparent'}`,
+          borderRadius: 5,
+          padding: '2px 5px 2px 4px',
+          cursor: saving ? 'not-allowed' : 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 3,
+          transition: 'all 0.12s',
+          fontFamily: 'inherit',
+        }}
+        onMouseEnter={e => {
+          if (!open) {
+            e.currentTarget.style.border = '1px solid rgba(76,171,219,0.35)'
+            e.currentTarget.style.background = 'rgba(76,171,219,0.06)'
+          }
+        }}
+        onMouseLeave={e => {
+          if (!open) {
+            e.currentTarget.style.border = '1px solid transparent'
+            e.currentTarget.style.background = 'transparent'
+          }
+        }}
+      >
+        {saving ? (
+          <span style={{ fontSize: 11, color: '#555870' }}>…</span>
+        ) : renderValue ? (
+          renderValue(value)
+        ) : (
+          <span style={{ fontSize: 11, color: '#7a8ba0' }}>{displayValue || value || '—'}</span>
+        )}
+        {!saving && <ChevronDown size={9} style={{ color: '#3a5070', flexShrink: 0 }} />}
+      </button>
+
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: 3,
+            background: '#0d1e34',
+            border: '1px solid #2d4a6b',
+            borderRadius: 8,
+            padding: '5px 0',
+            zIndex: 200,
+            minWidth: 180,
+            maxHeight: 260,
+            overflowY: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }}
+        >
+          {options.map(o => (
+            <button
+              key={o.id}
+              onClick={e => { e.stopPropagation(); onSelect(o.id); setOpen(false) }}
+              style={{
+                display: 'block',
+                width: '100%',
+                background: value === o.id ? 'rgba(76,171,219,0.12)' : 'transparent',
+                border: 'none',
+                padding: '7px 14px',
+                color: o.color || (value === o.id ? '#4cabdb' : '#c8cad8'),
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                textAlign: 'left',
+                fontWeight: value === o.id ? 700 : 400,
+              }}
+            >
+              {value === o.id ? '● ' : '  '}{o.label || '—'}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const CLASSE_OPTIONS = [
+  '', 'Terminale', 'Première', 'Seconde', 'Troisième',
+  'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
+  'Etudes médicales', 'Etudes Sup.', 'Autre',
+]
+
 const NAVY_BG   = '#0b1624'
 const NAVY_ROW  = '#1d2f4b'
 const NAVY_BORDER = '#2d4a6b'
@@ -126,6 +247,8 @@ interface Props {
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
   onOpenDrawer?: (contact: CRMContact) => void
+  /** Options dynamiques HubSpot pour le statut du lead */
+  leadStatusOptions?: { id: string; label: string }[]
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -454,7 +577,7 @@ function ExpandedDetail({
   )
 }
 
-export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer }: Props) {
+export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer, leadStatusOptions }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [noteModal, setNoteModal] = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel, setAssignPanel] = useState<{
@@ -462,6 +585,8 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
     currentCloserHsId?: string | null; currentTeleproHsId?: string | null
   } | null>(null)
   const [savingStage, setSavingStage] = useState<string | null>(null)
+  // contactId → field en cours de sauvegarde
+  const [savingContactField, setSavingContactField] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
 
   const toggleExpand = useCallback((id: string) => {
@@ -487,6 +612,20 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
     }
   }
 
+  async function handleContactFieldChange(contactId: string, field: string, value: string) {
+    setSavingContactField(`${contactId}:${field}`)
+    try {
+      await fetch(`/api/crm/contacts/${contactId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      })
+      onRefresh?.()
+    } finally {
+      setSavingContactField(null)
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870', fontSize: 13 }}>
@@ -508,17 +647,18 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
 
   // Column headers config
   const cols = [
-    { label: '',           width: 38,  hidden: !onToggleSelect }, // checkbox
-    { label: 'Contact',    width: 220 },
-    { label: 'Tél',        width: 130 },
-    { label: 'Formation',  width: 110 },
-    { label: 'Classe',     width: 100 },
-    { label: 'Zone',       width: 110 },
-    { label: 'Étape',      width: 140 },
-    { label: 'Closer',     width: 130, hidden: mode === 'telepro' },
-    { label: 'Télépro',    width: 120, hidden: false },
-    { label: 'Créé le',    width: 100 },
-    { label: '',           width: 60  }, // actions
+    { label: '',            width: 38,  hidden: !onToggleSelect }, // checkbox
+    { label: 'Contact',     width: 200 },
+    { label: 'Tél',         width: 120 },
+    { label: 'Formation',   width: 100 },
+    { label: 'Classe',      width: 100 },
+    { label: 'Zone',        width: 100 },
+    { label: 'Étape',       width: 150 },
+    { label: 'Statut lead', width: 120, hidden: !leadStatusOptions?.length },
+    { label: 'Closer',      width: 120, hidden: mode === 'telepro' },
+    { label: 'Télépro',     width: 110, hidden: false },
+    { label: 'Créé le',     width: 90 },
+    { label: '',            width: 50  }, // actions
   ]
 
   const visibleCols = cols.filter(c => !c.hidden)
@@ -658,9 +798,12 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
 
                     {/* 4. Classe */}
                     <td style={{ padding: '10px 12px' }}>
-                      <span style={{ fontSize: 11, color: '#7a8ba0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        {contact.classe_actuelle || '—'}
-                      </span>
+                      <InlineCellSelect
+                        value={contact.classe_actuelle || ''}
+                        options={CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))}
+                        onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'classe_actuelle', v)}
+                        saving={savingContactField === `${contact.hubspot_contact_id}:classe_actuelle`}
+                      />
                     </td>
 
                     {/* 5. Zone */}
@@ -672,10 +815,32 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
 
                     {/* 6. Étape */}
                     <td style={{ padding: '10px 12px' }}>
-                      <StageBadge stageId={deal?.dealstage} />
+                      {deal ? (
+                        <InlineCellSelect
+                          value={deal.dealstage || ''}
+                          options={Object.entries(STAGE_MAP).map(([id, s]) => ({ id, label: s.label, color: s.color }))}
+                          onSelect={v => handleStageChange(deal.hubspot_deal_id, v)}
+                          saving={savingStage === deal.hubspot_deal_id}
+                          renderValue={v => <StageBadge stageId={v} />}
+                        />
+                      ) : (
+                        <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+                      )}
                     </td>
 
-                    {/* 7. Closer (hidden for telepro mode) */}
+                    {/* 7. Statut lead (inline edit) */}
+                    {leadStatusOptions && leadStatusOptions.length > 0 && (
+                      <td style={{ padding: '10px 12px' }}>
+                        <InlineCellSelect
+                          value={contact.hs_lead_status || ''}
+                          options={leadStatusOptions.map(o => ({ id: o.id, label: o.label }))}
+                          onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)}
+                          saving={savingContactField === `${contact.hubspot_contact_id}:hs_lead_status`}
+                        />
+                      </td>
+                    )}
+
+                    {/* 8. Closer (hidden for telepro mode) */}
                     {mode !== 'telepro' && (
                       <td style={{ padding: '10px 12px' }}>
                         {deal?.closer ? (
