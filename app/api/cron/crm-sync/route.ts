@@ -336,17 +336,20 @@ function buildDealRow(d: any) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildContactRow(c: any, now: string) {
   return {
-    hubspot_contact_id:      c.id,
-    firstname:               c.properties.firstname  ?? null,
-    lastname:                c.properties.lastname   ?? null,
-    email:                   c.properties.email      ?? null,
-    phone:                   c.properties.phone      ?? null,
-    departement:             c.properties.departement ?? null,
-    classe_actuelle:         c.properties.classe_actuelle ?? null,
-    zone_localite:           c.properties.zone___localite ?? null,
-    hubspot_owner_id:        c.properties.hubspot_owner_id ?? null,
-    recent_conversion_date:  parseHubSpotDate(c.properties.recent_conversion_date),
-    recent_conversion_event: c.properties.recent_conversion_event_name ?? null,
-    synced_at:               now,
+    hubspot_contact_id:         c.id,
+    firstname:                  c.properties.firstname  ?? null,
+    lastname:                   c.properties.lastname   ?? null,
+    email:                      c.properties.email      ?? null,
+    phone:                      c.properties.phone      ?? null,
+    departement:                c.properties.departement ?? null,
+    classe_actuelle:            c.properties.classe_actuelle ?? null,
+    zone_localite:              c.properties.zone___localite ?? null,
+    hubspot_owner_id:           c.properties.hubspot_owner_id ?? null,
+    recent_conversion_date:     parseHubSpotDate(c.properties.recent_conversion_date),
+    recent_conversion_event:    c.properties.recent_conversion_event_name ?? null,
+    hs_lead_status:             c.properties.hs_lead_status ?? null,
+    hs_analytics_source:        c.properties.hs_analytics_source ?? null,
+    hs_analytics_source_data_1: c.properties.hs_analytics_source_data_1 ?? null,
+    synced_at:                  now,
   }
 }

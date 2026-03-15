@@ -100,6 +100,9 @@ export interface CRMContact {
   hubspot_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
+  hs_lead_status?: string | null
+  hs_analytics_source?: string | null
+  hs_analytics_source_data_1?: string | null
   contact_owner?: { id: string; name: string; role: string; avatar_color: string } | null
   deal?: {
     hubspot_deal_id: string
@@ -120,6 +123,9 @@ interface Props {
   loading?: boolean
   mode?: 'admin' | 'closer' | 'telepro'
   onRefresh?: () => void
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
+  onOpenDrawer?: (contact: CRMContact) => void
 }
 
 // Dropdown menu for the ⋮ actions button
@@ -259,7 +265,7 @@ function ExpandedDetail({
 
   return (
     <tr>
-      <td colSpan={10} style={{ padding: 0, background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${NAVY_BORDER}` }}>
+      <td colSpan={11} style={{ padding: 0, background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${NAVY_BORDER}` }}>
         <div style={{ padding: '18px 24px' }}>
           {/* Info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
@@ -448,7 +454,7 @@ function ExpandedDetail({
   )
 }
 
-export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh }: Props) {
+export default function CRMContactsTable({ contacts, loading, mode = 'admin', onRefresh, selectedIds, onToggleSelect, onOpenDrawer }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [noteModal, setNoteModal] = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel, setAssignPanel] = useState<{
@@ -502,6 +508,7 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
 
   // Column headers config
   const cols = [
+    { label: '',           width: 38,  hidden: !onToggleSelect }, // checkbox
     { label: 'Contact',    width: 220 },
     { label: 'Tél',        width: 130 },
     { label: 'Formation',  width: 110 },
@@ -583,7 +590,13 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
                     key={contact.hubspot_contact_id}
                     onMouseEnter={() => setHovered(contact.hubspot_contact_id)}
                     onMouseLeave={() => setHovered(null)}
-                    onClick={() => toggleExpand(contact.hubspot_contact_id)}
+                    onClick={() => {
+                      if (onOpenDrawer) {
+                        onOpenDrawer(contact)
+                      } else {
+                        toggleExpand(contact.hubspot_contact_id)
+                      }
+                    }}
                     style={{
                       background: rowBg,
                       borderBottom: `1px solid ${isExpanded ? 'transparent' : '#16273a'}`,
@@ -591,6 +604,17 @@ export default function CRMContactsTable({ contacts, loading, mode = 'admin', on
                       transition: 'background 0.1s',
                     }}
                   >
+                    {/* 0. Checkbox (optional) */}
+                    {onToggleSelect && (
+                      <td style={{ width: 38, padding: '0 0 0 12px' }} onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds?.has(contact.hubspot_contact_id) || false}
+                          onChange={() => onToggleSelect(contact.hubspot_contact_id)}
+                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#4cabdb' }}
+                        />
+                      </td>
+                    )}
                     {/* 1. Contact */}
                     <td style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>

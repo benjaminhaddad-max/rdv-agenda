@@ -39,7 +39,7 @@ export const STAGES = {
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
 export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
-const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,recent_conversion_date,recent_conversion_event_name,zone___localite'
+const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,hs_analytics_source,hs_analytics_source_data_1'
 
 export interface HubSpotContact {
   id: string
@@ -59,6 +59,9 @@ export interface HubSpotContact {
     /** Email du/des parent(s) — propriété custom HubSpot */
     email_parent?: string
     zone___localite?: string
+    hs_lead_status?: string
+    hs_analytics_source?: string
+    hs_analytics_source_data_1?: string
   }
 }
 
@@ -104,9 +107,13 @@ export async function updateContact(
   contactId: string,
   properties: Record<string, string | number | null>
 ) {
+  const cleanProps: Record<string, string | number> = {}
+  for (const [k, v] of Object.entries(properties)) {
+    if (v !== null && v !== undefined) cleanProps[k] = v
+  }
   return hubspotFetch(`/crm/v3/objects/contacts/${contactId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ properties }),
+    body: JSON.stringify({ properties: cleanProps }),
   })
 }
 

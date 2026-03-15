@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
+import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
 
 // ── Static option lists ────────────────────────────────────────────────────────
@@ -259,6 +260,12 @@ export default function CRMPage() {
   const [telepros, setTelepros]   = useState<RdvUser[]>([])
   const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
 
+  // Sélection en masse + drawer
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkTeleproId, setBulkTeleproId] = useState('')
+  const [bulkAssigning, setBulkAssigning] = useState(false)
+  const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
+
   const LIMIT = 50
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -426,6 +433,45 @@ export default function CRMPage() {
     setViewPreset('all')
     // On ne reset PAS showExternal ni allClasses (ce sont des préférences de vue, pas des filtres)
   }
+
+  // ── Sélection en masse ────────────────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectFirst(n: number) {
+    const ids = displayed.slice(0, n).map(c => c.hubspot_contact_id)
+    setSelectedIds(new Set(ids))
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(displayed.map(c => c.hubspot_contact_id)))
+  }
+
+  async function handleBulkAssign() {
+    if (!bulkTeleproId || selectedIds.size === 0) return
+    setBulkAssigning(true)
+    try {
+      await fetch('/api/crm/contacts/bulk-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_ids: [...selectedIds], teleprospecteur: bulkTeleproId }),
+      })
+      setSelectedIds(new Set())
+      setBulkTeleproId('')
+      await fetchContacts(true)
+    } finally {
+      setBulkAssigning(false)
+    }
+  }
+
+  // ── Dropdown options ───────────────────────────────────────────────────────────
 
   // Dropdown options
   const closerOptions: SelectOption[] = [
@@ -831,19 +877,78 @@ export default function CRMPage() {
       </div>
 
       {/* ── Table area ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 0 20px' }}>
         {(formation || classe || period) && !loading && (
-          <div style={{ padding: '10px 0 6px', fontSize: 12, color: '#3a5070' }}>
+          <div style={{ padding: '10px 20px 6px', fontSize: 12, color: '#3a5070' }}>
             {displayed.length} résultat{displayed.length !== 1 ? 's' : ''} affiché{displayed.length !== 1 ? 's' : ''} sur {contacts.length} chargés
           </div>
         )}
 
+        {/* ── Barre sélection en masse ───────────────────────────────────────── */}
+        {selectedIds.size > 0 && (
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            background: 'rgba(13,30,52,0.98)', border: `1px solid #2d4a6b`,
+            borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#4cabdb' }}>
+              ☑ {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[25, 100, 500].map(n => (
+                <button key={n} onClick={() => selectFirst(n)}
+                  style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.3)', borderRadius: 6, padding: '4px 10px', color: '#4cabdb', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {n} premiers
+                </button>
+              ))}
+              <button onClick={selectAll}
+                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#ccac71', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Tout ({displayed.length})
+              </button>
+              <button onClick={() => setSelectedIds(new Set())}
+                style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 6, padding: '4px 10px', color: '#555870', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Désélectionner
+              </button>
+            </div>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, color: '#8b8fa8' }}>Assigner à :</span>
+            <select
+              value={bulkTeleproId}
+              onChange={e => setBulkTeleproId(e.target.value)}
+              style={{ background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 10px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit' }}
+            >
+              <option value="">— Choisir un télépro —</option>
+              {telepros.map(u => (
+                <option key={u.id} value={u.hubspot_user_id || u.id}>{u.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleBulkAssign}
+              disabled={!bulkTeleproId || bulkAssigning}
+              style={{
+                background: bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.1)',
+                border: `1px solid ${bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.3)'}`,
+                borderRadius: 8, padding: '6px 16px', color: '#fff', fontSize: 12,
+                fontWeight: 700, cursor: bulkTeleproId ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', opacity: bulkAssigning ? 0.6 : 1,
+              }}
+            >
+              {bulkAssigning ? 'Attribution…' : 'Assigner'}
+            </button>
+          </div>
+        )}
+
+        <div style={{ padding: '0 20px' }}>
         <CRMContactsTable
           contacts={displayed}
           loading={loading}
           mode="admin"
           onRefresh={() => fetchContacts()}
-        />
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onOpenDrawer={setDrawerContact}
+        /></div>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -904,6 +1009,17 @@ export default function CRMPage() {
         ::-webkit-scrollbar-thumb { background: #2d4a6b; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
       `}</style>
+
+      {/* ── CRM Edit Drawer ─────────────────────────────────────────────────── */}
+      {drawerContact && (
+        <CRMEditDrawer
+          contact={drawerContact}
+          closers={closers}
+          telepros={telepros}
+          onClose={() => setDrawerContact(null)}
+          onRefresh={() => fetchContacts()}
+        />
+      )}
     </div>
   )
 }

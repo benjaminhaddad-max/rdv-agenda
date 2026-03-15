@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
       `hubspot_contact_id, firstname, lastname, email, phone,
        departement, classe_actuelle, zone_localite,
        hubspot_owner_id, recent_conversion_date, recent_conversion_event,
+       hs_lead_status, hs_analytics_source, hs_analytics_source_data_1,
        crm_deals (
          hubspot_deal_id, dealstage, pipeline, formation,
          hubspot_owner_id, teleprospecteur, closedate, createdate,
@@ -198,6 +199,9 @@ export async function GET(req: NextRequest) {
       hubspot_owner_id:        c.hubspot_owner_id,
       recent_conversion_date:  c.recent_conversion_date,
       recent_conversion_event: c.recent_conversion_event,
+      hs_lead_status:          c.hs_lead_status,
+      hs_analytics_source:     c.hs_analytics_source,
+      hs_analytics_source_data_1: c.hs_analytics_source_data_1,
       contact_owner:           contactOwner,
       deal: deal ? {
         hubspot_deal_id:  deal.hubspot_deal_id,

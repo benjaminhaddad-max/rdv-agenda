@@ -1,78 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { updateContact } from '@/lib/hubspot'
+import { hubspotFetch } from '@/lib/hubspot'
 
-// Champs autorisés en édition
-const ALLOWED_FIELDS = ['firstname', 'lastname', 'phone', 'classe_actuelle', 'zone_localite'] as const
-
-// Mapping Supabase → HubSpot property names
-const HS_FIELD_MAP: Record<string, string> = {
-  firstname: 'firstname',
-  lastname: 'lastname',
-  phone: 'phone',
-  classe_actuelle: 'classe_actuelle',
-  zone_localite: 'zone___localite',
-}
-
-// PATCH /api/crm/contacts/[id]
-// Met à jour un contact Supabase + sync HubSpot
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const db = createServiceClient()
   const { id: contactId } = await params
   const body = await req.json()
 
-  const db = createServiceClient()
+  const { firstname, lastname, phone, email, classe_actuelle, hs_lead_status, hubspot_owner_id, teleprospecteur } = body
 
-  // Vérifier que le contact existe
-  const { data: existing, error: fetchErr } = await db
-    .from('crm_contacts')
-    .select('hubspot_contact_id')
-    .eq('hubspot_contact_id', contactId)
-    .single()
+  // Build updates for Supabase
+  const supabaseUpdates: Record<string, string | null> = {}
+  const hubspotProps: Record<string, string | null> = {}
 
-  if (fetchErr || !existing) {
-    return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
+  if (firstname !== undefined)       { supabaseUpdates.firstname = firstname;             hubspotProps.firstname = firstname }
+  if (lastname !== undefined)        { supabaseUpdates.lastname = lastname;               hubspotProps.lastname = lastname }
+  if (phone !== undefined)           { supabaseUpdates.phone = phone;                     hubspotProps.phone = phone }
+  if (email !== undefined)           { supabaseUpdates.email = email;                     hubspotProps.email = email }
+  if (classe_actuelle !== undefined) { supabaseUpdates.classe_actuelle = classe_actuelle; hubspotProps.classe_actuelle = classe_actuelle }
+  if (hs_lead_status !== undefined)  { supabaseUpdates.hs_lead_status = hs_lead_status;   hubspotProps.hs_lead_status = hs_lead_status }
+  if (hubspot_owner_id !== undefined){ supabaseUpdates.hubspot_owner_id = hubspot_owner_id; hubspotProps.hubspot_owner_id = hubspot_owner_id }
+  if (teleprospecteur !== undefined) { supabaseUpdates.teleprospecteur = teleprospecteur }
+
+  // Update Supabase contact
+  if (Object.keys(supabaseUpdates).length > 0) {
+    await db.from('crm_contacts').update({ ...supabaseUpdates, synced_at: new Date().toISOString() }).eq('hubspot_contact_id', contactId)
   }
 
-  // Construire le payload de mise à jour (seulement les champs autorisés)
-  const updatePayload: Record<string, unknown> = { synced_at: new Date().toISOString() }
-  const hsProps: Record<string, string> = {}
-
-  for (const field of ALLOWED_FIELDS) {
-    if (body[field] !== undefined) {
-      updatePayload[field] = body[field]
-      const hsField = HS_FIELD_MAP[field]
-      if (hsField) {
-        hsProps[hsField] = String(body[field] ?? '')
-      }
+  // Update HubSpot contact
+  if (Object.keys(hubspotProps).length > 0) {
+    const cleanProps: Record<string, string> = {}
+    for (const [k, v] of Object.entries(hubspotProps)) {
+      if (v !== null && v !== undefined) cleanProps[k] = v
+    }
+    if (Object.keys(cleanProps).length > 0) {
+      await hubspotFetch(`/crm/v3/objects/contacts/${contactId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ properties: cleanProps }),
+      })
     }
   }
 
-  if (Object.keys(updatePayload).length <= 1) {
-    return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })
-  }
-
-  // Mise à jour Supabase
-  const { data: updated, error: updateErr } = await db
-    .from('crm_contacts')
-    .update(updatePayload)
-    .eq('hubspot_contact_id', contactId)
-    .select()
-    .single()
-
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
-
-  // Sync HubSpot (best-effort)
-  const errors: string[] = []
-  if (Object.keys(hsProps).length > 0) {
-    try {
-      await updateContact(contactId, hsProps)
-    } catch (e) {
-      errors.push(`hubspot: ${e instanceof Error ? e.message : String(e)}`)
+  // If teleprospecteur provided, also update deals linked to this contact
+  if (teleprospecteur !== undefined) {
+    const { data: deals } = await db.from('crm_deals').select('hubspot_deal_id').eq('hubspot_contact_id', contactId)
+    for (const deal of deals ?? []) {
+      await db.from('crm_deals').update({ teleprospecteur, synced_at: new Date().toISOString() }).eq('hubspot_deal_id', deal.hubspot_deal_id)
+      await hubspotFetch(`/crm/v3/objects/deals/${deal.hubspot_deal_id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ properties: { teleprospecteur: teleprospecteur ?? '' } }),
+      })
     }
   }
 
-  return NextResponse.json({
-    contact: updated,
-    hubspot_errors: errors.length > 0 ? errors : null,
-  })
+  return NextResponse.json({ ok: true })
 }
