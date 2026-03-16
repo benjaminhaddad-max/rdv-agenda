@@ -330,6 +330,12 @@ function InlineCellText({
   )
 }
 
+const ZONE_OPTIONS = [
+  '', 'IDF', 'PACA', 'Grand Est', 'Occitanie', 'Hauts-de-France',
+  'Bretagne', 'Normandie', 'Nouvelle-Aquitaine', 'Auvergne-Rhône-Alpes',
+  'Pays de la Loire', 'Centre-Val de Loire', 'Bourgogne-Franche-Comté', 'Autre',
+]
+
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
@@ -1144,9 +1150,10 @@ export default function CRMContactsTable({
 
       case 'zone':
         return (
-          <InlineCellText
+          <InlineCellSelect
             value={contact.zone_localite || ''}
-            onSave={v => handleContactFieldChange(contact.hubspot_contact_id, 'zone_localite', v)}
+            options={ZONE_OPTIONS.map(z => ({ id: z, label: z || '—' }))}
+            onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'zone_localite', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:zone_localite`}
           />
         )

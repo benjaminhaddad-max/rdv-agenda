@@ -30,6 +30,13 @@ const FORMATIONS: { value: string; label: string }[] = [
   { value: 'LAS 3 Upec',  label: 'LSPS3 UPEC' },
 ]
 
+const ZONE_OPTIONS_LIST = [
+  { id: '', label: '—' },
+  ...['IDF','PACA','Grand Est','Occitanie','Hauts-de-France','Bretagne','Normandie',
+     'Nouvelle-Aquitaine','Auvergne-Rhône-Alpes','Pays de la Loire',
+     'Centre-Val de Loire','Bourgogne-Franche-Comté','Autre'].map(z => ({ id: z, label: z })),
+]
+
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
@@ -271,6 +278,7 @@ function SelectField({
   const dropdown = open ? createPortal(
     <div
       ref={dropdownRef}
+      onMouseDown={e => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: pos.upward ? undefined : pos.top,
@@ -290,7 +298,7 @@ function SelectField({
         <button
           key={o.id}
           type="button"
-          onClick={() => handleSelect(o.id)}
+          onMouseDown={() => handleSelect(o.id)}
           style={{
             display: 'block',
             width: '100%',
@@ -766,6 +774,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   ]
 
   const classeOptionList = CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))
+  const zoneOptionList = ZONE_OPTIONS_LIST
 
   // Detect existing RDV
   const hasRdv = deal?.closedate
@@ -931,7 +940,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
               options={classeOptionList}
               onSave={v => patchContact({ classe_actuelle: v })}
             />
-            <EditField label="Zone / Localité" value={c.zone_localite || ''} onSave={v => patchContact({ zone_localite: v })} />
+            <SelectField
+              label="Zone / Localité"
+              value={c.zone_localite || ''}
+              options={zoneOptionList}
+              onSave={v => patchContact({ zone_localite: v })}
+            />
             <SelectField
               label="Formation souhaitée"
               value={c.formation_demandee || ''}
