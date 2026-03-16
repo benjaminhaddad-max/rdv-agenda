@@ -38,6 +38,8 @@ export async function GET(req: NextRequest) {
   const stage            = searchParams.get('stage') ?? ''
   const closerHsId       = searchParams.get('closer_hs_id') ?? ''
   const teleproHsId      = searchParams.get('telepro_hs_id') ?? ''
+  // Filtre direct sur crm_contacts.hubspot_owner_id (télépro = propriétaire du contact)
+  const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const formation        = searchParams.get('formation') ?? ''
   const noTelepro        = searchParams.get('no_telepro') === '1'
   const withTelepro      = searchParams.get('with_telepro') === '1'
@@ -435,6 +437,12 @@ export async function GET(req: NextRequest) {
     query = query.or(
       `firstname.ilike.%${search}%,lastname.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
     )
+  }
+
+  // Filtre par propriétaire du contact (view télépro)
+  if (contactOwnerHsId) {
+    const vals = contactOwnerHsId.split(',').filter(Boolean)
+    query = vals.length > 1 ? query.in('hubspot_owner_id', vals) : query.eq('hubspot_owner_id', contactOwnerHsId)
   }
 
   // Exclusion équipe externe (owner du contact)

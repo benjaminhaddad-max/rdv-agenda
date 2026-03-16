@@ -2004,7 +2004,7 @@ export default function TeleproClient({
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UserCRMView
-            ownerParam="telepro_hs_id"
+            ownerParam="contact_owner_hs_id"
             ownerId={teleproUser.hubspot_owner_id || teleproUser.hubspot_user_id || ''}
             mode="telepro"
             onTotalChange={setCrmTotal}
