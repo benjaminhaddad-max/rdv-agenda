@@ -3,17 +3,12 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   LayoutDashboard, Calendar, Clock, Users, Briefcase,
-  GitMerge, AlertTriangle, Plus, RefreshCw, BookOpen, Inbox, Link2,
+  Plus, Inbox, Link2,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
-import DoublonsManager from '@/components/DoublonsManager'
-import ExternalDoublonsManager from '@/components/ExternalDoublonsManager'
-import DealsDoublonsManager from '@/components/DealsDoublonsManager'
-import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
-import RepopJournal from '@/components/RepopJournal'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import SiteContenusPanel from '@/components/SiteContenusPanel'
 import LogoutButton from '@/components/LogoutButton'
@@ -25,15 +20,10 @@ export default function AdminPage() {
   const [showAvailability, setShowAvailability]   = useState(false)
   const [showTelepros, setShowTelepros]           = useState(false)
   const [showClosers, setShowClosers]             = useState(false)
-  const [showDoublons, setShowDoublons]           = useState(false)
-  const [showDealsDoublons, setShowDealsDoublons] = useState(false)
-  const [showCheckRdv, setShowCheckRdv]           = useState(false)
-  const [showRepop, setShowRepop]                 = useState(false)
-  const [showQueue, setShowQueue]                 = useState(false)
-  const [showSite, setShowSite]                   = useState(false)
-  const [showGuide, setShowGuide]                 = useState(false)
-  const [showResources, setShowResources]         = useState(false)
-  const [showExtDoublons, setShowExtDoublons]     = useState(false)
+  const [showQueue, setShowQueue]         = useState(false)
+  const [showSite, setShowSite]           = useState(false)
+  const [showGuide, setShowGuide]         = useState(false)
+  const [showResources, setShowResources] = useState(false)
   const [unassignedCount, setUnassignedCount]     = useState<number | null>(null)
 
   const fetchCount = useCallback(async () => {
@@ -142,13 +132,7 @@ export default function AdminPage() {
 
         {/* Outils */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
-          <ToolBtn icon={<AlertTriangle size={12} />} label="Check RDV"         onClick={() => setShowCheckRdv(true)} />
-          <ToolBtn icon={<GitMerge size={12} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
-          <ToolBtn icon={<Users size={12} />}         label="Doublons externe"  onClick={() => setShowExtDoublons(true)} color="gold" />
-          <ToolBtn icon={<RefreshCw size={12} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
-          <ToolBtn icon={<BookOpen size={12} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
-          <ToolBtn icon={<Link2 size={12} />}         label="Site & Contenus"   onClick={() => setShowSite(true)} color="blue" />
+          <ToolBtn icon={<Link2 size={12} />} label="Site & Contenus" onClick={() => setShowSite(true)} color="blue" />
         </div>
       </div>
 
@@ -174,27 +158,12 @@ export default function AdminPage() {
       )}
 
       {/* ── Modals ── */}
-      {showAvailability  && <AdminAvailability   onClose={() => setShowAvailability(false)} />}
-      {showTelepros      && <TeleproManager       onClose={() => setShowTelepros(false)} />}
-      {showClosers       && <CloserManager        onClose={() => setShowClosers(false)} />}
-      {showDoublons      && <DoublonsManager      onClose={() => setShowDoublons(false)} />}
-      {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
-      {showCheckRdv      && <CheckRdvCloserPanel  onClose={() => setShowCheckRdv(false)} />}
-      {showSite          && <SiteContenusPanel    onClose={() => setShowSite(false)} />}
-
-      {showRepop && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}>
-          <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
-            <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
-            <RepopJournal scope="admin" />
-          </div>
-        </div>
-      )}
-
-      {showGuide && <PlatformGuide onClose={() => setShowGuide(false)} />}
-      {showResources && <ResourcesPanel role="admin" onClose={() => setShowResources(false)} />}
-      {showExtDoublons && <ExternalDoublonsManager onClose={() => setShowExtDoublons(false)} />}
+      {showAvailability && <AdminAvailability onClose={() => setShowAvailability(false)} />}
+      {showTelepros     && <TeleproManager    onClose={() => setShowTelepros(false)} />}
+      {showClosers      && <CloserManager     onClose={() => setShowClosers(false)} />}
+      {showSite         && <SiteContenusPanel onClose={() => setShowSite(false)} />}
+      {showGuide        && <PlatformGuide     onClose={() => setShowGuide(false)} />}
+      {showResources    && <ResourcesPanel role="admin" onClose={() => setShowResources(false)} />}
     </div>
   )
 }
