@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, PhoneCall, MapPin, CheckCircle, ChevronDown } from 'lucide-react'
 
 // Constantes
@@ -212,31 +213,29 @@ function SelectField({
 }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 240, upward: false })
 
   const selectedLabel = options.find(o => o.id === value)?.label || '—'
 
-  function handleOpen() {
+  const recompute = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
-    const openUpward = spaceBelow < 200
-    setDropdownStyle({
-      position: 'fixed',
-      top:    openUpward ? undefined : rect.bottom + 2,
-      bottom: openUpward ? window.innerHeight - rect.top + 2 : undefined,
-      left:   rect.left,
-      width:  rect.width,
-      maxHeight: Math.min(240, openUpward ? rect.top - 8 : spaceBelow - 8),
-      zIndex: 9999,
-      background: '#0d1a28',
-      border: `1px solid ${NAVY_BORDER}`,
-      borderRadius: 8,
-      overflowY: 'auto',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+    const upward = spaceBelow < 200
+    setPos({
+      top: upward ? rect.top : rect.bottom + 2,
+      left: rect.left,
+      width: rect.width,
+      maxH: Math.min(260, upward ? rect.top - 8 : spaceBelow - 8),
+      upward,
     })
+  }, [])
+
+  function handleToggle() {
+    if (open) { setOpen(false); return }
+    recompute()
     setOpen(true)
   }
 
@@ -247,17 +246,74 @@ function SelectField({
     try { await onSave(id) } finally { setSaving(false) }
   }
 
+  // Close on outside click
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (triggerRef.current?.contains(target)) return
-      if (dropdownRef.current?.contains(target)) return
+    function handler(e: MouseEvent) {
+      const t = e.target as Node
+      if (triggerRef.current?.contains(t)) return
+      if (dropdownRef.current?.contains(t)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
+
+  // Close on scroll in drawer
+  useEffect(() => {
+    if (!open) return
+    function onScroll() { setOpen(false) }
+    const scrollParent = triggerRef.current?.closest('[style*="overflow"]') || document
+    scrollParent.addEventListener('scroll', onScroll, true)
+    return () => scrollParent.removeEventListener('scroll', onScroll, true)
+  }, [open])
+
+  const dropdown = open ? createPortal(
+    <div
+      ref={dropdownRef}
+      style={{
+        position: 'fixed',
+        top: pos.upward ? undefined : pos.top,
+        bottom: pos.upward ? window.innerHeight - pos.top + 2 : undefined,
+        left: pos.left,
+        width: pos.width,
+        maxHeight: pos.maxH,
+        zIndex: 99999,
+        background: '#0d1a28',
+        border: `1px solid ${NAVY_BORDER}`,
+        borderRadius: 8,
+        overflowY: 'auto',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+      }}
+    >
+      {options.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => handleSelect(o.id)}
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: '8px 12px',
+            background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
+            border: 'none',
+            borderBottom: '1px solid rgba(45,74,107,0.3)',
+            color: colorMap?.[o.id] || (o.id === value ? '#ccac71' : '#c8cad8'),
+            fontSize: 13,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontWeight: o.id === value ? 600 : 400,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseLeave={e => (e.currentTarget.style.background = o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent')}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  ) : null
 
   return (
     <div style={{ marginBottom: 12 }}>
@@ -265,7 +321,7 @@ function SelectField({
       <button
         ref={triggerRef}
         type="button"
-        onClick={handleOpen}
+        onClick={handleToggle}
         disabled={saving}
         style={{
           width: '100%',
@@ -289,36 +345,7 @@ function SelectField({
         <ChevronDown size={12} style={{ color: '#3a5070', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
       </button>
       {saving && <div style={{ fontSize: 10, color: BLUE, marginTop: 3 }}>Enregistrement…</div>}
-
-      {open && (
-        <div ref={dropdownRef} style={dropdownStyle}>
-          {options.map(o => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => handleSelect(o.id)}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '8px 12px',
-                background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
-                border: 'none',
-                borderBottom: '1px solid rgba(45,74,107,0.3)',
-                color: colorMap?.[o.id] || (o.id === value ? '#ccac71' : '#c8cad8'),
-                fontSize: 13,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontWeight: o.id === value ? 600 : 400,
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-              onMouseLeave={e => (e.currentTarget.style.background = o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent')}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
