@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, GitMerge, AlertTriangle, BookOpen } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
+import DoublonsManager from '@/components/DoublonsManager'
+import ExternalDoublonsManager from '@/components/ExternalDoublonsManager'
+import DealsDoublonsManager from '@/components/DealsDoublonsManager'
+import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
+import RepopJournal from '@/components/RepopJournal'
 
 // Pipeline actuel (Diploma Santé 2026-2027)
 const CURRENT_PIPELINE_ID = '2313043166'
@@ -812,6 +817,13 @@ export default function CRMPage() {
   const [sortBy,  setSortBy]  = useState<string>('synced_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
+  // ── Outils modals ──────────────────────────────────────────────────────────
+  const [showCheckRdv,      setShowCheckRdv]      = useState(false)
+  const [showDoublons,      setShowDoublons]      = useState(false)
+  const [showExtDoublons,   setShowExtDoublons]   = useState(false)
+  const [showDealsDoublons, setShowDealsDoublons] = useState(false)
+  const [showRepop,         setShowRepop]         = useState(false)
+
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
   const [allClasses, setAllClasses]     = useState(true)
@@ -1482,6 +1494,17 @@ export default function CRMPage() {
               }
             </span>
           )}
+        </div>
+
+        {/* ── Outils ─────────────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 1, height: 20, background: '#1a2f45', marginRight: 4 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
+          <CRMToolBtn icon={<AlertTriangle size={11} />} label="Check RDV"         onClick={() => setShowCheckRdv(true)} />
+          <CRMToolBtn icon={<GitMerge size={11} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
+          <CRMToolBtn icon={<Users size={11} />}         label="Doublons externe"  onClick={() => setShowExtDoublons(true)} color="gold" />
+          <CRMToolBtn icon={<RefreshCw size={11} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
+          <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
         </div>
 
       </div>
@@ -2444,6 +2467,24 @@ export default function CRMPage() {
           onRefresh={() => fetchContacts()}
         />
       )}
+
+      {/* ── Outils Modals ───────────────────────────────────────────────────── */}
+      {showCheckRdv      && <CheckRdvCloserPanel  onClose={() => setShowCheckRdv(false)} />}
+      {showDoublons      && <DoublonsManager      onClose={() => setShowDoublons(false)} />}
+      {showExtDoublons   && <ExternalDoublonsManager onClose={() => setShowExtDoublons(false)} />}
+      {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
+
+      {showRepop && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
+        >
+          <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
+            <RepopJournal scope="admin" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2487,5 +2528,29 @@ function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }
         <X size={10} />
       </button>
     </span>
+  )
+}
+
+function CRMToolBtn({ icon, label, onClick, color = 'gold' }: {
+  icon: React.ReactNode; label: string; onClick: () => void; color?: 'gold' | 'green' | 'red' | 'blue'
+}) {
+  const p = {
+    gold:  { bg: 'rgba(204,172,113,0.08)', border: 'rgba(204,172,113,0.2)', text: '#ccac71' },
+    green: { bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.2)',   text: '#22c55e' },
+    red:   { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: '#ef4444' },
+    blue:  { bg: 'rgba(76,171,219,0.08)',  border: 'rgba(76,171,219,0.2)',  text: '#4cabdb' },
+  }[color]
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: p.bg, border: `1px solid ${p.border}`, borderRadius: 6,
+        padding: '4px 10px', color: p.text, fontSize: 11, fontWeight: 600,
+        cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+        gap: 4, whiteSpace: 'nowrap',
+      }}
+    >
+      {icon}{label}
+    </button>
   )
 }
