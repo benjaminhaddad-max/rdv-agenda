@@ -113,6 +113,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Debug: log excluded users info
+  console.log('[CRM] excludedOwnerIds:', excludedOwnerIds, 'excludedUserIds:', excludedUserIds, 'showExternal:', showExternal)
+  console.log('[CRM] Users with exclude_from_crm:', (users ?? []).filter((u: any) => u.exclude_from_crm).map((u: any) => ({ name: u.name, ownerId: u.hubspot_owner_id, userId: u.hubspot_user_id })))
+
   // ── Étape 1 : Pré-filtres deal → listes de contact IDs ────────────────────
   // Les filtres sur crm_deals sont résolus en deux passes séparées :
   //  A) Filtres positifs (stage, closer, telepro…) → IN (contact IDs)
