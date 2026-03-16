@@ -841,7 +841,7 @@ export default function CRMPage() {
   const [bulkAssigning, setBulkAssigning] = useState(false)
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
 
-  const LIMIT = 50
+  const [limit, setLimit] = useState(50)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
@@ -951,7 +951,7 @@ export default function CRMPage() {
 
     try {
       const params = new URLSearchParams({
-        limit: String(LIMIT),
+        limit: String(limit),
         page: String(currentPage),
       })
       if (search)               params.set('search', search)
@@ -999,7 +999,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, sortBy, sortDir, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, sortBy, sortDir, limit, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1290,7 +1290,7 @@ export default function CRMPage() {
   // ── Filtres client-side ───────────────────────────────────────────────────────
 
   const displayed = filterClientSide(contacts, period, formation, classe)
-  const totalPages = Math.ceil(total / LIMIT)
+  const totalPages = Math.ceil(total / limit)
 
   const hasWithDeal  = contacts.filter(c => !!c.deal).length
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
@@ -1926,55 +1926,81 @@ export default function CRMPage() {
         /></div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, paddingBottom: 20 }}>
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#2d4a6b' : '#8b8fa8', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
-            >
-              ← Précédent
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                const p = totalPages <= 7 ? i : (
-                  i === 0 ? 0 :
-                  i === 6 ? totalPages - 1 :
-                  page <= 3 ? i :
-                  page >= totalPages - 4 ? totalPages - 7 + i :
-                  page - 3 + i
-                )
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setPage(p)}
-                    style={{
-                      background: p === page ? 'rgba(204,172,113,0.15)' : 'transparent',
-                      border: `1px solid ${p === page ? 'rgba(204,172,113,0.4)' : 'transparent'}`,
-                      borderRadius: 6,
-                      width: 32,
-                      height: 32,
-                      color: p === page ? '#ccac71' : '#3a5070',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontFamily: 'inherit',
-                      fontWeight: p === page ? 700 : 400,
-                    }}
-                  >
-                    {p + 1}
-                  </button>
-                )
-              })}
-            </div>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#2d4a6b' : '#8b8fa8', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
-            >
-              Suivant →
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, paddingBottom: 20 }}>
+          {/* Sélecteur nb par page */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
+            <span style={{ fontSize: 11, color: '#3a5070' }}>Par page :</span>
+            {[25, 50, 100].map(n => (
+              <button
+                key={n}
+                onClick={() => { setLimit(n); setPage(0) }}
+                style={{
+                  background: limit === n ? 'rgba(204,172,113,0.12)' : 'transparent',
+                  border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : '#2d4a6b'}`,
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  color: limit === n ? '#ccac71' : '#3a5070',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  fontWeight: limit === n ? 700 : 400,
+                }}
+              >
+                {n}
+              </button>
+            ))}
           </div>
-        )}
+
+          {totalPages > 1 && (
+            <>
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#2d4a6b' : '#8b8fa8', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
+              >
+                ← Précédent
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  const p = totalPages <= 7 ? i : (
+                    i === 0 ? 0 :
+                    i === 6 ? totalPages - 1 :
+                    page <= 3 ? i :
+                    page >= totalPages - 4 ? totalPages - 7 + i :
+                    page - 3 + i
+                  )
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setPage(p)}
+                      style={{
+                        background: p === page ? 'rgba(204,172,113,0.15)' : 'transparent',
+                        border: `1px solid ${p === page ? 'rgba(204,172,113,0.4)' : 'transparent'}`,
+                        borderRadius: 6,
+                        width: 32,
+                        height: 32,
+                        color: p === page ? '#ccac71' : '#3a5070',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontFamily: 'inherit',
+                        fontWeight: p === page ? 700 : 400,
+                      }}
+                    >
+                      {p + 1}
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#2d4a6b' : '#8b8fa8', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
+              >
+                Suivant →
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Advanced Filter Side Panel — RIGHT (HubSpot-style) ────────────── */}
