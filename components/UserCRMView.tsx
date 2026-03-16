@@ -117,6 +117,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   const [leadStatusOpts, setLeadStatusOpts] = useState<string[]>([])
   const [formationOpts, setFormationOpts]   = useState<string[]>([])
   const [sourceOpts, setSourceOpts]         = useState<string[]>([])
+  const [zoneOpts, setZoneOpts]             = useState<string[]>([])
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -181,6 +182,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         if (d.leadStatuses?.length) setLeadStatusOpts(d.leadStatuses)
         if (d.formations?.length)   setFormationOpts(d.formations)
         if (d.sources?.length)      setSourceOpts(d.sources)
+        if (d.zones?.length)        setZoneOpts(d.zones)
       })
       .catch(() => {})
   }, [])
@@ -449,6 +451,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
           telepros={telepros as any}
           onClose={() => setDrawerContact(null)}
           onRefresh={fetchContacts}
+          preloadedLeadStatuses={leadStatusOpts}
+          preloadedFormations={formationOpts}
+          preloadedSources={sourceOpts}
+          preloadedZones={zoneOpts}
         />
       )}
     </div>

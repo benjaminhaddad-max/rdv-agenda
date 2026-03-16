@@ -2466,6 +2466,10 @@ export default function CRMPage() {
           telepros={telepros}
           onClose={() => setDrawerContact(null)}
           onRefresh={() => fetchContacts()}
+          preloadedLeadStatuses={leadStatusOptions.filter(o => o.id).map(o => o.id)}
+          preloadedFormations={FORMATION_OPTIONS.filter(o => o.id).map(o => o.id)}
+          preloadedSources={sourceOptions.filter(o => o.id).map(o => o.id)}
+          preloadedZones={zoneOptions.filter(o => o.id).map(o => o.id)}
         />
       )}
 

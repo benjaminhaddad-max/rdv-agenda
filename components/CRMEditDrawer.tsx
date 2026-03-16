@@ -90,6 +90,10 @@ interface Props {
   telepros: RdvUser[]
   onClose: () => void
   onRefresh: () => void
+  preloadedLeadStatuses?: string[]
+  preloadedSources?: string[]
+  preloadedFormations?: string[]
+  preloadedZones?: string[]
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -688,7 +692,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 }
 
 // ── Main Drawer Component ──────────────────────────────────────────────────
-export default function CRMEditDrawer({ contact, closers, telepros, onClose, onRefresh }: Props) {
+export default function CRMEditDrawer({ contact, closers, telepros, onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
@@ -697,6 +701,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
   const [sourceOpts, setSourceOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
   const [formationOpts, setFormationOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
+  const ZONE_FALLBACK_OPTS = ZONE_OPTIONS_LIST
+  const [zoneOpts, setZoneOpts] = useState<{ id: string; label: string }[]>(ZONE_FALLBACK_OPTS)
 
   useEffect(() => {
     setLocalContact(contact)
@@ -704,27 +710,18 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   }, [contact])
 
   useEffect(() => {
-    fetch('/api/crm/field-options').then(r => r.json()).then(d => {
-      if (d.leadStatuses?.length) {
-        setLeadStatusOpts([
-          { id: '', label: '—' },
-          ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.sources?.length) {
-        setSourceOpts([
-          { id: '', label: '—' },
-          ...d.sources.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.formations?.length) {
-        setFormationOpts([
-          { id: '', label: '—' },
-          ...d.formations.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-    })
-  }, [])
+    const apply = (d: { leadStatuses?: string[]; sources?: string[]; formations?: string[]; zones?: string[] }) => {
+      if (d.leadStatuses?.length) setLeadStatusOpts([{ id: '', label: '—' }, ...d.leadStatuses.map(v => ({ id: v, label: v }))])
+      if (d.sources?.length)      setSourceOpts([{ id: '', label: '—' }, ...d.sources.map(v => ({ id: v, label: v }))])
+      if (d.formations?.length)   setFormationOpts([{ id: '', label: '—' }, ...d.formations.map(v => ({ id: v, label: v }))])
+      if (d.zones?.length)        setZoneOpts(prev => prev.length > 1 ? prev : [{ id: '', label: '—' }, ...d.zones!.map(v => ({ id: v, label: v }))])
+    }
+    if (preloadedLeadStatuses?.length || preloadedFormations?.length || preloadedSources?.length) {
+      apply({ leadStatuses: preloadedLeadStatuses, sources: preloadedSources, formations: preloadedFormations, zones: preloadedZones })
+    } else {
+      fetch('/api/crm/field-options').then(r => r.json()).then(apply).catch(() => {})
+    }
+  }, [preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones])
 
   if (!localContact) return null
 
