@@ -177,8 +177,9 @@ function ToolBtn({ icon, label, onClick, color = 'gold' }: {
     red:   { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',   text: '#ef4444' },
     blue:  { bg: 'rgba(76,171,219,0.1)',  border: 'rgba(76,171,219,0.25)',  text: '#4cabdb' },
   }[color]
+  const textColor = label === 'Site & Contenus' ? '#ffffff' : p.text
   return (
-    <button onClick={onClick} style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: 7, padding: '4px 11px', color: p.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: 7, padding: '4px 11px', color: textColor, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
       {icon}{label}
     </button>
   )
