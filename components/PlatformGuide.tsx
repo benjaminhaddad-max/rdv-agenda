@@ -98,6 +98,11 @@ const SECTIONS: Section[] = [
         title: 'Rapport post-RDV',
         desc: 'Après chaque RDV : résumé, conseil télépro, statut (no-show, à travailler, pré-positif, positif, négatif). Si négatif : raison + détail. Contact principal, consignes, concurrence, financement, invitation JPO.',
       },
+      {
+        emoji: '\uD83D\uDCE6',
+        title: 'Boîte à outils',
+        desc: 'Accès aux ressources : scripts d\'appel, argumentaires, documents commerciaux, liens utiles, fiches formations. Organisé par catégories.',
+      },
     ],
   },
   {
@@ -125,7 +130,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDD01',
         title: 'Repop',
-        desc: 'Memes fonctionnalités que le closer, filtré sur les deals du télépro.',
+        desc: 'Mêmes fonctionnalités que le closer, filtré sur les deals du télépro.',
+      },
+      {
+        emoji: '\uD83D\uDCE6',
+        title: 'Boîte à outils',
+        desc: 'Accès aux scripts d\'appel, argumentaires, documents, fiches formations et liens utiles. Organisé par catégories.',
       },
     ],
   },
@@ -180,6 +190,60 @@ const SECTIONS: Section[] = [
         emoji: '\uD83D\uDC80',
         title: 'Fermé / Perdu',
         desc: 'Bouton pour marquer un deal comme "Fermé/Perdu" directement depuis le Check RDV. Ajoute une note HubSpot automatique.',
+      },
+      {
+        emoji: '\uD83D\uDD04',
+        title: 'Sync HubSpot',
+        desc: 'Synchronisation des contacts et deals depuis HubSpot. Sync rapide (delta) ou sync complet. Suivi en temps réel du nombre de contacts/deals synchronisés.',
+      },
+      {
+        emoji: '\uD83D\uDCCB',
+        title: 'Gestion des contenus',
+        desc: 'Personnaliser les cartes de la page de booking publique : icônes, titres, descriptions, boutons CTA, tags et formations associées.',
+      },
+    ],
+  },
+  {
+    id: 'crm',
+    icon: <Search size={18} />,
+    title: 'CRM — Contacts & Transactions',
+    color: '#4cabdb',
+    roles: ['admin'],
+    items: [
+      {
+        emoji: '\uD83D\uDCCA',
+        title: 'Vue Contacts (156K+)',
+        desc: 'Table paginée de tous les contacts synchronisés depuis HubSpot. Colonnes personnalisables (drag & drop) : contact, téléphone, statut lead, classe, origine, formation souhaitée, zone, département, dates de création (contact + deal), closer, télépro, étape du deal.',
+      },
+      {
+        emoji: '\uD83D\uDD0D',
+        title: 'Filtres avancés (style HubSpot)',
+        desc: 'Système de filtres avancés avec groupes ET/OU. Recherche du champ à filtrer via un panneau de recherche (comme HubSpot). Opérateurs : est, n\'est pas, est parmi, n\'est aucun de, contient, est vide, n\'est pas vide. Vues sauvegardées pour retrouver ses filtres.',
+      },
+      {
+        emoji: '\uD83D\uDC65',
+        title: 'Équipe externe masquée',
+        desc: 'Bouton toggle pour exclure les contacts/deals dont le propriétaire, closer ou télépro appartient à l\'équipe externe. Exclut à la fois par owner ID du contact et par closer/télépro du deal.',
+      },
+      {
+        emoji: '\uD83D\uDCC4',
+        title: 'Fiche contact détaillée',
+        desc: 'Clic sur un contact pour ouvrir sa fiche complète : infos personnelles, formation souhaitée, classe, coordonnées, deal associé (étape, closer, télépro), lien direct vers HubSpot.',
+      },
+      {
+        emoji: '\uD83D\uDCC5',
+        title: 'Prise de RDV inline',
+        desc: 'Depuis la fiche contact, prendre un RDV directement sans quitter le CRM. Choix du créneau, type de meeting (visio/tel/présentiel), formation. Le RDV est automatiquement lié au bon contact HubSpot.',
+      },
+      {
+        emoji: '\uD83D\uDCE5',
+        title: 'Export CSV',
+        desc: 'Export paginé de tous les contacts filtrés (pas de limite de 10K). Choix des colonnes à exporter. Fichier CSV encodé UTF-8 avec séparateur point-virgule pour Excel.',
+      },
+      {
+        emoji: '\uD83D\uDCC8',
+        title: 'Vues sauvegardées',
+        desc: 'Créer et nommer des vues avec des filtres pré-configurés. Basculer entre les vues en un clic. Mise à jour des filtres d\'une vue existante.',
       },
     ],
   },
@@ -360,9 +424,9 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
             }}>
               {[
                 { label: 'Roles', value: '4', detail: 'Prospect, Telepro, Closer, Admin' },
-                { label: 'Integrations', value: '3', detail: 'HubSpot, Jitsi, SMS' },
+                { label: 'Integrations', value: '4', detail: 'HubSpot, Jitsi, SMS, CRM' },
                 { label: 'Automatisations', value: '5', detail: 'SMS automatiques + Auto no-show' },
-                { label: 'Statuts RDV', value: '9', detail: 'De non-assigne a positif' },
+                { label: 'Modules', value: '9', detail: 'Planning, CRM, Repop, Doublons…' },
               ].map(s => (
                 <div key={s.label} style={{
                   flex: '1 1 180px',
