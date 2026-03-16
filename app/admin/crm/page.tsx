@@ -2278,10 +2278,22 @@ export default function CRMPage() {
               if (emptyFields)          params.set('empty_fields', emptyFields)
               if (notEmptyFields)       params.set('not_empty_fields', notEmptyFields)
 
-              const res = await fetch(`/api/crm/contacts?${params.toString()}`)
-              if (!res.ok) throw new Error('Export failed')
-              const data = await res.json()
-              const rows: CRMContact[] = data.data ?? []
+              // Paginated export: fetch all pages (10000 per page)
+              const rows: CRMContact[] = []
+              let exportPage = 0
+              while (true) {
+                params.set('page', String(exportPage))
+                const res = await fetch(`/api/crm/contacts?${params.toString()}`)
+                if (!res.ok) throw new Error('Export failed')
+                const data = await res.json()
+                const batch: CRMContact[] = data.data ?? []
+                rows.push(...batch)
+                // If we got fewer than 10000, we've reached the last page
+                if (batch.length < 10000) break
+                exportPage++
+                // Safety: max 50 pages = 500K rows
+                if (exportPage >= 50) break
+              }
 
               // Stage label lookup
               const stageLabel = (id?: string | null) => {

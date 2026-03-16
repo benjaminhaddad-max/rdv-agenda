@@ -306,12 +306,26 @@ export async function GET(req: NextRequest) {
     query = (query as any).order('synced_at', { ascending: false })
   }
 
-  // Filtre positif deal → IN
+  // Filtre positif deal → IN (batched to avoid URL length limits)
   if (dealContactIds !== null) {
     if (dealContactIds.length === 0) {
       return NextResponse.json({ data: [], total: 0, page, limit })
     }
-    query = query.in('hubspot_contact_id', dealContactIds.slice(0, 50000))
+    // PostgREST IN clause goes in URL — split into OR-joined batches if very large
+    // For positive filters, we use .in() which ANDs if called multiple times (bad),
+    // so we must use .or() with multiple in clauses for large sets
+    if (dealContactIds.length <= 5000) {
+      query = query.in('hubspot_contact_id', dealContactIds)
+    } else {
+      // Build OR filter: hubspot_contact_id.in.(batch1),hubspot_contact_id.in.(batch2),...
+      const BATCH = 5000
+      const orParts: string[] = []
+      for (let i = 0; i < dealContactIds.length; i += BATCH) {
+        const batch = dealContactIds.slice(i, i + BATCH)
+        orParts.push(`hubspot_contact_id.in.(${batch.join(',')})`)
+      }
+      query = query.or(orParts.join(','))
+    }
   }
 
   // noTelepro → NOT IN (batched)
@@ -351,13 +365,22 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Not-empty deal fields → INCLUDE only contacts with non-null deal field
+  // Not-empty deal fields → INCLUDE only contacts with non-null deal field (batched OR)
   if (emptyDealInclude !== null) {
     if (emptyDealInclude.length === 0) {
       return NextResponse.json({ data: [], total: 0, page, limit })
     }
-    // For INCLUDE, we can only do one IN clause, use full set
-    query = query.in('hubspot_contact_id', emptyDealInclude.slice(0, 50000))
+    if (emptyDealInclude.length <= 5000) {
+      query = query.in('hubspot_contact_id', emptyDealInclude)
+    } else {
+      const BATCH = 5000
+      const orParts: string[] = []
+      for (let i = 0; i < emptyDealInclude.length; i += BATCH) {
+        const batch = emptyDealInclude.slice(i, i + BATCH)
+        orParts.push(`hubspot_contact_id.in.(${batch.join(',')})`)
+      }
+      query = query.or(orParts.join(','))
+    }
   }
 
   // Empty / not-empty on contact-level fields

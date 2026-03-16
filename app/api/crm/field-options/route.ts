@@ -4,6 +4,35 @@ import { createServiceClient } from '@/lib/supabase'
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
 /**
+ * Paginated helper to fetch all distinct values for a column from crm_contacts.
+ * Uses pagination (page size 1000) with ordering to avoid Supabase max_rows limits.
+ */
+async function fetchAllDistinctValues(column: string): Promise<string[]> {
+  const db = createServiceClient()
+  const PAGE_SIZE = 1000
+  const allValues = new Set<string>()
+  let offset = 0
+  while (true) {
+    const { data: rows } = await db
+      .from('crm_contacts')
+      .select(column)
+      .not(column, 'is', null)
+      .order(column, { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1)
+    if (!rows || rows.length === 0) break
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of rows as any[]) {
+      const v = r[column]
+      if (v) allValues.add(v as string)
+    }
+    if (rows.length < PAGE_SIZE) break
+    offset += PAGE_SIZE
+    if (offset > 500000) break // safety
+  }
+  return [...allValues]
+}
+
+/**
  * Récupère les options d'une propriété HubSpot via l'API Properties v3.
  * Retourne un tableau de strings (valeur interne) ou [] si échec.
  */
@@ -30,50 +59,26 @@ async function fetchHubSpotPropertyOptions(propertyName: string): Promise<string
  * 2. Si HubSpot ne répond pas, fallback sur les valeurs distinctes dans Supabase
  */
 export async function GET() {
-  const db = createServiceClient()
-
-  // Appel HubSpot + Supabase en parallèle
-  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, supabaseStatus, supabaseSource, supabaseFormation, supabaseZone, supabaseDept] = await Promise.all([
+  // Appel HubSpot + Supabase en parallèle (Supabase = fallback paginé)
+  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, sbLeadStatuses, sbSources, sbFormations, sbZones, sbDepts] = await Promise.all([
     fetchHubSpotPropertyOptions('hs_lead_status'),
     fetchHubSpotPropertyOptions('origine'),
     fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
     fetchHubSpotPropertyOptions('zone___localite'),
     fetchHubSpotPropertyOptions('departement'),
-    db.from('crm_contacts').select('hs_lead_status').not('hs_lead_status', 'is', null).limit(5000),
-    db.from('crm_contacts').select('origine').not('origine', 'is', null).limit(5000),
-    db.from('crm_contacts').select('formation_demandee').not('formation_demandee', 'is', null).limit(5000),
-    db.from('crm_contacts').select('zone_localite').not('zone_localite', 'is', null).limit(5000),
-    db.from('crm_contacts').select('departement').not('departement', 'is', null).limit(5000),
+    fetchAllDistinctValues('hs_lead_status'),
+    fetchAllDistinctValues('origine'),
+    fetchAllDistinctValues('formation_demandee'),
+    fetchAllDistinctValues('zone_localite'),
+    fetchAllDistinctValues('departement'),
   ])
 
-  // Valeurs Supabase (fallback)
-  const supabaseLeadStatuses = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseStatus.data ?? []).map((r: any) => r.hs_lead_status as string).filter(Boolean)),
-  ]
-  const supabaseSources = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseSource.data ?? []).map((r: any) => r.origine as string).filter(Boolean)),
-  ]
-  const supabaseFormations = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseFormation.data ?? []).map((r: any) => r.formation_demandee as string).filter(Boolean)),
-  ]
-  const supabaseZones = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseZone.data ?? []).map((r: any) => r.zone_localite as string).filter(Boolean)),
-  ]
-  const supabaseDepts = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...new Set((supabaseDept.data ?? []).map((r: any) => r.departement as string).filter(Boolean)),
-  ]
-
   // Priorité HubSpot ; si vide, fallback Supabase
-  const leadStatuses  = (hsLeadStatuses.length > 0  ? hsLeadStatuses  : supabaseLeadStatuses).sort()
-  const sources       = (hsSources.length > 0       ? hsSources       : supabaseSources).sort()
-  const formations    = (hsFormations.length > 0     ? hsFormations    : supabaseFormations).sort()
-  const zones         = (hsZones.length > 0          ? hsZones         : supabaseZones).sort()
-  const departements  = (hsDepts.length > 0          ? hsDepts         : supabaseDepts).sort()
+  const leadStatuses  = (hsLeadStatuses.length > 0  ? hsLeadStatuses  : sbLeadStatuses).sort()
+  const sources       = (hsSources.length > 0       ? hsSources       : sbSources).sort()
+  const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
+  const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
+  const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
 
   return NextResponse.json({ leadStatuses, sources, formations, zones, departements })
 }
