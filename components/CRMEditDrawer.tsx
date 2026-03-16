@@ -214,6 +214,7 @@ function SelectField({
   const [saving, setSaving] = useState(false)
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const selectedLabel = options.find(o => o.id === value)?.label || '—'
 
@@ -249,7 +250,10 @@ function SelectField({
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      if (dropdownRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -287,7 +291,7 @@ function SelectField({
       {saving && <div style={{ fontSize: 10, color: BLUE, marginTop: 3 }}>Enregistrement…</div>}
 
       {open && (
-        <div style={dropdownStyle}>
+        <div ref={dropdownRef} style={dropdownStyle}>
           {options.map(o => (
             <button
               key={o.id}
