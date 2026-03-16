@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, PhoneCall, MapPin, CheckCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, PhoneCall, MapPin, CheckCircle, ChevronDown } from 'lucide-react'
 
 // Constantes
 const NAVY_BORDER = '#2d4a6b'
@@ -210,42 +210,111 @@ function SelectField({
   onSave: (v: string) => Promise<void>
   colorMap?: Record<string, string>
 }) {
+  const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
-  async function handleChange(v: string) {
-    setSaving(true)
-    try { await onSave(v) } finally { setSaving(false) }
+  const selectedLabel = options.find(o => o.id === value)?.label || '—'
+
+  function handleOpen() {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const openUpward = spaceBelow < 200
+    setDropdownStyle({
+      position: 'fixed',
+      top:    openUpward ? undefined : rect.bottom + 2,
+      bottom: openUpward ? window.innerHeight - rect.top + 2 : undefined,
+      left:   rect.left,
+      width:  rect.width,
+      maxHeight: Math.min(240, openUpward ? rect.top - 8 : spaceBelow - 8),
+      zIndex: 9999,
+      background: '#0d1a28',
+      border: `1px solid ${NAVY_BORDER}`,
+      borderRadius: 8,
+      overflowY: 'auto',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+    })
+    setOpen(true)
   }
+
+  async function handleSelect(id: string) {
+    setOpen(false)
+    if (id === value) return
+    setSaving(true)
+    try { await onSave(id) } finally { setSaving(false) }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
-      <select
-        value={value}
-        onChange={e => handleChange(e.target.value)}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={handleOpen}
         disabled={saving}
         style={{
           width: '100%',
           background: 'rgba(255,255,255,0.05)',
-          border: `1px solid ${NAVY_BORDER}`,
+          border: `1px solid ${open ? BLUE : NAVY_BORDER}`,
           borderRadius: 6,
           padding: '7px 10px',
-          color: colorMap?.[value] || '#c8cad8',
+          color: colorMap?.[value] || (value ? '#c8cad8' : '#555870'),
           fontSize: 13,
           fontFamily: 'inherit',
           cursor: 'pointer',
           outline: 'none',
-          appearance: 'none',
-          WebkitAppearance: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          textAlign: 'left',
+          transition: 'border-color 0.15s',
         }}
       >
-        {options.map(o => (
-          <option key={o.id} value={o.id} style={{ background: '#0d1e34', color: colorMap?.[o.id] || '#c8cad8' }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <span>{selectedLabel}</span>
+        <ChevronDown size={12} style={{ color: '#3a5070', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
       {saving && <div style={{ fontSize: 10, color: BLUE, marginTop: 3 }}>Enregistrement…</div>}
+
+      {open && (
+        <div style={dropdownStyle}>
+          {options.map(o => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => handleSelect(o.id)}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
+                border: 'none',
+                borderBottom: '1px solid rgba(45,74,107,0.3)',
+                color: colorMap?.[o.id] || (o.id === value ? '#ccac71' : '#c8cad8'),
+                fontSize: 13,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontWeight: o.id === value ? 600 : 400,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent')}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
