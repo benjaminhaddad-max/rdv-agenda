@@ -1065,7 +1065,7 @@ export default function TeleproClient({
                 fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                 fontFamily: 'inherit',
               }}>
-                👥 Mes Contacts
+                👥 Mes Transactions
                 {crmTotal > 0 && (
                   <span style={{ background: 'rgba(76,171,219,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                     {crmTotal}
