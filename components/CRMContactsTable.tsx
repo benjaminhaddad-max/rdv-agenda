@@ -465,6 +465,9 @@ interface Props {
   sourceOptions?: { id: string; label: string }[]
   closerSelectOptions?: { id: string; label: string }[]
   teleproSelectOptions?: { id: string; label: string }[]
+  sortBy?:       string
+  sortDir?:      'asc' | 'desc'
+  onSortChange?: (col: string) => void
 }
 
 // ── Formatage numéro de téléphone ─────────────────────────────────────────────
@@ -858,6 +861,11 @@ const COL_WIDTHS: Record<ColKey, number> = {
   form_submission:      160,
 }
 
+const SORTABLE_COLS = new Set<ColKey>([
+  'contact', 'formation_souhaitee', 'classe', 'zone', 'departement',
+  'lead_status', 'origine', 'closer', 'createdat_contact', 'createdat_deal', 'form_submission',
+])
+
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','phone','form_submission','formation_souhaitee','classe',
   'zone','departement','etape','lead_status','origine','closer','telepro','createdat_contact','createdat_deal',
@@ -877,6 +885,9 @@ export default function CRMContactsTable({
   sourceOptions,
   closerSelectOptions,
   teleproSelectOptions,
+  sortBy,
+  sortDir,
+  onSortChange,
 }: Props) {
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
@@ -1343,7 +1354,10 @@ export default function CRMContactsTable({
               )}
 
               {/* Colonnes draggables */}
-              {visibleCols.map((key, idx) => (
+              {visibleCols.map((key, idx) => {
+                const isSortable = SORTABLE_COLS.has(key) && !!onSortChange
+                const isActivSort = sortBy === key
+                return (
                 <th
                   key={key}
                   draggable
@@ -1351,12 +1365,13 @@ export default function CRMContactsTable({
                   onDragOver={e => handleDragOver(e, idx)}
                   onDrop={() => handleDrop(idx)}
                   onDragEnd={resetDrag}
+                  onClick={isSortable ? () => onSortChange!(key) : undefined}
                   style={{
                     padding: '9px 12px',
                     textAlign: 'left',
                     fontSize: 10,
                     fontWeight: 700,
-                    color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#3a5070',
+                    color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#3a5070',
                     textTransform: 'uppercase',
                     letterSpacing: '0.08em',
                     background: dragOverIdx === idx && dragIdx !== idx
@@ -1369,7 +1384,7 @@ export default function CRMContactsTable({
                     zIndex: 10,
                     whiteSpace: 'nowrap',
                     userSelect: 'none',
-                    cursor: 'grab',
+                    cursor: isSortable ? 'pointer' : 'grab',
                     borderLeft: dragOverIdx === idx && dragIdx !== idx
                       ? `2px solid ${BLUE}`
                       : '2px solid transparent',
@@ -1379,7 +1394,18 @@ export default function CRMContactsTable({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
                     <GripVertical size={10} style={{ color: '#2d4a6b', flexShrink: 0, opacity: 0.6 }} />
-                    {COL_LABELS[key]}
+                    <span style={{ flex: 1 }}>{COL_LABELS[key]}</span>
+                    {isSortable && (
+                      <span style={{
+                        opacity: isActivSort ? 1 : 0.3,
+                        fontSize: 10,
+                        color: isActivSort ? '#a5b4fc' : 'inherit',
+                        flexShrink: 0,
+                        marginLeft: 2,
+                      }}>
+                        {isActivSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    )}
                   </div>
                   {/* Resize handle — positionné par rapport au th (sticky = containing block) */}
                   <div
@@ -1411,7 +1437,8 @@ export default function CRMContactsTable({
                     }} />
                   </div>
                 </th>
-              ))}
+              )
+              })}
 
               {/* Actions (non-draggable) */}
               <th style={{

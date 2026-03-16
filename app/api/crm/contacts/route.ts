@@ -72,6 +72,26 @@ export async function GET(req: NextRequest) {
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
+  // Tri dynamique
+  const sortBy  = searchParams.get('sort_by')  ?? 'synced_at'
+  const sortDir = searchParams.get('sort_dir') ?? 'desc'
+  const sortAsc = sortDir === 'asc'
+  const SORT_MAP: Record<string, { col: string; foreignTable?: string }> = {
+    contact:             { col: 'lastname' },
+    formation_souhaitee: { col: 'formation_souhaitee' },
+    classe:              { col: 'classe_actuelle' },
+    zone:                { col: 'zone_localite' },
+    departement:         { col: 'departement' },
+    lead_status:         { col: 'hs_lead_status' },
+    origine:             { col: 'origine' },
+    closer:              { col: 'hubspot_owner_id' },
+    createdat_contact:   { col: 'contact_createdate' },
+    createdat_deal:      { col: 'createdate', foreignTable: 'crm_deals' },
+    form_submission:     { col: 'recent_conversion_date' },
+    synced_at:           { col: 'synced_at' },
+  }
+  const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['synced_at']
+
   // ── Charger rdv_users ──────────────────────────────────────────────────────
   const { data: users } = await db
     .from('rdv_users')
@@ -275,7 +295,16 @@ export async function GET(req: NextRequest) {
        )`,
       { count: 'exact' }
     )
-    .order('synced_at', { ascending: false })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query = (query as any).order(sortInfo.col, {
+    ascending: sortAsc,
+    nullsFirst: false,
+    ...(sortInfo.foreignTable ? { foreignTable: sortInfo.foreignTable } : {}),
+  })
+  if (sortInfo.col !== 'synced_at') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).order('synced_at', { ascending: false })
+  }
 
   // Filtre positif deal → IN
   if (dealContactIds !== null) {

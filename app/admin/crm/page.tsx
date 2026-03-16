@@ -808,6 +808,10 @@ export default function CRMPage() {
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
 
+  // Tri des colonnes
+  const [sortBy,  setSortBy]  = useState<string>('synced_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
   // Overrides des filtres par défaut
   const [showExternal, setShowExternal] = useState(false)
   const [allClasses, setAllClasses]     = useState(true)
@@ -981,6 +985,10 @@ export default function CRMPage() {
       if (emptyFields)            params.set('empty_fields', emptyFields)
       if (notEmptyFields)         params.set('not_empty_fields', notEmptyFields)
 
+      // Tri
+      params.set('sort_by',  sortBy)
+      params.set('sort_dir', sortDir)
+
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
@@ -991,7 +999,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, sortBy, sortDir, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1001,6 +1009,16 @@ export default function CRMPage() {
   function scheduleRefetch() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchRef.current(true), 300)
+  }
+
+  function handleSortChange(col: string) {
+    if (sortBy === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(col)
+      setSortDir('desc')
+    }
+    setPage(0)
   }
 
   // ── View management ──────────────────────────────────────────────────────────
@@ -1902,6 +1920,9 @@ export default function CRMPage() {
           sourceOptions={sourceOptions.filter(o => o.id !== '')}
           closerSelectOptions={closerOptions.filter(o => o.id !== '')}
           teleproSelectOptions={teleproOptions.filter(o => o.id !== '')}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSortChange={handleSortChange}
         /></div>
 
         {/* Pagination */}
