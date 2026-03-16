@@ -131,7 +131,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
 
   // Fetch contacts
   const fetchContacts = useCallback(async () => {
-    if (!ownerId) return
+    if (!ownerId) { console.warn('[UserCRMView] ownerId is empty — no fetch'); return }
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -147,6 +147,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       if (filterLeadStatus)   params.set('lead_status', filterLeadStatus)
       if (filterFormation)    params.set('formation',   filterFormation)
 
+      console.log('[UserCRMView] fetch →', `/api/crm/contacts?${params}`)
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (res.ok) {
         const data = await res.json()
@@ -250,6 +251,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             </div>
             <div style={{ fontSize: 11, color: TEXT_DIM, marginTop: 3 }}>
               Contacts + transactions depuis HubSpot
+            </div>
+            {/* DEBUG temporaire — à supprimer */}
+            <div style={{ fontSize: 10, color: '#ef4444', marginTop: 2, fontFamily: 'monospace' }}>
+              {ownerId ? `${ownerParam}=${ownerId}` : '⚠ ownerId VIDE — aucun ID HubSpot configuré'}
             </div>
           </div>
           <button
