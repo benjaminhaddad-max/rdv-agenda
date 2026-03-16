@@ -571,7 +571,7 @@ function ActionsMenu({
               📝 <span>Ajouter une note</span>
             </button>
           )}
-          {mode === 'admin' && deal && (
+          {deal && (
             <>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onCloser() }}
@@ -700,7 +700,7 @@ function ExpandedDetail({
 
           {/* Actions row */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            {mode !== 'telepro' && deal && (
+            {deal && (
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => setStagePickerOpen(o => !o)}
@@ -783,7 +783,7 @@ function ExpandedDetail({
               </button>
             )}
 
-            {mode === 'admin' && deal && (
+            {deal && (
               <>
                 <button
                   onClick={onCloser}
@@ -1055,7 +1055,7 @@ export default function CRMContactsTable({
   function isColVisible(key: ColKey): boolean {
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
     if (key === 'origine'            && !sourceOptions?.length)     return false
-    if (key === 'closer'             && mode === 'telepro')         return false
+    // Colonne "closer" visible pour tous les modes
     return true
   }
 
