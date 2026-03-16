@@ -36,6 +36,35 @@ const ZONE_OPTIONS_LIST = [
      'IDF','Lille','Montpellier / Nimes','Proche IDF'].map(z => ({ id: z, label: z })),
 ]
 
+const LEAD_STATUS_LIST = [
+  { id: '', label: '—' },
+  ...["A garder pour l'an prochain",'A relancer','A replanifier','Autre prépa concurrente',
+     'Disqualifié','Doublon','En attente / Réfléchit','En cours','Inscrit','Mauvais numéro',
+     'NRP1','NRP2','NRP3','NRP4','Nouveau','Nouveau - Chaud',
+     'Pré-inscrit 2025/2026','Pré-inscrit 2026/2027','Raccroche au nez','Rdv pris',
+  ].map(v => ({ id: v, label: v })),
+]
+
+const SOURCE_LIST = [
+  { id: '', label: '—' },
+  ...["Anciens salons L'étudiant",'Anciens salons Lycée','Anciens salons Studyrama',
+     'Appel Diploma Santé','Autre','Bouche à oreille - Diploma Santé','Campagne ADS',
+     'Campagne Ads - Snapchat','Campagne réseaux sociaux - Tiktok','Diplomeo (Partenaire)',
+     'Déjà étudiant','Extrastudent','Figaro étudiant','Hermione (Partenaire)',
+     'Hippocast (Partenaire)','Influenceur',"L'Etudiant [leads]",'Lycée George Leven',
+     'Lycée Maimonide Rambam','Lycée Yabné','Nomad Education (Partenaire)','Nomad Spéciaux',
+     'Réseaux sociaux','Salon étudiant 2024-2025 (AFEM)','Salon étudiant 2024-2025 (Diploma)',
+     'Salons','Site AFEM','Site Diploma Santé','Special Premium','Studyrama',
+     'Thotis (Partenaire)','Twitter','Vecteur Bac',
+  ].map(v => ({ id: v, label: v })),
+]
+
+const FORMATION_LIST = [
+  { id: '', label: '—' },
+  ...['APES0','LAS','LAS 2 UPEC','LAS 3 Upec','LSPS','P-1','P-2','PAS',
+  ].map(v => ({ id: v, label: v })),
+]
+
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
@@ -696,12 +725,11 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
 
-  // Valeurs réelles HubSpot chargées depuis l'API Properties
-  const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
-  const [sourceOpts, setSourceOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
-  const [formationOpts, setFormationOpts] = useState<{ id: string; label: string }[]>([{ id: '', label: '—' }])
-  const ZONE_FALLBACK_OPTS = ZONE_OPTIONS_LIST
-  const [zoneOpts, setZoneOpts] = useState<{ id: string; label: string }[]>(ZONE_FALLBACK_OPTS)
+  // Options initialisées avec valeurs hardcodées → disponibles immédiatement, mises à jour par fetch
+  const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>(LEAD_STATUS_LIST)
+  const [sourceOpts, setSourceOpts] = useState<{ id: string; label: string }[]>(SOURCE_LIST)
+  const [formationOpts, setFormationOpts] = useState<{ id: string; label: string }[]>(FORMATION_LIST)
+  const [zoneOpts, setZoneOpts] = useState<{ id: string; label: string }[]>(ZONE_OPTIONS_LIST)
 
   useEffect(() => {
     setLocalContact(contact)
