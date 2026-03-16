@@ -140,6 +140,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         page: String(page),
         sort_by: sortBy,
         sort_dir: sortDir,
+        all_classes: '1',   // afficher tous les leads, pas seulement les classes prioritaires
       })
       if (debouncedSearch)    params.set('search',      debouncedSearch)
       if (filterStage)        params.set('stage',       filterStage)
