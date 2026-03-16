@@ -1732,7 +1732,7 @@ export default function CRMPage() {
         </button>
         {!showExternal && (
           <span style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>
-            Exclut les contacts dont le propriétaire ou le télépro est Benjamin Delacour
+            Exclut les contacts/deals dont le propriétaire, closer ou télépro est de l&apos;équipe externe
           </span>
         )}
       </div>

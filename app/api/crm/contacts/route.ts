@@ -113,9 +113,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Debug: log excluded users info
-  console.log('[CRM] excludedOwnerIds:', excludedOwnerIds, 'excludedUserIds:', excludedUserIds, 'showExternal:', showExternal)
-  console.log('[CRM] Users with exclude_from_crm:', (users ?? []).filter((u: any) => u.exclude_from_crm).map((u: any) => ({ name: u.name, ownerId: u.hubspot_owner_id, userId: u.hubspot_user_id })))
+  // Fallback: si aucun user marqué exclude_from_crm, utiliser EXTERNAL_TEAM_OWNER_ID
+  const externalOwnerId = process.env.EXTERNAL_TEAM_OWNER_ID
+  if (excludedOwnerIds.length === 0 && externalOwnerId) {
+    excludedOwnerIds.push(externalOwnerId)
+    // Trouver le user correspondant pour aussi exclure son hubspot_user_id
+    const extUser = (users ?? []).find((u: any) => u.hubspot_owner_id === externalOwnerId)
+    if (extUser?.hubspot_user_id) excludedUserIds.push(extUser.hubspot_user_id)
+  }
 
   // ── Étape 1 : Pré-filtres deal → listes de contact IDs ────────────────────
   // Les filtres sur crm_deals sont résolus en deux passes séparées :
@@ -214,12 +219,29 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // C) Exclusion équipe externe sur le télépro du deal (seulement si pas de filtre deal actif)
+  // C) Exclusion équipe externe sur le télépro ET le closer du deal
   let excludeByExternalTelepro: string[] = []
-  if (!showExternal && excludedUserIds.length > 0 && !hasDealFilter) {
-    excludeByExternalTelepro = await fetchAllDealContactIds(q =>
-      q.in('teleprospecteur', excludedUserIds)
-    )
+  if (!showExternal && !hasDealFilter) {
+    // Exclure les contacts dont le deal a un télépro OU un closer de l'équipe externe
+    const hasUserIds = excludedUserIds.length > 0
+    const hasOwnerIds = excludedOwnerIds.length > 0
+    if (hasUserIds || hasOwnerIds) {
+      excludeByExternalTelepro = await fetchAllDealContactIds(q => {
+        // Build OR: teleprospecteur IN excludedUserIds OR hubspot_owner_id IN excludedOwnerIds
+        const orParts: string[] = []
+        if (hasUserIds) {
+          orParts.push(excludedUserIds.length === 1
+            ? `teleprospecteur.eq.${excludedUserIds[0]}`
+            : `teleprospecteur.in.(${excludedUserIds.join(',')})`)
+        }
+        if (hasOwnerIds) {
+          orParts.push(excludedOwnerIds.length === 1
+            ? `hubspot_owner_id.eq.${excludedOwnerIds[0]}`
+            : `hubspot_owner_id.in.(${excludedOwnerIds.join(',')})`)
+        }
+        return q.or(orParts.join(','))
+      })
+    }
   }
 
   // D) Empty / not-empty filters on deal-level fields
