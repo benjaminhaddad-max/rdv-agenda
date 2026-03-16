@@ -233,7 +233,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {mode === 'closer' ? '🎯 Mes Leads' : '👥 Mes Contacts'}
+              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : ownerParam === 'telepro_hs_id' ? '🏷️ Mes Transactions' : '👥 Mes Contacts'}
               {total > 0 && (
                 <span style={{
                   background: 'rgba(76,171,219,0.15)',

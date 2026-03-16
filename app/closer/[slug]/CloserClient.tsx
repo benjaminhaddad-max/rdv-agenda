@@ -157,8 +157,9 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
-  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads'>('planning')
+  const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'>('planning')
   const [leadsTotal, setLeadsTotal] = useState(0)
+  const [contactsTotal, setContactsTotal] = useState(0)
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
 
@@ -622,7 +623,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
-            { key: 'leads' as const, label: 'Mes Transactions', icon: <User size={13} /> },
+            { key: 'contacts' as const, label: 'Mes Contacts', icon: <User size={13} /> },
+            { key: 'leads' as const, label: 'Mes Transactions', icon: <Tag size={13} /> },
             { key: 'historique' as const, label: 'Historique', icon: <Clock size={13} /> },
             { key: 'repop' as const, label: '🔁 Repop', icon: null },
             { key: 'dispos' as const, label: 'Mes dispos', icon: <Clock size={13} /> },
@@ -1268,7 +1270,25 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         </div>
       )}
 
-      {/* ── Tab: Mes Leads ──────────────────────────────────────────── */}
+      {/* ── Tab: Mes Contacts (propriétaire du contact) ───────────── */}
+      {activeTab === 'contacts' && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {!user.hubspot_owner_id ? (
+            <div style={{ padding: 24, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, margin: 20, color: '#ef4444', fontSize: 13 }}>
+              ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
+            </div>
+          ) : (
+            <UserCRMView
+              ownerParam="contact_owner_hs_id"
+              ownerId={user.hubspot_owner_id}
+              mode="closer"
+              onTotalChange={setContactsTotal}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: Mes Transactions (closer sur le deal) ────────────── */}
       {activeTab === 'leads' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!user.hubspot_owner_id ? (

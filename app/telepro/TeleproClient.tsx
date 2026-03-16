@@ -443,10 +443,11 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
+  const [txTotal, setTxTotal] = useState(0)
 
   const today = startOfToday()
   const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
@@ -1065,10 +1066,24 @@ export default function TeleproClient({
                 fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                 fontFamily: 'inherit',
               }}>
-                👥 Mes Transactions
+                👥 Mes Contacts
                 {crmTotal > 0 && (
                   <span style={{ background: 'rgba(76,171,219,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                     {crmTotal}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setActiveTab('transactions')} style={{
+                background: activeTab === 'transactions' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'transactions' ? 'rgba(204,172,113,0.4)' : '#3a3d50'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'transactions' ? '#ccac71' : '#8b8fa8',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}>
+                🏷️ Mes Transactions
+                {txTotal > 0 && (
+                  <span style={{ background: 'rgba(204,172,113,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+                    {txTotal}
                   </span>
                 )}
               </button>
@@ -2000,7 +2015,7 @@ export default function TeleproClient({
         </div>
       )}
 
-      {/* ── Onglet Mes Contacts (CRM) ───────────────────────────────── */}
+      {/* ── Onglet Mes Contacts (propriétaire du contact) ─────────── */}
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UserCRMView
@@ -2008,6 +2023,18 @@ export default function TeleproClient({
             ownerId={teleproUser.hubspot_owner_id || teleproUser.hubspot_user_id || ''}
             mode="telepro"
             onTotalChange={setCrmTotal}
+          />
+        </div>
+      )}
+
+      {/* ── Onglet Mes Transactions (télépro sur le deal) ─────────── */}
+      {activeTab === 'transactions' && !isAdmin && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <UserCRMView
+            ownerParam="telepro_hs_id"
+            ownerId={teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''}
+            mode="telepro"
+            onTotalChange={setTxTotal}
           />
         </div>
       )}
