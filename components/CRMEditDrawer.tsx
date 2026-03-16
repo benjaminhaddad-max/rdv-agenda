@@ -32,9 +32,8 @@ const FORMATIONS: { value: string; label: string }[] = [
 
 const ZONE_OPTIONS_LIST = [
   { id: '', label: '—' },
-  ...['IDF','PACA','Grand Est','Occitanie','Hauts-de-France','Bretagne','Normandie',
-     'Nouvelle-Aquitaine','Auvergne-Rhône-Alpes','Pays de la Loire',
-     'Centre-Val de Loire','Bourgogne-Franche-Comté','Autre'].map(z => ({ id: z, label: z })),
+  ...['Aix / Marseille','Antilles','Autre','Bordeaux / Pau',
+     'IDF','Lille','Montpellier / Nimes','Proche IDF'].map(z => ({ id: z, label: z })),
 ]
 
 const CLASSE_OPTIONS = [

@@ -331,9 +331,8 @@ function InlineCellText({
 }
 
 const ZONE_OPTIONS = [
-  '', 'IDF', 'PACA', 'Grand Est', 'Occitanie', 'Hauts-de-France',
-  'Bretagne', 'Normandie', 'Nouvelle-Aquitaine', 'Auvergne-Rhône-Alpes',
-  'Pays de la Loire', 'Centre-Val de Loire', 'Bourgogne-Franche-Comté', 'Autre',
+  '', 'Aix / Marseille', 'Antilles', 'Autre', 'Bordeaux / Pau',
+  'IDF', 'Lille', 'Montpellier / Nimes', 'Proche IDF',
 ]
 
 const CLASSE_OPTIONS = [
