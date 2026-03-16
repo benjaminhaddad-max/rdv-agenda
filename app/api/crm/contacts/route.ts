@@ -526,7 +526,8 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deal         = (c.crm_deals as any[])?.[0] ?? null
     const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
-    const telepro      = deal?.teleprospecteur  ? userByUserId[deal.teleprospecteur]   ?? null : null
+    // teleprospecteur stocke le hubspot_owner_id du télépro (propriété HubSpot de type "owner")
+    const telepro      = deal?.teleprospecteur  ? (userByOwnerId[deal.teleprospecteur] ?? userByUserId[deal.teleprospecteur] ?? null) : null
     const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]    ?? null : null
 
     return {

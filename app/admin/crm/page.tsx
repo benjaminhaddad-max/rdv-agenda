@@ -1380,7 +1380,8 @@ export default function CRMPage() {
   ]
   const teleproOptions: SelectOption[] = [
     { id: '', label: 'Tous les télépros' },
-    ...telepros.map(t => ({ id: t.hubspot_user_id ?? t.id, label: t.name })),
+    // teleprospecteur stocke hubspot_owner_id (propriété HubSpot type "owner")
+    ...telepros.map(t => ({ id: t.hubspot_owner_id ?? t.hubspot_user_id ?? t.id, label: t.name })),
   ]
   // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
   const ownerExcludeOptions: SelectOption[] = [
