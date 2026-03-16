@@ -1712,6 +1712,11 @@ export default function CRMPage() {
           <span style={{ fontSize: 9 }}>{showExternal ? '○' : '●'}</span>
           {showExternal ? 'Équipe externe visible' : 'Équipe externe masquée'}
         </button>
+        {!showExternal && (
+          <span style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>
+            Exclut les contacts dont le propriétaire ou le télépro est Benjamin Delacour
+          </span>
+        )}
       </div>
 
       {/* ── Search + quick dropdowns ──────────────────────────────────────── */}

@@ -107,55 +107,53 @@ export async function GET(req: NextRequest) {
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let dealQ: any = db.from('crm_deals').select('hubspot_contact_id')
-    if (stage) {
-      const stages = splitMulti(stage)
-      dealQ = stages.length > 1 ? dealQ.in('dealstage', stages) : dealQ.eq('dealstage', stage)
-    }
-    if (closerHsId) {
-      const closers = splitMulti(closerHsId)
-      dealQ = closers.length > 1 ? dealQ.in('hubspot_owner_id', closers) : dealQ.eq('hubspot_owner_id', closerHsId)
-    }
-    if (teleproHsId) {
-      const telepros = splitMulti(teleproHsId)
-      dealQ = telepros.length > 1 ? dealQ.in('teleprospecteur', telepros) : dealQ.eq('teleprospecteur', teleproHsId)
-    }
-    if (formation) {
-      const formations = splitMulti(formation)
-      dealQ = formations.length > 1 ? dealQ.in('formation', formations) : dealQ.eq('formation', formation)
-    }
-    if (pipeline) {
-      const vals = splitMulti(pipeline)
-      dealQ = vals.length > 1 ? dealQ.in('pipeline', vals) : dealQ.eq('pipeline', pipeline)
-    }
-    if (pipelineNot) {
-      const vals = splitMulti(pipelineNot)
-      // On INCLUT les deals dont le pipeline n'est PAS dans la liste
-      if (vals.length > 1) {
-        dealQ = dealQ.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
-      } else {
-        dealQ = dealQ.neq('pipeline', pipelineNot)
-      }
-    }
+    // Pre-fetch prior preinscription stage IDs if needed (async, can't be inside fetchAllDealContactIds callback)
+    let priorIds: string[] = []
     if (priorPreinscription) {
-      const priorIds = await getPriorPreinscStageIds()
+      priorIds = await getPriorPreinscStageIds()
       if (priorIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page, limit })
       }
-      dealQ = dealQ.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
     }
-    if (withTelepro) dealQ = dealQ.not('teleprospecteur', 'is', null)
-    if (!showExternal && excludedUserIds.length > 0) {
-      dealQ = dealQ.not('teleprospecteur', 'in', `(${excludedUserIds.join(',')})`)
-    }
-    const { data: dealRows } = await dealQ.limit(10000)
-    dealContactIds = [
-      ...new Set(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (dealRows ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
-      ),
-    ]
+
+    dealContactIds = await fetchAllDealContactIds(q => {
+      if (stage) {
+        const stages = splitMulti(stage)
+        q = stages.length > 1 ? q.in('dealstage', stages) : q.eq('dealstage', stage)
+      }
+      if (closerHsId) {
+        const closers = splitMulti(closerHsId)
+        q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
+      }
+      if (teleproHsId) {
+        const telepros = splitMulti(teleproHsId)
+        q = telepros.length > 1 ? q.in('teleprospecteur', telepros) : q.eq('teleprospecteur', teleproHsId)
+      }
+      if (formation) {
+        const formations = splitMulti(formation)
+        q = formations.length > 1 ? q.in('formation', formations) : q.eq('formation', formation)
+      }
+      if (pipeline) {
+        const vals = splitMulti(pipeline)
+        q = vals.length > 1 ? q.in('pipeline', vals) : q.eq('pipeline', pipeline)
+      }
+      if (pipelineNot) {
+        const vals = splitMulti(pipelineNot)
+        if (vals.length > 1) {
+          q = q.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
+        } else {
+          q = q.neq('pipeline', pipelineNot)
+        }
+      }
+      if (priorPreinscription && priorIds.length > 0) {
+        q = q.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
+      }
+      if (withTelepro) q = q.not('teleprospecteur', 'is', null)
+      if (!showExternal && excludedUserIds.length > 0) {
+        q = q.not('teleprospecteur', 'in', `(${excludedUserIds.join(',')})`)
+      }
+      return q
+    })
   }
 
   // A-bis) Exclusion deal filters (stage_not, closer_not, telepro_not, formation_not)
@@ -163,64 +161,41 @@ export async function GET(req: NextRequest) {
   let excludeByDealFilter: string[] = []
 
   if (hasDealExclusion) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let exDealQ: any = db.from('crm_deals').select('hubspot_contact_id')
-    // Build OR conditions: deals matching ANY excluded value
-    if (stageNot) {
-      const vals = splitMulti(stageNot)
-      exDealQ = vals.length > 1 ? exDealQ.in('dealstage', vals) : exDealQ.eq('dealstage', stageNot)
-    }
-    if (closerNot) {
-      const vals = splitMulti(closerNot)
-      exDealQ = vals.length > 1 ? exDealQ.in('hubspot_owner_id', vals) : exDealQ.eq('hubspot_owner_id', closerNot)
-    }
-    if (teleproNot) {
-      const vals = splitMulti(teleproNot)
-      exDealQ = vals.length > 1 ? exDealQ.in('teleprospecteur', vals) : exDealQ.eq('teleprospecteur', teleproNot)
-    }
-    if (formationNot) {
-      const vals = splitMulti(formationNot)
-      exDealQ = vals.length > 1 ? exDealQ.in('formation', vals) : exDealQ.eq('formation', formationNot)
-    }
-    const { data: exDealRows } = await exDealQ.limit(10000)
-    excludeByDealFilter = [
-      ...new Set(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (exDealRows ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
-      ),
-    ]
+    excludeByDealFilter = await fetchAllDealContactIds(q => {
+      if (stageNot) {
+        const vals = splitMulti(stageNot)
+        q = vals.length > 1 ? q.in('dealstage', vals) : q.eq('dealstage', stageNot)
+      }
+      if (closerNot) {
+        const vals = splitMulti(closerNot)
+        q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', closerNot)
+      }
+      if (teleproNot) {
+        const vals = splitMulti(teleproNot)
+        q = vals.length > 1 ? q.in('teleprospecteur', vals) : q.eq('teleprospecteur', teleproNot)
+      }
+      if (formationNot) {
+        const vals = splitMulti(formationNot)
+        q = vals.length > 1 ? q.in('formation', vals) : q.eq('formation', formationNot)
+      }
+      return q
+    })
   }
 
   // B) noTelepro → contacts à exclure (ont un deal avec télépro renseigné)
   let excludeByTelepro: string[] = []
   if (noTelepro) {
-    const { data: dealsWithT } = await db
-      .from('crm_deals')
-      .select('hubspot_contact_id')
-      .not('teleprospecteur', 'is', null)
-      .limit(10000)
-    excludeByTelepro = [
-      ...new Set(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (dealsWithT ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
-      ),
-    ]
+    excludeByTelepro = await fetchAllDealContactIds(q =>
+      q.not('teleprospecteur', 'is', null)
+    )
   }
 
   // C) Exclusion équipe externe sur le télépro du deal (seulement si pas de filtre deal actif)
   let excludeByExternalTelepro: string[] = []
   if (!showExternal && excludedUserIds.length > 0 && !hasDealFilter) {
-    const { data: extDeals } = await db
-      .from('crm_deals')
-      .select('hubspot_contact_id')
-      .in('teleprospecteur', excludedUserIds)
-      .limit(10000)
-    excludeByExternalTelepro = [
-      ...new Set(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (extDeals ?? []).map((d: any) => d.hubspot_contact_id).filter(Boolean) as string[]
-      ),
-    ]
+    excludeByExternalTelepro = await fetchAllDealContactIds(q =>
+      q.in('teleprospecteur', excludedUserIds)
+    )
   }
 
   // D) Empty / not-empty filters on deal-level fields
@@ -307,22 +282,34 @@ export async function GET(req: NextRequest) {
     if (dealContactIds.length === 0) {
       return NextResponse.json({ data: [], total: 0, page, limit })
     }
-    query = query.in('hubspot_contact_id', dealContactIds.slice(0, 5000))
+    query = query.in('hubspot_contact_id', dealContactIds.slice(0, 50000))
   }
 
-  // noTelepro → NOT IN
+  // noTelepro → NOT IN (batched)
   if (noTelepro && excludeByTelepro.length > 0) {
-    query = query.not('hubspot_contact_id', 'in', `(${excludeByTelepro.slice(0, 5000).join(',')})`)
+    const BATCH = 5000
+    for (let i = 0; i < excludeByTelepro.length; i += BATCH) {
+      const batch = excludeByTelepro.slice(i, i + BATCH)
+      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+    }
   }
 
-  // External telepro → NOT IN
+  // External telepro → NOT IN (batched for large sets)
   if (excludeByExternalTelepro.length > 0) {
-    query = query.not('hubspot_contact_id', 'in', `(${excludeByExternalTelepro.slice(0, 5000).join(',')})`)
+    const BATCH = 5000
+    for (let i = 0; i < excludeByExternalTelepro.length; i += BATCH) {
+      const batch = excludeByExternalTelepro.slice(i, i + BATCH)
+      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+    }
   }
 
-  // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN
+  // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN (batched)
   if (excludeByDealFilter.length > 0) {
-    query = query.not('hubspot_contact_id', 'in', `(${excludeByDealFilter.slice(0, 5000).join(',')})`)
+    const BATCH = 5000
+    for (let i = 0; i < excludeByDealFilter.length; i += BATCH) {
+      const batch = excludeByDealFilter.slice(i, i + BATCH)
+      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+    }
   }
 
   // Empty deal fields → EXCLUDE contacts with non-null deal field
