@@ -234,7 +234,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
               {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : ownerParam === 'telepro_hs_id' ? '🏷️ Mes Transactions' : '👥 Mes Contacts'}
               {total > 0 && (
                 <span style={{
@@ -291,7 +291,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
                 border: `1px solid ${search ? BLUE : NAVY_BDR}`,
                 borderRadius: 8,
                 padding: '7px 28px 7px 28px',
-                color: '#e8eaf0',
+                color: '#33475b',
                 fontSize: 12,
                 fontFamily: 'inherit',
                 outline: 'none',
@@ -405,7 +405,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         {/* Navigation pages */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: TEXT_MID }}>
-            Page <strong style={{ color: '#e8eaf0' }}>{page + 1}</strong> / {totalPages}
+            Page <strong style={{ color: '#33475b' }}>{page + 1}</strong> / {totalPages}
             <span style={{ color: TEXT_DIM, marginLeft: 8 }}>({total} contacts)</span>
           </span>
           <div style={{ display: 'flex', gap: 4 }}>

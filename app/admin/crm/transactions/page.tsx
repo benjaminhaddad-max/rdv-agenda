@@ -296,7 +296,7 @@ function DropFilter({
               style={{
                 display: 'block', width: '100%', background: value === opt ? 'rgba(204,172,113,0.12)' : 'transparent',
                 border: 'none', padding: '8px 14px', fontSize: 12, cursor: 'pointer',
-                color: value === opt ? '#ccac71' : '#c8cad8', fontFamily: 'inherit',
+                color: value === opt ? '#ccac71' : '#516f90', fontFamily: 'inherit',
                 fontWeight: value === opt ? 700 : 400, textAlign: 'left', whiteSpace: 'nowrap',
               }}
             >
@@ -816,7 +816,7 @@ export default function TransactionsPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0' }}>{displayTotal.toLocaleString('fr-FR')}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: '#33475b' }}>{displayTotal.toLocaleString('fr-FR')}</span>
             <span style={{ fontSize: 12, color: '#7c98b6' }}>transactions</span>
           </div>
           {displayStats && (
@@ -1100,7 +1100,7 @@ export default function TransactionsPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: filterRules.length > 0 ? 12 : 0,
           }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#33475b' }}>
               Filtres avancés
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1158,7 +1158,7 @@ export default function TransactionsPage() {
                     onChange={e => updateFilterRule(rule.id, { field: e.target.value as FilterField })}
                     style={{
                       background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
-                      padding: '5px 8px', color: '#c8cad8', fontSize: 12,
+                      padding: '5px 8px', color: '#516f90', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 130,
                     }}
@@ -1174,7 +1174,7 @@ export default function TransactionsPage() {
                     onChange={e => updateFilterRule(rule.id, { operator: e.target.value as FilterOperator })}
                     style={{
                       background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
-                      padding: '5px 8px', color: '#c8cad8', fontSize: 12,
+                      padding: '5px 8px', color: '#516f90', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 120,
                     }}
@@ -1212,7 +1212,7 @@ export default function TransactionsPage() {
                         placeholder="Valeur…"
                         style={{
                           background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
-                          padding: '5px 8px', color: '#e8eaf0', fontSize: 12,
+                          padding: '5px 8px', color: '#33475b', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none',
                           flex: 1, minWidth: 120,
                         }}
@@ -1358,10 +1358,10 @@ export default function TransactionsPage() {
                         >
                           {/* Transaction name + contact */}
                           <td style={{ padding: '11px 12px' }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>
                               {tx.dealname || '(sans nom)'}
                             </div>
-                            <div style={{ fontSize: 11, color: '#4a5568', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {contactName}
                             </div>
                           </td>
@@ -1414,7 +1414,7 @@ export default function TransactionsPage() {
 
                           {/* Date */}
                           <td style={{ padding: '11px 12px' }}>
-                            <span style={{ fontSize: 11, color: '#4a5568', whiteSpace: 'nowrap' }}>{createdStr}</span>
+                            <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{createdStr}</span>
                           </td>
 
                           {/* HubSpot link */}
@@ -1448,7 +1448,7 @@ export default function TransactionsPage() {
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
                   style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7,
+                    background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 7,
                     padding: '6px 16px', color: page === 0 ? '#cbd6e2' : '#516f90',
                     cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
                   }}
@@ -1462,7 +1462,7 @@ export default function TransactionsPage() {
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
                   style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7,
+                    background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 7,
                     padding: '6px 16px', color: page >= totalPages - 1 ? '#cbd6e2' : '#516f90',
                     cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
                   }}

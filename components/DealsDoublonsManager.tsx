@@ -132,7 +132,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e8eaf0' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#33475b' }}>
               🔁 Doublons transactions — Pipeline 2026-2027
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7c98b6' }}>
@@ -257,7 +257,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, marginBottom: 8 }}>
                 <CheckCircle size={14} style={{ color: '#22c55e', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {group.winner.name}
                   </div>
                 </div>

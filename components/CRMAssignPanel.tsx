@@ -90,7 +90,7 @@ export default function CRMAssignPanel({
       <div style={{ background: NAVY, border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 420, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
               {mode === 'closer' ? <Briefcase size={16} style={{ color: GOLD }} /> : <Users size={16} style={{ color: BLUE }} />}
               {mode === 'closer' ? 'Assigner un closer' : 'Assigner un télépro'}
             </div>
@@ -126,7 +126,7 @@ export default function CRMAssignPanel({
                   onClick={() => setSelected(user.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    background: isSelected ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.03)',
+                    background: isSelected ? 'rgba(204,172,113,0.15)' : '#f5f8fa',
                     border: `1px solid ${isSelected ? GOLD : '#cbd6e2'}`,
                     borderRadius: 10, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
                     transition: 'all 0.15s', fontFamily: 'inherit',
@@ -136,7 +136,7 @@ export default function CRMAssignPanel({
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? GOLD : '#e8eaf0' }}>{user.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? GOLD : '#33475b' }}>{user.name}</div>
                     {isCurrent && <div style={{ fontSize: 10, color: BLUE, fontWeight: 700 }}>Actuellement assigné</div>}
                   </div>
                   {isSelected && <div style={{ fontSize: 16, color: GOLD }}>✓</div>}
@@ -147,7 +147,7 @@ export default function CRMAssignPanel({
         )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 8, padding: '7px 16px', color: '#7c98b6', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+          <button onClick={onClose} style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '7px 16px', color: '#7c98b6', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
             Annuler
           </button>
           <button

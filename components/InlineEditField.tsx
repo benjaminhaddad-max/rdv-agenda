@@ -18,7 +18,7 @@ interface DateProps extends BaseProps { type: 'date' }
 type Props = TextProps | SelectProps | DateProps
 
 export default function InlineEditField(props: Props) {
-  const { value, onSave, placeholder = '—', color = '#e8eaf0', fontSize = 13, fontWeight = 400, type = 'text' } = props
+  const { value, onSave, placeholder = '—', color = '#33475b', fontSize = 13, fontWeight = 400, type = 'text' } = props
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value ?? '')
@@ -99,7 +99,7 @@ export default function InlineEditField(props: Props) {
     border: `1px solid ${saving ? '#ccac71' : '#cbd6e2'}`,
     borderRadius: 6,
     padding: '4px 8px',
-    color: '#e8eaf0',
+    color: '#33475b',
     fontSize,
     fontFamily: 'inherit',
     outline: 'none',

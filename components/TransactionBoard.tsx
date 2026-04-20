@@ -122,7 +122,7 @@ function DealCard({
       )}
 
       <div style={{
-        fontSize: 12, fontWeight: 600, color: '#e8eaf0',
+        fontSize: 12, fontWeight: 600, color: '#33475b',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         marginBottom: 4, paddingRight: showCheckbox ? 22 : 0,
       }}>

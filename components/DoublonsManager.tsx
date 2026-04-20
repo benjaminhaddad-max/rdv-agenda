@@ -194,7 +194,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
               <GitMerge size={15} style={{ color: '#ef4444' }} />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#e8eaf0' }}>Doublons contacts</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#33475b' }}>Doublons contacts</div>
               <div style={{ fontSize: 11, color: '#7c98b6' }}>
                 {loading ? 'Scan en cours…' : stats ? `${stats.totalContacts} contacts analysés — ${stats.scannedTelepros} télépros` : ''}
               </div>
@@ -229,7 +229,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
             }}>
               <AlertTriangle size={14} style={{ color: '#ccac71', marginTop: 1, flexShrink: 0 }} />
               <div>
-                <span style={{ color: '#e8eaf0', fontWeight: 600 }}>Doublons détectés parmi les contacts des télépros.</span>
+                <span style={{ color: '#33475b', fontWeight: 600 }}>Doublons détectés parmi les contacts des télépros.</span>
                 {' '}Fusionner garde le contact principal et transfère tous les deals vers lui. L&apos;action est <span style={{ color: '#ef4444', fontWeight: 600 }}>irréversible dans HubSpot</span>.
               </div>
             </div>
@@ -313,7 +313,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
             padding: '12px 20px', borderTop: '1px solid #cbd6e2', flexShrink: 0,
             display: 'flex', gap: 20, fontSize: 11, color: '#7c98b6',
           }}>
-            <span><span style={{ color: '#e8eaf0', fontWeight: 700 }}>{stats.totalContacts}</span> contacts scannés</span>
+            <span><span style={{ color: '#33475b', fontWeight: 700 }}>{stats.totalContacts}</span> contacts scannés</span>
             <span><span style={{ color: groups.length > 0 ? '#ef4444' : '#22c55e', fontWeight: 700 }}>{stats.totalGroups}</span> groupes détectés</span>
             <span><span style={{ color: '#7c98b6', fontWeight: 700 }}>{stats.ignoredCount}</span> ignorés</span>
           </div>
@@ -405,7 +405,7 @@ function DuplicateGroupCard({
               </div>
 
               {/* Nom */}
-              <div style={{ fontWeight: 700, fontSize: 13, color: '#e8eaf0', marginBottom: 4 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#33475b', marginBottom: 4 }}>
                 {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || '(sans nom)'}
               </div>
 
@@ -449,7 +449,7 @@ function DuplicateGroupCard({
                     {lastContacted ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#516f90' }}>
                         <span>📞</span>
-                        <span>Dern. activité CRM : <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
+                        <span>Dern. activité CRM : <span style={{ color: '#33475b', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
                       </div>
                     ) : (
                       <div style={{ fontSize: 10, color: '#7c98b6', fontStyle: 'italic' }}>Jamais contacté</div>
@@ -533,7 +533,7 @@ function DuplicateGroupCard({
       {/* Actions */}
       {confirmMerge ? (
         <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '12px' }}>
-          <div style={{ fontSize: 12, color: '#e8eaf0', marginBottom: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: '#33475b', marginBottom: 10, lineHeight: 1.5 }}>
             Fusionner vers <span style={{ color: '#22c55e', fontWeight: 700 }}>{[primary?.properties.firstname, primary?.properties.lastname].filter(Boolean).join(' ')}</span> ?<br />
             <span style={{ color: '#ef4444', fontSize: 11 }}>Cette action est irréversible dans HubSpot.</span>
           </div>

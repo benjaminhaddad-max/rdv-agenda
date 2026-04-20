@@ -173,7 +173,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {deal.dealname || '(sans nom)'}
             </div>
             <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{contactName}</div>

@@ -168,7 +168,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18 }}>🔁</span>
             Journal des Repop
             {totalCount > 0 && (
@@ -204,7 +204,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {totalCount > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           {([
-            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#e8eaf0' },
+            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#33475b' },
             { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
             { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
             { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
@@ -292,7 +292,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
           background: '#ffffff', borderRadius: 14, border: '1px solid #cbd6e2',
         }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🔁</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0', marginBottom: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#33475b', marginBottom: 8 }}>
             Aucune repop détectée
           </div>
           <div style={{ fontSize: 13, color: '#7c98b6', lineHeight: 1.6 }}>
@@ -368,7 +368,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           }}>
             🔁 Repop
           </span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#33475b' }}>
             {entry.prospect_name}
           </span>
         </div>
@@ -528,7 +528,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
           }}>
             👻 Sans transaction
           </span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#33475b' }}>
             {entry.prospect_name}
           </span>
         </div>
