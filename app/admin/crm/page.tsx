@@ -1421,6 +1421,9 @@ export default function CRMPage() {
           <a href="/admin/crm/campaigns" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: 8, padding: '5px 12px', color: '#a855f7', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
             📧 Campagnes
           </a>
+          <a href="/admin/crm/forms" style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '5px 12px', color: '#22c55e', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+            📝 Formulaires
+          </a>
           <a href="/admin" style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '5px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <LayoutDashboard size={12} /> Dashboard
           </a>
