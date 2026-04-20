@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   FileText, Plus, Search, ExternalLink, Copy, Trash2, Code,
-  CheckCircle2, FileEdit, Archive, X, Eye, Send, Inbox,
+  CheckCircle2, FileEdit, Archive, X, Eye, Send, Inbox, Download, Loader2,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -32,6 +32,7 @@ export default function FormsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showNewModal, setShowNewModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -129,6 +130,12 @@ export default function FormsPage() {
           </select>
           <div style={{ flex: 1 }} />
           <button
+            onClick={() => setShowImportModal(true)}
+            style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '8px 14px', color: '#f59e0b', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            <Download size={14} /> Importer depuis HubSpot
+          </button>
+          <button
             onClick={() => setShowNewModal(true)}
             style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '8px 16px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
@@ -166,7 +173,201 @@ export default function FormsPage() {
       {showNewModal && (
         <NewFormModal onClose={() => setShowNewModal(false)} onCreated={(id) => { window.location.href = `/admin/crm/forms/${id}` }} />
       )}
+      {showImportModal && (
+        <ImportHubspotModal onClose={() => setShowImportModal(false)} onDone={() => { setShowImportModal(false); load() }} />
+      )}
     </div>
+  )
+}
+
+// ─── Modal Import HubSpot ────────────────────────────────────────────────
+function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [prefix, setPrefix] = useState('NS')
+  const [step, setStep] = useState<'config' | 'preview' | 'importing' | 'done'>('config')
+  const [preview, setPreview] = useState<Array<{ id: string; name: string; fieldsCount: number }>>([])
+  const [results, setResults] = useState<Array<{ name: string; status: string; error?: string; fieldsCount?: number }>>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const runPreview = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/import-hubspot-forms', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prefix, dryRun: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Erreur inconnue')
+        return
+      }
+      setPreview(data.preview || [])
+      setStep('preview')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur réseau')
+    } finally { setLoading(false) }
+  }
+
+  const runImport = async () => {
+    setStep('importing')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/import-hubspot-forms', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prefix, dryRun: false }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Erreur inconnue')
+        setStep('config')
+        return
+      }
+      setResults(data.results || [])
+      setStep('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur réseau')
+      setStep('config')
+    } finally { setLoading(false) }
+  }
+
+  const created = results.filter(r => r.status === 'created').length
+  const updated = results.filter(r => r.status === 'updated').length
+  const errors = results.filter(r => r.status === 'error').length
+
+  return (
+    <>
+      <div onClick={step !== 'importing' ? onClose : undefined} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 560, maxHeight: '85vh', overflowY: 'auto', background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 12, padding: 24, zIndex: 61 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#e4e7eb', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Download size={16} style={{ color: '#f59e0b' }} />
+            Importer depuis HubSpot
+          </h3>
+          {step !== 'importing' && (
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b8fa8', cursor: 'pointer' }}><X size={18} /></button>
+          )}
+        </div>
+
+        {step === 'config' && (
+          <>
+            <div style={{ fontSize: 13, color: '#8b8fa8', marginBottom: 16, lineHeight: 1.5 }}>
+              Récupère tous les formulaires HubSpot dont le nom commence par le préfixe ci-dessous, et les importe dans ton CRM natif avec leurs champs.
+            </div>
+            <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Préfixe du nom</div>
+            <input
+              value={prefix}
+              onChange={e => setPrefix(e.target.value)}
+              placeholder="NS"
+              autoFocus
+              style={{ width: '100%', background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 12px', color: '#e4e7eb', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            <div style={{ fontSize: 11, color: '#8b8fa8', marginTop: 4 }}>
+              Exemple : <code style={{ color: '#ccac71' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
+            </div>
+
+            {error && <div style={{ marginTop: 12, padding: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', fontSize: 12 }}>{error}</div>}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={onClose} style={{ background: '#152438', border: '1px solid #2d4a6b', color: '#8b8fa8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
+              <button
+                onClick={runPreview}
+                disabled={!prefix.trim() || loading}
+                style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !prefix.trim() || loading ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+                {loading ? 'Analyse HubSpot…' : 'Prévisualiser'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'preview' && (
+          <>
+            <div style={{ fontSize: 13, color: '#e4e7eb', marginBottom: 12 }}>
+              <strong style={{ color: '#f59e0b' }}>{preview.length}</strong> formulaire{preview.length > 1 ? 's' : ''} trouvé{preview.length > 1 ? 's' : ''} commençant par &quot;{prefix}&quot; :
+            </div>
+            {preview.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#8b8fa8', fontSize: 13, background: '#152438', borderRadius: 8 }}>
+                Aucun formulaire ne correspond à ce préfixe.
+              </div>
+            ) : (
+              <div style={{ maxHeight: 300, overflowY: 'auto', background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: 8 }}>
+                {preview.map((f, i) => (
+                  <div key={f.id} style={{ padding: '8px 10px', borderBottom: i < preview.length - 1 ? '1px solid #2d4a6b' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: '#e4e7eb' }}>{f.name}</span>
+                    <span style={{ fontSize: 11, color: '#8b8fa8' }}>{f.fieldsCount} champ{f.fieldsCount > 1 ? 's' : ''}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'space-between' }}>
+              <button onClick={() => setStep('config')} style={{ background: '#152438', border: '1px solid #2d4a6b', color: '#8b8fa8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>← Modifier</button>
+              <button
+                onClick={runImport}
+                disabled={preview.length === 0}
+                style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: preview.length === 0 ? 0.5 : 1 }}
+              >
+                Importer les {preview.length} formulaire{preview.length > 1 ? 's' : ''}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'importing' && (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <Loader2 size={32} style={{ color: '#f59e0b', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+            <div style={{ fontSize: 14, color: '#e4e7eb', fontWeight: 600, marginBottom: 4 }}>Import en cours…</div>
+            <div style={{ fontSize: 12, color: '#8b8fa8' }}>Récupération des formulaires et création dans Supabase. Peut prendre 20-60 secondes.</div>
+          </div>
+        )}
+
+        {step === 'done' && (
+          <>
+            <div style={{ padding: 16, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e', marginBottom: 8 }}>✅ Import terminé !</div>
+              <div style={{ fontSize: 12, color: '#e4e7eb', display: 'flex', gap: 12 }}>
+                <span><strong>{created}</strong> créés</span>
+                <span><strong>{updated}</strong> mis à jour</span>
+                {errors > 0 && <span style={{ color: '#ef4444' }}><strong>{errors}</strong> erreurs</span>}
+              </div>
+            </div>
+
+            <div style={{ maxHeight: 300, overflowY: 'auto', background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: 8 }}>
+              {results.map((r, i) => (
+                <div key={i} style={{ padding: '8px 10px', borderBottom: i < results.length - 1 ? '1px solid #2d4a6b' : 'none', fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#e4e7eb' }}>{r.name}</span>
+                    <span style={{
+                      color: r.status === 'error' ? '#ef4444' : r.status === 'created' ? '#22c55e' : '#06b6d4',
+                      fontWeight: 600,
+                      fontSize: 11,
+                    }}>
+                      {r.status === 'created' && `✅ Créé (${r.fieldsCount} champs)`}
+                      {r.status === 'updated' && `🔄 Mis à jour (${r.fieldsCount} champs)`}
+                      {r.status === 'error' && `❌ Erreur`}
+                    </span>
+                  </div>
+                  {r.error && <div style={{ color: '#ef4444', fontSize: 10, marginTop: 4 }}>{r.error}</div>}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16, padding: 10, background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, fontSize: 11, color: '#8b8fa8' }}>
+              💡 Les formulaires importés sont en <strong>brouillon</strong>. Ouvre-les pour vérifier les champs et publier.
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button onClick={onDone} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit' }}>Fermer</button>
+            </div>
+          </>
+        )}
+      </div>
+      <style jsx global>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </>
   )
 }
 
