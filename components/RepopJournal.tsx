@@ -155,7 +155,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0', color: '#555870', fontSize: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0', color: '#7c98b6', fontSize: 14 }}>
         <RefreshCw size={16} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
         Chargement des repops HubSpot…
       </div>
@@ -185,15 +185,15 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
               </span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: '#555870', marginTop: 3 }}>
+          <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 3 }}>
             Prospects ayant resoumis un formulaire après la date de leur RDV ou sans transaction
           </div>
         </div>
         <button
           onClick={fetchRepops}
           style={{
-            background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8,
-            padding: '6px 10px', color: '#8b8fa8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            background: '#eaf0f6', border: '1px solid #cbd6e2', borderRadius: 8,
+            padding: '6px 10px', color: '#516f90', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
           }}
         >
           <RefreshCw size={13} />
@@ -204,7 +204,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {totalCount > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           {([
-            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#8b8fa8', activeColor: '#e8eaf0' },
+            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#e8eaf0' },
             { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
             { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
             { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
@@ -215,10 +215,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 key={f.key}
                 onClick={() => setActiveFilter(f.key)}
                 style={{
-                  background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.15)` : '#152438',
-                  border: `1px solid ${isActive ? `rgba(${hexToRgb(f.activeColor)},0.4)` : '#2d4a6b'}`,
+                  background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.15)` : '#ffffff',
+                  border: `1px solid ${isActive ? `rgba(${hexToRgb(f.activeColor)},0.4)` : '#cbd6e2'}`,
                   borderRadius: 8, padding: '5px 12px',
-                  color: isActive ? f.activeColor : '#8b8fa8',
+                  color: isActive ? f.activeColor : '#516f90',
                   fontSize: 12, fontWeight: isActive ? 700 : 400,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                 }}
@@ -226,9 +226,9 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 {f.label}
                 {f.count > 0 && (
                   <span style={{
-                    background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.25)` : '#243d5c',
+                    background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.25)` : '#eaf0f6',
                     borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700,
-                    color: isActive ? f.activeColor : '#555870',
+                    color: isActive ? f.activeColor : '#7c98b6',
                   }}>
                     {f.count}
                   </span>
@@ -244,7 +244,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         <div style={{
           display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center',
         }}>
-          <FilterIcon size={13} style={{ color: '#555870' }} />
+          <FilterIcon size={13} style={{ color: '#7c98b6' }} />
           <select
             value={filterClasse}
             onChange={e => setFilterClasse(e.target.value)}
@@ -266,10 +266,10 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             <button
               onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
               style={{
-                background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#152438',
-                border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#2d4a6b'}`,
+                background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#ffffff',
+                border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#cbd6e2'}`,
                 borderRadius: 8, padding: '5px 12px',
-                color: orphanCandidatureOnly ? '#a855f7' : '#8b8fa8',
+                color: orphanCandidatureOnly ? '#a855f7' : '#516f90',
                 fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
                 cursor: 'pointer',
               }}
@@ -278,7 +278,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             </button>
           )}
           {(filterClasse || filterZone || orphanCandidatureOnly) && (
-            <span style={{ fontSize: 11, color: '#555870' }}>
+            <span style={{ fontSize: 11, color: '#7c98b6' }}>
               {filtered.length + (showOrphans ? filteredOrphans.length : 0)} résultat{(filtered.length + (showOrphans ? filteredOrphans.length : 0)) !== 1 ? 's' : ''}
             </span>
           )}
@@ -289,13 +289,13 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {totalCount === 0 && (
         <div style={{
           textAlign: 'center', padding: '48px 24px',
-          background: '#152438', borderRadius: 14, border: '1px solid #2d4a6b',
+          background: '#ffffff', borderRadius: 14, border: '1px solid #cbd6e2',
         }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🔁</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0', marginBottom: 8 }}>
             Aucune repop détectée
           </div>
-          <div style={{ fontSize: 13, color: '#555870', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: '#7c98b6', lineHeight: 1.6 }}>
             Aucun prospect en &ldquo;À replanifier&rdquo; ou &ldquo;Délai de réflexion&rdquo;<br />
             n&apos;a resoumis de formulaire après son RDV.
           </div>
@@ -349,7 +349,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
 }) {
   return (
     <div style={{
-      background: '#152438',
+      background: '#ffffff',
       border: '1px solid rgba(204,172,113,0.2)',
       borderLeft: '3px solid #ccac71',
       borderRadius: 12,
@@ -452,12 +452,12 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           </a>
         )}
         {entry.prospect_email && (
-          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+          <span style={{ fontSize: 12, color: '#516f90' }}>
             {entry.prospect_email}
           </span>
         )}
         {showCloser && (entry.commercial_name || entry.telepro_name) && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555870' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#7c98b6' }}>
             <User size={11} />
             {[entry.telepro_name, entry.commercial_name].filter(Boolean).join(' → ')}
           </span>
@@ -472,17 +472,17 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
         {/* Date du RDV */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#555870', flexShrink: 0,
+            width: 8, height: 8, borderRadius: '50%', background: '#7c98b6', flexShrink: 0,
           }} />
-          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+          <span style={{ fontSize: 12, color: '#516f90' }}>
             <strong style={{ color: '#c8cadb' }}>RDV le {entry.rdv_date_label}</strong>
           </span>
         </div>
 
         {/* Flèche */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#2d4a6b', marginLeft: 0 }} />
-          <ArrowRight size={10} style={{ color: '#555870' }} />
+          <div style={{ width: 2, height: 12, background: '#cbd6e2', marginLeft: 0 }} />
+          <ArrowRight size={10} style={{ color: '#7c98b6' }} />
         </div>
 
         {/* Formulaire repop */}
@@ -509,7 +509,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
 }) {
   return (
     <div style={{
-      background: '#152438',
+      background: '#ffffff',
       border: '1px solid rgba(168,85,247,0.2)',
       borderLeft: '3px solid #a855f7',
       borderRadius: 12,
@@ -604,7 +604,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
           </a>
         )}
         {entry.prospect_email && (
-          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+          <span style={{ fontSize: 12, color: '#516f90' }}>
             {entry.prospect_email}
           </span>
         )}
@@ -618,9 +618,9 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
         {/* 1er formulaire */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#555870', flexShrink: 0,
+            width: 8, height: 8, borderRadius: '50%', background: '#7c98b6', flexShrink: 0,
           }} />
-          <span style={{ fontSize: 12, color: '#8b8fa8' }}>
+          <span style={{ fontSize: 12, color: '#516f90' }}>
             <strong style={{ color: '#c8cadb' }}>{entry.first_form_date_label}</strong>
             {' — '}
             {entry.first_form_name || 'Formulaire soumis'}
@@ -629,8 +629,8 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
 
         {/* Flèche */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#2d4a6b', marginLeft: 0 }} />
-          <ArrowRight size={10} style={{ color: '#555870' }} />
+          <div style={{ width: 2, height: 12, background: '#cbd6e2', marginLeft: 0 }} />
+          <ArrowRight size={10} style={{ color: '#7c98b6' }} />
         </div>
 
         {/* Nouveau formulaire */}
@@ -650,8 +650,8 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
 }
 
 const subFilterSelectStyle: React.CSSProperties = {
-  background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8,
-  padding: '5px 10px', color: '#8b8fa8', fontSize: 12, cursor: 'pointer',
+  background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
+  padding: '5px 10px', color: '#516f90', fontSize: 12, cursor: 'pointer',
   appearance: 'auto' as const,
 }
 

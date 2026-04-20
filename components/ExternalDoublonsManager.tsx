@@ -52,7 +52,7 @@ const LEAD_STATUS: Record<string, { label: string; color: string }> = {
   IN_PROGRESS:          { label: 'En cours',          color: '#ccac71' },
   OPEN_DEAL:            { label: 'Deal ouvert',       color: '#22c55e' },
   UNQUALIFIED:          { label: 'Non qualifié',      color: '#ef4444' },
-  ATTEMPTED_TO_CONTACT: { label: 'Tentative contact', color: '#8b8fa8' },
+  ATTEMPTED_TO_CONTACT: { label: 'Tentative contact', color: '#516f90' },
   CONNECTED:            { label: 'Connecté',          color: '#22c55e' },
   BAD_TIMING:           { label: 'Mauvais timing',    color: '#ccac71' },
 }
@@ -60,7 +60,7 @@ const LEAD_STATUS: Record<string, { label: string; color: string }> = {
 const DEAL_STAGES: Record<string, { label: string; color: string }> = {
   '3165428979': { label: 'À replanifier',         color: '#ccac71' },
   '3165428980': { label: 'RDV pris',              color: '#ccac71' },
-  '3165428981': { label: 'Délai de réflexion',    color: '#8b8fa8' },
+  '3165428981': { label: 'Délai de réflexion',    color: '#516f90' },
   '3165428982': { label: 'Préinscription',        color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#22c55e' },
   '3165428984': { label: 'Inscription confirmée', color: '#22c55e' },
@@ -68,14 +68,14 @@ const DEAL_STAGES: Record<string, { label: string; color: string }> = {
 }
 
 const LIFECYCLE_STAGES: Record<string, { label: string; color: string }> = {
-  subscriber:              { label: 'Abonné',      color: '#8b8fa8' },
+  subscriber:              { label: 'Abonné',      color: '#516f90' },
   lead:                    { label: 'Lead',         color: '#ccac71' },
   marketingqualifiedlead:  { label: 'Lead MQL',    color: '#ccac71' },
   salesqualifiedlead:      { label: 'Lead SQL',    color: '#ccac71' },
   opportunity:             { label: 'Opportunité', color: '#ccac71' },
   customer:                { label: 'Client',      color: '#22c55e' },
   evangelist:              { label: 'Évangéliste', color: '#22c55e' },
-  other:                   { label: 'Autre',       color: '#555870' },
+  other:                   { label: 'Autre',       color: '#7c98b6' },
 }
 
 const REASON_CONFIG = {
@@ -165,8 +165,8 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        width: '100%', maxWidth: 720, background: '#1d2f4b',
-        borderLeft: '1px solid #2d4a6b', height: '100%', overflow: 'auto',
+        width: '100%', maxWidth: 720, background: '#ffffff',
+        borderLeft: '1px solid #cbd6e2', height: '100%', overflow: 'auto',
         display: 'flex', flexDirection: 'column',
         animation: 'slideIn 0.2s ease-out',
       }}>
@@ -189,7 +189,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
                 Benjamin Delacour
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#555870' }}>
+            <div style={{ fontSize: 11, color: '#7c98b6' }}>
               Contacts en doublon entre l&apos;équipe interne et l&apos;équipe externe
             </div>
           </div>
@@ -197,13 +197,13 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
             <button
               onClick={load}
               disabled={loading}
-              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'default' : 'pointer', color: '#8b8fa8' }}
+              style={{ background: '#eaf0f6', border: '1px solid #cbd6e2', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: loading ? 'default' : 'pointer', color: '#516f90' }}
             >
               <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
             <button
               onClick={onClose}
-              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}
+              style={{ background: '#eaf0f6', border: '1px solid #cbd6e2', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#516f90' }}
             >
               <X size={14} />
             </button>
@@ -217,7 +217,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
             <div style={{
               background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)',
               borderRadius: 10, padding: '12px 14px', marginBottom: 16,
-              fontSize: 12, color: '#8b8fa8', lineHeight: 1.6,
+              fontSize: 12, color: '#516f90', lineHeight: 1.6,
               display: 'flex', gap: 10, alignItems: 'flex-start',
             }}>
               <AlertTriangle size={14} style={{ color: '#f59e0b', marginTop: 1, flexShrink: 0 }} />
@@ -232,7 +232,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
           {!loading && !error && groups.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
               {([
-                { key: 'all',        label: `Tous (${groups.length})`,             color: '#8b8fa8', bg: '#243d5c' },
+                { key: 'all',        label: `Tous (${groups.length})`,             color: '#516f90', bg: '#eaf0f6' },
                 { key: 'same_phone', label: `Tél. (${countByReason.same_phone})`,  color: REASON_CONFIG.same_phone.color, bg: REASON_CONFIG.same_phone.bg },
                 { key: 'same_email', label: `Email (${countByReason.same_email})`, color: REASON_CONFIG.same_email.color, bg: REASON_CONFIG.same_email.bg },
                 { key: 'same_name',  label: `Nom (${countByReason.same_name})`,    color: REASON_CONFIG.same_name.color,  bg: REASON_CONFIG.same_name.bg },
@@ -241,10 +241,10 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
                   key={f.key}
                   onClick={() => setFilter(f.key)}
                   style={{
-                    background: filter === f.key ? f.bg : '#152438',
-                    border: `1px solid ${filter === f.key ? f.color + '60' : '#2d4a6b'}`,
+                    background: filter === f.key ? f.bg : '#ffffff',
+                    border: `1px solid ${filter === f.key ? f.color + '60' : '#cbd6e2'}`,
                     borderRadius: 20, padding: '4px 12px',
-                    color: filter === f.key ? f.color : '#555870',
+                    color: filter === f.key ? f.color : '#7c98b6',
                     fontSize: 11, fontWeight: 700, cursor: 'pointer',
                   }}
                 >
@@ -256,7 +256,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
 
           {/* États */}
           {loading && (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#555870' }}>
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#7c98b6' }}>
               <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: 12, display: 'block', margin: '0 auto 12px' }} />
               Scan HubSpot en cours (interne + externe), merci de patienter…
             </div>
@@ -269,7 +269,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
           )}
 
           {!loading && !error && groups.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#555870' }}>
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#7c98b6' }}>
               <Search size={24} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', opacity: 0.4 }} />
               <div style={{ fontWeight: 600, marginBottom: 4 }}>Aucun doublon détecté</div>
               <div style={{ fontSize: 12 }}>Pas de contacts en commun entre l&apos;équipe interne et l&apos;équipe externe.</div>
@@ -277,7 +277,7 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
           )}
 
           {!loading && !error && filtered.length === 0 && groups.length > 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#555870', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#7c98b6', fontSize: 13 }}>
               Aucun doublon dans cette catégorie.
             </div>
           )}
@@ -302,13 +302,13 @@ export default function ExternalDoublonsManager({ onClose }: { onClose: () => vo
         {/* Stats footer */}
         {!loading && stats && (
           <div style={{
-            padding: '12px 20px', borderTop: '1px solid #2d4a6b', flexShrink: 0,
-            display: 'flex', gap: 20, fontSize: 11, color: '#555870',
+            padding: '12px 20px', borderTop: '1px solid #cbd6e2', flexShrink: 0,
+            display: 'flex', gap: 20, fontSize: 11, color: '#7c98b6',
           }}>
             <span>🏢 <span style={{ color: '#4cabdb', fontWeight: 700 }}>{stats.internalContacts}</span> internes</span>
             <span>🌐 <span style={{ color: '#f59e0b', fontWeight: 700 }}>{stats.externalContacts}</span> externes</span>
             <span><span style={{ color: groups.length > 0 ? '#ef4444' : '#22c55e', fontWeight: 700 }}>{stats.totalGroups}</span> doublons</span>
-            <span><span style={{ color: '#555870', fontWeight: 700 }}>{stats.ignoredCount}</span> ignorés</span>
+            <span><span style={{ color: '#7c98b6', fontWeight: 700 }}>{stats.ignoredCount}</span> ignorés</span>
           </div>
         )}
       </div>
@@ -345,7 +345,7 @@ function ExternalDuplicateCard({
 
   return (
     <div style={{
-      background: '#152438',
+      background: '#ffffff',
       border: '1px solid rgba(245,158,11,0.3)',
       borderRadius: 12, padding: '14px',
     }}>
@@ -378,7 +378,7 @@ function ExternalDuplicateCard({
               onClick={() => !confirmMerge && setPrimaryId(contact.id)}
               style={{
                 background: isPrimary ? 'rgba(34,197,94,0.06)' : '#13151f',
-                border: `1px solid ${isPrimary ? 'rgba(34,197,94,0.3)' : '#2d4a6b'}`,
+                border: `1px solid ${isPrimary ? 'rgba(34,197,94,0.3)' : '#cbd6e2'}`,
                 borderRadius: 10, padding: '11px',
                 cursor: confirmMerge ? 'default' : 'pointer',
                 transition: 'border-color 0.15s',
@@ -388,10 +388,10 @@ function ExternalDuplicateCard({
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
                 <div style={{
                   width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
-                  border: `2px solid ${isPrimary ? '#22c55e' : '#555870'}`,
+                  border: `2px solid ${isPrimary ? '#22c55e' : '#7c98b6'}`,
                   background: isPrimary ? '#22c55e' : 'transparent',
                 }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: isPrimary ? '#22c55e' : '#555870', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: isPrimary ? '#22c55e' : '#7c98b6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {isPrimary ? 'Conserver' : 'Fusionner dans →'}
                 </span>
               </div>
@@ -402,7 +402,7 @@ function ExternalDuplicateCard({
               </div>
 
               {/* Email */}
-              <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 11, color: '#516f90', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {contact.properties.email || '—'}
               </div>
 
@@ -412,7 +412,7 @@ function ExternalDuplicateCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.phone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#516f90', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.phone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
@@ -421,13 +421,13 @@ function ExternalDuplicateCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.mobilephone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#8b8fa8', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#ccac71' : '#516f90', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.mobilephone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
                 })()}
                 {!contact.properties.phone && !contact.properties.mobilephone && (
-                  <div style={{ fontSize: 11, color: '#555870' }}>—</div>
+                  <div style={{ fontSize: 11, color: '#7c98b6' }}>—</div>
                 )}
               </div>
 
@@ -439,22 +439,22 @@ function ExternalDuplicateCard({
                 return (
                   <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {lastContacted ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#516f90' }}>
                         <span>📞</span>
                         <span>Dern. activité : <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{new Date(lastContacted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
                       </div>
                     ) : (
-                      <div style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>Jamais contacté</div>
+                      <div style={{ fontSize: 10, color: '#7c98b6', fontStyle: 'italic' }}>Jamais contacté</div>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#516f90' }}>
                       <span>📋</span>
                       {deals && deals !== '0'
                         ? <span><span style={{ color: '#ccac71', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
-                        : <span style={{ color: '#555870', fontStyle: 'italic' }}>Aucun deal</span>
+                        : <span style={{ color: '#7c98b6', fontStyle: 'italic' }}>Aucun deal</span>
                       }
                     </div>
                     {created && (
-                      <div style={{ fontSize: 10, color: '#555870' }}>
+                      <div style={{ fontSize: 10, color: '#7c98b6' }}>
                         Créé le {new Date(created).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                     )}
@@ -463,9 +463,9 @@ function ExternalDuplicateCard({
                       const rawLs = contact.properties.hs_lead_status
                       const rawLc = contact.properties.lifecyclestage
                       const badge = rawLs
-                        ? (LEAD_STATUS[rawLs] ?? { label: rawLs, color: '#8b8fa8' })
+                        ? (LEAD_STATUS[rawLs] ?? { label: rawLs, color: '#516f90' })
                         : rawLc
-                          ? (LIFECYCLE_STAGES[rawLc] ?? { label: rawLc, color: '#8b8fa8' })
+                          ? (LIFECYCLE_STAGES[rawLc] ?? { label: rawLc, color: '#516f90' })
                           : null
                       return badge ? (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${badge.color}18`, color: badge.color, border: `1px solid ${badge.color}40`, marginTop: 2, alignSelf: 'flex-start' }}>
@@ -478,18 +478,18 @@ function ExternalDuplicateCard({
                     {contact.dealStage ? (() => {
                       const ds = DEAL_STAGES[contact.dealStage!]
                       return ds ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8b8fa8' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#516f90' }}>
                           <span>🏷️</span>
                           <span style={{ color: ds.color, fontWeight: 700 }}>{ds.label}</span>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#7c98b6' }}>
                           <span>🏷️</span>
                           <span>{contact.dealStage}</span>
                         </div>
                       )
                     })() : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555870', fontStyle: 'italic' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#7c98b6', fontStyle: 'italic' }}>
                         <span>🏷️</span>
                         <span>Aucun deal pipeline</span>
                       </div>
@@ -509,7 +509,7 @@ function ExternalDuplicateCard({
                   {isExterne ? '🌐 Externe' : '🏢 Interne'}
                 </span>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: contact.ownerColor, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color: '#555870' }}>{contact.ownerName}</span>
+                <span style={{ fontSize: 10, color: '#7c98b6' }}>{contact.ownerName}</span>
               </div>
 
               {/* Lien HubSpot */}
@@ -540,10 +540,10 @@ function ExternalDuplicateCard({
               onClick={() => onMerge(group, primaryId)}
               disabled={merging}
               style={{
-                flex: 1, background: merging ? '#243d5c' : 'rgba(239,68,68,0.15)',
+                flex: 1, background: merging ? '#eaf0f6' : 'rgba(239,68,68,0.15)',
                 border: '1px solid rgba(239,68,68,0.4)',
                 borderRadius: 8, padding: '9px', fontSize: 12, fontWeight: 700,
-                color: merging ? '#555870' : '#ef4444', cursor: merging ? 'default' : 'pointer',
+                color: merging ? '#7c98b6' : '#ef4444', cursor: merging ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
             >
@@ -552,7 +552,7 @@ function ExternalDuplicateCard({
             </button>
             <button
               onClick={() => setConfirmMerge(false)}
-              style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '9px 14px', fontSize: 12, color: '#8b8fa8', cursor: 'pointer' }}
+              style={{ background: '#eaf0f6', border: '1px solid #cbd6e2', borderRadius: 8, padding: '9px 14px', fontSize: 12, color: '#516f90', cursor: 'pointer' }}
             >
               Annuler
             </button>
@@ -576,9 +576,9 @@ function ExternalDuplicateCard({
             onClick={() => onIgnore(group)}
             disabled={ignoring}
             style={{
-              background: '#243d5c', border: '1px solid #2d4a6b',
+              background: '#eaf0f6', border: '1px solid #cbd6e2',
               borderRadius: 8, padding: '9px 14px', fontSize: 12, fontWeight: 600,
-              color: ignoring ? '#555870' : '#8b8fa8', cursor: ignoring ? 'default' : 'pointer',
+              color: ignoring ? '#7c98b6' : '#516f90', cursor: ignoring ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 5,
             }}
           >

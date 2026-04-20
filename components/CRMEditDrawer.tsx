@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, PhoneCall, MapPin, CheckCircle, ChevronDown } from 'lucide-react'
 
 // Constantes
-const NAVY_BORDER = '#2d4a6b'
+const NAVY_BORDER = '#cbd6e2'
 const GOLD = '#ccac71'
 const BLUE = '#4cabdb'
 
@@ -16,7 +16,7 @@ const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
 }
 
 const FORMATIONS: { value: string; label: string }[] = [
@@ -205,7 +205,7 @@ function EditField({
           </button>
           <button
             onClick={() => { setEditing(false); setVal(value) }}
-            style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#8b8fa8', fontSize: 12, cursor: 'pointer' }}
+            style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#516f90', fontSize: 12, cursor: 'pointer' }}
           >
             <X size={12} />
           </button>
@@ -369,7 +369,7 @@ function SelectField({
           border: `1px solid ${open ? BLUE : NAVY_BORDER}`,
           borderRadius: 6,
           padding: '7px 10px',
-          color: colorMap?.[value] || (value ? '#c8cad8' : '#555870'),
+          color: colorMap?.[value] || (value ? '#c8cad8' : '#7c98b6'),
           fontSize: 13,
           fontFamily: 'inherit',
           cursor: 'pointer',
@@ -489,7 +489,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
       }}>
         <CheckCircle size={32} color="#22c55e" style={{ marginBottom: 8 }} />
         <div style={{ color: '#22c55e', fontSize: 14, fontWeight: 700 }}>RDV confirmé !</div>
-        <div style={{ color: '#8b8fa8', fontSize: 12, marginTop: 4 }}>
+        <div style={{ color: '#516f90', fontSize: 12, marginTop: 4 }}>
           {selectedSlot && new Date(selectedSlot.start).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           {' à '}
           {selectedSlot && new Date(selectedSlot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
@@ -503,13 +503,13 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
       {/* ── Étape 1 : Calendrier semaine ─────────────────────────────────── */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: 'none', border: 'none', color: '#8b8fa8', cursor: 'pointer', padding: 4 }}>
+          <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: 'none', border: 'none', color: '#516f90', cursor: 'pointer', padding: 4 }}>
             <ChevronLeft size={16} />
           </button>
-          <span style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>
             {weekDays[0].toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {weekDays[6].toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
           </span>
-          <button onClick={() => setWeekOffset(w => w + 1)} style={{ background: 'none', border: 'none', color: '#8b8fa8', cursor: 'pointer', padding: 4 }}>
+          <button onClick={() => setWeekOffset(w => w + 1)} style={{ background: 'none', border: 'none', color: '#516f90', cursor: 'pointer', padding: 4 }}>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -554,7 +554,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
             Créneaux disponibles
           </div>
           {slotsLoading ? (
-            <div style={{ color: '#555870', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
+            <div style={{ color: '#7c98b6', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
           ) : slots.length === 0 ? (
             <div style={{ color: '#ef4444', fontSize: 12, padding: '8px 0' }}>Aucun créneau disponible ce jour</div>
           ) : (
@@ -663,7 +663,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                       flex: 1, padding: '6px 8px',
                       background: active ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
                       border: `1px solid ${active ? GOLD : NAVY_BORDER}`,
-                      borderRadius: 6, color: active ? GOLD : '#8b8fa8',
+                      borderRadius: 6, color: active ? GOLD : '#516f90',
                       fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                     }}
@@ -705,7 +705,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
               width: '100%', padding: '10px',
               background: canSubmit ? `linear-gradient(135deg, ${GOLD}, #b8963f)` : 'rgba(255,255,255,0.05)',
               border: 'none', borderRadius: 8,
-              color: canSubmit ? '#0d1e34' : '#555870',
+              color: canSubmit ? '#0d1e34' : '#7c98b6',
               fontSize: 13, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default',
               fontFamily: 'inherit',
               opacity: submitting ? 0.6 : 1,
@@ -852,7 +852,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             </a>
             <button
               onClick={onClose}
-              style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}
+              style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#516f90' }}
             >
               <X size={14} />
             </button>
@@ -888,7 +888,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
                   </span>
                 )}
                 {deal!.closer && (
-                  <span style={{ fontSize: 11, color: '#8b8fa8' }}>
+                  <span style={{ fontSize: 11, color: '#516f90' }}>
                     Closer : <span style={{ color: '#c8cad8', fontWeight: 600 }}>{deal!.closer.name}</span>
                   </span>
                 )}
@@ -992,7 +992,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             {/* Date de création (read-only) */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date de création</div>
-              <div style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#555870', fontSize: 13 }}>
+              <div style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#7c98b6', fontSize: 13 }}>
                 {(deal?.createdate ?? c.contact_createdate)
                   ? new Date((deal?.createdate ?? c.contact_createdate)!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
@@ -1012,7 +1012,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
                   <div>
                     <div style={{ color: '#c8cad8' }}>{c.recent_conversion_event}</div>
                     {c.recent_conversion_date && (
-                      <div style={{ color: '#555870', fontSize: 11, marginTop: 2 }}>
+                      <div style={{ color: '#7c98b6', fontSize: 11, marginTop: 2 }}>
                         {new Date(c.recent_conversion_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     )}

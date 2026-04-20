@@ -8,11 +8,11 @@ import CRMEditDrawer from './CRMEditDrawer'
 // ── Constantes ──────────────────────────────────────────────────────────────
 const NAVY      = '#0d1e34'
 const NAVY_BG   = '#1a2f4a'
-const NAVY_BDR  = '#2d4a6b'
+const NAVY_BDR  = '#cbd6e2'
 const GOLD      = '#ccac71'
 const BLUE      = '#4cabdb'
 const TEXT_DIM  = '#3a5070'
-const TEXT_MID  = '#8b8fa8'
+const TEXT_MID  = '#516f90'
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444' },
@@ -21,7 +21,7 @@ const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
 }
 
 interface RdvUser {

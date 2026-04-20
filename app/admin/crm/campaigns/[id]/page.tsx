@@ -43,7 +43,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
         <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#fff;border-radius:12px;overflow:hidden;">
           <tr>
             <td style="padding:32px;">
-              <h1 style="margin:0 0 16px;color:#1d2f4b;font-size:24px;">Bonjour {{prenom}} 👋</h1>
+              <h1 style="margin:0 0 16px;color:#ffffff;font-size:24px;">Bonjour {{prenom}} 👋</h1>
               <p style="margin:0 0 16px;line-height:1.6;font-size:15px;">
                 Votre message ici. Vous pouvez utiliser les variables suivantes :
                 <strong>{{prenom}}</strong>, <strong>{{nom}}</strong>, <strong>{{email}}</strong>.
@@ -155,7 +155,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading || !campaign) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0b1624', color: '#8b8fa8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#516f90', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         Chargement…
       </div>
     )
@@ -164,14 +164,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const statusMeta = STATUS_META[campaign.status] || STATUS_META.draft
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e4e7eb', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#33475b', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#1d2f4b', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#8b8fa8', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href="/admin/crm/campaigns" style={{ color: '#516f90', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <ChevronLeft size={14} /> Campagnes
           </a>
-          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <Mail size={16} style={{ color: '#ccac71', flexShrink: 0 }} />
             <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</span>
@@ -187,7 +187,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <button
             onClick={save}
             disabled={!dirty || saving}
-            style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 14px', color: '#e4e7eb', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}
+            style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 14px', color: '#33475b', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}
           >
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
@@ -196,7 +196,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', background: '#152438', borderBottom: '1px solid #2d4a6b', display: 'flex', gap: 4 }}>
+      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', gap: 4 }}>
         <Tab active={tab === 'content'} onClick={() => setTab('content')} icon={FileText} label="Contenu" />
         <Tab active={tab === 'preview'} onClick={() => setTab('preview')} icon={Eye} label="Prévisualisation" />
         <Tab active={tab === 'recipients'} onClick={() => setTab('recipients')} icon={Users} label="Destinataires" />
@@ -225,12 +225,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Brouillon',  color: '#8b8fa8', bg: '#1d2f4b' },
+  draft:     { label: 'Brouillon',  color: '#516f90', bg: '#ffffff' },
   scheduled: { label: 'Programmée', color: '#06b6d4', bg: 'rgba(6,182,212,0.15)' },
   sending:   { label: 'Envoi…',     color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   sent:      { label: 'Envoyée',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
   failed:    { label: 'Échec',      color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  archived:  { label: 'Archivée',   color: '#8b8fa8', bg: 'rgba(139,143,168,0.15)' },
+  archived:  { label: 'Archivée',   color: '#516f90', bg: 'rgba(139,143,168,0.15)' },
 }
 
 // ─── Tab : Contenu ───────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           </Field>
           <Field label="Sujet de l'email">
             <input value={campaign.subject} onChange={e => update({ subject: e.target.value })} style={inputStyle} />
-            <div style={{ fontSize: 11, color: '#8b8fa8', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>
               Variables : <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>
             </div>
           </Field>
@@ -284,7 +284,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Contenu HTML" icon={Code}>
-          <div style={{ fontSize: 11, color: '#8b8fa8', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: '#516f90', marginBottom: 8 }}>
             L&apos;éditeur visuel drag & drop arrive en Phase 4. Pour l&apos;instant, édite le HTML directement.
           </div>
           <textarea
@@ -299,7 +299,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
       {/* Panneau droite */}
       <div>
         <Card title="Envoi de test" icon={TestTube2}>
-          <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: '#516f90', marginBottom: 8 }}>
             Envoie-toi un email de test avant d&apos;envoyer à tes prospects.
           </div>
           <input
@@ -324,7 +324,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Envoi réel" icon={Send}>
-          <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: '#516f90', marginBottom: 12 }}>
             Tu pourras envoyer aux destinataires une fois que :
           </div>
           <Checklist items={[
@@ -334,14 +334,14 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           ]} />
           <button
             disabled
-            style={{ marginTop: 12, width: '100%', background: '#152438', border: '1px solid #2d4a6b', color: '#8b8fa8', padding: '10px', borderRadius: 8, cursor: 'not-allowed', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            style={{ marginTop: 12, width: '100%', background: '#ffffff', border: '1px solid #cbd6e2', color: '#516f90', padding: '10px', borderRadius: 8, cursor: 'not-allowed', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
           >
             <Send size={13} /> Envoyer (bientôt)
           </button>
         </Card>
 
         <Card title="Aide" icon={AlertCircle}>
-          <div style={{ fontSize: 12, color: '#8b8fa8', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: '#516f90', lineHeight: 1.5 }}>
             💡 <strong>Variables disponibles :</strong><br />
             <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
             <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code> — nom<br />
@@ -378,9 +378,9 @@ function PreviewTab({ html, subject, senderName, senderEmail }: { html: string; 
 function RecipientsTab({ campaign }: { campaign: Campaign }) {
   return (
     <Card title="Destinataires" icon={Users}>
-      <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8' }}>
-        <Users size={48} style={{ color: '#2d4a6b', margin: '0 auto 16px' }} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#e4e7eb', marginBottom: 6 }}>
+      <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>
+        <Users size={48} style={{ color: '#cbd6e2', margin: '0 auto 16px' }} />
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#33475b', marginBottom: 6 }}>
           Sélection des destinataires en Phase 5
         </div>
         <div style={{ fontSize: 12, maxWidth: 400, margin: '0 auto' }}>
@@ -407,7 +407,7 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
         <BigStat label="Taux de bounce" value={`${bounceRate}%`} color="#ef4444" sub={`${campaign.total_bounces} emails`} />
       </div>
       <Card title="Résumé">
-        <div style={{ fontSize: 13, color: '#8b8fa8', lineHeight: 1.8 }}>
+        <div style={{ fontSize: 13, color: '#516f90', lineHeight: 1.8 }}>
           📅 <strong>Envoi :</strong> {campaign.sent_at ? new Date(campaign.sent_at).toLocaleString('fr-FR') : '–'}<br />
           👥 <strong>Destinataires ciblés :</strong> {campaign.total_recipients}<br />
           ✉️ <strong>Emails envoyés :</strong> {campaign.total_sent}<br />
@@ -423,10 +423,10 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
 
 function BigStat({ label, value, color, sub }: { label: string; value: number | string; color: string; sub?: string }) {
   return (
-    <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 20 }}>
-      <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{label}</div>
+    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20 }}>
+      <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#8b8fa8', marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>{sub}</div>}
     </div>
   )
 }
@@ -441,7 +441,7 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
         border: 'none',
         borderBottom: `2px solid ${active ? '#ccac71' : 'transparent'}`,
         padding: '12px 16px',
-        color: active ? '#ccac71' : '#8b8fa8',
+        color: active ? '#ccac71' : '#516f90',
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
@@ -458,10 +458,10 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
 
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Mail; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         {Icon && <Icon size={14} style={{ color: '#ccac71' }} />}
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#e4e7eb', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#33475b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
       </div>
       {children}
     </div>
@@ -471,7 +471,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Ma
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   )
@@ -481,7 +481,7 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {items.map((it, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: it.done ? '#e4e7eb' : '#8b8fa8' }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: it.done ? '#33475b' : '#516f90' }}>
           {it.done ? <CheckCircle2 size={12} style={{ color: '#22c55e' }} /> : <Clock size={12} />}
           {it.text}
         </div>
@@ -492,11 +492,11 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#0b1624',
-  border: '1px solid #2d4a6b',
+  background: '#f5f8fa',
+  border: '1px solid #cbd6e2',
   borderRadius: 8,
   padding: '8px 12px',
-  color: '#e4e7eb',
+  color: '#33475b',
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',

@@ -85,7 +85,7 @@ export default function InlineEditField(props: Props) {
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        onMouseEnter={e => (e.currentTarget.style.borderBottomColor = '#2d4a6b')}
+        onMouseEnter={e => (e.currentTarget.style.borderBottomColor = '#cbd6e2')}
         onMouseLeave={e => (e.currentTarget.style.borderBottomColor = 'transparent')}
       >
         {displayValue || placeholder}
@@ -95,8 +95,8 @@ export default function InlineEditField(props: Props) {
 
   // Edit mode
   const inputStyle: React.CSSProperties = {
-    background: '#0b1624',
-    border: `1px solid ${saving ? '#ccac71' : '#2d4a6b'}`,
+    background: '#f5f8fa',
+    border: `1px solid ${saving ? '#ccac71' : '#cbd6e2'}`,
     borderRadius: 6,
     padding: '4px 8px',
     color: '#e8eaf0',

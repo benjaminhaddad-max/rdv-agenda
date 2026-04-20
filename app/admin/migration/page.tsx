@@ -58,7 +58,7 @@ const CATEGORIES: Array<{
 
 // ─── Couleurs Statut / Priorité ───────────────────────────────────────────
 const STATUS_META: Record<MigrationTask['status'], { label: string; color: string; bg: string; icon: typeof Circle }> = {
-  todo:        { label: 'À faire',    color: '#8b8fa8', bg: '#1d2f4b', icon: Circle },
+  todo:        { label: 'À faire',    color: '#516f90', bg: '#ffffff', icon: Circle },
   in_progress: { label: 'En cours',   color: '#06b6d4', bg: 'rgba(6,182,212,0.15)',   icon: TrendingUp },
   blocked:     { label: 'Bloqué',     color: '#ef4444', bg: 'rgba(239,68,68,0.15)',   icon: AlertCircle },
   done:        { label: 'Terminé',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)',   icon: CheckCircle2 },
@@ -165,14 +165,14 @@ export default function MigrationPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e4e7eb', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#33475b', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#1d2f4b', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/admin" style={{ color: '#8b8fa8', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href="/admin" style={{ color: '#516f90', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             ← Retour Admin
           </a>
-          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Rocket size={16} style={{ color: '#ccac71' }} />
             <span style={{ fontSize: 14, fontWeight: 600 }}>Migration HubSpot → CRM Natif</span>
@@ -185,20 +185,20 @@ export default function MigrationPage() {
       <div style={{ padding: '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', gap: 16 }}>
           {/* Progress global */}
-          <div style={{ background: 'linear-gradient(135deg, #1d2f4b, #152438)', border: '1px solid #2d4a6b', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'linear-gradient(135deg, #ffffff, #ffffff)', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 12, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Progression globale</span>
+              <span style={{ fontSize: 12, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Progression globale</span>
               <span style={{ fontSize: 22, fontWeight: 700, color: '#ccac71' }}>{progressPct}%</span>
             </div>
-            <div style={{ height: 10, background: '#0b1624', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ height: 10, background: '#f5f8fa', borderRadius: 999, overflow: 'hidden' }}>
               <div style={{ width: `${progressPct}%`, height: '100%', background: 'linear-gradient(90deg, #06b6d4, #22c55e)', transition: 'width .4s ease' }} />
             </div>
-            <div style={{ marginTop: 10, fontSize: 11, color: '#8b8fa8' }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: '#516f90' }}>
               {stats?.done || 0} / {stats?.total || 0} tâches terminées
             </div>
           </div>
 
-          <StatCard label="À faire"    value={stats?.todo || 0}         color="#8b8fa8" icon={Circle} />
+          <StatCard label="À faire"    value={stats?.todo || 0}         color="#516f90" icon={Circle} />
           <StatCard label="En cours"   value={stats?.in_progress || 0}  color="#06b6d4" icon={TrendingUp} />
           <StatCard label="Bloqué"     value={stats?.blocked || 0}      color="#ef4444" icon={AlertCircle} />
           <StatCard label="Terminé"    value={stats?.done || 0}         color="#22c55e" icon={CheckCircle2} />
@@ -220,25 +220,25 @@ export default function MigrationPage() {
                 onClick={() => setCategoryFilter(isActive ? '' : cat.key)}
                 style={{
                   textAlign: 'left',
-                  background: isActive ? `${cat.color}20` : '#152438',
-                  border: `1px solid ${isActive ? cat.color : '#2d4a6b'}`,
+                  background: isActive ? `${cat.color}20` : '#ffffff',
+                  border: `1px solid ${isActive ? cat.color : '#cbd6e2'}`,
                   borderRadius: 10,
                   padding: 12,
                   cursor: 'pointer',
                   transition: 'all .15s',
                   fontFamily: 'inherit',
-                  color: '#e4e7eb',
+                  color: '#33475b',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <Icon size={14} style={{ color: cat.color }} />
                   <span style={{ fontSize: 12, fontWeight: 600 }}>{cat.label}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#8b8fa8' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#516f90' }}>
                   <span>{count.done}/{count.total}</span>
                   <span style={{ color: cat.color, fontWeight: 600 }}>{pct}%</span>
                 </div>
-                <div style={{ height: 4, background: '#0b1624', borderRadius: 999, marginTop: 6, overflow: 'hidden' }}>
+                <div style={{ height: 4, background: '#f5f8fa', borderRadius: 999, marginTop: 6, overflow: 'hidden' }}>
                   <div style={{ width: `${pct}%`, height: '100%', background: cat.color, transition: 'width .3s' }} />
                 </div>
               </button>
@@ -250,13 +250,13 @@ export default function MigrationPage() {
       {/* Filtres */}
       <div style={{ padding: '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 12px', flex: '1 1 260px' }}>
-            <Search size={14} style={{ color: '#8b8fa8' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 12px', flex: '1 1 260px' }}>
+            <Search size={14} style={{ color: '#516f90' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher une tâche…"
-              style={{ flex: 1, background: 'transparent', border: 'none', color: '#e4e7eb', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, background: 'transparent', border: 'none', color: '#33475b', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
             />
           </div>
           <FilterSelect
@@ -271,14 +271,14 @@ export default function MigrationPage() {
             placeholder="Priorité"
             options={Object.entries(PRIORITY_META).map(([k, v]) => ({ value: k, label: v.label }))}
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8b8fa8', cursor: 'pointer', background: showHubspotOnly ? 'rgba(239,68,68,0.15)' : '#152438', border: `1px solid ${showHubspotOnly ? '#ef4444' : '#2d4a6b'}`, borderRadius: 8, padding: '6px 12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#516f90', cursor: 'pointer', background: showHubspotOnly ? 'rgba(239,68,68,0.15)' : '#ffffff', border: `1px solid ${showHubspotOnly ? '#ef4444' : '#cbd6e2'}`, borderRadius: 8, padding: '6px 12px' }}>
             <input type="checkbox" checked={showHubspotOnly} onChange={e => setShowHubspotOnly(e.target.checked)} style={{ accentColor: '#ef4444' }} />
             Dépend de HubSpot
           </label>
           {(categoryFilter || statusFilter || priorityFilter || showHubspotOnly || search) && (
             <button
               onClick={() => { setCategoryFilter(''); setStatusFilter(''); setPriorityFilter(''); setShowHubspotOnly(false); setSearch('') }}
-              style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 12px', color: '#8b8fa8', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
+              style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 12px', color: '#516f90', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
             >
               <X size={12} /> Réinitialiser
             </button>
@@ -291,7 +291,7 @@ export default function MigrationPage() {
             <Plus size={14} /> Nouvelle tâche
           </button>
         </div>
-        <div style={{ marginTop: 10, fontSize: 12, color: '#8b8fa8' }}>
+        <div style={{ marginTop: 10, fontSize: 12, color: '#516f90' }}>
           <Filter size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
           {filteredTasks.length} tâche{filteredTasks.length > 1 ? 's' : ''} affichée{filteredTasks.length > 1 ? 's' : ''}
         </div>
@@ -300,9 +300,9 @@ export default function MigrationPage() {
       {/* Liste des tâches groupée par catégorie */}
       <div style={{ padding: '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8' }}>Chargement…</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>Chargement…</div>
         ) : filteredTasks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8' }}>Aucune tâche ne correspond aux filtres.</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>Aucune tâche ne correspond aux filtres.</div>
         ) : (
           CATEGORIES.map(cat => {
             const catTasks = tasksByCategory[cat.key] || []
@@ -313,7 +313,7 @@ export default function MigrationPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${cat.color}40` }}>
                   <Icon size={18} style={{ color: cat.color }} />
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: cat.color, margin: 0 }}>{cat.label}</h2>
-                  <span style={{ fontSize: 11, color: '#8b8fa8' }}>({catTasks.length})</span>
+                  <span style={{ fontSize: 11, color: '#516f90' }}>({catTasks.length})</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {catTasks.map(task => (
@@ -356,10 +356,10 @@ export default function MigrationPage() {
 
 function StatCard({ label, value, color, icon: Icon }: { label: string; value: number; color: string; icon: typeof Circle }) {
   return (
-    <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 16 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Icon size={14} style={{ color }} />
-        <span style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
+        <span style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
       </div>
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
     </div>
@@ -376,7 +376,7 @@ function FilterSelect({ value, onChange, placeholder, options }: {
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
-      style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 12px', color: '#e4e7eb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+      style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 12px', color: '#33475b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
     >
       <option value="">{placeholder}</option>
       {options.map(opt => (
@@ -407,8 +407,8 @@ function TaskRow({ task, onClick, onStatusChange }: {
     <div
       onClick={onClick}
       style={{
-        background: task.status === 'done' ? 'rgba(34,197,94,0.05)' : '#152438',
-        border: `1px solid ${task.status === 'done' ? 'rgba(34,197,94,0.2)' : '#2d4a6b'}`,
+        background: task.status === 'done' ? 'rgba(34,197,94,0.05)' : '#ffffff',
+        border: `1px solid ${task.status === 'done' ? 'rgba(34,197,94,0.2)' : '#cbd6e2'}`,
         borderRadius: 8,
         padding: '10px 14px',
         cursor: 'pointer',
@@ -430,13 +430,13 @@ function TaskRow({ task, onClick, onStatusChange }: {
         <div style={{
           fontSize: 13,
           fontWeight: 600,
-          color: task.status === 'done' ? '#8b8fa8' : '#e4e7eb',
+          color: task.status === 'done' ? '#516f90' : '#33475b',
           textDecoration: task.status === 'done' ? 'line-through' : 'none',
         }}>
           {task.title}
         </div>
         {task.description && (
-          <div style={{ fontSize: 11, color: '#8b8fa8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {task.description}
           </div>
         )}
@@ -450,7 +450,7 @@ function TaskRow({ task, onClick, onStatusChange }: {
               width: 5,
               height: 5,
               borderRadius: '50%',
-              background: i < COMPLEXITY_META[task.complexity!].dots ? '#ccac71' : '#2d4a6b',
+              background: i < COMPLEXITY_META[task.complexity!].dots ? '#ccac71' : '#cbd6e2',
             }} />
           ))}
         </div>
@@ -490,12 +490,12 @@ function TaskDrawer({ task, onClose, onSave, onDelete }: {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50 }} />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, background: '#1d2f4b',
-        borderLeft: '1px solid #2d4a6b', zIndex: 51, overflowY: 'auto', padding: 24,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, background: '#ffffff',
+        borderLeft: '1px solid #cbd6e2', zIndex: 51, overflowY: 'auto', padding: 24,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#e4e7eb' }}>Détail de la tâche</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b8fa8', cursor: 'pointer', padding: 4 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#33475b' }}>Détail de la tâche</h3>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#516f90', cursor: 'pointer', padding: 4 }}>
             <X size={18} />
           </button>
         </div>
@@ -587,7 +587,7 @@ function TaskDrawer({ task, onClose, onSave, onDelete }: {
           style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
         />
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#e4e7eb', marginTop: 12, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#33475b', marginTop: 12, cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={local.hubspot_dep}
@@ -597,7 +597,7 @@ function TaskDrawer({ task, onClose, onSave, onDelete }: {
           Cette tâche dépend de HubSpot (à migrer)
         </label>
 
-        <div style={{ marginTop: 16, fontSize: 11, color: '#8b8fa8', background: '#0b1624', borderRadius: 8, padding: 12 }}>
+        <div style={{ marginTop: 16, fontSize: 11, color: '#516f90', background: '#f5f8fa', borderRadius: 8, padding: 12 }}>
           <div><Calendar size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Créé le {new Date(task.created_at).toLocaleDateString('fr-FR')}</div>
           {task.started_at && <div style={{ marginTop: 4 }}>Commencé le {new Date(task.started_at).toLocaleDateString('fr-FR')}</div>}
           {task.completed_at && <div style={{ marginTop: 4, color: '#22c55e' }}>Terminé le {new Date(task.completed_at).toLocaleDateString('fr-FR')}</div>}
@@ -641,8 +641,8 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#e4e7eb' }}>Nouvelle tâche</h3>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 24, zIndex: 61 }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#33475b' }}>Nouvelle tâche</h3>
 
         <Label>Titre *</Label>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Ajouter champ custom..." style={inputStyle} autoFocus />
@@ -673,7 +673,7 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         </select>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#152438', border: '1px solid #2d4a6b', color: '#8b8fa8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>Annuler</button>
+          <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #cbd6e2', color: '#516f90', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>Annuler</button>
           <button onClick={submit} disabled={!title.trim() || loading} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#ccac71', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12, fontFamily: 'inherit', opacity: !title.trim() || loading ? 0.5 : 1 }}>
             {loading ? 'Création…' : 'Créer'}
           </button>
@@ -686,7 +686,7 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 14, marginBottom: 4 }}>
+    <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 14, marginBottom: 4 }}>
       {children}
     </div>
   )
@@ -694,11 +694,11 @@ function Label({ children }: { children: React.ReactNode }) {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#0b1624',
-  border: '1px solid #2d4a6b',
+  background: '#f5f8fa',
+  border: '1px solid #cbd6e2',
   borderRadius: 8,
   padding: '8px 12px',
-  color: '#e4e7eb',
+  color: '#33475b',
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',

@@ -105,7 +105,7 @@ function InlineCellSelect({
         }}
       >
         {saving ? (
-          <span style={{ fontSize: 11, color: '#555870' }}>…</span>
+          <span style={{ fontSize: 11, color: '#7c98b6' }}>…</span>
         ) : renderValue ? (
           renderValue(value)
         ) : (
@@ -306,7 +306,7 @@ function InlineCellText({
       onClick={e => { e.stopPropagation(); setEditing(true) }}
       style={{
         fontSize: 11,
-        color: value ? '#7a8ba0' : '#2d4a6b',
+        color: value ? '#7a8ba0' : '#cbd6e2',
         cursor: saving ? 'not-allowed' : 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
@@ -341,9 +341,9 @@ const CLASSE_OPTIONS = [
   'Etudes médicales', 'Etudes Sup.', 'Autre',
 ]
 
-const NAVY_BG     = '#0b1624'
-const NAVY_ROW    = '#1d2f4b'
-const NAVY_BORDER = '#2d4a6b'
+const NAVY_BG     = '#f5f8fa'
+const NAVY_ROW    = '#ffffff'
+const NAVY_BORDER = '#cbd6e2'
 const GOLD        = '#ccac71'
 const BLUE        = '#4cabdb'
 
@@ -355,12 +355,12 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = 
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870', bg: 'rgba(85,88,112,0.12)' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', bg: 'rgba(85,88,112,0.12)' },
 }
 
 function StageBadge({ stageId }: { stageId?: string | null }) {
-  if (!stageId) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
-  const s = STAGE_MAP[stageId] ?? { label: stageId, color: '#555870', bg: 'rgba(85,88,112,0.12)' }
+  if (!stageId) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
+  const s = STAGE_MAP[stageId] ?? { label: stageId, color: '#7c98b6', bg: 'rgba(85,88,112,0.12)' }
   return (
     <span style={{
       background: s.bg,
@@ -496,11 +496,11 @@ function formatPhone(raw: string): string {
 // Helper pour afficher un user (avatar + nom) dans InlineCellSelect
 function renderUserOption(v: string, opts?: { id: string; label: string }[]) {
   const opt = (opts ?? []).find(o => o.id === v)
-  if (!opt) return <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+  if (!opt) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <ContactAvatar name={opt.label} size={22} />
-      <span style={{ fontSize: 11, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+      <span style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
     </div>
   )
 }
@@ -548,7 +548,7 @@ function ActionsMenu({
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          color: '#8b8fa8',
+          color: '#516f90',
           transition: 'all 0.15s',
         }}
       >
@@ -661,7 +661,7 @@ function ExpandedDetail({
                 </a>
               )}
               {contact.classe_actuelle && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#8b8fa8', fontSize: 12, marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 4 }}>
                   <BookOpen size={11} />{contact.classe_actuelle}
                 </div>
               )}
@@ -671,12 +671,12 @@ function ExpandedDetail({
               <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Localisation</div>
                 {contact.departement && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#8b8fa8', fontSize: 12, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 6 }}>
                     <MapPin size={11} />Dép. {contact.departement}
                   </div>
                 )}
                 {contact.zone_localite && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#8b8fa8', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
                     <MapPin size={11} />{contact.zone_localite}
                   </div>
                 )}
@@ -690,12 +690,12 @@ function ExpandedDetail({
                   <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginBottom: 6 }}>{deal.formation}</div>
                 )}
                 {deal.createdate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#555870', fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#7c98b6', fontSize: 12, marginBottom: 4 }}>
                     <Calendar size={11} />Créé le {new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
                 {deal.closedate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#8b8fa8', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
                     <Calendar size={11} />RDV: {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
@@ -715,7 +715,7 @@ function ExpandedDetail({
                     border: `1px solid ${NAVY_BORDER}`,
                     borderRadius: 8,
                     padding: '6px 12px',
-                    color: '#8b8fa8',
+                    color: '#516f90',
                     fontSize: 12,
                     cursor: savingStage ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
@@ -726,7 +726,7 @@ function ExpandedDetail({
                   }}
                 >
                   {savingStage ? (
-                    <span style={{ color: '#555870' }}>Enregistrement…</span>
+                    <span style={{ color: '#7c98b6' }}>Enregistrement…</span>
                   ) : (
                     <><StageBadge stageId={deal.dealstage} /><ChevronDown size={11} /></>
                   )}
@@ -770,7 +770,7 @@ function ExpandedDetail({
                     <div style={{ height: 1, background: '#1e3350', margin: '4px 0' }} />
                     <button
                       onClick={() => setStagePickerOpen(false)}
-                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#555870', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#7c98b6', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Fermer
                     </button>
@@ -1130,12 +1130,12 @@ export default function CRMContactsTable({
           <a href={`tel:${contact.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Phone size={11} />{formatPhone(contact.phone)}
           </a>
-        ) : <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
+        ) : <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
 
       case 'formation_souhaitee':
         return contact.formation_souhaitee
           ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{contact.formation_souhaitee}</span>
-          : <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
+          : <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
 
       case 'classe':
         return (
@@ -1175,7 +1175,7 @@ export default function CRMContactsTable({
             saving={savingStage === deal.hubspot_deal_id}
             renderValue={v => <StageBadge stageId={v} />}
           />
-        ) : <span style={{ color: '#555870', fontSize: 11 }}>—</span>
+        ) : <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
 
       case 'lead_status':
         return (
@@ -1290,7 +1290,7 @@ export default function CRMContactsTable({
             )}
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 11, color: '#c8cad8', whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</span>
-              <span style={{ fontSize: 10, color: '#555870' }}>· {timeStr}</span>
+              <span style={{ fontSize: 10, color: '#7c98b6' }}>· {timeStr}</span>
             </span>
           </div>
         )
@@ -1303,7 +1303,7 @@ export default function CRMContactsTable({
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870', fontSize: 13 }}>
+      <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6', fontSize: 13 }}>
         <div style={{ display: 'inline-block', width: 20, height: 20, border: `2px solid ${NAVY_BORDER}`, borderTopColor: BLUE, borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12 }} />
         <div>Chargement des contacts…</div>
       </div>
@@ -1312,9 +1312,9 @@ export default function CRMContactsTable({
 
   if (contacts.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870', fontSize: 13 }}>
+      <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6', fontSize: 13 }}>
         <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>🔍</div>
-        <div style={{ fontWeight: 600, marginBottom: 4, color: '#8b8fa8' }}>Aucun contact trouvé</div>
+        <div style={{ fontWeight: 600, marginBottom: 4, color: '#516f90' }}>Aucun contact trouvé</div>
         <div style={{ fontSize: 12 }}>Essayez de modifier vos filtres</div>
       </div>
     )
@@ -1399,7 +1399,7 @@ export default function CRMContactsTable({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
-                    <GripVertical size={10} style={{ color: '#2d4a6b', flexShrink: 0, opacity: 0.6 }} />
+                    <GripVertical size={10} style={{ color: '#cbd6e2', flexShrink: 0, opacity: 0.6 }} />
                     <span style={{ flex: 1 }}>{COL_LABELS[key]}</span>
                     {isSortable && (
                       <span style={{

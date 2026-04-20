@@ -201,34 +201,34 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   }
 
   if (loading || !form) {
-    return <div style={{ minHeight: '100vh', background: '#0b1624', color: '#8b8fa8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement…</div>
+    return <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#516f90', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement…</div>
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e4e7eb', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#33475b', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#1d2f4b', borderBottom: '1px solid #2d4a6b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <a href="/admin/crm/forms" style={{ color: '#8b8fa8', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href="/admin/crm/forms" style={{ color: '#516f90', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <ChevronLeft size={14} /> Formulaires
           </a>
-          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <FileText size={16} style={{ color: '#22c55e' }} />
           <input
             value={form.name}
             onChange={e => update({ name: e.target.value })}
-            style={{ background: 'transparent', border: 'none', color: '#e4e7eb', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 260 }}
+            style={{ background: 'transparent', border: 'none', color: '#33475b', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 260 }}
           />
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, color: form.status === 'published' ? '#22c55e' : '#8b8fa8', background: form.status === 'published' ? 'rgba(34,197,94,0.15)' : '#152438' }}>
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, color: form.status === 'published' ? '#22c55e' : '#516f90', background: form.status === 'published' ? 'rgba(34,197,94,0.15)' : '#ffffff' }}>
             {form.status === 'published' ? '● Publié' : 'Brouillon'}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {dirty && <span style={{ fontSize: 11, color: '#f59e0b', alignSelf: 'center' }}>● Modifié</span>}
-          <button onClick={save} disabled={!dirty || saving} style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 14px', color: '#e4e7eb', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}>
+          <button onClick={save} disabled={!dirty || saving} style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 14px', color: '#33475b', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}>
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
-          <button onClick={togglePublish} style={{ background: form.status === 'published' ? 'rgba(139,143,168,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${form.status === 'published' ? '#2d4a6b' : 'rgba(34,197,94,0.3)'}`, borderRadius: 8, padding: '6px 14px', color: form.status === 'published' ? '#8b8fa8' : '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
+          <button onClick={togglePublish} style={{ background: form.status === 'published' ? 'rgba(139,143,168,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${form.status === 'published' ? '#cbd6e2' : 'rgba(34,197,94,0.3)'}`, borderRadius: 8, padding: '6px 14px', color: form.status === 'published' ? '#516f90' : '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
             {form.status === 'published' ? 'Dépublier' : 'Publier'}
           </button>
           <LogoutButton />
@@ -236,7 +236,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', background: '#152438', borderBottom: '1px solid #2d4a6b', display: 'flex', gap: 4 }}>
+      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', gap: 4 }}>
         <Tab active={tab === 'builder'} onClick={() => setTab('builder')} icon={FileText} label="Champs" />
         <Tab active={tab === 'settings'} onClick={() => setTab('settings')} icon={Settings} label="Réglages" />
         <Tab active={tab === 'embed'} onClick={() => setTab('embed')} icon={Code} label="Intégration" />
@@ -281,8 +281,8 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
       {/* Palette des champs */}
-      <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24 }}>
-        <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
+      <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24 }}>
+        <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {FIELD_TYPES.map(ft => {
             const Icon = ft.icon
@@ -290,7 +290,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
               <button
                 key={ft.type}
                 onClick={() => addField(ft.type)}
-                style={{ background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 10px', color: '#e4e7eb', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit' }}
+                style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 10px', color: '#33475b', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit' }}
               >
                 <Icon size={13} style={{ color: '#ccac71' }} />
                 {ft.label}
@@ -302,12 +302,12 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
 
       {/* Canvas : le formulaire en édition */}
       <div>
-        <div style={{ background: form.bg_color, border: '1px solid #2d4a6b', borderRadius: 12, padding: 32, minHeight: 400 }}>
+        <div style={{ background: form.bg_color, border: '1px solid #cbd6e2', borderRadius: 12, padding: 32, minHeight: 400 }}>
           {form.title && <h2 style={{ color: form.text_color, margin: '0 0 8px', fontSize: 22 }}>{form.title}</h2>}
           {form.subtitle && <p style={{ color: form.text_color, opacity: 0.7, margin: '0 0 24px', fontSize: 14 }}>{form.subtitle}</p>}
 
           {form.fields.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8', border: '2px dashed #2d4a6b', borderRadius: 8 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#516f90', border: '2px dashed #cbd6e2', borderRadius: 8 }}>
               Ajoute des champs depuis le panneau de gauche
             </div>
           ) : (
@@ -345,7 +345,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
             onClose={() => setSelectedFieldIdx(null)}
           />
         ) : (
-          <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 20, color: '#8b8fa8', fontSize: 12, textAlign: 'center' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20, color: '#516f90', fontSize: 12, textAlign: 'center' }}>
             Sélectionne un champ dans le formulaire pour l&apos;éditer
           </div>
         )}
@@ -457,10 +457,10 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
   const hasOptions = ['select', 'radio', 'checkbox'].includes(field.field_type)
 
   return (
-    <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 16 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase' }}>Éditer le champ</span>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b8fa8', cursor: 'pointer' }}><X size={16} /></button>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#516f90', cursor: 'pointer' }}><X size={16} /></button>
       </div>
 
       <MiniField label="Label visible">
@@ -492,13 +492,13 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
         </select>
       </MiniField>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e4e7eb', marginTop: 10, cursor: 'pointer' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#33475b', marginTop: 10, cursor: 'pointer' }}>
         <input type="checkbox" checked={field.required} onChange={e => onUpdate({ required: e.target.checked })} /> Champ obligatoire
       </label>
 
       {hasOptions && (
         <>
-          <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 }}>Options</div>
+          <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 }}>Options</div>
           {field.options.map((opt, idx) => (
             <div key={idx} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
               <input
@@ -513,13 +513,13 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
               />
               <button
                 onClick={() => onUpdate({ options: field.options.filter((_, i) => i !== idx) })}
-                style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 6, padding: '4px 6px', color: '#ef4444', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 6, padding: '4px 6px', color: '#ef4444', cursor: 'pointer' }}
               ><Trash2 size={12} /></button>
             </div>
           ))}
           <button
             onClick={() => onUpdate({ options: [...field.options, { value: `option${field.options.length + 1}`, label: `Option ${field.options.length + 1}` }] })}
-            style={{ marginTop: 6, background: '#0b1624', border: '1px dashed #2d4a6b', borderRadius: 6, padding: '6px', width: '100%', color: '#8b8fa8', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}
+            style={{ marginTop: 6, background: '#f5f8fa', border: '1px dashed #cbd6e2', borderRadius: 6, padding: '6px', width: '100%', color: '#516f90', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}
           >
             <Plus size={12} /> Ajouter une option
           </button>
@@ -536,8 +536,8 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
       <Card title="Contenu">
         <Field label="Nom interne"><input value={form.name} onChange={e => update({ name: e.target.value })} style={inputStyle} /></Field>
         <Field label="Slug (URL publique)">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8, padding: '0 12px' }}>
-            <span style={{ color: '#8b8fa8', fontSize: 12 }}>/forms/</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '0 12px' }}>
+            <span style={{ color: '#516f90', fontSize: 12 }}>/forms/</span>
             <input value={form.slug} onChange={e => update({ slug: e.target.value.replace(/[^a-z0-9-]/gi, '-').toLowerCase() })} style={{ ...inputStyle, border: 'none', padding: '8px 0' }} />
           </div>
         </Field>
@@ -577,10 +577,10 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
       </Card>
 
       <Card title="Traitement des soumissions">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#e4e7eb', marginBottom: 10, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#33475b', marginBottom: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.auto_create_contact} onChange={e => update({ auto_create_contact: e.target.checked })} /> Créer automatiquement un contact CRM
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#e4e7eb', marginBottom: 10, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#33475b', marginBottom: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.honeypot_enabled} onChange={e => update({ honeypot_enabled: e.target.checked })} /> Protection anti-spam (honeypot)
         </label>
         <Field label="Emails à notifier à chaque soumission (séparés par virgule)">
@@ -613,9 +613,9 @@ function EmbedTab({ form }: { form: FormData }) {
   if (form.status !== 'published') {
     return (
       <Card title="Intégration">
-        <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8' }}>
-          <Code size={40} style={{ color: '#2d4a6b', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: 14, marginBottom: 8, color: '#e4e7eb', fontWeight: 600 }}>
+        <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>
+          <Code size={40} style={{ color: '#cbd6e2', margin: '0 auto 16px' }} />
+          <div style={{ fontSize: 14, marginBottom: 8, color: '#33475b', fontWeight: 600 }}>
             Publie le formulaire pour obtenir le code d&apos;intégration
           </div>
           <div style={{ fontSize: 12 }}>Clique sur le bouton &quot;Publier&quot; en haut à droite.</div>
@@ -637,19 +637,19 @@ function EmbedTab({ form }: { form: FormData }) {
       </Card>
 
       <Card title="Option 1 — iFrame (le plus simple)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 10 }}>Intègre le formulaire sans aucun code, compatible avec tous les sites.</div>
+        <div style={{ fontSize: 12, color: '#516f90', marginBottom: 10 }}>Intègre le formulaire sans aucun code, compatible avec tous les sites.</div>
         <pre style={codeBlock}>{iframeCode}</pre>
         <button onClick={() => copy(iframeCode, 'iframe')} style={{ ...copyBtn, marginTop: 10 }}>{copied === 'iframe' ? '✓ Copié' : 'Copier le code iFrame'}</button>
       </Card>
 
       <Card title="Option 2 — Script JS (auto-resize, intégration fine)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 10 }}>Recommandé : le formulaire s&apos;intègre parfaitement et s&apos;adapte à la hauteur automatiquement.</div>
+        <div style={{ fontSize: 12, color: '#516f90', marginBottom: 10 }}>Recommandé : le formulaire s&apos;intègre parfaitement et s&apos;adapte à la hauteur automatiquement.</div>
         <pre style={codeBlock}>{jsCode}</pre>
         <button onClick={() => copy(jsCode, 'js')} style={{ ...copyBtn, marginTop: 10 }}>{copied === 'js' ? '✓ Copié' : 'Copier le script JS'}</button>
       </Card>
 
       <Card title="Option 3 — API directe (usage avancé)" icon={Code}>
-        <div style={{ fontSize: 12, color: '#8b8fa8', marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: '#516f90', marginBottom: 10 }}>
           POST JSON vers <code style={{ color: '#ccac71' }}>{host}/api/forms/{form.slug}/submit</code>
         </div>
         <pre style={codeBlock}>{`POST ${host}/api/forms/${form.slug}/submit
@@ -683,14 +683,14 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
       .finally(() => setLoading(false))
   }, [formId])
 
-  if (loading) return <Card title="Soumissions"><div style={{ color: '#8b8fa8', textAlign: 'center', padding: 20 }}>Chargement…</div></Card>
+  if (loading) return <Card title="Soumissions"><div style={{ color: '#516f90', textAlign: 'center', padding: 20 }}>Chargement…</div></Card>
 
   if (subs.length === 0) {
     return (
       <Card title="Soumissions">
-        <div style={{ textAlign: 'center', padding: 40, color: '#8b8fa8' }}>
-          <Inbox size={40} style={{ color: '#2d4a6b', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: 14, color: '#e4e7eb', marginBottom: 4 }}>Aucune soumission pour le moment</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>
+          <Inbox size={40} style={{ color: '#cbd6e2', margin: '0 auto 16px' }} />
+          <div style={{ fontSize: 14, color: '#33475b', marginBottom: 4 }}>Aucune soumission pour le moment</div>
           <div style={{ fontSize: 12 }}>Les réponses apparaîtront ici au fur et à mesure.</div>
         </div>
       </Card>
@@ -702,7 +702,7 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
-            <tr style={{ background: '#0b1624' }}>
+            <tr style={{ background: '#f5f8fa' }}>
               <th style={thStyle}>Date</th>
               {fields.slice(0, 5).map(f => <th key={f.field_key} style={thStyle}>{f.label}</th>)}
               <th style={thStyle}>UTM</th>
@@ -713,7 +713,7 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
             {subs.map((s) => {
               const data = (s.data as Record<string, unknown>) || {}
               return (
-                <tr key={s.id as string} style={{ borderBottom: '1px solid #2d4a6b' }}>
+                <tr key={s.id as string} style={{ borderBottom: '1px solid #cbd6e2' }}>
                   <td style={tdStyle}>{new Date(s.submitted_at as string).toLocaleString('fr-FR')}</td>
                   {fields.slice(0, 5).map(f => (
                     <td key={f.field_key} style={tdStyle}>{String(data[f.field_key] || '—')}</td>
@@ -737,7 +737,7 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
 // ─── Helpers ─────────────────────────────────────────────────────────────
 function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof FileText; label: string }) {
   return (
-    <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
+    <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
       <Icon size={14} /> {label}
     </button>
   )
@@ -745,10 +745,10 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
 
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof FileText; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 18, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
         {Icon && <Icon size={14} style={{ color: '#ccac71' }} />}
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#e4e7eb' }}>{title}</h3>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#33475b' }}>{title}</h3>
       </div>
       {children}
     </div>
@@ -758,7 +758,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Fi
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   )
@@ -767,7 +767,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MiniField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: '#8b8fa8', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#516f90', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       {children}
     </div>
   )
@@ -794,23 +794,23 @@ function slugifyOpt(s: string): string {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8,
-  padding: '8px 12px', color: '#e4e7eb', fontSize: 13, outline: 'none',
+  width: '100%', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8,
+  padding: '8px 12px', color: '#33475b', fontSize: 13, outline: 'none',
   fontFamily: 'inherit', boxSizing: 'border-box',
 }
 
 const miniInput: React.CSSProperties = { ...inputStyle, fontSize: 12, padding: '6px 10px' }
 
 const copyBtn: React.CSSProperties = {
-  background: '#152438', border: '1px solid #2d4a6b', borderRadius: 6, padding: '8px 12px',
-  color: '#e4e7eb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+  background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6, padding: '8px 12px',
+  color: '#33475b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
 }
 
 const codeBlock: React.CSSProperties = {
-  background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8, padding: 12,
-  color: '#e4e7eb', fontSize: 12, fontFamily: 'ui-monospace, monospace',
+  background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: 12,
+  color: '#33475b', fontSize: 12, fontFamily: 'ui-monospace, monospace',
   overflow: 'auto', margin: 0,
 }
 
-const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontSize: 11, color: '#8b8fa8', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }
-const tdStyle: React.CSSProperties = { padding: '10px 8px', color: '#e4e7eb' }
+const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontSize: 11, color: '#516f90', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }
+const tdStyle: React.CSSProperties = { padding: '10px 8px', color: '#33475b' }

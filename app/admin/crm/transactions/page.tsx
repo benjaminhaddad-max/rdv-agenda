@@ -52,7 +52,7 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string; emoj
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.10)',   emoji: '🟢' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.10)',  emoji: '🟣' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.10)',   emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870', bg: 'rgba(85,88,112,0.10)',   emoji: '⚫' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', bg: 'rgba(85,88,112,0.10)',   emoji: '⚫' },
 }
 
 const FORMATION_OPTIONS = [
@@ -206,9 +206,9 @@ function dealMatchesRules(deal: Transaction | TransactionDetail, rules: FilterRu
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function StageBadge({ stageId }: { stageId: string | null }) {
-  if (!stageId) return <span style={{ color: '#555870', fontSize: 12 }}>—</span>
+  if (!stageId) return <span style={{ color: '#7c98b6', fontSize: 12 }}>—</span>
   const s = STAGE_MAP[stageId]
-  if (!s) return <span style={{ fontSize: 12, color: '#555870' }}>{stageId}</span>
+  if (!s) return <span style={{ fontSize: 12, color: '#7c98b6' }}>{stageId}</span>
   return (
     <span style={{
       background: s.bg,
@@ -271,7 +271,7 @@ function DropFilter({
         onClick={() => setOpen(o => !o)}
         style={{
           background: isActive ? 'rgba(204,172,113,0.08)' : 'rgba(13,30,52,0.8)',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#2d4a6b'}`,
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#cbd6e2'}`,
           borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
           color: isActive ? '#ccac71' : '#6b7a90', fontSize: 12, fontFamily: 'inherit',
           fontWeight: isActive ? 600 : 400,
@@ -285,7 +285,7 @@ function DropFilter({
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 200,
-          background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 10,
+          background: '#0d1e34', border: '1px solid #cbd6e2', borderRadius: 10,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)', padding: '4px 0',
           maxHeight: 280, overflowY: 'auto', minWidth: '100%',
         }}>
@@ -771,18 +771,18 @@ export default function TransactionsPage() {
   const stageOptions = ['', ...Object.keys(STAGE_MAP)]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f8fa', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div style={{
-        padding: '0 20px', height: 52, background: '#1d2f4b',
-        borderBottom: '1px solid #2d4a6b',
+        padding: '0 20px', height: 52, background: '#ffffff',
+        borderBottom: '1px solid #cbd6e2',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
-          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <GraduationCap size={14} style={{ color: '#ccac71' }} />
             <span style={{ fontSize: 13, color: '#ccac71', fontWeight: 700 }}>Transactions 2026-2027</span>
@@ -790,15 +790,15 @@ export default function TransactionsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <a href="/admin/crm" style={{
-            background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8,
-            padding: '5px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none',
+            background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
+            padding: '5px 12px', color: '#516f90', fontSize: 12, textDecoration: 'none',
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <Users size={12} /> CRM Contacts
           </a>
           <a href="/admin" style={{
-            background: '#152438', border: '1px solid #2d4a6b', borderRadius: 8,
-            padding: '5px 12px', color: '#8b8fa8', fontSize: 12, textDecoration: 'none',
+            background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
+            padding: '5px 12px', color: '#516f90', fontSize: 12, textDecoration: 'none',
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <LayoutDashboard size={12} /> Dashboard
@@ -817,7 +817,7 @@ export default function TransactionsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
             <span style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0' }}>{displayTotal.toLocaleString('fr-FR')}</span>
-            <span style={{ fontSize: 12, color: '#555870' }}>transactions</span>
+            <span style={{ fontSize: 12, color: '#7c98b6' }}>transactions</span>
           </div>
           {displayStats && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -854,7 +854,7 @@ export default function TransactionsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* View mode toggle */}
           <div style={{
-            display: 'flex', background: '#0b1624', borderRadius: 8, border: '1px solid #2d4a6b',
+            display: 'flex', background: '#f5f8fa', borderRadius: 8, border: '1px solid #cbd6e2',
             overflow: 'hidden',
           }}>
             <button
@@ -862,10 +862,10 @@ export default function TransactionsPage() {
               style={{
                 background: viewMode === 'board' ? 'rgba(204,172,113,0.15)' : 'transparent',
                 border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'board' ? '#ccac71' : '#555870', fontSize: 12,
+                color: viewMode === 'board' ? '#ccac71' : '#7c98b6', fontSize: 12,
                 display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                 fontWeight: viewMode === 'board' ? 700 : 400,
-                borderRight: '1px solid #2d4a6b',
+                borderRight: '1px solid #cbd6e2',
               }}
             >
               <LayoutGrid size={12} /> Board
@@ -875,7 +875,7 @@ export default function TransactionsPage() {
               style={{
                 background: viewMode === 'list' ? 'rgba(204,172,113,0.15)' : 'transparent',
                 border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'list' ? '#ccac71' : '#555870', fontSize: 12,
+                color: viewMode === 'list' ? '#ccac71' : '#7c98b6', fontSize: 12,
                 display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                 fontWeight: viewMode === 'list' ? 700 : 400,
               }}
@@ -986,7 +986,7 @@ export default function TransactionsPage() {
                   onClick={e => { e.stopPropagation(); deleteView(view.id) }}
                   style={{
                     background: 'none', border: 'none', padding: 0,
-                    color: '#555870', cursor: 'pointer', display: 'flex',
+                    color: '#7c98b6', cursor: 'pointer', display: 'flex',
                     marginLeft: 2,
                   }}
                 >
@@ -1060,13 +1060,13 @@ export default function TransactionsPage() {
                 padding: '3px 6px', cursor: 'pointer', display: 'flex',
               }}
             >
-              <Check size={12} color="#0b1624" />
+              <Check size={12} color="#f5f8fa" />
             </button>
             <button
               onClick={() => { setCreatingView(false); setNewViewName('') }}
               style={{
                 background: 'none', border: 'none', padding: 0,
-                color: '#555870', cursor: 'pointer', display: 'flex',
+                color: '#7c98b6', cursor: 'pointer', display: 'flex',
               }}
             >
               <X size={12} />
@@ -1093,7 +1093,7 @@ export default function TransactionsPage() {
       {/* ── Advanced Filter Panel ─────────────────────────────────────────────── */}
       {filterPanelOpen && (
         <div style={{
-          padding: '16px 20px', background: '#0b1624',
+          padding: '16px 20px', background: '#f5f8fa',
           borderBottom: '1px solid #1a2f45', flexShrink: 0,
         }}>
           <div style={{
@@ -1121,7 +1121,7 @@ export default function TransactionsPage() {
                 onClick={() => setFilterPanelOpen(false)}
                 style={{
                   background: 'none', border: 'none', padding: 2,
-                  color: '#555870', cursor: 'pointer', display: 'flex',
+                  color: '#7c98b6', cursor: 'pointer', display: 'flex',
                 }}
               >
                 <X size={14} />
@@ -1157,7 +1157,7 @@ export default function TransactionsPage() {
                     value={rule.field}
                     onChange={e => updateFilterRule(rule.id, { field: e.target.value as FilterField })}
                     style={{
-                      background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                      background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
                       padding: '5px 8px', color: '#c8cad8', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 130,
@@ -1173,7 +1173,7 @@ export default function TransactionsPage() {
                     value={rule.operator}
                     onChange={e => updateFilterRule(rule.id, { operator: e.target.value as FilterOperator })}
                     style={{
-                      background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                      background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
                       padding: '5px 8px', color: '#c8cad8', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 120,
@@ -1191,8 +1191,8 @@ export default function TransactionsPage() {
                         value={rule.value}
                         onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
                         style={{
-                          background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
-                          padding: '5px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12,
+                          background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
+                          padding: '5px 8px', color: rule.value ? '#ccac71' : '#7c98b6', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                           flex: 1, minWidth: 140,
                         }}
@@ -1211,7 +1211,7 @@ export default function TransactionsPage() {
                         onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
                         placeholder="Valeur…"
                         style={{
-                          background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 6,
+                          background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6,
                           padding: '5px 8px', color: '#e8eaf0', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none',
                           flex: 1, minWidth: 120,
@@ -1268,10 +1268,10 @@ export default function TransactionsPage() {
         {/* ── Board View ──────────────────────────────────────────────────────── */}
         {viewMode === 'board' && (
           boardLoading ? (
-            <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870' }}>
+            <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6' }}>
               <div style={{
                 display: 'inline-block', width: 22, height: 22,
-                border: '2px solid #2d4a6b', borderTopColor: '#4cabdb',
+                border: '2px solid #cbd6e2', borderTopColor: '#4cabdb',
                 borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12,
               }} />
               <div style={{ fontSize: 13 }}>Chargement du board…</div>
@@ -1292,24 +1292,24 @@ export default function TransactionsPage() {
         {viewMode === 'list' && (
           <>
             {listLoading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870' }}>
+              <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6' }}>
                 <div style={{
                   display: 'inline-block', width: 22, height: 22,
-                  border: '2px solid #2d4a6b', borderTopColor: '#4cabdb',
+                  border: '2px solid #cbd6e2', borderTopColor: '#4cabdb',
                   borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12,
                 }} />
                 <div style={{ fontSize: 13 }}>Chargement des transactions…</div>
               </div>
             ) : transactions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: '#555870' }}>
+              <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6' }}>
                 <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}>📋</div>
-                <div style={{ fontWeight: 600, color: '#8b8fa8', marginBottom: 4 }}>Aucune transaction trouvée</div>
+                <div style={{ fontWeight: 600, color: '#516f90', marginBottom: 4 }}>Aucune transaction trouvée</div>
                 <div style={{ fontSize: 12 }}>Modifiez vos filtres ou lancez une synchronisation CRM</div>
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #2d4a6b' }}>
+                  <tr style={{ borderBottom: '1px solid #cbd6e2' }}>
                     {[
                       { label: 'Transaction', col: 'dealname' as SortCol, width: '25%' },
                       { label: 'Formation', col: 'formation' as SortCol, width: '12%' },
@@ -1377,7 +1377,7 @@ export default function TransactionsPage() {
                                 {tx.formation}
                               </span>
                             ) : (
-                              <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
                             )}
                           </td>
 
@@ -1386,10 +1386,10 @@ export default function TransactionsPage() {
                             {tx.contact?.classe_actuelle ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <BookOpen size={11} style={{ color: '#5a6a7e', flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#8b8fa8' }}>{tx.contact.classe_actuelle}</span>
+                                <span style={{ fontSize: 12, color: '#516f90' }}>{tx.contact.classe_actuelle}</span>
                               </div>
                             ) : (
-                              <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
                             )}
                           </td>
 
@@ -1398,12 +1398,12 @@ export default function TransactionsPage() {
                             {zone !== '—' ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <MapPin size={11} style={{ color: '#5a6a7e', flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#8b8fa8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: 12, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {zone}
                                 </span>
                               </div>
                             ) : (
-                              <span style={{ color: '#2d4a6b', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
                             )}
                           </td>
 
@@ -1448,22 +1448,22 @@ export default function TransactionsPage() {
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
                   style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7,
-                    padding: '6px 16px', color: page === 0 ? '#2d4a6b' : '#8b8fa8',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7,
+                    padding: '6px 16px', color: page === 0 ? '#cbd6e2' : '#516f90',
                     cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
                   }}
                 >
                   ← Précédent
                 </button>
-                <span style={{ fontSize: 12, color: '#555870' }}>
+                <span style={{ fontSize: 12, color: '#7c98b6' }}>
                   Page {page + 1} / {totalPages}
                 </span>
                 <button
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
                   style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7,
-                    padding: '6px 16px', color: page >= totalPages - 1 ? '#2d4a6b' : '#8b8fa8',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7,
+                    padding: '6px 16px', color: page >= totalPages - 1 ? '#cbd6e2' : '#516f90',
                     cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
                   }}
                 >
@@ -1488,7 +1488,7 @@ export default function TransactionsPage() {
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #2d4a6b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
       `}</style>
     </div>

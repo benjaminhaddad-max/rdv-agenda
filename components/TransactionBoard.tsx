@@ -22,7 +22,7 @@ const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }>
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', emoji: '🟢' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', emoji: '🟣' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870', emoji: '⚫' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', emoji: '⚫' },
 }
 
 // ── Undo action type ─────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ function DealCard({
         if (dragCount > 1) {
           const badge = document.createElement('div')
           badge.textContent = `${dragCount} transactions`
-          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#ccac71;color:#0b1624;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#ccac71;color:#f5f8fa;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
           document.body.appendChild(badge)
           e.dataTransfer.setDragImage(badge, 0, 0)
           setTimeout(() => document.body.removeChild(badge), 0)
@@ -91,8 +91,8 @@ function DealCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: isSelected ? '#1a3050' : '#152438',
-        border: `1px solid ${isSelected ? '#ccac71' : '#2d4a6b'}`,
+        background: isSelected ? '#f5f8fa' : '#ffffff',
+        border: `1px solid ${isSelected ? '#ccac71' : '#cbd6e2'}`,
         borderRadius: 8,
         padding: '10px 12px',
         cursor: 'grab',
@@ -115,7 +115,7 @@ function DealCard({
         >
           {isSelected && (
             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-              <path d="M1 4L3.5 6.5L9 1" stroke="#0b1624" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 4L3.5 6.5L9 1" stroke="#f5f8fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}
         </div>
@@ -338,7 +338,7 @@ function BoardColumn({
             >
               {allInColumnSelected && (
                 <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4L3.5 6.5L9 1" stroke="#0b1624" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1 4L3.5 6.5L9 1" stroke="#f5f8fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               )}
             </div>
@@ -348,7 +348,7 @@ function BoardColumn({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {headerHovered && (
-            <span style={{ fontSize: 9, color: '#555870', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 9, color: '#7c98b6', whiteSpace: 'nowrap' }}>
               ⇄ glisser
             </span>
           )}
@@ -382,7 +382,7 @@ function BoardColumn({
         display: 'flex', flexDirection: 'column', gap: 6,
       }}>
         {deals.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#2d4a6b', fontSize: 11 }}>
+          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#cbd6e2', fontSize: 11 }}>
             Aucune transaction
           </div>
         ) : (

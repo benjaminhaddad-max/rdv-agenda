@@ -162,8 +162,8 @@ function MultiSelectDropdown({ options, value, onChange }: {
         type="button"
         onClick={() => setOpen(!open)}
         style={{
-          background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6,
-          padding: '6px 8px', color: selected.length > 0 ? '#ccac71' : '#555870',
+          background: '#101e30', border: '1px solid #cbd6e2', borderRadius: 6,
+          padding: '6px 8px', color: selected.length > 0 ? '#ccac71' : '#7c98b6',
           fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
@@ -180,7 +180,7 @@ function MultiSelectDropdown({ options, value, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-          background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 6,
+          background: '#0d1a28', border: '1px solid #cbd6e2', borderRadius: 6,
           marginTop: 2, maxHeight: 220, overflowY: 'auto',
           boxShadow: '0 8px 24px rgba(0,0,0,.5)',
         }}>
@@ -380,10 +380,10 @@ function FilterSelect({
         onClick={() => setOpen(o => !o)}
         style={{
           background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(13,30,52,0.8)',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#cbd6e2'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#ccac71' : '#8b8fa8',
+          color: isActive ? '#ccac71' : '#516f90',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -408,7 +408,7 @@ function FilterSelect({
           left: 0,
           marginTop: 4,
           background: '#0d1e34',
-          border: '1px solid #2d4a6b',
+          border: '1px solid #cbd6e2',
           borderRadius: 10,
           zIndex: 200,
           minWidth: '100%',
@@ -489,10 +489,10 @@ function FilterMultiSelect({
         onClick={() => setOpen(o => !o)}
         style={{
           background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(13,30,52,0.8)',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#cbd6e2'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#ccac71' : '#8b8fa8',
+          color: isActive ? '#ccac71' : '#516f90',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -517,7 +517,7 @@ function FilterMultiSelect({
           left: 0,
           marginTop: 4,
           background: '#0d1e34',
-          border: '1px solid #2d4a6b',
+          border: '1px solid #cbd6e2',
           borderRadius: 10,
           zIndex: 200,
           minWidth: '100%',
@@ -628,16 +628,16 @@ function ExportCSVModal({ buildParams, exporting, onClose, onExport }: {
       onClick={onClose}
     >
       <div
-        style={{ background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 14, width: 440, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        style={{ background: '#0d1a28', border: '1px solid #cbd6e2', borderRadius: 14, width: 440, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2f45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>Exporter en CSV</div>
-            <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>{exportCount !== null ? `${exportCount.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels` : 'Calcul en cours…'}</div>
+            <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{exportCount !== null ? `${exportCount.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels` : 'Calcul en cours…'}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 4 }}>
             <X size={16} />
           </button>
         </div>
@@ -686,7 +686,7 @@ function ExportCSVModal({ buildParams, exporting, onClose, onExport }: {
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '1px solid #1a2f45', display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 8, color: '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 8, color: '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Annuler
           </button>
           <button
@@ -695,8 +695,8 @@ function ExportCSVModal({ buildParams, exporting, onClose, onExport }: {
             style={{
               flex: 1, padding: '10px',
               background: selected.length > 0 ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-              border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#2d4a6b',
-              borderRadius: 8, color: selected.length > 0 ? '#ccac71' : '#555870',
+              border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#cbd6e2',
+              borderRadius: 8, color: selected.length > 0 ? '#ccac71' : '#7c98b6',
               fontSize: 13, fontWeight: 700, cursor: selected.length > 0 ? 'pointer' : 'default',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               opacity: exporting ? 0.6 : 1,
@@ -1392,14 +1392,14 @@ export default function CRMPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f8fa', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div style={{
         padding: '0 20px',
         height: 52,
-        background: '#1d2f4b',
-        borderBottom: '1px solid #2d4a6b',
+        background: '#ffffff',
+        borderBottom: '1px solid #cbd6e2',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1408,10 +1408,10 @@ export default function CRMPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
-          <div style={{ width: 1, height: 22, background: '#2d4a6b' }} />
+          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Users size={13} style={{ color: '#ccac71' }} />
-            <span style={{ fontSize: 12, color: '#8b8fa8', fontWeight: 600 }}>CRM — Contacts & Transactions</span>
+            <span style={{ fontSize: 12, color: '#516f90', fontWeight: 600 }}>CRM — Contacts & Transactions</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1506,7 +1506,7 @@ export default function CRMPage() {
 
       {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
       <div style={{
-        padding: '0 20px', background: '#0b1624',
+        padding: '0 20px', background: '#f5f8fa',
         borderBottom: '1px solid #1a2f45', flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 0,
         overflowX: 'auto', overflowY: 'hidden',
@@ -1536,7 +1536,7 @@ export default function CRMPage() {
                 flexShrink: 0,
               }}
             >
-              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#ccac71' : '#555870' }} />}
+              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#ccac71' : '#7c98b6' }} />}
 
               {isRenaming ? (
                 <input
@@ -1587,7 +1587,7 @@ export default function CRMPage() {
                   onClick={e => { e.stopPropagation(); deleteCRMView(view.id) }}
                   style={{
                     background: 'none', border: 'none', padding: 0,
-                    color: '#555870', cursor: 'pointer', display: 'flex', marginLeft: 2,
+                    color: '#7c98b6', cursor: 'pointer', display: 'flex', marginLeft: 2,
                   }}
                 >
                   <X size={11} />
@@ -1643,7 +1643,7 @@ export default function CRMPage() {
               display: 'flex', alignItems: 'center', gap: 4,
               fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
             }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#8b8fa8'; e.currentTarget.style.borderColor = '#2d4a6b' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#516f90'; e.currentTarget.style.borderColor = '#cbd6e2' }}
             onMouseLeave={e => { e.currentTarget.style.color = '#3a5070'; e.currentTarget.style.borderColor = 'transparent' }}
           >
             <SlidersHorizontal size={11} /> Gérer
@@ -1669,9 +1669,9 @@ export default function CRMPage() {
               }}
             />
             <button onClick={() => createCRMView(newViewName)} style={{ background: '#ccac71', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}>
-              <Check size={12} color="#0b1624" />
+              <Check size={12} color="#f5f8fa" />
             </button>
-            <button onClick={() => { setCreatingView(false); setNewViewName('') }} style={{ background: 'none', border: 'none', padding: 0, color: '#555870', cursor: 'pointer', display: 'flex' }}>
+            <button onClick={() => { setCreatingView(false); setNewViewName('') }} style={{ background: 'none', border: 'none', padding: 0, color: '#7c98b6', cursor: 'pointer', display: 'flex' }}>
               <X size={12} />
             </button>
           </div>
@@ -1749,7 +1749,7 @@ export default function CRMPage() {
           {showExternal ? 'Équipe externe visible' : 'Équipe externe masquée'}
         </button>
         {!showExternal && (
-          <span style={{ fontSize: 10, color: '#555870', fontStyle: 'italic' }}>
+          <span style={{ fontSize: 10, color: '#7c98b6', fontStyle: 'italic' }}>
             Exclut les contacts/deals dont le propriétaire, closer ou télépro est de l&apos;équipe externe
           </span>
         )}
@@ -1763,7 +1763,7 @@ export default function CRMPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 8,
+            background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8,
             padding: '7px 12px', flex: '1 1 auto', maxWidth: 380,
           }}>
             <Search size={13} style={{ color: '#3a5070', flexShrink: 0 }} />
@@ -1775,7 +1775,7 @@ export default function CRMPage() {
               style={{ background: 'transparent', border: 'none', color: '#e8eaf0', fontSize: 13, outline: 'none', flex: 1, fontFamily: 'inherit' }}
             />
             {search && (
-              <button onClick={() => { setSearch(''); scheduleRefetch() }} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', padding: 0, display: 'flex' }}>
+              <button onClick={() => { setSearch(''); scheduleRefetch() }} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', padding: 0, display: 'flex' }}>
                 <X size={13} />
               </button>
             )}
@@ -1824,7 +1824,7 @@ export default function CRMPage() {
               background: 'rgba(58,80,112,0.15)', borderRadius: 20,
               padding: '5px 12px',
             }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #2d4a6b', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #cbd6e2', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite' }} />
               <span style={{ fontSize: 12, color: '#3a5070' }}>Chargement…</span>
             </div>
           ) : (
@@ -1852,7 +1852,7 @@ export default function CRMPage() {
                   borderRadius: '0 10px 10px 0',
                   padding: '5px 12px',
                 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8' }}>{displayed.length}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#516f90' }}>{displayed.length}</span>
                   <span style={{ fontSize: 10, color: '#3a5070' }}>affiché{displayed.length !== 1 ? 's' : ''}</span>
                 </div>
               ) : (
@@ -1872,7 +1872,7 @@ export default function CRMPage() {
         {selectedIds.size > 0 && (
           <div style={{
             position: 'sticky', top: 0, zIndex: 10,
-            background: 'rgba(13,30,52,0.98)', border: `1px solid #2d4a6b`,
+            background: 'rgba(13,30,52,0.98)', border: `1px solid #cbd6e2`,
             borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
             display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
           }}>
@@ -1891,16 +1891,16 @@ export default function CRMPage() {
                 Tout ({displayed.length})
               </button>
               <button onClick={() => setSelectedIds(new Set())}
-                style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 6, padding: '4px 10px', color: '#555870', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 6, padding: '4px 10px', color: '#7c98b6', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Désélectionner
               </button>
             </div>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, color: '#8b8fa8' }}>Assigner à :</span>
+            <span style={{ fontSize: 12, color: '#516f90' }}>Assigner à :</span>
             <select
               value={bulkTeleproId}
               onChange={e => setBulkTeleproId(e.target.value)}
-              style={{ background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 10px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit' }}
+              style={{ background: '#0d1e34', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 10px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit' }}
             >
               <option value="">— Choisir un télépro —</option>
               {telepros.map(u => (
@@ -1954,7 +1954,7 @@ export default function CRMPage() {
                 onClick={() => { setLimit(n); setPage(0) }}
                 style={{
                   background: limit === n ? 'rgba(204,172,113,0.12)' : 'transparent',
-                  border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : '#2d4a6b'}`,
+                  border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : '#cbd6e2'}`,
                   borderRadius: 6,
                   padding: '4px 10px',
                   color: limit === n ? '#ccac71' : '#3a5070',
@@ -1974,7 +1974,7 @@ export default function CRMPage() {
               <button
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#2d4a6b' : '#8b8fa8', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#cbd6e2' : '#516f90', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
               >
                 ← Précédent
               </button>
@@ -2012,7 +2012,7 @@ export default function CRMPage() {
               <button
                 onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#2d4a6b' : '#8b8fa8', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #cbd6e2', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#cbd6e2' : '#516f90', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
               >
                 Suivant →
               </button>
@@ -2036,7 +2036,7 @@ export default function CRMPage() {
           }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#e8eaf0' }}>Tous les filtres</span>
             <button onClick={() => setFilterPanelOpen(false)} style={{
-              background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2,
+              background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2,
             }}>
               <X size={16} />
             </button>
@@ -2044,7 +2044,7 @@ export default function CRMPage() {
 
           {/* Panel body */}
           <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#8b8fa8', marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#516f90', marginBottom: 12 }}>
               Filtres avancés
             </div>
 
@@ -2054,7 +2054,7 @@ export default function CRMPage() {
                 {gi > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
                     <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555870', background: '#0d1a28', padding: '2px 10px', border: '1px solid #1a2f45', borderRadius: 4 }}>ou</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7c98b6', background: '#0d1a28', padding: '2px 10px', border: '1px solid #1a2f45', borderRadius: 4 }}>ou</span>
                     <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
                   </div>
                 )}
@@ -2090,12 +2090,12 @@ export default function CRMPage() {
                     return (
                       <div key={rule.id}>
                         {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#0b1624', border: '1px solid #1a2f45', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
-                          <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
-                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #1a2f45', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
+                          <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
+                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#101e30', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                           </select>
-                          <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                          <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#101e30', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: '#c8cad8', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                           </select>
                           {showVal && (
@@ -2107,13 +2107,13 @@ export default function CRMPage() {
                                   onChange={v => updateRule(group.id, rule.id, { value: v })}
                                 />
                               ) : (
-                                <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: rule.value ? '#ccac71' : '#555870', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                                <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ background: '#101e30', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: rule.value ? '#ccac71' : '#7c98b6', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                                   <option value="">Rechercher…</option>
                                   {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                                 </select>
                               )
                             ) : (
-                              <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ background: '#101e30', border: '1px solid #2d4a6b', borderRadius: 6, padding: '6px 8px', color: '#e8eaf0', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }} />
+                              <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ background: '#101e30', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: '#e8eaf0', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }} />
                             )
                           )}
                         </div>
@@ -2132,7 +2132,7 @@ export default function CRMPage() {
               {filterGroups.length > 0 && (
                 <>
                   <div style={{ flex: 1, height: 1, background: '#1a2f45' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#555870' }}>ou</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#7c98b6' }}>ou</span>
                 </>
               )}
               <button onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
@@ -2172,7 +2172,7 @@ export default function CRMPage() {
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #2d4a6b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
       `}</style>
 
@@ -2183,20 +2183,20 @@ export default function CRMPage() {
           onClick={() => setManageViewsOpen(false)}
         >
           <div
-            style={{ background: '#0d1a28', border: '1px solid #2d4a6b', borderRadius: 14, width: 420, maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+            style={{ background: '#0d1a28', border: '1px solid #cbd6e2', borderRadius: 14, width: 420, maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2f45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0' }}>Gérer les vues</span>
-              <button onClick={() => setManageViewsOpen(false)} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4 }}>
+              <button onClick={() => setManageViewsOpen(false)} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 4 }}>
                 <X size={16} />
               </button>
             </div>
             {/* Body */}
             <div style={{ overflow: 'auto', padding: '12px 16px', flex: 1 }}>
               {crmViews.filter(v => !v.isDefault).length === 0 ? (
-                <p style={{ color: '#555870', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucune vue personnalisée</p>
+                <p style={{ color: '#7c98b6', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucune vue personnalisée</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {crmViews.filter(v => !v.isDefault).map(view => {
@@ -2237,9 +2237,9 @@ export default function CRMPage() {
                         <button
                           onClick={() => { deleteCRMView(view.id); if (crmViews.filter(v => !v.isDefault).length <= 1) setManageViewsOpen(false) }}
                           title="Supprimer"
-                          style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
+                          style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
                           onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#555870')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#7c98b6')}
                         >
                           <Trash2 size={13} />
                         </button>
@@ -2478,8 +2478,8 @@ export default function CRMPage() {
           style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
           onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
         >
-          <div style={{ background: '#1d2f4b', border: '1px solid #2d4a6b', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
-            <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#555870', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
             <RepopJournal scope="admin" />
           </div>
         </div>

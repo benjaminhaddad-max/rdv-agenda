@@ -47,7 +47,7 @@ const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }>
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', emoji: '🟢' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', emoji: '🟣' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#555870', emoji: '⚫' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', emoji: '⚫' },
 }
 
 const FORMATION_OPTIONS = [
@@ -86,7 +86,7 @@ function FieldRow({ icon, label, children }: { icon?: React.ReactNode; label: st
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 28 }}>
       <div style={{ width: 100, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         {icon}
-        <span style={{ fontSize: 11, color: '#555870', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 11, color: '#7c98b6', fontWeight: 600 }}>{label}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
@@ -163,20 +163,20 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
       {/* Panel */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 460, maxWidth: '100vw',
-        background: '#0d1a28', borderLeft: '1px solid #2d4a6b', zIndex: 1000,
+        background: '#0d1a28', borderLeft: '1px solid #cbd6e2', zIndex: 1000,
         display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         animation: 'slideIn 0.2s ease-out',
       }}>
         {/* Header */}
         <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #2d4a6b',
+          padding: '16px 20px', borderBottom: '1px solid #cbd6e2',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {deal.dealname || '(sans nom)'}
             </div>
-            <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>{contactName}</div>
+            <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{contactName}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <a
@@ -186,7 +186,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
             >
               <ExternalLink size={10} /> HS
             </a>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555870', cursor: 'pointer', padding: 4 }}>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', padding: 4 }}>
               <X size={18} />
             </button>
           </div>
@@ -198,11 +198,11 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
           {/* ── Transaction ────────────────────────────────────────────────── */}
           <SectionTitle>Transaction</SectionTitle>
 
-          <FieldRow icon={<GraduationCap size={11} style={{ color: '#555870' }} />} label="Nom">
+          <FieldRow icon={<GraduationCap size={11} style={{ color: '#7c98b6' }} />} label="Nom">
             <InlineEditField value={deal.dealname} onSave={v => saveDeal('dealname', v)} fontWeight={600} />
           </FieldRow>
 
-          <FieldRow icon={<BookOpen size={11} style={{ color: '#555870' }} />} label="Formation">
+          <FieldRow icon={<BookOpen size={11} style={{ color: '#7c98b6' }} />} label="Formation">
             <InlineEditField value={deal.formation} onSave={v => saveDeal('formation', v)} type="select" options={FORMATION_OPTIONS} color="#ccac71" fontWeight={700} />
           </FieldRow>
 
@@ -212,17 +212,17 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
               onSave={v => saveDeal('dealstage', v)}
               type="select"
               options={STAGE_OPTIONS}
-              color={STAGE_MAP[deal.dealstage ?? '']?.color ?? '#8b8fa8'}
+              color={STAGE_MAP[deal.dealstage ?? '']?.color ?? '#516f90'}
               fontWeight={700}
             />
           </FieldRow>
 
-          <FieldRow icon={<Calendar size={11} style={{ color: '#555870' }} />} label="Date RDV">
+          <FieldRow icon={<Calendar size={11} style={{ color: '#7c98b6' }} />} label="Date RDV">
             <InlineEditField value={deal.closedate?.split('T')[0] ?? null} onSave={v => saveDeal('closedate', v)} type="date" fontSize={12} />
           </FieldRow>
 
           <FieldRow label="Description">
-            <InlineEditField value={deal.description} onSave={v => saveDeal('description', v)} placeholder="Ajouter une description…" fontSize={12} color="#8b8fa8" />
+            <InlineEditField value={deal.description} onSave={v => saveDeal('description', v)} placeholder="Ajouter une description…" fontSize={12} color="#516f90" />
           </FieldRow>
 
           {/* ── Équipe ─────────────────────────────────────────────────────── */}
@@ -275,24 +275,24 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
                 <InlineEditField value={deal.contact.lastname} onSave={v => saveContact('lastname', v)} fontWeight={600} />
               </FieldRow>
 
-              <FieldRow icon={<Phone size={11} style={{ color: '#555870' }} />} label="Téléphone">
+              <FieldRow icon={<Phone size={11} style={{ color: '#7c98b6' }} />} label="Téléphone">
                 <InlineEditField value={deal.contact.phone} onSave={v => saveContact('phone', v)} color="#22c55e" />
               </FieldRow>
 
               {deal.contact.email && (
-                <FieldRow icon={<Mail size={11} style={{ color: '#555870' }} />} label="Email">
+                <FieldRow icon={<Mail size={11} style={{ color: '#7c98b6' }} />} label="Email">
                   <a href={`mailto:${deal.contact.email}`} style={{ color: '#4cabdb', fontSize: 13, textDecoration: 'none' }}>
                     {deal.contact.email}
                   </a>
                 </FieldRow>
               )}
 
-              <FieldRow icon={<BookOpen size={11} style={{ color: '#555870' }} />} label="Classe">
+              <FieldRow icon={<BookOpen size={11} style={{ color: '#7c98b6' }} />} label="Classe">
                 <InlineEditField value={deal.contact.classe_actuelle} onSave={v => saveContact('classe_actuelle', v)} type="select" options={CLASSE_OPTIONS} />
               </FieldRow>
 
-              <FieldRow icon={<MapPin size={11} style={{ color: '#555870' }} />} label="Zone">
-                <InlineEditField value={zone} onSave={v => saveContact('zone_localite', v)} color="#8b8fa8" fontSize={12} />
+              <FieldRow icon={<MapPin size={11} style={{ color: '#7c98b6' }} />} label="Zone">
+                <InlineEditField value={zone} onSave={v => saveContact('zone_localite', v)} color="#516f90" fontSize={12} />
               </FieldRow>
             </>
           )}
