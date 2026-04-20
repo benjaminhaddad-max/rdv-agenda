@@ -193,17 +193,33 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
     setLoading(true)
     setError(null)
     try {
+      // Timeout de 30 secondes côté client pour éviter de hang
+      const ctrl = new AbortController()
+      const timeoutId = setTimeout(() => ctrl.abort(), 30000)
+
       const res = await fetch('/api/admin/import-hubspot-forms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ prefix, dryRun: true }),
+        signal: ctrl.signal,
+      }).catch(e => {
+        if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 30s). HubSpot est peut-être lent.')
+        throw e
       })
-      const data = await res.json()
+      clearTimeout(timeoutId)
+
+      let data: Record<string, unknown> = {}
+      try { data = await res.json() } catch { /* ignore */ }
+
       if (!res.ok) {
-        setError(data.error || 'Erreur inconnue')
+        if (data.error === 'SCOPE_MISSING') {
+          setError('SCOPE_MISSING')
+          return
+        }
+        setError(String(data.error || data.message || `Erreur HTTP ${res.status}`))
         return
       }
-      setPreview(data.preview || [])
+      setPreview((data.preview as Array<{ id: string; name: string; fieldsCount: number }>) || [])
       setStep('preview')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur réseau')
@@ -268,7 +284,26 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
               Exemple : <code style={{ color: '#ccac71' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
             </div>
 
-            {error && <div style={{ marginTop: 12, padding: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', fontSize: 12 }}>{error}</div>}
+            {error === 'SCOPE_MISSING' ? (
+              <div style={{ marginTop: 12, padding: 14, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, fontSize: 12, color: '#e4e7eb' }}>
+                <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ Scope HubSpot manquant : &quot;forms&quot;</div>
+                <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
+                  Le token HubSpot actuel n&apos;a pas la permission de lire les formulaires.
+                </div>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: '#ccac71' }}>À faire :</div>
+                <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, fontSize: 12, color: '#8b8fa8' }}>
+                  <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: '#06b6d4' }}>HubSpot → Private Apps</a></li>
+                  <li>Clique sur ton application privée</li>
+                  <li>Onglet &quot;Scopes&quot; → recherche <code style={{ color: '#ccac71' }}>forms</code></li>
+                  <li>Coche <strong>forms</strong> (Read)</li>
+                  <li>Clique &quot;Commit changes&quot; → copie le nouveau token</li>
+                  <li>Mets à jour <code style={{ color: '#ccac71' }}>HUBSPOT_ACCESS_TOKEN</code> sur Vercel</li>
+                  <li>Redéploie puis relance l&apos;import</li>
+                </ol>
+              </div>
+            ) : error ? (
+              <div style={{ marginTop: 12, padding: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', fontSize: 12 }}>{error}</div>
+            ) : null}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
               <button onClick={onClose} style={{ background: '#152438', border: '1px solid #2d4a6b', color: '#8b8fa8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>

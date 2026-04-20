@@ -52,12 +52,28 @@ export async function POST(req: Request) {
     const allForms: HubSpotForm[] = []
     let after: string | undefined = undefined
     let page = 0
-    const maxPages = 20 // sécurité : max 20 pages × 100 = 2000 forms
+    const maxPages = 10 // sécurité : max 10 pages × 100 = 1000 forms
 
     do {
       const qs = new URLSearchParams({ limit: '100', archived: 'false' })
       if (after) qs.set('after', after)
-      const data = await hubspotFetch(`/marketing/v3/forms?${qs.toString()}`)
+      let data: { results?: HubSpotForm[]; paging?: { next?: { after?: string } } }
+      try {
+        data = await hubspotFetch(`/marketing/v3/forms?${qs.toString()}`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        // Détection spécifique des erreurs de scope HubSpot
+        if (msg.includes('403') || msg.includes('MISSING_SCOPES') || msg.includes('scope')) {
+          return NextResponse.json({
+            ok: false,
+            error: 'SCOPE_MISSING',
+            message: "Le token HubSpot n'a pas le scope \"forms\".",
+            details: msg,
+          }, { status: 403 })
+        }
+        throw err
+      }
+      if (!data) data = {}
       const results = (data.results || []) as HubSpotForm[]
       allForms.push(...results)
       after = data.paging?.next?.after
