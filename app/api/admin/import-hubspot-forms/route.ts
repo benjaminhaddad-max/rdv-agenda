@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 
+// Autorise la fonction à tourner jusqu'à 60s (au lieu des 10s par défaut)
+export const maxDuration = 60
+
 /**
  * POST /api/admin/import-hubspot-forms
  *
@@ -48,11 +51,15 @@ export async function POST(req: Request) {
   const dryRun = !!body.dryRun
 
   try {
-    // 1. Récupère tous les formulaires (paginé)
-    const allForms: HubSpotForm[] = []
+    // 1. Récupère tous les formulaires (paginé) + filtre à la volée par préfixe
+    const matching: HubSpotForm[] = []
+    let totalScanned = 0
     let after: string | undefined = undefined
     let page = 0
-    const maxPages = 10 // sécurité : max 10 pages × 100 = 1000 forms
+    const maxPages = 20 // sécurité : max 20 pages × 100 = 2000 forms
+    const prefixLower = prefix.toLowerCase().trim()
+    const startTime = Date.now()
+    const TIME_BUDGET_MS = 50_000 // 50s max (Vercel maxDuration = 60s)
 
     do {
       const qs = new URLSearchParams({ limit: '100', archived: 'false' })
@@ -75,22 +82,32 @@ export async function POST(req: Request) {
       }
       if (!data) data = {}
       const results = (data.results || []) as HubSpotForm[]
-      allForms.push(...results)
+      totalScanned += results.length
+
+      // Filtre au fur et à mesure → évite de stocker tous les formulaires en mémoire
+      for (const f of results) {
+        if (f.name?.trim().toLowerCase().startsWith(prefixLower)) {
+          matching.push(f)
+        }
+      }
+
       after = data.paging?.next?.after
       page++
-    } while (after && page < maxPages)
 
-    // 2. Filtre par préfixe
-    const matching = allForms.filter(f =>
-      f.name?.trim().toLowerCase().startsWith(prefix.toLowerCase())
-    )
+      // Arrêt de sécurité si on dépasse le budget temps
+      if (Date.now() - startTime > TIME_BUDGET_MS) {
+        console.warn(`[import-hubspot-forms] Timeout budget atteint après ${page} pages, ${totalScanned} forms scannés`)
+        break
+      }
+    } while (after && page < maxPages)
 
     if (dryRun) {
       return NextResponse.json({
         ok: true,
         dryRun: true,
-        totalHubspotForms: allForms.length,
+        totalHubspotForms: totalScanned,
         matching: matching.length,
+        pagesScanned: page,
         preview: matching.map(f => ({
           id: f.id,
           name: f.name,
@@ -206,7 +223,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      totalHubspotForms: allForms.length,
+      totalHubspotForms: totalScanned,
       matching: matching.length,
       created,
       updated,

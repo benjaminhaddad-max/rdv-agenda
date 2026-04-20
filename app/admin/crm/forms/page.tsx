@@ -193,9 +193,9 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
     setLoading(true)
     setError(null)
     try {
-      // Timeout de 30 secondes côté client pour éviter de hang
+      // Timeout de 90 secondes côté client (serveur = 60s max)
       const ctrl = new AbortController()
-      const timeoutId = setTimeout(() => ctrl.abort(), 30000)
+      const timeoutId = setTimeout(() => ctrl.abort(), 90000)
 
       const res = await fetch('/api/admin/import-hubspot-forms', {
         method: 'POST',
@@ -203,7 +203,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
         body: JSON.stringify({ prefix, dryRun: true }),
         signal: ctrl.signal,
       }).catch(e => {
-        if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 30s). HubSpot est peut-être lent.')
+        if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 90s). Trop de formulaires dans HubSpot.')
         throw e
       })
       clearTimeout(timeoutId)
