@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-type Params = { params: Promise<{ slug: string }> }
+type Params = { params: Promise<{ id: string }> }
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +20,8 @@ export async function OPTIONS() {
  * Ne retourne que les données nécessaires à l'affichage côté client.
  */
 export async function GET(_req: Request, { params }: Params) {
-  const { slug } = await params
+  // Le paramètre est nommé "id" pour conformité Next.js mais contient le slug
+  const { id: slug } = await params
   const db = createServiceClient()
 
   const { data: form, error } = await db

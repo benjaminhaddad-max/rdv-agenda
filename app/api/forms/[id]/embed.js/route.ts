@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-type Params = { params: Promise<{ slug: string }> }
+type Params = { params: Promise<{ id: string }> }
 
 /**
  * GET /api/forms/[slug]/embed.js — Retourne un script JS qui injecte le formulaire
@@ -11,7 +11,8 @@ type Params = { params: Promise<{ slug: string }> }
  * <script src="https://rdv-agenda.vercel.app/api/forms/inscription-pass/embed.js" async></script>
  */
 export async function GET(req: Request, { params }: Params) {
-  const { slug } = await params
+  // Le paramètre est nommé "id" pour conformité Next.js mais contient le slug
+  const { id: slug } = await params
   const db = createServiceClient()
 
   const url = new URL(req.url)
