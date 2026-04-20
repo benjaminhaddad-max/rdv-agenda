@@ -34,7 +34,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { key: 'campaigns', label: 'Campagnes',   href: '/admin/crm/campaigns', icon: Mail },
       { key: 'forms',     label: 'Formulaires', href: '/admin/crm/forms',     icon: FileText },
-      { key: 'events',    label: 'Événements',  href: 'https://gestionnaire-evenements.vercel.app/#dashboard', icon: CalendarDays, external: true },
+      { key: 'events',    label: 'Événements',  href: '/admin/crm/events', icon: CalendarDays },
     ],
   },
   {
