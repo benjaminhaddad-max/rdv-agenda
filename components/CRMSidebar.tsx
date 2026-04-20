@@ -3,8 +3,8 @@
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  Users, Briefcase, Mail, FileText, FileCode, Target, LayoutDashboard,
-  Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, Settings, Search,
+  Users, Briefcase, Mail, FileText, LayoutDashboard,
+  Rocket, ChevronLeft, ChevronRight, LogOut, Calendar,
 } from 'lucide-react'
 
 interface NavItem {
@@ -12,7 +12,6 @@ interface NavItem {
   label: string
   href: string
   icon: typeof Users
-  color?: string
 }
 
 interface NavSection {
@@ -24,32 +23,44 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'CRM',
     items: [
-      { key: 'contacts',     label: 'Contacts',     href: '/admin/crm',              icon: Users,       color: '#06b6d4' },
-      { key: 'transactions', label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase,   color: '#ccac71' },
+      { key: 'contacts',     label: 'Contacts',     href: '/admin/crm',              icon: Users },
+      { key: 'transactions', label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase },
     ],
   },
   {
     title: 'Marketing',
     items: [
-      { key: 'campaigns', label: 'Campagnes',  href: '/admin/crm/campaigns', icon: Mail,     color: '#a855f7' },
-      { key: 'forms',     label: 'Formulaires', href: '/admin/crm/forms',    icon: FileText, color: '#22c55e' },
+      { key: 'campaigns', label: 'Campagnes',   href: '/admin/crm/campaigns', icon: Mail },
+      { key: 'forms',     label: 'Formulaires', href: '/admin/crm/forms',     icon: FileText },
     ],
   },
   {
     title: 'Gestion',
     items: [
-      { key: 'dashboard', label: 'Dashboard',  href: '/admin',               icon: LayoutDashboard, color: '#8b8fa8' },
-      { key: 'agenda',    label: 'Mon agenda', href: '/closer',              icon: Calendar,        color: '#8b8fa8' },
-      { key: 'migration', label: 'Migration',  href: '/admin/migration',     icon: Rocket,          color: '#ef4444' },
+      { key: 'dashboard', label: 'Dashboard',  href: '/admin',           icon: LayoutDashboard },
+      { key: 'agenda',    label: 'Mon agenda', href: '/closer',          icon: Calendar },
+      { key: 'migration', label: 'Migration',  href: '/admin/migration', icon: Rocket },
     ],
   },
 ]
+
+// ─── Charte HubSpot ────────────────────────────────────────────────────────
+const COLORS = {
+  bg:           '#ffffff',   // fond sidebar
+  bgAlt:        '#f5f8fa',   // fond hover/section
+  border:       '#cbd6e2',   // bordures
+  textPrimary:  '#33475b',   // texte principal
+  textMuted:    '#516f90',   // texte secondaire
+  textLight:    '#7c98b6',   // icônes
+  accent:       '#ccac71',   // doré Diploma Santé (accent)
+  accentBg:     'rgba(204, 172, 113, 0.12)',
+  danger:       '#ef6b51',   // rouge HubSpot-style
+}
 
 export default function CRMSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
-  // Charge l'état "collapsed" depuis localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return
     const stored = localStorage.getItem('crm-sidebar-collapsed')
@@ -69,7 +80,7 @@ export default function CRMSidebar() {
     return pathname.startsWith(href)
   }
 
-  const width = collapsed ? 64 : 240
+  const width = collapsed ? 60 : 232
 
   return (
     <>
@@ -80,46 +91,67 @@ export default function CRMSidebar() {
           top: 0,
           bottom: 0,
           width,
-          background: '#0b1624',
-          borderRight: '1px solid #2d4a6b',
+          background: COLORS.bg,
+          borderRight: `1px solid ${COLORS.border}`,
           display: 'flex',
           flexDirection: 'column',
-          transition: 'width .2s ease',
+          transition: 'width .18s ease',
           zIndex: 30,
           overflow: 'hidden',
+          fontFamily: '"Lexend Deca", -apple-system, BlinkMacSystemFont, "Avenir Next", Avenir, "Helvetica Neue", sans-serif',
         }}
       >
-        {/* Logo + nom */}
+        {/* Header : Logo + Diploma CRM */}
         <div style={{
-          padding: collapsed ? '16px 12px' : '16px 18px',
-          borderBottom: '1px solid #1d2f4b',
+          padding: collapsed ? '14px 10px' : '14px 18px',
+          borderBottom: `1px solid ${COLORS.border}`,
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          height: 52,
+          height: 56,
           boxSizing: 'border-box',
+          background: COLORS.bg,
         }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 22, width: 'auto', flexShrink: 0 }} />
+          <div style={{
+            width: 30,
+            height: 30,
+            borderRadius: 6,
+            background: COLORS.accent,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: 13,
+            letterSpacing: 0.5,
+          }}>
+            DS
+          </div>
           {!collapsed && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#e4e7eb', letterSpacing: 0.3 }}>
-              Diploma CRM
-            </span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1.2 }}>
+                Diploma Santé
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 500 }}>
+                CRM
+              </div>
+            </div>
           )}
         </div>
 
         {/* Nav */}
         <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
           {NAV_SECTIONS.map(section => (
-            <div key={section.title} style={{ marginBottom: 18 }}>
+            <div key={section.title} style={{ marginBottom: 20 }}>
               {!collapsed && (
                 <div style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  color: '#8b8fa8',
+                  color: COLORS.textMuted,
                   textTransform: 'uppercase',
                   letterSpacing: 1,
-                  padding: '0 10px 6px',
+                  padding: '0 12px 8px',
                 }}>
                   {section.title}
                 </div>
@@ -128,7 +160,6 @@ export default function CRMSidebar() {
                 {section.items.map(item => {
                   const active = isActive(item.href)
                   const Icon = item.icon
-                  const accentColor = item.color || '#ccac71'
                   return (
                     <a
                       key={item.key}
@@ -138,25 +169,33 @@ export default function CRMSidebar() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 10,
-                        padding: collapsed ? '10px' : '9px 12px',
-                        borderRadius: 8,
+                        padding: collapsed ? '10px' : '8px 12px',
+                        borderRadius: 6,
                         textDecoration: 'none',
-                        color: active ? accentColor : '#e4e7eb',
-                        background: active ? `${accentColor}18` : 'transparent',
-                        borderLeft: active ? `2px solid ${accentColor}` : '2px solid transparent',
+                        color: active ? COLORS.textPrimary : COLORS.textMuted,
+                        background: active ? COLORS.accentBg : 'transparent',
+                        borderLeft: active ? `3px solid ${COLORS.accent}` : '3px solid transparent',
+                        paddingLeft: collapsed ? '10px' : '9px',
                         fontSize: 13,
                         fontWeight: active ? 600 : 500,
                         transition: 'all .12s',
                         justifyContent: collapsed ? 'center' : 'flex-start',
                       }}
                       onMouseEnter={e => {
-                        if (!active) (e.currentTarget.style.background = '#152438')
+                        if (!active) e.currentTarget.style.background = COLORS.bgAlt
                       }}
                       onMouseLeave={e => {
-                        if (!active) (e.currentTarget.style.background = 'transparent')
+                        if (!active) e.currentTarget.style.background = 'transparent'
                       }}
                     >
-                      <Icon size={16} style={{ color: active ? accentColor : '#8b8fa8', flexShrink: 0 }} />
+                      <Icon
+                        size={16}
+                        strokeWidth={2}
+                        style={{
+                          color: active ? COLORS.accent : COLORS.textLight,
+                          flexShrink: 0,
+                        }}
+                      />
                       {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
                     </a>
                   )
@@ -166,14 +205,19 @@ export default function CRMSidebar() {
           ))}
         </nav>
 
-        {/* Bouton collapse + logout en bas */}
-        <div style={{ padding: 8, borderTop: '1px solid #1d2f4b', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Footer : logout + collapse */}
+        <div style={{
+          padding: 8,
+          borderTop: `1px solid ${COLORS.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          background: COLORS.bg,
+        }}>
           <a
             href="/login"
             onClick={async (e) => {
               e.preventDefault()
-              try { await fetch('/api/auth/signout', { method: 'POST' }) } catch {}
-              // Fallback Supabase direct
               try {
                 const { createClient } = await import('@/lib/supabase')
                 await createClient().auth.signOut()
@@ -184,17 +228,20 @@ export default function CRMSidebar() {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              padding: collapsed ? '10px' : '9px 12px',
-              borderRadius: 8,
+              padding: collapsed ? '10px' : '8px 12px',
+              borderRadius: 6,
               textDecoration: 'none',
-              color: '#ef4444',
+              color: COLORS.danger,
               fontSize: 13,
               fontWeight: 500,
               justifyContent: collapsed ? 'center' : 'flex-start',
+              transition: 'background .12s',
             }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 107, 81, 0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             title={collapsed ? 'Déconnexion' : undefined}
           >
-            <LogOut size={15} style={{ flexShrink: 0 }} />
+            <LogOut size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
             {!collapsed && <span>Déconnexion</span>}
           </a>
           <button
@@ -205,14 +252,18 @@ export default function CRMSidebar() {
               justifyContent: 'center',
               gap: 6,
               padding: '8px',
-              background: '#152438',
-              border: '1px solid #2d4a6b',
-              borderRadius: 8,
-              color: '#8b8fa8',
+              background: 'transparent',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 6,
+              color: COLORS.textMuted,
               cursor: 'pointer',
               fontSize: 11,
               fontFamily: 'inherit',
+              fontWeight: 500,
+              transition: 'all .12s',
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = COLORS.bgAlt; e.currentTarget.style.color = COLORS.textPrimary }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.textMuted }}
             title={collapsed ? 'Déplier le menu' : 'Réduire le menu'}
           >
             {collapsed ? <ChevronRight size={13} /> : <><ChevronLeft size={13} /> Réduire</>}
@@ -220,8 +271,8 @@ export default function CRMSidebar() {
         </div>
       </aside>
 
-      {/* Spacer pour décaler le contenu principal */}
-      <div style={{ width, flexShrink: 0, transition: 'width .2s ease' }} aria-hidden />
+      {/* Spacer : décale le contenu principal */}
+      <div style={{ width, flexShrink: 0, transition: 'width .18s ease' }} aria-hidden />
     </>
   )
 }
