@@ -4,7 +4,8 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
-  Rocket, ChevronLeft, ChevronRight, LogOut, Calendar,
+  Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
+  ExternalLink,
 } from 'lucide-react'
 
 interface NavItem {
@@ -12,6 +13,7 @@ interface NavItem {
   label: string
   href: string
   icon: typeof Users
+  external?: boolean // ouvre dans un nouvel onglet
 }
 
 interface NavSection {
@@ -32,6 +34,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { key: 'campaigns', label: 'Campagnes',   href: '/admin/crm/campaigns', icon: Mail },
       { key: 'forms',     label: 'Formulaires', href: '/admin/crm/forms',     icon: FileText },
+      { key: 'events',    label: 'Événements',  href: 'https://gestionnaire-evenements.vercel.app/#dashboard', icon: CalendarDays, external: true },
     ],
   },
   {
@@ -164,6 +167,8 @@ export default function CRMSidebar() {
                     <a
                       key={item.key}
                       href={item.href}
+                      target={item.external ? '_blank' : undefined}
+                      rel={item.external ? 'noopener noreferrer' : undefined}
                       title={collapsed ? item.label : undefined}
                       style={{
                         display: 'flex',
@@ -196,7 +201,14 @@ export default function CRMSidebar() {
                           flexShrink: 0,
                         }}
                       />
-                      {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                      {!collapsed && (
+                        <>
+                          <span style={{ whiteSpace: 'nowrap', flex: 1 }}>{item.label}</span>
+                          {item.external && (
+                            <ExternalLink size={11} style={{ color: COLORS.textLight, flexShrink: 0, opacity: 0.6 }} />
+                          )}
+                        </>
+                      )}
                     </a>
                   )
                 })}
