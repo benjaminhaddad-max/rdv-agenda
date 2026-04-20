@@ -108,7 +108,7 @@ function DealCard({
             position: 'absolute', top: 6, right: 6, width: 18, height: 18,
             borderRadius: 4,
             border: `2px solid ${isSelected ? '#ccac71' : '#3a5a7a'}`,
-            background: isSelected ? '#ccac71' : 'rgba(13,22,36,0.8)',
+            background: isSelected ? '#ccac71' : '#ffffff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'all 0.12s', zIndex: 2,
           }}
@@ -313,7 +313,7 @@ function BoardColumn({
         style={{
           padding: '10px 12px',
           borderBottom: `2px solid ${stage.color}`,
-          background: '#0d1624',
+          background: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -331,7 +331,7 @@ function BoardColumn({
               style={{
                 width: 16, height: 16, borderRadius: 3,
                 border: `2px solid ${allInColumnSelected ? '#ccac71' : '#3a5a7a'}`,
-                background: allInColumnSelected ? '#ccac71' : 'rgba(13,22,36,0.8)',
+                background: allInColumnSelected ? '#ccac71' : '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', flexShrink: 0,
               }}

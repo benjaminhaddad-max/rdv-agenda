@@ -337,7 +337,7 @@ function SelectField({
             padding: '8px 12px',
             background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
             border: 'none',
-            borderBottom: '1px solid rgba(45,74,107,0.3)',
+            borderBottom: '1px solid #eaf0f6',
             color: colorMap?.[o.id] || (o.id === value ? '#ccac71' : '#516f90'),
             fontSize: 13,
             fontFamily: 'inherit',

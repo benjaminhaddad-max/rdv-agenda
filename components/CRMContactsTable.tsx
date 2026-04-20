@@ -1340,7 +1340,7 @@ export default function CRMContactsTable({
                 <th style={{
                   padding: '9px 12px',
                   textAlign: 'left',
-                  background: '#0d1624',
+                  background: '#ffffff',
                   position: 'sticky',
                   top: 0,
                   zIndex: 10,
@@ -1384,7 +1384,7 @@ export default function CRMContactsTable({
                       ? 'rgba(76,171,219,0.07)'
                       : dragIdx === idx
                         ? 'rgba(76,171,219,0.04)'
-                        : '#0d1624',
+                        : '#ffffff',
                     position: 'sticky',
                     top: 0,
                     zIndex: 10,
@@ -1449,7 +1449,7 @@ export default function CRMContactsTable({
               {/* Actions (non-draggable) */}
               <th style={{
                 padding: '9px 12px',
-                background: '#0d1624',
+                background: '#ffffff',
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
@@ -1467,10 +1467,10 @@ export default function CRMContactsTable({
               const deal       = contact.deal
 
               const rowBg = isExpanded
-                ? 'rgba(45,74,107,0.35)'
+                ? '#eaf4fd'   // HubSpot highlighted row
                 : isHovered
-                  ? 'rgba(29,47,75,0.8)'
-                  : 'rgba(13,22,36,0.6)'
+                  ? '#f5f8fa' // HubSpot hover
+                  : '#ffffff' // white default
 
               return (
                 <>
@@ -1484,7 +1484,7 @@ export default function CRMContactsTable({
                     }}
                     style={{
                       background: rowBg,
-                      borderBottom: `1px solid ${isExpanded ? 'transparent' : '#16273a'}`,
+                      borderBottom: `1px solid ${isExpanded ? 'transparent' : '#eaf0f6'}`,
                       cursor: 'pointer',
                       transition: 'background 0.1s',
                     }}
