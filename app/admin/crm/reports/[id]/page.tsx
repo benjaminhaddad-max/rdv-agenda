@@ -455,7 +455,7 @@ const WIDGET_TYPES = [
 ]
 
 const DATA_SOURCES = [
-  { key: 'contacts',         label: 'Contacts',       groupBys: ['day', 'week', 'month', 'source', 'formation', 'classe', 'zone', 'owner'] },
+  { key: 'contacts',         label: 'Contacts',       groupBys: ['day', 'week', 'month', 'origine', 'conversion_event', 'formation', 'classe', 'zone', 'owner'] },
   { key: 'deals',            label: 'Transactions',    groupBys: ['day', 'week', 'month', 'stage', 'owner'] },
   { key: 'appointments',     label: 'Rendez-vous',     groupBys: ['day', 'week', 'month', 'status', 'owner'] },
   { key: 'campaigns',        label: 'Campagnes email', groupBys: ['week', 'month', 'status'] },
@@ -467,7 +467,9 @@ const GROUP_BY_LABELS: Record<string, string> = {
   day: 'Par jour',
   week: 'Par semaine',
   month: 'Par mois',
+  origine: 'Par origine (OFFLINE, PAID_SOCIAL…)',
   source: 'Par origine / source',
+  conversion_event: 'Par formulaire d\'acquisition',
   stage: 'Par étape',
   owner: 'Par propriétaire',
   formation: 'Par formation',

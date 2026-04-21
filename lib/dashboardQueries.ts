@@ -289,10 +289,9 @@ async function computeBreakdown(
       .slice(0, 15)
   }
 
-  // ── Groupement par source/origine ─────────────────────────────────────
-  if (gb === 'source') {
-    const field = config.data_source === 'contacts' ? 'origine' : 'source'
-    let q = db.from(src.table).select(field)
+  // ── Groupement par formulaire de conversion (recent_conversion_event) ──
+  if (gb === 'conversion_event') {
+    let q = db.from(src.table).select('recent_conversion_event')
     if (start) q = q.gte(src.dateField, start)
     if (end)   q = q.lt(src.dateField, end)
     q = applyFilters(q, config)
@@ -301,7 +300,39 @@ async function computeBreakdown(
 
     const counts = new Map<string, number>()
     for (const row of (data || [])) {
-      const v = (row[field] as string) || 'Non renseigné'
+      const raw = (row.recent_conversion_event as string) || 'Aucun formulaire'
+      // Simplification du nom : "Page - Brand: Form Name" → "Form Name"
+      const clean = raw.includes(':') ? raw.split(':').slice(-1)[0].trim() : raw
+      counts.set(clean, (counts.get(clean) || 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .map(([key, value]) => ({ key, label: key.length > 50 ? key.slice(0, 50) + '…' : key, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10)
+  }
+
+  // ── Groupement par source/origine ─────────────────────────────────────
+  if (gb === 'source' || gb === 'origine') {
+    const field = config.data_source === 'contacts' ? 'origine' : 'source'
+    let q = db.from(src.table).select(field)
+    if (start) q = q.gte(src.dateField, start)
+    if (end)   q = q.lt(src.dateField, end)
+    q = applyFilters(q, config)
+    q = q.limit(50000)
+    const { data } = await q
+
+    // Valeurs techniques HubSpot (hs_analytics_source) à EXCLURE :
+    // on ne garde que les valeurs de la vraie propriété custom "Origine"
+    const HS_TECHNICAL = new Set([
+      'OFFLINE', 'PAID_SOCIAL', 'ORGANIC_SEARCH', 'DIRECT_TRAFFIC',
+      'PAID_SEARCH', 'REFERRALS', 'AI_REFERRALS', 'EMAIL_MARKETING',
+      'SOCIAL_MEDIA', 'OTHER_CAMPAIGNS',
+    ])
+
+    const counts = new Map<string, number>()
+    for (const row of (data || [])) {
+      const v = (row[field] as string | null) || null
+      if (!v || HS_TECHNICAL.has(v)) continue // ignore null + valeurs techniques
       counts.set(v, (counts.get(v) || 0) + 1)
     }
     return Array.from(counts.entries())
