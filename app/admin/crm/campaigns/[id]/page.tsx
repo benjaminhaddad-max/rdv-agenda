@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, useRef } from 'react'
 import {
-  Mail, Send, Save, Eye, Users, Calendar, X, ChevronLeft, Trash2,
-  CheckCircle2, AlertCircle, Clock, FileText, TestTube2, Code,
+  Mail, Send, Save, Eye, Users, X, ChevronLeft,
+  CheckCircle2, AlertCircle, Clock, FileText, TestTube2, Palette,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
 
 interface Campaign {
   id: string
@@ -17,6 +18,7 @@ interface Campaign {
   reply_to: string | null
   html_body: string
   text_body: string | null
+  design_json: unknown
   status: string
   scheduled_at: string | null
   sent_at: string | null
@@ -80,6 +82,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [testEmail, setTestEmail] = useState('')
   const [testSending, setTestSending] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
+  const editorRef = useRef<EmailEditorVisualRef>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -104,6 +107,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     if (!campaign) return
     setSaving(true)
     try {
+      // Récupère le HTML + design depuis l'éditeur visuel si disponible
+      let htmlBody = campaign.html_body
+      let designJson = campaign.design_json
+      if (editorRef.current) {
+        const exported = await editorRef.current.exportContent()
+        if (exported.html) {
+          htmlBody = exported.html
+          designJson = exported.design
+          // Met aussi à jour le state local pour la preview
+          setCampaign(prev => prev ? { ...prev, html_body: exported.html, design_json: exported.design } : prev)
+        }
+      }
+
       const res = await fetch(`/api/campaigns/${id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -114,8 +130,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           sender_email: campaign.sender_email,
           sender_name: campaign.sender_name,
           reply_to: campaign.reply_to,
-          html_body: campaign.html_body,
+          html_body: htmlBody,
           text_body: campaign.text_body,
+          design_json: designJson,
         }),
       })
       if (res.ok) {
@@ -208,7 +225,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {/* Contenu */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         {tab === 'content' && (
-          <ContentTab campaign={campaign} update={update} testEmail={testEmail} setTestEmail={setTestEmail} sendTest={sendTest} testSending={testSending} testResult={testResult} />
+          <ContentTab campaign={campaign} update={update} testEmail={testEmail} setTestEmail={setTestEmail} sendTest={sendTest} testSending={testSending} testResult={testResult} editorRef={editorRef} setDirty={() => setDirty(true)} />
         )}
         {tab === 'preview' && (
           <PreviewTab html={campaign.html_body} subject={campaign.subject} senderName={campaign.sender_name} senderEmail={campaign.sender_email} />
@@ -234,7 +251,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 }
 
 // ─── Tab : Contenu ───────────────────────────────────────────────────────
-function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testSending, testResult }: {
+function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testSending, testResult, editorRef, setDirty }: {
   campaign: Campaign
   update: (patch: Partial<Campaign>) => void
   testEmail: string
@@ -242,6 +259,8 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
   sendTest: () => void
   testSending: boolean
   testResult: string | null
+  editorRef: React.RefObject<EmailEditorVisualRef | null>
+  setDirty: () => void
 }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
@@ -283,15 +302,17 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           </Field>
         </Card>
 
-        <Card title="Contenu HTML" icon={Code}>
-          <div style={{ fontSize: 11, color: '#516f90', marginBottom: 8 }}>
-            L&apos;éditeur visuel drag & drop arrive en Phase 4. Pour l&apos;instant, édite le HTML directement.
+        <Card title="Design de l'email" icon={Palette}>
+          <div style={{ fontSize: 11, color: '#516f90', marginBottom: 10, lineHeight: 1.5 }}>
+            Drag & drop des blocs depuis la palette à gauche :
+            <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
+            Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{email}}'}</code>.
           </div>
-          <textarea
-            value={campaign.html_body}
-            onChange={e => update({ html_body: e.target.value })}
-            rows={24}
-            style={{ ...inputStyle, fontFamily: 'ui-monospace, "Cascadia Mono", monospace', fontSize: 12, resize: 'vertical' }}
+          <EmailEditorVisual
+            ref={editorRef}
+            initialDesign={campaign.design_json}
+            onChange={setDirty}
+            height={720}
           />
         </Card>
       </div>
