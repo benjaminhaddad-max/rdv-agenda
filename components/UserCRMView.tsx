@@ -6,7 +6,7 @@ import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 
 // ── Constantes ──────────────────────────────────────────────────────────────
-const NAVY      = '#0d1e34'
+const NAVY      = '#ffffff'
 const NAVY_BG   = '#1a2f4a'
 const NAVY_BDR  = '#cbd6e2'
 const GOLD      = '#ccac71'

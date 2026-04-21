@@ -163,7 +163,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
       {/* Panel */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 460, maxWidth: '100vw',
-        background: '#0d1a28', borderLeft: '1px solid #cbd6e2', zIndex: 1000,
+        background: '#ffffff', borderLeft: '1px solid #cbd6e2', zIndex: 1000,
         display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         animation: 'slideIn 0.2s ease-out',
       }}>

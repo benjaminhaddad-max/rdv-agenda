@@ -35,7 +35,7 @@ function TabContenus() {
   const [error, setError]     = useState<string | null>(null)
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: '#0d1e34', border: '1px solid #2d4a6b',
+    width: '100%', background: '#ffffff', border: '1px solid #2d4a6b',
     borderRadius: 8, padding: '8px 11px', color: '#e8eaf0',
     fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
   }
@@ -250,7 +250,7 @@ function TabLiens() {
   const grouped = RDV_TYPES_LINKS.map(t => ({ ...t, links: savedLinks.filter(l => l.type === t.key) }))
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: '#0d1e34', border: '1px solid #2d4a6b',
+    width: '100%', background: '#ffffff', border: '1px solid #2d4a6b',
     borderRadius: 8, padding: '8px 11px', color: '#e8eaf0',
     fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
   }
@@ -315,7 +315,7 @@ function TabLiens() {
         </div>
 
         {previewUrl && (
-          <div style={{ background: '#0d1e34', border: '1px solid #2d4a6b', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+          <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
             <div style={{ fontSize: 9, color: '#555870', fontWeight: 700, marginBottom: 3 }}>APERÇU</div>
             <code style={{ fontSize: 10, color: BLUE, wordBreak: 'break-all', lineHeight: 1.5 }}>{previewUrl}</code>
           </div>

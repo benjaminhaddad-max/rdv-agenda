@@ -295,7 +295,7 @@ function BoardColumn({
         flexDirection: 'column',
         background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
         borderRadius: 10,
-        border: `2px solid ${isOver ? '#ccac71' : '#1a2f45'}`,
+        border: `2px solid ${isOver ? '#ccac71' : '#cbd6e2'}`,
         transition: 'all 0.15s',
         overflow: 'hidden',
         opacity: isDraggingColumn ? 0.5 : 1,

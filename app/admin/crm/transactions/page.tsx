@@ -270,7 +270,7 @@ function DropFilter({
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          background: isActive ? 'rgba(204,172,113,0.08)' : 'rgba(13,30,52,0.8)',
+          background: isActive ? 'rgba(204,172,113,0.08)' : '#f5f8fa',
           border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#cbd6e2'}`,
           borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
           color: isActive ? '#ccac71' : '#6b7a90', fontSize: 12, fontFamily: 'inherit',
@@ -285,7 +285,7 @@ function DropFilter({
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 200,
-          background: '#0d1e34', border: '1px solid #cbd6e2', borderRadius: 10,
+          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 10,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)', padding: '4px 0',
           maxHeight: 280, overflowY: 'auto', minWidth: '100%',
         }}>
@@ -809,8 +809,8 @@ export default function TransactionsPage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────────── */}
       <div style={{
-        padding: '10px 20px', background: '#101e30',
-        borderBottom: '1px solid #1a2f45',
+        padding: '10px 20px', background: '#ffffff',
+        borderBottom: '1px solid #cbd6e2',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0, gap: 12, flexWrap: 'wrap',
       }}>
@@ -902,8 +902,8 @@ export default function TransactionsPage() {
 
       {/* ── Views Tab Bar ───────────────────────────────────────────────────── */}
       <div style={{
-        padding: '0 20px', background: '#0d1a28',
-        borderBottom: '1px solid #1a2f45', flexShrink: 0,
+        padding: '0 20px', background: '#ffffff',
+        borderBottom: '1px solid #cbd6e2', flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 0,
         overflowX: 'auto', overflowY: 'hidden',
       }}>
@@ -998,7 +998,7 @@ export default function TransactionsPage() {
         })}
 
         {/* Separator */}
-        <div style={{ width: 1, height: 20, background: '#1a2f45', margin: '0 4px', flexShrink: 0 }} />
+        <div style={{ width: 1, height: 20, background: '#cbd6e2', margin: '0 4px', flexShrink: 0 }} />
 
         {/* Filtres avancés button */}
         <button
@@ -1094,7 +1094,7 @@ export default function TransactionsPage() {
       {filterPanelOpen && (
         <div style={{
           padding: '16px 20px', background: '#f5f8fa',
-          borderBottom: '1px solid #1a2f45', flexShrink: 0,
+          borderBottom: '1px solid #cbd6e2', flexShrink: 0,
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1141,8 +1141,8 @@ export default function TransactionsPage() {
               return (
                 <div key={rule.id} style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#101e30', borderRadius: 8,
-                  border: '1px solid #1a2f45', padding: '8px 12px',
+                  background: '#ffffff', borderRadius: 8,
+                  border: '1px solid #cbd6e2', padding: '8px 12px',
                 }}>
                   {/* AND label */}
                   <span style={{

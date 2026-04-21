@@ -76,7 +76,7 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
               rows={5}
               autoFocus
               style={{
-                width: '100%', background: '#0d1e34', border: '1px solid #cbd6e2',
+                width: '100%', background: '#ffffff', border: '1px solid #cbd6e2',
                 borderRadius: 8, padding: '10px 12px', color: '#33475b', fontSize: 13,
                 outline: 'none', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.6,
                 boxSizing: 'border-box', transition: 'border-color 0.15s',

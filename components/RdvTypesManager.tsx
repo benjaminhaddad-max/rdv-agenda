@@ -110,7 +110,7 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: '#0d1e34', border: '1px solid #2d4a6b',
+    width: '100%', background: '#ffffff', border: '1px solid #2d4a6b',
     borderRadius: 8, padding: '8px 11px', color: '#e8eaf0',
     fontSize: 13, outline: 'none', fontFamily: 'inherit',
     boxSizing: 'border-box', transition: 'border-color 0.15s',
