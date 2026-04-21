@@ -310,21 +310,24 @@ async function computeBreakdown(
   }
 
   // ── Groupement par formulaire de conversion (recent_conversion_event) ──
-  if (gb === 'conversion_event') {
+  if (gb === 'conversion_event' || gb === 'ns_forms') {
     const data = await fetchAllRows<{ recent_conversion_event: string | null }>(buildQuery('recent_conversion_event'))
 
+    const onlyNS = gb === 'ns_forms'
     const counts = new Map<string, number>()
     for (const row of data) {
       const raw = row.recent_conversion_event
       if (!raw) continue // ignore contacts sans formulaire
       // Simplification du nom : "Page - Brand: Form Name" → "Form Name"
       const clean = raw.includes(':') ? raw.split(':').slice(-1)[0].trim() : raw
+      // Filtre "NS -" ou "NS-" si demandé
+      if (onlyNS && !/^NS\s*-/i.test(clean)) continue
       counts.set(clean, (counts.get(clean) || 0) + 1)
     }
     return Array.from(counts.entries())
-      .map(([key, value]) => ({ key, label: key.length > 50 ? key.slice(0, 50) + '…' : key, value }))
+      .map(([key, value]) => ({ key, label: key.length > 60 ? key.slice(0, 60) + '…' : key, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
+      .slice(0, onlyNS ? 15 : 10)
   }
 
   // ── Groupement par source/origine ─────────────────────────────────────
