@@ -303,10 +303,30 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Design de l'email" icon={Palette}>
-          <div style={{ fontSize: 11, color: '#516f90', marginBottom: 10, lineHeight: 1.5 }}>
-            Drag & drop des blocs depuis la palette à gauche :
-            <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
-            Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{email}}'}</code>.
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: '#516f90', lineHeight: 1.5, flex: 1 }}>
+              Drag & drop des blocs depuis la palette à gauche :
+              <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
+              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{email}}'}</code>.
+            </div>
+            <BrevoImportButton
+              onImport={(html) => {
+                // Injecte le HTML Brevo comme nouveau contenu
+                editorRef.current?.loadDesign({
+                  body: {
+                    rows: [{
+                      cells: [1],
+                      columns: [{ contents: [{ type: 'html', values: { html } }], values: {} }],
+                      values: {},
+                    }],
+                    values: {},
+                  },
+                  counters: {},
+                  schemaVersion: 12,
+                })
+                setDirty()
+              }}
+            />
           </div>
           <EmailEditorVisual
             ref={editorRef}
@@ -522,4 +542,229 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
+}
+
+// ─── Bouton + Modal : Import d'un template Brevo ────────────────────────
+interface BrevoTemplate {
+  id: number
+  name: string
+  subject: string
+  isActive: boolean
+  sender: { name: string; email: string }
+  modifiedAt: string
+  tag: string | null
+}
+
+function BrevoImportButton({ onImport }: { onImport: (html: string) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          background: '#ffffff',
+          border: '1px solid #cbd6e2',
+          borderRadius: 8,
+          padding: '6px 12px',
+          color: '#33475b',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          whiteSpace: 'nowrap',
+          fontFamily: 'inherit',
+          flexShrink: 0,
+        }}
+      >
+        ⚡ Importer depuis Brevo
+      </button>
+      {open && (
+        <BrevoTemplatesModal
+          onClose={() => setOpen(false)}
+          onImport={(html) => { onImport(html); setOpen(false) }}
+        />
+      )}
+    </>
+  )
+}
+
+function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImport: (html: string) => void }) {
+  const [templates, setTemplates] = useState<BrevoTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [previewHtml, setPreviewHtml] = useState<string>('')
+  const [loadingPreview, setLoadingPreview] = useState(false)
+  const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/brevo/templates?templateStatus=true')
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) setError(d.error)
+        else setTemplates(d.templates || [])
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = templates.filter(t => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return t.name.toLowerCase().includes(q) || (t.subject || '').toLowerCase().includes(q)
+  })
+
+  const loadPreview = async (id: number) => {
+    setSelectedId(id)
+    setLoadingPreview(true)
+    setPreviewHtml('')
+    try {
+      const res = await fetch(`/api/brevo/templates/${id}`)
+      const data = await res.json()
+      setPreviewHtml(data.htmlContent || '')
+    } finally { setLoadingPreview(false) }
+  }
+
+  const doImport = async () => {
+    if (!selectedId || !previewHtml) return
+    setImporting(true)
+    try {
+      onImport(previewHtml)
+    } finally { setImporting(false) }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 80 }} />
+      <div style={{ position: 'fixed', top: '5vh', left: '5vw', right: '5vw', bottom: '5vh', background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #cbd6e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#33475b' }}>⚡ Templates Brevo</h3>
+            <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>
+              Choisis un template depuis ton compte Brevo. Il sera importé dans l&apos;éditeur visuel ci-dessous.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#516f90', cursor: 'pointer', padding: 6 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', minHeight: 0 }}>
+          {/* Liste à gauche */}
+          <div style={{ borderRight: '1px solid #cbd6e2', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: 12, borderBottom: '1px solid #cbd6e2' }}>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher un template…"
+                style={{ ...inputStyle, fontSize: 12 }}
+              />
+              <div style={{ fontSize: 11, color: '#516f90', marginTop: 6 }}>
+                {loading ? 'Chargement…' : `${filtered.length} template${filtered.length > 1 ? 's' : ''}`}
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+              {error ? (
+                <div style={{ padding: 16, color: '#ef4444', fontSize: 12 }}>❌ {error}</div>
+              ) : loading ? (
+                <div style={{ padding: 20, color: '#516f90', fontSize: 12, textAlign: 'center' }}>Chargement…</div>
+              ) : filtered.length === 0 ? (
+                <div style={{ padding: 20, color: '#516f90', fontSize: 12, textAlign: 'center' }}>Aucun template</div>
+              ) : (
+                filtered.map(t => {
+                  const active = selectedId === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => loadPreview(t.id)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: active ? 'rgba(204,172,113,0.15)' : 'transparent',
+                        border: active ? '1px solid rgba(204,172,113,0.5)' : '1px solid transparent',
+                        borderRadius: 8,
+                        padding: 10,
+                        marginBottom: 4,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f5f8fa' }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.subject || '(pas de sujet)'}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#7c98b6', marginTop: 3, display: 'flex', gap: 8 }}>
+                        {t.isActive && <span style={{ color: '#22c55e' }}>● Actif</span>}
+                        {t.tag && <span>🏷 {t.tag}</span>}
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Preview à droite */}
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid #cbd6e2', background: '#f5f8fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b' }}>
+                {selectedId ? `Aperçu : ${templates.find(t => t.id === selectedId)?.name}` : 'Sélectionne un template pour le prévisualiser'}
+              </div>
+              {selectedId && previewHtml && (
+                <button
+                  onClick={doImport}
+                  disabled={importing}
+                  style={{
+                    background: 'rgba(204,172,113,0.15)',
+                    border: '1px solid rgba(204,172,113,0.3)',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    color: '#ccac71',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    opacity: importing ? 0.5 : 1,
+                  }}
+                >
+                  {importing ? 'Import…' : '⬇ Importer dans l\'éditeur'}
+                </button>
+              )}
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#f5f8fa' }}>
+              {loadingPreview ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#516f90' }}>Chargement du template…</div>
+              ) : previewHtml ? (
+                <iframe
+                  srcDoc={previewHtml}
+                  sandbox="allow-same-origin"
+                  title="Template preview"
+                  style={{ width: '100%', height: '100%', border: 'none', background: '#ffffff' }}
+                />
+              ) : (
+                <div style={{ padding: 40, textAlign: 'center', color: '#7c98b6', fontSize: 13 }}>
+                  Clique sur un template dans la liste pour voir l&apos;aperçu
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <div style={{ padding: '10px 20px', borderTop: '1px solid #cbd6e2', background: '#f5f8fa', fontSize: 11, color: '#516f90' }}>
+          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#ccac71' }}>app.brevo.com</a> puis cliquer ici pour les importer.
+        </div>
+      </div>
+    </>
+  )
 }
