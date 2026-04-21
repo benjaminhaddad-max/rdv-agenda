@@ -461,6 +461,7 @@ const DATA_SOURCES = [
   { key: 'campaigns',        label: 'Campagnes email', groupBys: ['week', 'month', 'status'] },
   { key: 'forms',            label: 'Formulaires',     groupBys: ['status'] },
   { key: 'form_submissions', label: 'Soumissions',     groupBys: ['day', 'week', 'month', 'status'] },
+  { key: 'hubspot_forms',    label: 'Forms HubSpot (vrais counts)', groupBys: [] },
 ]
 
 const GROUP_BY_LABELS: Record<string, string> = {

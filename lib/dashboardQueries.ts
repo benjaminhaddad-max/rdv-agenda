@@ -54,6 +54,9 @@ const TABLES: Record<string, { table: string; dateField: string }> = {
   users:            { table: 'rdv_users',          dateField: 'created_at' },
 }
 
+// Sources spéciales qui ne viennent pas de Supabase (API externe)
+const EXTERNAL_SOURCES = new Set(['hubspot_forms'])
+
 // ─── Time range → { start, end } ──────────────────────────────────────────
 function computeTimeRange(config: WidgetConfig): { start?: string; end?: string } {
   const now = new Date()
@@ -110,6 +113,11 @@ const STAGE_LABELS: Record<string, { label: string; color: string; order: number
 
 // ─── Exécution du widget ──────────────────────────────────────────────────
 export async function runWidgetQuery(config: WidgetConfig): Promise<WidgetResult> {
+  // Source spéciale : formulaires HubSpot (via leur API directement)
+  if (config.data_source === 'hubspot_forms') {
+    return runHubspotFormsWidget(config)
+  }
+
   const src = TABLES[config.data_source]
   if (!src) {
     throw new Error(`Unknown data_source: ${config.data_source}`)
@@ -158,6 +166,69 @@ export async function runWidgetQuery(config: WidgetConfig): Promise<WidgetResult
   const breakdown = await computeBreakdown(db, src, config, start, end)
 
   return { total: total || 0, breakdown, trend }
+}
+
+// ─── Widget HubSpot Forms (vrai compte de soumissions via HubSpot API) ──
+async function runHubspotFormsWidget(config: WidgetConfig): Promise<WidgetResult> {
+  const opts = (config.options || {}) as { prefix?: string; limit?: number }
+  const prefix = opts.prefix || ''
+  const limit = opts.limit || 20
+
+  // Import dynamique pour éviter dépendance circulaire et garder edge-compatible
+  const { hubspotFetch } = await import('@/lib/hubspot')
+
+  // Liste tous les forms HubSpot (paginé)
+  const forms: Array<{ id: string; name: string }> = []
+  let after: string | undefined
+  let page = 0
+  do {
+    const qs = new URLSearchParams({ limit: '100', archived: 'false' })
+    if (after) qs.set('after', after)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await hubspotFetch(`/marketing/v3/forms?${qs.toString()}`)
+    for (const f of (data.results || [])) forms.push({ id: f.id, name: f.name })
+    after = data.paging?.next?.after
+    page++
+  } while (after && page < 10)
+
+  // Filtre par préfixe
+  const filtered = prefix
+    ? forms.filter(f => f.name.toLowerCase().startsWith(prefix.toLowerCase()))
+    : forms
+
+  // Pour chaque form, compte les soumissions (parallélisation par lots)
+  const counts: Array<{ key: string; label: string; value: number }> = []
+  const BATCH = 5
+  for (let i = 0; i < filtered.length; i += BATCH) {
+    const batch = filtered.slice(i, i + BATCH)
+    const results = await Promise.all(batch.map(async (f) => {
+      try {
+        let count = 0
+        let after: string | undefined
+        let iters = 0
+        do {
+          const path = `/form-integrations/v1/submissions/forms/${f.id}?limit=50${after ? `&after=${after}` : ''}`
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const d: any = await hubspotFetch(path)
+          count += (d.results?.length || 0)
+          after = d.paging?.next?.after
+          iters++
+        } while (after && iters < 200) // max 10k submissions per form safety
+        return { key: f.id, label: f.name, value: count }
+      } catch {
+        return { key: f.id, label: f.name, value: 0 }
+      }
+    }))
+    counts.push(...results)
+  }
+
+  const sorted = counts
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit)
+
+  const total = sorted.reduce((s, c) => s + c.value, 0)
+  return { total, breakdown: sorted }
 }
 
 // ─── Helper : fetch all rows paginated (bypasse limite Supabase 1000) ──
