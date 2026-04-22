@@ -60,10 +60,81 @@ function generateEmbedScript(host: string, slug: string): string {
 
     fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/public')
       .then(function(r){ if (!r.ok) throw new Error('Form not found'); return r.json(); })
-      .then(function(form){ render(container, form); })
+      .then(function(form){
+        // Si le form a un hubspot_form_id, on utilise le vrai script HubSpot
+        // pour un rendu 100 % identique (charte, styles, behaviors HubSpot)
+        if (form.hubspot_form_id && form.hubspot_portal_id) {
+          return mountHubspot(container, form);
+        }
+        render(container, form);
+      })
       .catch(function(err){
         container.innerHTML = '<div style="padding:20px;color:#c00;font-size:13px;text-align:center;">Erreur : ' + err.message + '</div>';
       });
+  }
+
+  // ─── MODE HUBSPOT (charge le vrai script HubSpot) ─────────────
+  function mountHubspot(container, form) {
+    container.innerHTML = '';
+    var targetId = 'diploma-hs-form-' + SLUG;
+    var target = document.createElement('div');
+    target.id = targetId;
+    container.appendChild(target);
+
+    function createForm() {
+      if (!window.hbspt || !window.hbspt.forms) return setTimeout(createForm, 100);
+      window.hbspt.forms.create({
+        portalId: form.hubspot_portal_id,
+        formId: form.hubspot_form_id,
+        region: form.hubspot_region || 'eu1',
+        target: '#' + targetId,
+        // Callback : quand le form HubSpot est soumis, on log aussi chez nous
+        onFormSubmit: function($form) {
+          try {
+            var data = {};
+            var els = $form.elements || [];
+            for (var i = 0; i < els.length; i++) {
+              var el = els[i];
+              if (!el.name) continue;
+              if (el.type === 'checkbox' || el.type === 'radio') {
+                if (el.checked) data[el.name] = el.value;
+              } else {
+                data[el.name] = el.value;
+              }
+            }
+            var utm = {};
+            try {
+              var qs = new URLSearchParams(location.search);
+              ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
+                var v = qs.get(k); if (v) utm[k] = v;
+              });
+            } catch(e){}
+            fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/submit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(Object.assign({ data: data, source_url: location.href }, utm)),
+            }).catch(function(){});
+          } catch(e){ /* silent */ }
+        },
+      });
+    }
+
+    // Charge le script HubSpot s'il n'est pas déjà présent
+    if (window.hbspt && window.hbspt.forms) {
+      createForm();
+    } else {
+      var existing = document.querySelector('script[src*="js-' + (form.hubspot_region || 'eu1') + '.hsforms.net/forms/embed/v2.js"]');
+      if (existing) {
+        existing.addEventListener('load', createForm);
+      } else {
+        var s = document.createElement('script');
+        s.src = '//js-' + (form.hubspot_region || 'eu1') + '.hsforms.net/forms/embed/v2.js';
+        s.charset = 'utf-8';
+        s.type = 'text/javascript';
+        s.onload = createForm;
+        document.head.appendChild(s);
+      }
+    }
   }
 
   function mountIframe(container) {

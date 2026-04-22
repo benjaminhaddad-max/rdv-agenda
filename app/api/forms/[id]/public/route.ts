@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { data: form, error } = await db
     .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, honeypot_enabled')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, honeypot_enabled, hubspot_form_id, hubspot_portal_id, hubspot_region')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
