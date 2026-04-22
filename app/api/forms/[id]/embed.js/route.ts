@@ -60,14 +60,7 @@ function generateEmbedScript(host: string, slug: string): string {
 
     fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/public')
       .then(function(r){ if (!r.ok) throw new Error('Form not found'); return r.json(); })
-      .then(function(form){
-        // Si le form a un hubspot_form_id, on utilise le vrai script HubSpot
-        // pour un rendu 100 % identique (charte, styles, behaviors HubSpot)
-        if (form.hubspot_form_id && form.hubspot_portal_id) {
-          return mountHubspot(container, form);
-        }
-        render(container, form);
-      })
+      .then(function(form){ render(container, form); })
       .catch(function(err){
         container.innerHTML = '<div style="padding:20px;color:#c00;font-size:13px;text-align:center;">Erreur : ' + err.message + '</div>';
       });
@@ -253,7 +246,13 @@ function generateEmbedScript(host: string, slug: string): string {
       if (el.tagName && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
         el.className = 'diploma-form__input';
         el.name = f.field_key;
-        if (f.placeholder) el.placeholder = f.placeholder;
+        // Placeholder = label du champ + astérisque si requis (comme HubSpot)
+        // Le champ f.placeholder ne sert que si explicitement différent du label
+        var ph = f.placeholder && f.placeholder !== f.field_key ? f.placeholder : (f.label || '');
+        if (f.required && ph && !ph.endsWith('*')) ph = ph + ' *';
+        if (ph) el.placeholder = ph;
+        // Accessibilité : aria-label avec le vrai label
+        if (f.label) el.setAttribute('aria-label', f.label);
         if (f.required) el.required = true;
         var pre = prefilled[f.field_key] || f.default_value;
         if (pre) el.value = pre;
@@ -395,25 +394,26 @@ function generateEmbedScript(host: string, slug: string): string {
     // Couleur des inputs : plus claire que le fond doré (crème), ou blanc si transparent
     var inputBg = isTransparent ? '#ffffff' : (c.inputBg || '#ffffff');
     s.textContent = [
-      // Wrapper : card dorée ou transparent si bg vide
+      // Wrapper : AUCUNE bordure ni ombre (s'intègre sans être vu)
       scope + '{' +
         'background:' + (isTransparent ? 'transparent' : c.bg) + ';' +
-        'border-radius:' + (isTransparent ? '0' : '16px') + ';' +
-        'padding:' + (isTransparent ? '0' : '32px 28px') + ';' +
-        'box-shadow:' + (isTransparent ? 'none' : '0 8px 30px rgba(0,0,0,0.06)') + ';' +
+        'border:none;' +
+        'border-radius:0;' +
+        'padding:0;' +
+        'box-shadow:none;' +
         'color:' + c.text + ';font-family:inherit;box-sizing:border-box;}',
-      // Titre centré en navy serif
+      // Titre optionnel
       scope + ' .diploma-form__title{font-family:inherit;margin:0 0 20px;font-size:24px;font-weight:700;color:' + c.text + ';line-height:1.2;text-align:center;}',
       scope + ' .diploma-form__subtitle{margin:0 0 16px;font-size:14px;opacity:0.75;color:' + c.text + ';text-align:center;}',
       // Form layout
       scope + ' .diploma-form__form{display:flex;flex-direction:column;gap:12px;}',
       scope + ' .diploma-form__field{display:flex;flex-direction:column;}',
-      // Labels cachés (HubSpot-like : placeholders font office de label)
-      scope + ' .diploma-form__label{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}',
-      // Inputs pills crème
-      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:14px 22px;border:1px solid rgba(0,0,0,0.04);border-radius:999px;font-family:inherit;font-size:15px;background:' + inputBg + ';color:' + c.text + ';outline:none;transition:border-color .15s,box-shadow .15s;}',
-      scope + ' .diploma-form__input:focus{border-color:' + c.primary + ';box-shadow:0 0 0 3px rgba(26,47,75,0.08);}',
-      scope + ' .diploma-form__input::placeholder{color:' + c.text + ';opacity:0.45;}',
+      // Les labels sont TOTALEMENT cachés (placeholders seulement)
+      scope + ' .diploma-form__label{display:none!important;}',
+      // Inputs pills SANS bordures visibles
+      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:14px 22px;border:none;border-radius:999px;font-family:inherit;font-size:15px;background:' + inputBg + ';color:' + c.text + ';outline:none;box-shadow:none;transition:box-shadow .15s;}',
+      scope + ' .diploma-form__input:focus{box-shadow:0 0 0 2px ' + c.primary + ';}',
+      scope + ' .diploma-form__input::placeholder{color:' + c.text + ';opacity:0.55;}',
       scope + ' textarea.diploma-form__input{border-radius:18px;resize:vertical;min-height:90px;}',
       scope + ' select.diploma-form__input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22none%22 stroke=%22%231a2f4b%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M1 1l5 5 5-5%22/></svg>");background-repeat:no-repeat;background-position:right 18px center;padding-right:44px;cursor:pointer;}',
       scope + ' .diploma-form__help{font-size:12px;opacity:0.7;padding:4px 16px 0;}',
