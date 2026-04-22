@@ -313,35 +313,44 @@ function generateEmbedScript(host: string, slug: string): string {
   }
 
   // Styles du formulaire — scope via classe unique par slug
+  // Mode "naked" (transparent) : pas de carte propre, s'intègre dans le conteneur parent
   function injectStyles(slugId, c) {
     var id = 'diploma-form-styles-' + slugId;
     if (document.getElementById(id)) return;
     var s = document.createElement('style');
     s.id = id;
     var scope = '.diploma-form-' + slugId;
+    var isTransparent = c.bg === 'transparent' || c.bg === '' || !c.bg;
     s.textContent = [
-      scope + '{background:' + c.bg + ';border-radius:18px;padding:28px 32px;color:' + c.text + ';font-family:inherit;max-width:520px;box-sizing:border-box;margin:0 auto;box-shadow:0 10px 40px rgba(0,0,0,0.08);}',
+      // Wrapper : transparent par défaut (s'intègre dans le parent), sinon card
+      scope + '{' +
+        'background:' + (isTransparent ? 'transparent' : c.bg) + ';' +
+        'border-radius:' + (isTransparent ? '0' : '18px') + ';' +
+        'padding:' + (isTransparent ? '0' : '28px 32px') + ';' +
+        'box-shadow:' + (isTransparent ? 'none' : '0 10px 40px rgba(0,0,0,0.08)') + ';' +
+        'color:' + c.text + ';font-family:inherit;box-sizing:border-box;}',
       scope + ' .diploma-form__form{display:flex;flex-direction:column;gap:14px;}',
-      scope + ' .diploma-form__title{font-family:inherit;margin:0 0 4px;font-size:24px;font-weight:700;text-align:center;color:' + c.text + ';line-height:1.2;}',
-      scope + ' .diploma-form__subtitle{margin:0 0 12px;font-size:14px;opacity:0.75;text-align:center;color:' + c.text + ';}',
-      scope + ' .diploma-form__field{display:flex;flex-direction:column;gap:4px;}',
-      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:14px 18px;border:1px solid rgba(0,0,0,0.08);border-radius:999px;font-family:inherit;font-size:15px;background:' + c.inputBg + ';color:' + c.text + ';outline:none;transition:border-color .15s,box-shadow .15s;}',
-      scope + ' .diploma-form__input:focus{border-color:' + c.text + ';box-shadow:0 0 0 3px rgba(0,0,0,0.05);}',
-      scope + ' .diploma-form__input::placeholder{color:' + c.text + ';opacity:0.5;}',
-      scope + ' textarea.diploma-form__input{border-radius:18px;padding:14px 18px;resize:vertical;min-height:90px;}',
-      scope + ' select.diploma-form__input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22none%22 stroke=%22%231a2f4b%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M1 1l5 5 5-5%22/></svg>");background-repeat:no-repeat;background-position:right 18px center;padding-right:44px;}',
-      scope + ' .diploma-form__help{font-size:12px;opacity:0.7;padding-left:10px;}',
+      scope + ' .diploma-form__title{font-family:inherit;margin:0 0 4px;font-size:22px;font-weight:700;color:' + c.text + ';line-height:1.2;}',
+      scope + ' .diploma-form__subtitle{margin:0 0 10px;font-size:14px;opacity:0.75;color:' + c.text + ';}',
+      scope + ' .diploma-form__field{display:flex;flex-direction:column;gap:6px;}',
+      scope + ' .diploma-form__label{font-size:14px;font-weight:500;color:' + c.text + ';}',
+      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:12px 16px;border:1px solid rgba(0,0,0,0.08);border-radius:8px;font-family:inherit;font-size:15px;background:#ffffff;color:' + c.text + ';outline:none;transition:border-color .15s,box-shadow .15s;}',
+      scope + ' .diploma-form__input:focus{border-color:' + c.primary + ';box-shadow:0 0 0 3px rgba(26,47,75,0.08);}',
+      scope + ' .diploma-form__input::placeholder{color:' + c.text + ';opacity:0.4;}',
+      scope + ' textarea.diploma-form__input{resize:vertical;min-height:90px;}',
+      scope + ' select.diploma-form__input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22none%22 stroke=%22%231a2f4b%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M1 1l5 5 5-5%22/></svg>");background-repeat:no-repeat;background-position:right 16px center;padding-right:40px;cursor:pointer;}',
+      scope + ' .diploma-form__help{font-size:12px;opacity:0.7;}',
       scope + ' .diploma-form__radios,' + scope + ' .diploma-form__checkboxes{display:flex;flex-direction:column;gap:6px;padding:4px 0;}',
       scope + ' .diploma-form__radio,' + scope + ' .diploma-form__checkbox{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;color:' + c.text + ';}',
-      scope + ' .diploma-form__actions{margin-top:6px;}',
-      scope + ' .diploma-form__submit{display:block;width:100%;padding:16px 24px;border:none;border-radius:999px;font-family:inherit;font-size:15px;font-weight:700;color:#fff;background:' + c.primary + ';cursor:pointer;transition:opacity .15s,transform .05s;}',
+      scope + ' .diploma-form__actions{margin-top:8px;}',
+      scope + ' .diploma-form__submit{display:block;width:100%;padding:14px 24px;border:none;border-radius:10px;font-family:inherit;font-size:15px;font-weight:700;color:#fff;background:' + c.primary + ';cursor:pointer;transition:opacity .15s,transform .05s;}',
       scope + ' .diploma-form__submit:hover{opacity:0.92;}',
       scope + ' .diploma-form__submit:active{transform:translateY(1px);}',
       scope + ' .diploma-form__submit:disabled{opacity:0.6;cursor:default;}',
-      scope + ' .diploma-form__error{display:none;padding:10px 14px;border-radius:10px;background:rgba(239,68,68,0.12);color:#c00;font-size:13px;}',
-      scope + ' .diploma-form__success{text-align:center;padding:40px 20px;color:' + c.text + ';}',
+      scope + ' .diploma-form__error{display:none;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.12);color:#c00;font-size:13px;}',
+      scope + ' .diploma-form__success{text-align:center;padding:30px 20px;color:' + c.text + ';}',
       scope + ' .diploma-form__success-title{font-size:22px;font-weight:700;margin-bottom:6px;}',
-      scope + ' .diploma-form__success-text{font-size:14px;opacity:0.8;}',
+      scope + ' .diploma-form__success-text{font-size:14px;opacity:0.85;}',
     ].join('\\n');
     document.head.appendChild(s);
   }
