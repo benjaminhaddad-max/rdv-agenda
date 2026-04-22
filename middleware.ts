@@ -44,7 +44,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/book/') ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/confirm/') ||
-    pathname.startsWith('/reschedule/')
+    pathname.startsWith('/reschedule/') ||
+    pathname.startsWith('/forms/') ||    // pages publiques de formulaires
+    pathname.startsWith('/embed/')       // iframes d'embed (forms, events, etc.)
   ) {
     return response
   }
