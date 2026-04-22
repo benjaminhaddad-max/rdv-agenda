@@ -218,8 +218,8 @@ export default function FormRenderer({ slug, embed }: { slug: string; embed: boo
 function Wrapper({ children, embed, bg = '#ffffff' }: { children: React.ReactNode; embed: boolean; bg?: string }) {
   if (embed) {
     return (
-      <div style={{ background: 'transparent', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <div style={{ background: bg, borderRadius: 12 }}>{children}</div>
+      <div style={{ background: bg, fontFamily: 'Inter, system-ui, sans-serif', margin: 0, padding: 0 }}>
+        {children}
       </div>
     )
   }
