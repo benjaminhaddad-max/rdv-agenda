@@ -216,10 +216,14 @@ function generateEmbedScript(host: string, slug: string): string {
           break;
         case 'select':
           el = document.createElement('select');
-          var opt0 = document.createElement('option');
-          opt0.value = ''; opt0.textContent = f.placeholder || '— Choisir —';
-          opt0.disabled = true; opt0.selected = true;
-          el.appendChild(opt0);
+          // Si placeholder défini → option disabled en tête ("— Choisir —" etc.)
+          // Sinon → la première vraie option est sélectionnée par défaut (comme HubSpot)
+          if (f.placeholder && f.placeholder.trim()) {
+            var opt0 = document.createElement('option');
+            opt0.value = ''; opt0.textContent = f.placeholder;
+            opt0.disabled = true; opt0.selected = true;
+            el.appendChild(opt0);
+          }
           (f.options || []).forEach(function(o){
             var op = document.createElement('option');
             op.value = o.value; op.textContent = o.label;
@@ -263,10 +267,10 @@ function generateEmbedScript(host: string, slug: string): string {
       if (el.tagName && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
         el.className = 'diploma-form__input';
         el.name = f.field_key;
-        // Placeholder = label du champ + astérisque si requis (comme HubSpot)
-        // Le champ f.placeholder ne sert que si explicitement différent du label
+        // Placeholder : utilise f.placeholder si défini, sinon f.label
+        // Astérisque collé (comme HubSpot : "Email*", pas "Email *")
         var ph = f.placeholder && f.placeholder !== f.field_key ? f.placeholder : (f.label || '');
-        if (f.required && ph && !ph.endsWith('*')) ph = ph + ' *';
+        if (f.required && ph && !ph.endsWith('*')) ph = ph + '*';
         if (ph) el.placeholder = ph;
         // Accessibilité : aria-label avec le vrai label
         if (f.label) el.setAttribute('aria-label', f.label);
