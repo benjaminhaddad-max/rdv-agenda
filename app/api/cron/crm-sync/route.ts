@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames } from '@/lib/hubspot'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -35,12 +35,16 @@ export async function GET(req: NextRequest) {
     let nextContactCursor: string | null = null
 
     try {
+      // En mode reprise, on récupère aussi toutes les propriétés
+      const allContactPropsChunk = await getAllPropertyNames('contacts')
+      const chunkPropsToFetch = allContactPropsChunk.length > 0 ? allContactPropsChunk : undefined
+
       let cursor: string | undefined = contactCursor
       let rounds = 0
       const buffer: ReturnType<typeof buildContactRow>[] = []
 
       while (rounds < MAX_PAGES_PER_CHUNK) {
-        const { contacts: batch, nextCursor } = await getAllContactsForSync(cursor)
+        const { contacts: batch, nextCursor } = await getAllContactsForSync(cursor, chunkPropsToFetch)
 
         if (batch.length > 0) {
           buffer.push(...batch.map(c => buildContactRow(c, now)))
@@ -124,6 +128,16 @@ export async function GET(req: NextRequest) {
   let currentPhase = 0
 
   try {
+    // ── Phase 0 : Récupérer tous les noms de propriétés HubSpot ──────────
+    currentPhase = 0
+    const [allContactProps, allDealProps] = await Promise.all([
+      getAllPropertyNames('contacts'),
+      getAllPropertyNames('deals'),
+    ])
+    // Fallback sur les props hardcodées si l'API échoue
+    const contactPropsToFetch = allContactProps.length > 0 ? allContactProps : undefined
+    const dealPropsToFetch    = allDealProps.length > 0    ? allDealProps    : undefined
+
     // ── Phase 1 : Récupérer tous les deals du pipeline ────────────────────
     currentPhase = 1
     const allDealRows: ReturnType<typeof buildDealRow>[] = []
@@ -131,7 +145,7 @@ export async function GET(req: NextRequest) {
     let dealCursor: string | undefined = undefined
 
     do {
-      const { deals, nextCursor } = await getAllDealsForSync(dealCursor)
+      const { deals, nextCursor } = await getAllDealsForSync(dealCursor, dealPropsToFetch)
 
       for (const d of deals) {
         allDealIds.push(d.id)
@@ -183,7 +197,7 @@ export async function GET(req: NextRequest) {
 
     for (let i = 0; i < uniqueContactIds.length; i += CONTACT_BATCH) {
       const chunk = uniqueContactIds.slice(i, i + CONTACT_BATCH)
-      const contacts = await batchGetContacts(chunk)
+      const contacts = await batchGetContacts(chunk, contactPropsToFetch)
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
@@ -199,7 +213,7 @@ export async function GET(req: NextRequest) {
     let incrRounds = 0
 
     do {
-      const { contacts, nextCursor } = await getContactsModifiedSince(contactSince, incrCursor)
+      const { contacts, nextCursor } = await getContactsModifiedSince(contactSince, incrCursor, contactPropsToFetch)
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
@@ -223,7 +237,7 @@ export async function GET(req: NextRequest) {
       const buffer: ReturnType<typeof buildContactRow>[] = []
 
       while (allRounds < MAX_PAGES_PER_CHUNK) {
-        const { contacts: batch, nextCursor } = await getAllContactsForSync(allCursor)
+        const { contacts: batch, nextCursor } = await getAllContactsForSync(allCursor, contactPropsToFetch)
 
         if (batch.length > 0) {
           buffer.push(...batch.map(c => buildContactRow(c, now)))
@@ -253,7 +267,7 @@ export async function GET(req: NextRequest) {
         let classRounds = 0
 
         do {
-          const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByClass(classe, classCursor)
+          const { contacts: prioContacts, nextCursor: prioNext } = await getContactsByClass(classe, classCursor, contactPropsToFetch)
 
           if (prioContacts.length > 0) {
             const rows = prioContacts.map(c => buildContactRow(c, now))
@@ -330,6 +344,8 @@ function buildDealRow(d: any) {
     description:        d.properties.description ?? null,
     supabase_appt_id:   null as string | null,
     synced_at:          new Date().toISOString(),
+    // Toutes les propriétés HubSpot brutes (migration future)
+    hubspot_raw:        d.properties,
   }
 }
 
@@ -353,5 +369,7 @@ function buildContactRow(c: any, now: string) {
     formation_demandee:         c.properties.diploma_sante___formation_demandee ?? null,
     formation_souhaitee:        c.properties.formation_souhaitee ?? null,
     synced_at:                  now,
+    // Toutes les propriétés HubSpot brutes (migration future)
+    hubspot_raw:                c.properties,
   }
 }

@@ -41,6 +41,21 @@ export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '231
 
 const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,createdate,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,origine,diploma_sante___formation_demandee,formation_souhaitee'
 
+// ─── Récupérer tous les noms de propriétés d'un objet HubSpot ─────────────
+// Utilisé par le sync CRM pour stocker l'intégralité des propriétés en JSONB
+export async function getAllPropertyNames(
+  objectType: 'contacts' | 'deals'
+): Promise<string[]> {
+  try {
+    const data = await hubspotFetch(
+      `/crm/v3/properties/${objectType}?archived=false&limit=1000`
+    )
+    return (data.results ?? []).map((p: { name: string }) => p.name)
+  } catch {
+    return []
+  }
+}
+
 export interface HubSpotContact {
   id: string
   properties: {
@@ -588,6 +603,7 @@ export async function mergeContacts(primaryContactId: string, secondaryContactId
 export async function getContactsModifiedSince(
   since: string, // ISO date string
   after?: string,
+  properties?: string[],
 ): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
@@ -598,7 +614,7 @@ export async function getContactsModifiedSince(
         value: new Date(since).getTime().toString(),
       }],
     }],
-    properties: CONTACT_PROPS.split(','),
+    properties: properties && properties.length > 0 ? properties : CONTACT_PROPS.split(','),
     sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
     limit: 100,
   }
@@ -616,13 +632,16 @@ export async function getContactsModifiedSince(
 
 // ─── Sync CRM : batch-read de contacts par IDs ────────────────────────────
 // 100 IDs max par requête — beaucoup plus rapide que paginer toute la base
-export async function batchGetContacts(contactIds: string[]): Promise<HubSpotContact[]> {
+export async function batchGetContacts(
+  contactIds: string[],
+  properties?: string[],
+): Promise<HubSpotContact[]> {
   if (contactIds.length === 0) return []
   const data = await hubspotFetch('/crm/v3/objects/contacts/batch/read', {
     method: 'POST',
     body: JSON.stringify({
       inputs: contactIds.map(id => ({ id })),
-      properties: CONTACT_PROPS.split(','),
+      properties: properties && properties.length > 0 ? properties : CONTACT_PROPS.split(','),
     }),
   })
   return data.results ?? []
@@ -632,20 +651,34 @@ export async function batchGetContacts(contactIds: string[]): Promise<HubSpotCon
 // Utilise l'endpoint GET (pas Search) → pas de limite 10K, itère TOUS les contacts.
 // Les props sont passées en paramètres répétés (?properties=a&properties=b)
 // car HubSpot GET n'accepte pas le format comma-separated en un seul param.
-export async function getAllContactsForSync(after?: string): Promise<{
-  contacts: HubSpotContact[]
-  nextCursor?: string
-}> {
-  const params = new URLSearchParams({ limit: '100' })
-  for (const prop of CONTACT_PROPS.split(',')) {
-    params.append('properties', prop.trim())
-  }
-  if (after) params.set('after', after)
+export async function getAllContactsForSync(
+  after?: string,
+  properties?: string[],
+): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
+  // Étape 1 : GET léger pour récupérer les IDs (évite la limite de longueur d'URL
+  // qui serait dépassée avec 800+ noms de propriétés en query string)
+  const idParams = new URLSearchParams({ limit: '100', properties: 'hs_object_id' })
+  if (after) idParams.set('after', after)
 
-  const data = await hubspotFetch(`/crm/v3/objects/contacts?${params.toString()}`)
+  const idData = await hubspotFetch(`/crm/v3/objects/contacts?${idParams.toString()}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ids: string[] = (idData.results ?? []).map((c: any) => c.id)
+
+  if (ids.length === 0) return { contacts: [], nextCursor: undefined }
+
+  // Étape 2 : POST batch/read avec toutes les propriétés (body → pas de limite URL)
+  const propsToUse = properties && properties.length > 0 ? properties : CONTACT_PROPS.split(',')
+  const batchData = await hubspotFetch('/crm/v3/objects/contacts/batch/read', {
+    method: 'POST',
+    body: JSON.stringify({
+      inputs: ids.map(id => ({ id })),
+      properties: propsToUse,
+    }),
+  })
+
   return {
-    contacts: data.results ?? [],
-    nextCursor: data.paging?.next?.after,
+    contacts: batchData.results ?? [],
+    nextCursor: idData.paging?.next?.after,
   }
 }
 
@@ -656,15 +689,14 @@ const DEAL_SYNC_PROPS = [
   'closedate', 'createdate', 'description',
 ].join(',')
 
-export async function getAllDealsForSync(after?: string): Promise<{
+export async function getAllDealsForSync(
+  after?: string,
+  properties?: string[],
+): Promise<{
   deals: Array<{
     id: string
-    properties: {
-      dealname: string; dealstage: string; pipeline: string
-      hubspot_owner_id?: string; teleprospecteur?: string
-      diploma_sante___formation?: string; closedate?: string
-      createdate?: string; description?: string
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    properties: any
   }>
   nextCursor?: string
 }> {
@@ -676,7 +708,7 @@ export async function getAllDealsForSync(after?: string): Promise<{
     filterGroups: [{
       filters: [{ propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID }],
     }],
-    properties: DEAL_SYNC_PROPS.split(','),
+    properties: properties && properties.length > 0 ? properties : DEAL_SYNC_PROPS.split(','),
     limit: 100,
   }
   if (after) body.after = after
@@ -697,13 +729,14 @@ export async function getAllDealsForSync(after?: string): Promise<{
 export async function getContactsByClass(
   classe: string,
   after?: string,
+  properties?: string[],
 ): Promise<{ contacts: HubSpotContact[]; nextCursor?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
     filterGroups: [
       { filters: [{ propertyName: 'classe_actuelle', operator: 'EQ', value: classe }] },
     ],
-    properties: CONTACT_PROPS.split(','),
+    properties: properties && properties.length > 0 ? properties : CONTACT_PROPS.split(','),
     sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
     limit: 100,
   }
