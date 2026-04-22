@@ -172,6 +172,7 @@ export default function FormRenderer({ slug, embed }: { slug: string; embed: boo
               onCheckboxChange={(o, c) => handleCheckboxChange(f.field_key, o, c)}
               text={text}
               primary={primary}
+              hideLabel={embed}
             />
           ))}
 
@@ -233,13 +234,14 @@ function Wrapper({ children, embed, bg = '#ffffff' }: { children: React.ReactNod
 }
 
 // ─── Rendu d'un champ ────────────────────────────────────────────────────
-function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary }: {
+function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary, hideLabel }: {
   field: PublicField
   value: string
   onChange: (v: string) => void
   onCheckboxChange: (optValue: string, checked: boolean) => void
   text: string
   primary: string
+  hideLabel?: boolean
 }) {
   const labelColor = text
   const inputStyle: React.CSSProperties = {
@@ -252,28 +254,33 @@ function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary
     return <input type="hidden" name={field.field_key} value={value} />
   }
 
+  // En mode embed, on utilise le label comme placeholder fallback pour garder la lisibilité
+  const effectivePlaceholder = field.placeholder || (hideLabel ? field.label : '')
+
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: labelColor, marginBottom: 6 }}>
-        {field.label}{field.required && <span style={{ color: '#ef4444' }}> *</span>}
-      </label>
+      {!hideLabel && (
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: labelColor, marginBottom: 6 }}>
+          {field.label}{field.required && <span style={{ color: '#ef4444' }}> *</span>}
+        </label>
+      )}
 
       {(() => {
         switch (field.field_type) {
           case 'textarea':
-            return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || ''} rows={4} required={field.required} style={{ ...inputStyle, resize: 'vertical' }} />
+            return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={effectivePlaceholder} rows={4} required={field.required} style={{ ...inputStyle, resize: 'vertical' }} />
           case 'email':
-            return <input type="email" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || ''} required={field.required} style={inputStyle} />
+            return <input type="email" value={value} onChange={e => onChange(e.target.value)} placeholder={effectivePlaceholder} required={field.required} style={inputStyle} />
           case 'phone':
-            return <input type="tel" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || ''} required={field.required} style={inputStyle} />
+            return <input type="tel" value={value} onChange={e => onChange(e.target.value)} placeholder={effectivePlaceholder} required={field.required} style={inputStyle} />
           case 'number':
-            return <input type="number" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || ''} required={field.required} style={inputStyle} />
+            return <input type="number" value={value} onChange={e => onChange(e.target.value)} placeholder={effectivePlaceholder} required={field.required} style={inputStyle} />
           case 'date':
             return <input type="date" value={value} onChange={e => onChange(e.target.value)} required={field.required} style={inputStyle} />
           case 'select':
             return (
               <select value={value} onChange={e => onChange(e.target.value)} required={field.required} style={inputStyle}>
-                <option value="">{field.placeholder || '— Choisir —'}</option>
+                <option value="">{effectivePlaceholder || '— Choisir —'}</option>
                 {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             )
@@ -301,7 +308,7 @@ function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary
               </div>
             )
           default:
-            return <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || ''} required={field.required} style={inputStyle} />
+            return <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={effectivePlaceholder} required={field.required} style={inputStyle} />
         }
       })()}
 
