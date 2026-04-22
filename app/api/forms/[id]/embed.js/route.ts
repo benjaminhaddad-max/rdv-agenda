@@ -43,21 +43,30 @@ function generateEmbedScript(host: string, slug: string): string {
   var SLUG = ${JSON.stringify(slug)};
   var SELECTOR = '[data-diploma-form="' + SLUG + '"]';
 
-  // Repère l'emplacement du <script> actuel (comme HubSpot)
-  // Utilisé pour auto-créer le container si aucun n'est présent
-  var currentScript = document.currentScript ||
-    (function(){ var s = document.getElementsByTagName('script'); return s[s.length - 1]; })();
+  // Trouve notre propre tag <script> (robuste même en async/defer)
+  // Priorité : document.currentScript (scripts sync) → query par src (scripts async)
+  function findOwnScript() {
+    if (document.currentScript) return document.currentScript;
+    // Cherche par URL (fonctionne avec async)
+    var all = document.querySelectorAll('script[src*="/api/forms/' + SLUG + '/embed.js"]');
+    if (all.length) return all[all.length - 1];
+    // Fallback : dernier script connu
+    var s = document.getElementsByTagName('script');
+    return s[s.length - 1];
+  }
+  var currentScript = findOwnScript();
 
   function init() {
     var containers = document.querySelectorAll(SELECTOR);
     // Si aucun container explicite n'existe, on en crée un juste avant le <script>
-    // → comportement identique à HubSpot : il suffit de coller le <script> où on veut le form
     if (!containers.length) {
+      // Re-trouve le script au moment de l'init (au cas où l'async l'ait masqué)
+      var ownScript = findOwnScript();
       var auto = document.createElement('div');
       auto.setAttribute('data-diploma-form', SLUG);
       auto.dataset.autocreated = '1';
-      if (currentScript && currentScript.parentNode) {
-        currentScript.parentNode.insertBefore(auto, currentScript);
+      if (ownScript && ownScript.parentNode) {
+        ownScript.parentNode.insertBefore(auto, ownScript);
       } else {
         document.body.appendChild(auto);
       }
