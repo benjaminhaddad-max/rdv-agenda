@@ -41,6 +41,8 @@ export async function GET(req: NextRequest) {
   // Filtre direct sur crm_contacts.hubspot_owner_id (télépro = propriétaire du contact)
   const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const formation        = searchParams.get('formation') ?? ''
+  const classeFilter     = searchParams.get('classe') ?? ''
+  const periodFilter     = searchParams.get('period') ?? ''
   const noTelepro        = searchParams.get('no_telepro') === '1'
   const withTelepro      = searchParams.get('with_telepro') === '1'
   const ownerExclude     = searchParams.get('owner_exclude') ?? ''
@@ -430,6 +432,43 @@ export async function GET(req: NextRequest) {
   // Filtre classe SQL
   if (!allClasses) {
     query = query.in('classe_actuelle', PRIORITY_CLASSES)
+  }
+
+  // Filtre classe spécifique
+  if (classeFilter) {
+    query = query.eq('classe_actuelle', classeFilter)
+  }
+
+  // Filtre période (sur deal.createdate — même logique que l'ancien filterClientSide)
+  if (periodFilter) {
+    const now = new Date()
+    let periodSince: Date | null = null
+    let periodExact = false
+    if (periodFilter === 'today') {
+      periodSince = new Date(now); periodSince.setHours(0, 0, 0, 0); periodExact = true
+    } else if (periodFilter === 'week') {
+      periodSince = new Date(now); periodSince.setDate(now.getDate() - 7)
+    } else if (periodFilter === 'month') {
+      periodSince = new Date(now.getFullYear(), now.getMonth(), 1); periodExact = true
+    }
+    if (periodSince) {
+      const periodContactIds = await fetchAllDealContactIds(q => {
+        q = q.gte('createdate', periodSince!.toISOString())
+        if (periodExact && periodFilter === 'today') {
+          const end = new Date(periodSince!); end.setHours(23, 59, 59, 999)
+          q = q.lte('createdate', end.toISOString())
+        }
+        if (periodExact && periodFilter === 'month') {
+          const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+          q = q.lte('createdate', end.toISOString())
+        }
+        return q
+      })
+      if (periodContactIds.length === 0) {
+        return NextResponse.json({ data: [], total: 0, page, limit })
+      }
+      query = query.in('hubspot_contact_id', periodContactIds)
+    }
   }
 
   // Recherche textuelle

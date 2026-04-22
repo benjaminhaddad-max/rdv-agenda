@@ -255,6 +255,8 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'departement': p.set('departement', val); break
           case 'pipeline':    p.set('pipeline', val); break
           case 'prior_preinscription': if (val === '1') p.set('prior_preinscription', '1'); break
+          case 'classe':      p.set('classe', val); break
+          case 'period':      p.set('period', val); break
         }
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {
@@ -997,6 +999,11 @@ export default function CRMPage() {
       if (emptyFields)            params.set('empty_fields', emptyFields)
       if (notEmptyFields)         params.set('not_empty_fields', notEmptyFields)
 
+      // Filtres client-side → serveur
+      if (formation)              params.set('formation', formation)
+      if (classe)                 params.set('classe', classe)
+      if (period)                 params.set('period', period)
+
       // Tri
       params.set('sort_by',  sortBy)
       params.set('sort_dir', sortDir)
@@ -1011,7 +1018,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, sortBy, sortDir, limit, page])
+  }, [search, stage, closerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1299,9 +1306,8 @@ export default function CRMPage() {
     return `il y a ${h}h`
   }
 
-  // ── Filtres client-side ───────────────────────────────────────────────────────
-
-  const displayed = filterClientSide(contacts, period, formation, classe)
+  // Tous les filtres sont désormais côté serveur
+  const displayed = contacts
   const totalPages = Math.ceil(total / limit)
 
   const hasWithDeal  = contacts.filter(c => !!c.deal).length
