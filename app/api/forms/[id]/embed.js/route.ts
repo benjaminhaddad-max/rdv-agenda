@@ -408,8 +408,8 @@ function generateEmbedScript(host: string, slug: string): string {
     s.id = id;
     var scope = '.diploma-form-' + slugId;
     var isTransparent = c.bg === 'transparent' || c.bg === '' || !c.bg;
-    // Couleur des inputs : plus claire que le fond doré (crème), ou blanc si transparent
-    var inputBg = isTransparent ? '#ffffff' : (c.inputBg || '#ffffff');
+    // Inputs blancs par défaut (choix utilisateur, ressort bien sur fond doré)
+    var inputBg = '#ffffff';
     s.textContent = [
       // Wrapper : AUCUNE bordure ni ombre (s'intègre sans être vu)
       scope + '{' +
