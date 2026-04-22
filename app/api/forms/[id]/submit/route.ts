@@ -152,10 +152,13 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   // 6. Enregistre la soumission
+  // contact_id est de type UUID dans form_submissions mais crm_contacts utilise hubspot_contact_id (text)
+  // → on stocke l'ID texte dans la colonne `data._contact_id` à la place et on laisse contact_id null
+  const submissionData = { ...data, _contact_id: contactId }
   const submissionRow = {
     form_id: form.id,
-    data,
-    contact_id: contactId,
+    data: submissionData,
+    contact_id: null,
     contact_created: contactCreated,
     source_url: body.source_url || req.headers.get('referer') || null,
     referrer: req.headers.get('referer') || null,
