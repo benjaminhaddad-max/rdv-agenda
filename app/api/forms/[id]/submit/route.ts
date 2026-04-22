@@ -96,12 +96,12 @@ export async function POST(req: Request, { params }: Params) {
   let contactCreated = false
 
   if (form.auto_create_contact && (contactData.email || contactData.phone)) {
-    // Cherche par email en priorité, sinon par téléphone
-    let existing: { id: string } | null = null
+    // Cherche par email en priorité, sinon par téléphone (PK = hubspot_contact_id)
+    let existing: { hubspot_contact_id: string } | null = null
     if (contactData.email) {
       const { data: c } = await db
         .from('crm_contacts')
-        .select('id')
+        .select('hubspot_contact_id')
         .eq('email', String(contactData.email).toLowerCase().trim())
         .maybeSingle()
       existing = c
@@ -110,7 +110,7 @@ export async function POST(req: Request, { params }: Params) {
       const phoneClean = String(contactData.phone).replace(/\s+/g, '')
       const { data: c } = await db
         .from('crm_contacts')
-        .select('id')
+        .select('hubspot_contact_id')
         .eq('phone', phoneClean)
         .maybeSingle()
       existing = c
@@ -125,27 +125,28 @@ export async function POST(req: Request, { params }: Params) {
         }
       }
       if (Object.keys(updateData).length > 0) {
-        await db.from('crm_contacts').update(updateData).eq('id', existing.id)
+        await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
       }
-      contactId = existing.id
+      contactId = existing.hubspot_contact_id
     } else {
-      // Crée le contact
+      // Crée le contact — génère un ID natif unique pour hubspot_contact_id (NOT NULL contrainte)
+      const nativeId = 'NATIVE_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10)
       const insertData: Record<string, unknown> = {
         ...contactData,
-        hubspot_owner_id: null, // sera assigné par workflow ou manuellement
+        hubspot_contact_id: nativeId,
+        hubspot_owner_id: null,
         origine: 'Formulaire web',
-      }
-      if (form.default_owner_id) {
-        // Note : cette colonne existe peut-être, on laisse l'insert échouer silencieusement si non
       }
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
         .insert(insertData)
-        .select('id')
+        .select('hubspot_contact_id')
         .single()
       if (!cErr && created) {
-        contactId = created.id
+        contactId = created.hubspot_contact_id
         contactCreated = true
+      } else if (cErr) {
+        console.error('Form submit — contact create error:', cErr)
       }
     }
   }
