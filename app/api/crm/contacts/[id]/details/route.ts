@@ -2,19 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
 /**
- * GET /api/crm/contacts/[id]/details
- *
- * Lit UNIQUEMENT depuis Supabase — aucune dépendance HubSpot au runtime.
- * Le cron crm-sync est responsable de remplir :
- *   - crm_contacts.hubspot_raw (toutes les propriétés)
- *   - crm_properties (metadata label/group/options)
- *   - crm_activities (timeline)
- *   - crm_form_submissions
- *   - crm_deals (transactions liées)
- *   - crm_owners
- *
- * Tant que la migration v5 n'est pas appliquée, les tables absentes sont
- * traitées comme vides (dégradation gracieuse).
+ * GET /api/crm/contacts/[id]/details — lit uniquement Supabase.
  */
 export async function GET(
   _req: NextRequest,
@@ -23,7 +11,6 @@ export async function GET(
   const db = createServiceClient()
   const { id: contactId } = await params
 
-  // 1. Contact (colonnes connues + hubspot_raw si colonne existe)
   const { data: contact, error: contactErr } = await db
     .from('crm_contacts')
     .select('*')
@@ -34,7 +21,6 @@ export async function GET(
     return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
   }
 
-  // 2. Deals liés
   const { data: dealsData } = await db
     .from('crm_deals')
     .select('*')
@@ -42,7 +28,6 @@ export async function GET(
     .order('createdate', { ascending: false })
   const deals = dealsData ?? []
 
-  // 3. RDV liés (join via deals.supabase_appt_id)
   const apptIds = deals
     .map(d => d.supabase_appt_id as string | null)
     .filter((v): v is string => !!v)
@@ -56,8 +41,7 @@ export async function GET(
     appointments = appts ?? []
   }
 
-  // 4. Properties metadata (si table crm_properties existe)
-  //    On catch l'erreur pour rester compatible avant migration v5.
+  // Propriétés metadata
   let properties: Array<Record<string, unknown>> = []
   try {
     const { data } = await db
@@ -70,7 +54,18 @@ export async function GET(
     properties = data ?? []
   } catch { /* table absente */ }
 
-  // 5. Activities (notes, appels, emails, meetings)
+  // Propriétés metadata deals (pour formater dealstage/pipeline)
+  let dealProperties: Array<Record<string, unknown>> = []
+  try {
+    const { data } = await db
+      .from('crm_properties')
+      .select('name, label, options')
+      .eq('object_type', 'deals')
+      .eq('archived', false)
+    dealProperties = data ?? []
+  } catch { /* table absente */ }
+
+  // Activities
   let activities: Array<Record<string, unknown>> = []
   try {
     const { data } = await db
@@ -82,7 +77,7 @@ export async function GET(
     activities = data ?? []
   } catch { /* table absente */ }
 
-  // 6. Form submissions
+  // Form submissions
   let formSubmissions: Array<Record<string, unknown>> = []
   try {
     const { data } = await db
@@ -93,7 +88,26 @@ export async function GET(
     formSubmissions = data ?? []
   } catch { /* table absente */ }
 
-  // 7. Grouper les properties par group_name pour l'UI
+  // Owners (pour résoudre hubspot_owner_id → nom/email)
+  const ownerIds = [
+    contact.hubspot_owner_id,
+    contact.teleprospecteur,
+    ...deals.map(d => d.hubspot_owner_id as string | null),
+    ...deals.map(d => d.teleprospecteur as string | null),
+  ].filter((v): v is string => !!v)
+  const uniqueOwnerIds = [...new Set(ownerIds)]
+
+  let owners: Array<Record<string, unknown>> = []
+  if (uniqueOwnerIds.length > 0) {
+    try {
+      const { data } = await db
+        .from('crm_owners')
+        .select('hubspot_owner_id, email, firstname, lastname')
+        .in('hubspot_owner_id', uniqueOwnerIds)
+      owners = data ?? []
+    } catch { /* table absente */ }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groups: Record<string, any[]> = {}
   for (const p of properties) {
@@ -107,8 +121,10 @@ export async function GET(
     deals,
     appointments,
     properties,
+    dealProperties,
     groups,
     activities,
     formSubmissions,
+    owners,
   })
 }

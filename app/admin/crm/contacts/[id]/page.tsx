@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, use } from 'react'
 import Link from 'next/link'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
-  Plus, Search, Settings,
+  Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText,
 } from 'lucide-react'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,21 +20,20 @@ interface CRMProperty {
   type: string
   field_type: string
   options?: Array<{ label: string; value: string; displayOrder?: number }>
-  display_order?: number
 }
 
 interface Activity {
   id: number
   hubspot_engagement_id?: string
   activity_type: string
-  hubspot_deal_id?: string
-  owner_id?: string
   subject?: string
   body?: string
   direction?: string
   status?: string
+  owner_id?: string
   metadata?: Any
   occurred_at: string
+  hubspot_deal_id?: string
 }
 
 interface FormSubmission {
@@ -47,19 +46,27 @@ interface FormSubmission {
   submitted_at: string
 }
 
+interface Owner {
+  hubspot_owner_id: string
+  email?: string
+  firstname?: string
+  lastname?: string
+}
+
 interface ContactDetails {
   contact: Record<string, Any>
   deals: Array<Record<string, Any>>
   appointments: Array<Record<string, Any>>
   properties: CRMProperty[]
+  dealProperties: Array<{ name: string; label?: string; options?: Array<{ label: string; value: string }> }>
   groups: Record<string, CRMProperty[]>
   activities: Activity[]
   formSubmissions: FormSubmission[]
+  owners: Owner[]
 }
 
 type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
 
-// Champs affichés en priorité dans la section "À propos"
 const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'firstname',             label: 'Prénom' },
   { name: 'lastname',              label: 'Nom' },
@@ -74,6 +81,36 @@ const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'formation_souhaitee',   label: 'Formation souhaitée' },
   { name: 'hubspot_owner_id',      label: 'Propriétaire' },
 ]
+
+// Couleurs pour les status de lead (pills)
+const LEAD_STATUS_COLORS: Record<string, string> = {
+  'Nouveau':              'bg-blue-100 text-blue-800 border-blue-200',
+  'Nouveau - Chaud':      'bg-red-100 text-red-800 border-red-200',
+  'Rdv pris':             'bg-green-100 text-green-800 border-green-200',
+  'Pré-inscription':      'bg-purple-100 text-purple-800 border-purple-200',
+  'Inscrit':              'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'NRP1':                 'bg-amber-100 text-amber-800 border-amber-200',
+  'NRP2':                 'bg-amber-100 text-amber-800 border-amber-200',
+  'NRP3':                 'bg-orange-100 text-orange-800 border-orange-200',
+  'Délai de réflexion':   'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'À replanifier':        'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'Perdu':                'bg-gray-100 text-gray-800 border-gray-200',
+}
+
+// Avatar color déterministe depuis une string
+const AVATAR_COLORS = [
+  'bg-gradient-to-br from-orange-400 to-rose-500',
+  'bg-gradient-to-br from-blue-400 to-indigo-500',
+  'bg-gradient-to-br from-green-400 to-emerald-500',
+  'bg-gradient-to-br from-purple-400 to-pink-500',
+  'bg-gradient-to-br from-amber-400 to-orange-500',
+  'bg-gradient-to-br from-teal-400 to-cyan-500',
+]
+function pickAvatarColor(seed: string) {
+  let hash = 0
+  for (const c of seed) hash = (hash * 31 + c.charCodeAt(0)) | 0
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -104,16 +141,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { load() }, [load])
 
-  if (loading) return <div className="p-8 text-gray-500">Chargement…</div>
+  if (loading) return <LoadingScreen />
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, groups, activities, formSubmissions } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
-  const initials = (contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')
+  const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
 
-  // Merge hubspot_raw + colonnes individuelles
+  // Merge hubspot_raw + colonnes
   const allValues: Record<string, Any> = {
     ...(contact.hubspot_raw ?? {}),
     firstname:        contact.firstname,
@@ -130,9 +167,33 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     diploma_sante___formation_demandee: contact.formation_demandee,
   }
 
-  // Metadata prop par nom (pour format, options, type)
   const propMeta: Record<string, CRMProperty> = {}
   for (const p of properties) propMeta[p.name] = p
+
+  const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
+  for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label, options: p.options }
+
+  const ownerMap: Record<string, Owner> = {}
+  for (const o of owners) ownerMap[o.hubspot_owner_id] = o
+
+  const ownerLabel = (id?: string | null) => {
+    if (!id) return '—'
+    const o = ownerMap[id]
+    if (!o) return id
+    return [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || id
+  }
+
+  const stageLabel = (value?: string | null) => {
+    if (!value) return '—'
+    const opt = dealPropMeta.dealstage?.options?.find(o => o.value === value)
+    return opt?.label ?? value
+  }
+
+  const pipelineLabel = (value?: string | null) => {
+    if (!value) return '—'
+    const opt = dealPropMeta.pipeline?.options?.find(o => o.value === value)
+    return opt?.label ?? value
+  }
 
   const saveProp = async (propName: string, value: string) => {
     setSaving(true)
@@ -152,6 +213,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  // ── KPI values ─────────────────────────────────────────────────────────
+  const leadStatus   = allValues.hs_lead_status as string | undefined
+  const leadStatusLabel = formatPropValue(leadStatus, propMeta.hs_lead_status)
+  const leadStatusColor = LEAD_STATUS_COLORS[leadStatusLabel] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+  const ownerName    = ownerLabel(contact.hubspot_owner_id)
+  const createdAt    = contact.contact_createdate ? new Date(contact.contact_createdate) : null
+  const lastFormDate = contact.recent_conversion_date ? new Date(contact.recent_conversion_date) : null
+
   // ── Timeline ──────────────────────────────────────────────────────────
   type TimelineItem = {
     id: string
@@ -160,6 +229,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     title: string
     body?: string
     subtitle?: string
+    ownerId?: string
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -173,6 +243,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       title: a.subject || labelForType(type),
       body: a.body ?? undefined,
       subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
+      ownerId: a.owner_id,
     })
   }
   for (const f of formSubmissions) {
@@ -180,7 +251,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       id: `form-${f.id}`,
       type: 'form',
       timestamp: new Date(f.submitted_at).getTime(),
-      title: `Soumission de formulaire — ${f.form_title || f.form_id}`,
+      title: f.form_title || f.form_id,
       subtitle: f.page_url,
     })
   }
@@ -190,7 +261,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       id: `rdv-${a.id}`,
       type: 'rdv',
       timestamp: startAt,
-      title: `RDV — ${a.status ?? 'programmé'}`,
+      title: `Rendez-vous — ${a.status ?? 'programmé'}`,
       body: a.notes as string | undefined,
     })
   }
@@ -206,7 +277,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     return t.title.toLowerCase().includes(s) || (t.body ?? '').toLowerCase().includes(s)
   })
 
-  // Group by month (FR)
   const grouped: Record<string, TimelineItem[]> = {}
   for (const it of timelineFiltered) {
     const key = format(new Date(it.timestamp), 'MMMM yyyy', { locale: fr })
@@ -223,110 +293,129 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     meeting: timeline.filter(t => t.type === 'meeting' || t.type === 'rdv').length,
   }
 
-  // ── Groupes de propriétés (pour le modal "Voir toutes les propriétés")
+  const lastActivity = timeline[0]?.timestamp ? new Date(timeline[0].timestamp) : lastFormDate
+
+  // Props modale
   const lc = propSearch.toLowerCase()
   const filteredGroups: Record<string, CRMProperty[]> = {}
   for (const [g, props] of Object.entries(groups)) {
     const f = props.filter(p => !lc || (p.label ?? '').toLowerCase().includes(lc) || p.name.toLowerCase().includes(lc))
     if (f.length > 0) filteredGroups[g] = f
   }
-
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
+  const gradient = pickAvatarColor(fullName)
+
   return (
-    <div className="min-h-screen bg-[#f5f8fa] text-[#33475b]">
-      {/* Header top */}
-      <div className="bg-white border-b px-5 py-2 flex items-center gap-3 text-sm">
-        <Link href="/admin/crm" className="text-[#506e91] hover:text-[#0070e0] flex items-center gap-1">
-          <ChevronRight size={14} className="rotate-180" /> Contacts
-        </Link>
+    <div className="min-h-screen bg-slate-50 text-slate-700">
+      {/* ═════ Header banner avec gradient ═════ */}
+      <div className={`${gradient} text-white px-6 pt-3 pb-20 relative`}>
+        <div className="max-w-[1600px] mx-auto flex items-center gap-2 text-xs text-white/80">
+          <Link href="/admin/crm" className="hover:text-white">Contacts</Link>
+          <ChevronRight size={12} />
+          <span>{fullName}</span>
+        </div>
+        <div className="max-w-[1600px] mx-auto flex items-start gap-5 mt-4">
+          <div className="w-20 h-20 rounded-full bg-white/25 backdrop-blur-sm border-2 border-white/60 flex items-center justify-center text-3xl font-bold shadow-xl">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight drop-shadow-sm">{fullName}</h1>
+            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-white/90 text-sm">
+              {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-white"><Mail size={14} /> {contact.email}</a>}
+              {contact.phone && <a href={`tel:${contact.phone}`} className="flex items-center gap-1 hover:text-white"><Phone size={14} /> {contact.phone}</a>}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 3 colonnes */}
-      <div className="grid grid-cols-12 gap-0 min-h-[calc(100vh-40px)]">
-        {/* ════════ Colonne gauche — À propos ════════ */}
-        <aside className="col-span-3 bg-white border-r px-5 py-5 overflow-y-auto">
-          <div className="flex flex-col items-start gap-3">
-            <div className="w-14 h-14 rounded-full bg-[#ff7a59] text-white flex items-center justify-center font-bold text-lg">
-              {initials || '?'}
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#33475b]">{fullName}</h1>
-              {contact.email && (
-                <a href={`mailto:${contact.email}`} className="text-sm text-[#0091ae] hover:underline block mt-0.5">
-                  {contact.email}
-                </a>
-              )}
-              {contact.phone && (
-                <a href={`tel:${contact.phone}`} className="text-sm text-[#0091ae] hover:underline block">
-                  {contact.phone}
-                </a>
-              )}
-            </div>
-          </div>
+      {/* ═════ KPI row ═════ */}
+      <div className="max-w-[1600px] mx-auto px-6 -mt-14 relative z-10">
+        <div className="grid grid-cols-4 gap-3">
+          <KpiCard
+            icon={<Briefcase size={18} />}
+            label="Transactions"
+            value={String(deals.length)}
+            hint={deals[0]?.dealname as string | undefined}
+            color="bg-gradient-to-br from-indigo-500 to-indigo-600"
+          />
+          <KpiCard
+            icon={<Award size={18} />}
+            label="Statut du lead"
+            value={leadStatusLabel || '—'}
+            pillColor={leadStatusColor}
+            color="bg-gradient-to-br from-rose-500 to-pink-600"
+          />
+          <KpiCard
+            icon={<Clock size={18} />}
+            label="Dernière activité"
+            value={lastActivity ? formatDistanceToNow(lastActivity, { locale: fr, addSuffix: true }) : '—'}
+            hint={lastActivity ? format(lastActivity, 'PP', { locale: fr }) : undefined}
+            color="bg-gradient-to-br from-emerald-500 to-teal-600"
+          />
+          <KpiCard
+            icon={<User size={18} />}
+            label="Propriétaire"
+            value={ownerName}
+            hint={createdAt ? `Créé ${formatDistanceToNow(createdAt, { locale: fr, addSuffix: true })}` : undefined}
+            color="bg-gradient-to-br from-amber-500 to-orange-600"
+          />
+        </div>
+      </div>
 
-          {/* Actions row */}
-          <div className="flex items-center justify-between gap-1 mt-5 pb-4 border-b">
-            <ActionButton icon={<StickyNote size={16} />} label="Note" />
-            <ActionButton icon={<Mail size={16} />} label="E-mail" />
-            <ActionButton icon={<Phone size={16} />} label="Appel" />
-            <ActionButton icon={<CheckSquare size={16} />} label="Tâche" />
-            <ActionButton icon={<Calendar size={16} />} label="Réunion" />
-          </div>
-
-          {/* Section : À propos */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold">À propos de ce contact</h2>
+      {/* ═════ Layout 3 colonnes ═════ */}
+      <div className="max-w-[1600px] mx-auto px-6 py-6 grid grid-cols-12 gap-4">
+        {/* Colonne gauche */}
+        <aside className="col-span-3">
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <User size={15} /> À propos
+              </div>
               <button className="text-xs text-[#0091ae] hover:underline">Actions</button>
             </div>
-            <dl className="divide-y">
+
+            {/* Quick actions */}
+            <div className="px-4 py-3 border-b grid grid-cols-5 gap-2">
+              <QuickAction icon={<StickyNote size={14} />} label="Note" color="bg-amber-50 text-amber-700 border-amber-200" />
+              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-blue-50 text-blue-700 border-blue-200" />
+              <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200" />
+              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-slate-50 text-slate-700 border-slate-200" />
+              <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" />
+            </div>
+
+            <dl className="divide-y px-4 text-sm">
               {ABOUT_FIELDS.map(f => {
                 const val = allValues[f.name]
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
+                const isOwner = f.name === 'hubspot_owner_id'
+                const displayValue = isOwner ? ownerLabel(val as string) : formatPropValue(val, meta)
+
                 return (
-                  <div key={f.name} className="py-2">
-                    <dt className="text-xs text-[#7c98b6] mb-0.5">{f.label}</dt>
-                    <dd className="text-sm">
+                  <div key={f.name} className="py-2.5">
+                    <dt className="text-[11px] uppercase tracking-wide text-slate-400 mb-0.5">{f.label}</dt>
+                    <dd>
                       {isEditing ? (
-                        <div className="flex gap-1">
-                          {meta?.field_type === 'select' && meta.options ? (
-                            <select
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              className="flex-1 px-1 py-0.5 border rounded text-xs"
-                              autoFocus
-                            >
-                              <option value="">—</option>
-                              {meta.options.map(o => (
-                                <option key={o.value} value={o.value}>{o.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              className="flex-1 px-1 py-0.5 border rounded text-xs"
-                              autoFocus
-                            />
-                          )}
-                          <button
-                            onClick={() => saveProp(f.name, editValue)}
-                            disabled={saving}
-                            className="px-2 text-white bg-[#0070e0] rounded text-xs disabled:opacity-50"
-                          >✓</button>
-                          <button
-                            onClick={() => setEditing(null)}
-                            className="px-2 border rounded text-xs"
-                          >✕</button>
-                        </div>
+                        <EditCell
+                          value={editValue}
+                          meta={meta}
+                          onChange={setEditValue}
+                          onSave={() => saveProp(f.name, editValue)}
+                          onCancel={() => setEditing(null)}
+                          saving={saving}
+                        />
+                      ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
+                        <button
+                          onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border ${leadStatusColor}`}
+                        >{displayValue}</button>
                       ) : (
                         <button
                           onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block hover:text-[#0091ae]"
+                          className="text-left w-full block text-sm hover:text-[#0091ae] truncate"
                         >
-                          {formatPropValue(val, meta) || <span className="text-gray-400">—</span>}
+                          {displayValue || <span className="text-slate-300">—</span>}
                         </button>
                       )}
                     </dd>
@@ -334,246 +423,267 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 )
               })}
             </dl>
-            <button
-              onClick={() => setShowAllProps(true)}
-              className="mt-3 text-xs text-[#0091ae] hover:underline"
-            >
-              Voir toutes les propriétés ({properties.length})
-            </button>
+
+            <div className="px-4 py-3 border-t bg-slate-50">
+              <button
+                onClick={() => setShowAllProps(true)}
+                className="text-xs text-[#0091ae] hover:underline font-medium"
+              >
+                Voir les {properties.length} propriétés →
+              </button>
+            </div>
           </div>
         </aside>
 
-        {/* ════════ Colonne centre — Activités ════════ */}
-        <section className="col-span-6 bg-[#f5f8fa] p-5 overflow-y-auto">
-          <div className="bg-white rounded-lg border">
-            {/* Tabs */}
-            <div className="flex border-b px-2">
-              <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes les activités" count={counts.all} />
+        {/* Colonne centrale */}
+        <section className="col-span-6">
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="flex border-b px-2 overflow-x-auto">
+              <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes" count={counts.all} />
               <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
               <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
               <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"    count={counts.call} />
               <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
               <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
             </div>
-
-            {/* Search */}
-            <div className="p-3 border-b flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="p-3 border-b">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={timelineSearch}
                   onChange={e => setTimelineSearch(e.target.value)}
-                  placeholder="Rechercher des activités"
-                  className="w-full pl-8 pr-3 py-1.5 border rounded text-sm"
+                  placeholder="Rechercher dans la timeline…"
+                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-200"
                 />
               </div>
             </div>
-
-            {/* Timeline */}
             <div className="p-4">
               {timelineFiltered.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">
-                  Aucune activité enregistrée pour ce contact.
-                </p>
+                <EmptyTimeline />
               ) : (
-                Object.entries(grouped).map(([month, items]) => (
-                  <div key={month} className="mb-5">
-                    <div className="text-xs text-[#7c98b6] uppercase tracking-wide mb-2 capitalize">{month}</div>
-                    <ul className="space-y-3">
-                      {items.map(t => (
-                        <li key={t.id} className="bg-white border rounded-md p-3 hover:shadow-sm transition-shadow">
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5"><TypeIcon type={t.type} /></div>
-                            <div className="flex-1 min-w-0">
+                <div className="relative pl-8">
+                  <div className="absolute left-3.5 top-3 bottom-3 w-px bg-slate-200" />
+                  {Object.entries(grouped).map(([month, items]) => (
+                    <div key={month} className="mb-6">
+                      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
+                      <ul className="space-y-3">
+                        {items.map(t => (
+                          <li key={t.id} className="relative">
+                            <div className="absolute -left-[22px] top-3">
+                              <TypeDot type={t.type} />
+                            </div>
+                            <div className="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow">
                               <div className="flex items-center justify-between gap-2">
-                                <div className="text-sm font-medium">{t.title}</div>
-                                <div className="text-xs text-[#7c98b6] whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <TypeBadge type={t.type} />
+                                  <div className="text-sm font-semibold">{t.title}</div>
+                                </div>
+                                <div className="text-xs text-slate-400 whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
                                 </div>
                               </div>
-                              {t.subtitle && <div className="text-xs text-[#516f90] mt-0.5">{t.subtitle}</div>}
+                              {t.subtitle && <div className="text-xs text-slate-500 mt-1">{t.subtitle}</div>}
+                              {t.ownerId && (
+                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                  <User size={11} /> {ownerLabel(t.ownerId)}
+                                </div>
+                              )}
                               {t.body && (
                                 <div
-                                  className="text-sm text-[#33475b] mt-1.5 whitespace-pre-wrap"
+                                  className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-slate-50 p-2 rounded"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
                               )}
                             </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
         </section>
 
-        {/* ════════ Colonne droite — Associations ════════ */}
-        <aside className="col-span-3 bg-white border-l px-5 py-5 overflow-y-auto">
-          <Section title="Transactions" count={deals.length}>
+        {/* Colonne droite */}
+        <aside className="col-span-3 space-y-3">
+          <RightSection icon={<Briefcase size={14} />} title="Transactions" count={deals.length} accent="indigo">
             {deals.length === 0 ? (
-              <EmptySection text="Aucune transaction liée." />
+              <EmptyRight text="Aucune transaction." />
             ) : (
               <ul className="space-y-2">
                 {deals.map(d => (
-                  <li key={d.hubspot_deal_id}>
-                    <Link
-                      href={`/admin/crm/deals/${d.hubspot_deal_id}`}
-                      className="block border rounded p-2 hover:bg-[#f5f8fa]"
-                    >
-                      <div className="text-sm font-medium text-[#0091ae]">{d.dealname || '(sans nom)'}</div>
-                      <div className="text-xs text-[#7c98b6] mt-0.5">{d.formation || '—'}</div>
-                      <div className="text-xs text-[#7c98b6]">
-                        {d.createdate ? format(new Date(d.createdate), 'PP', { locale: fr }) : ''}
-                      </div>
-                    </Link>
+                  <li key={d.hubspot_deal_id as string}>
+                    <DealCard
+                      deal={d}
+                      stageLabel={stageLabel(d.dealstage as string)}
+                      pipelineLabel={pipelineLabel(d.pipeline as string)}
+                      ownerLabel={ownerLabel(d.hubspot_owner_id as string)}
+                    />
                   </li>
                 ))}
               </ul>
             )}
-          </Section>
+          </RightSection>
 
-          <Section title="RDV" count={appointments.length}>
+          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="purple">
             {appointments.length === 0 ? (
-              <EmptySection text="Aucun RDV enregistré." />
+              <EmptyRight text="Aucun RDV." />
             ) : (
               <ul className="space-y-2">
                 {appointments.map(a => (
-                  <li key={a.id as string} className="border rounded p-2 text-sm">
-                    <div>{a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}</div>
-                    <div className="text-xs text-[#7c98b6]">{a.status as string}</div>
+                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-purple-50/30">
+                    <div className="font-medium">
+                      {a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">{a.status as string}</div>
                   </li>
                 ))}
               </ul>
             )}
-          </Section>
+          </RightSection>
 
-          <Section title="Formulaires soumis" count={formSubmissions.length}>
+          <RightSection icon={<FileText size={14} />} title="Formulaires soumis" count={formSubmissions.length} accent="rose">
             {formSubmissions.length === 0 ? (
-              <EmptySection text="Aucune soumission." />
+              <EmptyRight text="Aucune soumission." />
             ) : (
               <ul className="space-y-2">
                 {formSubmissions.slice(0, 10).map(f => (
-                  <li key={f.id} className="border rounded p-2 text-sm">
+                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-rose-50/30">
                     <div className="font-medium">{f.form_title || f.form_id}</div>
-                    <div className="text-xs text-[#7c98b6]">
+                    <div className="text-xs text-slate-500 mt-0.5">
                       {format(new Date(f.submitted_at), 'PP', { locale: fr })}
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </Section>
+          </RightSection>
         </aside>
       </div>
 
-      {/* Modal : toutes les propriétés */}
+      {/* Modale propriétés */}
       {showAllProps && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAllProps(false)}>
-          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b">
-              <h2 className="text-lg font-semibold">Toutes les propriétés ({properties.length})</h2>
-              <button onClick={() => setShowAllProps(false)} className="text-[#7c98b6] hover:text-black">✕</button>
-            </div>
-            <div className="px-5 py-3 border-b">
-              <div className="relative">
-                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={propSearch}
-                  onChange={e => setPropSearch(e.target.value)}
-                  placeholder="Rechercher une propriété..."
-                  className="w-full pl-8 pr-3 py-2 border rounded text-sm"
-                />
-              </div>
-            </div>
-            <div className="overflow-y-auto flex-1 p-5">
-              {!properties.length && (
-                <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded">
-                  Metadata propriétés absente. Lance un full sync pour remplir <code>crm_properties</code>.
-                </p>
-              )}
-              {Object.entries(filteredGroups).map(([group, props]) => (
-                <div key={group} className="mb-3 border rounded">
-                  <button
-                    onClick={() => toggleGroup(group)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-[#f5f8fa] hover:bg-[#eaf0f6] text-sm font-medium"
-                  >
-                    <span>{formatGroup(group)} ({props.length})</span>
-                    {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  {!collapsed[group] && (
-                    <dl className="divide-y text-sm">
-                      {props.map(p => {
-                        const val = allValues[p.name] ?? ''
-                        const isEditing = editing === p.name
-                        return (
-                          <div key={p.name} className="px-3 py-2 grid grid-cols-5 gap-2 hover:bg-blue-50/30">
-                            <dt className="col-span-2 text-xs text-[#7c98b6]" title={p.name}>{p.label || p.name}</dt>
-                            <dd className="col-span-3 text-xs">
-                              {isEditing ? (
-                                <div className="flex gap-1">
-                                  {p.field_type === 'select' && p.options ? (
-                                    <select
-                                      value={editValue}
-                                      onChange={e => setEditValue(e.target.value)}
-                                      className="w-full px-1 py-0.5 border rounded text-xs"
-                                      autoFocus
-                                    >
-                                      <option value="">—</option>
-                                      {p.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                    </select>
-                                  ) : (
-                                    <input
-                                      value={editValue}
-                                      onChange={e => setEditValue(e.target.value)}
-                                      className="w-full px-1 py-0.5 border rounded text-xs"
-                                      autoFocus
-                                    />
-                                  )}
-                                  <button onClick={() => saveProp(p.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0070e0] rounded text-xs">✓</button>
-                                  <button onClick={() => setEditing(null)} className="px-2 border rounded text-xs">✕</button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => { setEditing(p.name); setEditValue(String(val ?? '')) }}
-                                  className="text-left w-full block break-words hover:text-[#0091ae]"
-                                >
-                                  {formatPropValue(val, p) || <span className="text-gray-400">—</span>}
-                                </button>
-                              )}
-                            </dd>
-                          </div>
-                        )
-                      })}
-                    </dl>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <PropertiesModal
+          properties={properties}
+          filteredGroups={filteredGroups}
+          allValues={allValues}
+          propSearch={propSearch}
+          onSearchChange={setPropSearch}
+          collapsed={collapsed}
+          onToggle={toggleGroup}
+          editing={editing}
+          editValue={editValue}
+          onEditStart={(name, v) => { setEditing(name); setEditValue(String(v ?? '')) }}
+          onEditChange={setEditValue}
+          onEditSave={saveProp}
+          onEditCancel={() => setEditing(null)}
+          saving={saving}
+          onClose={() => setShowAllProps(false)}
+        />
       )}
     </div>
   )
 }
 
-/* ═════════ Composants ═════════ */
+/* ═════════════════════ Composants visuels ═════════════════════ */
 
-function ActionButton({ icon, label }: { icon: React.ReactNode; label: string }) {
+function LoadingScreen() {
   return (
-    <button
-      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f5f8fa] text-[#506e91] w-full"
-      title={label}
-    >
-      <div className="w-7 h-7 rounded-full border-2 border-[#cbd6e2] flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center gap-3 text-slate-500">
+        <div className="w-6 h-6 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+        <span>Chargement…</span>
+      </div>
+    </div>
+  )
+}
+
+function KpiCard({ icon, label, value, hint, color, pillColor }: {
+  icon: React.ReactNode; label: string; value: string; hint?: string; color: string; pillColor?: string
+}) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border p-4 flex gap-3 items-start hover:shadow-md transition-shadow">
+      <div className={`${color} w-10 h-10 rounded-lg flex items-center justify-center text-white shadow-sm`}>
         {icon}
       </div>
-      <span className="text-[10px]">{label}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</div>
+        {pillColor ? (
+          <div className="mt-1">
+            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full border ${pillColor}`}>{value}</span>
+          </div>
+        ) : (
+          <div className="text-base font-bold text-slate-800 truncate mt-0.5">{value}</div>
+        )}
+        {hint && <div className="text-[11px] text-slate-500 truncate mt-0.5">{hint}</div>}
+      </div>
+    </div>
+  )
+}
+
+function QuickAction({ icon, label, color }: { icon: React.ReactNode; label: string; color: string }) {
+  return (
+    <button
+      className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${color} hover:opacity-80 transition-opacity`}
+      title={label}
+    >
+      {icon}
+      <span className="text-[9px] font-medium">{label}</span>
     </button>
+  )
+}
+
+function EditCell({ value, meta, onChange, onSave, onCancel, saving }: {
+  value: string
+  meta?: CRMProperty
+  onChange: (v: string) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
+}) {
+  return (
+    <div className="flex gap-1">
+      {meta?.field_type === 'select' && meta.options ? (
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 px-2 py-1 border rounded text-xs"
+          autoFocus
+        >
+          <option value="">—</option>
+          {meta.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : meta?.field_type === 'radio' && meta.options ? (
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 px-2 py-1 border rounded text-xs"
+          autoFocus
+        >
+          <option value="">—</option>
+          {meta.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 px-2 py-1 border rounded text-xs"
+          autoFocus
+        />
+      )}
+      <button
+        onClick={onSave}
+        disabled={saving}
+        className="px-2.5 text-white bg-indigo-600 rounded text-xs disabled:opacity-50 hover:bg-indigo-700"
+      >✓</button>
+      <button
+        onClick={onCancel}
+        className="px-2.5 border rounded text-xs hover:bg-slate-50"
+      >✕</button>
+    </div>
   )
 }
 
@@ -581,79 +691,258 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
-        active ? 'border-[#ff7a59] text-[#33475b] font-semibold' : 'border-transparent text-[#516f90] hover:text-[#33475b]'
+      className={`px-3.5 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
+        active ? 'border-indigo-500 text-indigo-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
       }`}
     >
-      {label} {count > 0 && <span className="text-xs text-[#7c98b6]">({count})</span>}
+      {label} {count > 0 && <span className={`text-xs ${active ? 'text-indigo-500' : 'text-slate-400'}`}>({count})</span>}
     </button>
   )
 }
 
-function TypeIcon({ type }: { type: string }) {
+function TypeDot({ type }: { type: string }) {
+  const map: Record<string, string> = {
+    note: 'bg-amber-400',
+    email: 'bg-blue-500',
+    call: 'bg-green-500',
+    task: 'bg-slate-400',
+    meeting: 'bg-purple-500',
+    rdv: 'bg-indigo-500',
+    form: 'bg-rose-500',
+  }
+  return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
+}
+
+function TypeBadge({ type }: { type: string }) {
   const map: Record<string, { icon: React.ReactNode; bg: string }> = {
-    note:    { icon: <StickyNote size={14} />, bg: 'bg-[#fef3c7] text-[#92400e]' },
-    email:   { icon: <Mail size={14} />,       bg: 'bg-[#dbeafe] text-[#1e40af]' },
-    call:    { icon: <Phone size={14} />,      bg: 'bg-[#dcfce7] text-[#166534]' },
-    task:    { icon: <CheckSquare size={14} />, bg: 'bg-[#f3f4f6] text-[#374151]' },
-    meeting: { icon: <Calendar size={14} />,   bg: 'bg-[#f3e8ff] text-[#6b21a8]' },
-    rdv:     { icon: <Calendar size={14} />,   bg: 'bg-[#e0e7ff] text-[#3730a3]' },
-    form:    { icon: <span className="text-xs font-bold">F</span>, bg: 'bg-[#fce7f3] text-[#9f1239]' },
+    note:    { icon: <StickyNote size={11} />, bg: 'bg-amber-100 text-amber-700' },
+    email:   { icon: <Mail size={11} />,       bg: 'bg-blue-100 text-blue-700' },
+    call:    { icon: <Phone size={11} />,      bg: 'bg-green-100 text-green-700' },
+    task:    { icon: <CheckSquare size={11} />, bg: 'bg-slate-100 text-slate-700' },
+    meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
+    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-indigo-100 text-indigo-700' },
+    form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
   }
   const m = map[type] ?? map.note
   return (
-    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${m.bg}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${m.bg}`}>
       {m.icon}
-    </div>
+      {labelForType(type)}
+    </span>
   )
 }
 
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+function RightSection({ icon, title, count, accent, children }: {
+  icon: React.ReactNode; title: string; count: number; accent: 'indigo' | 'purple' | 'rose'; children: React.ReactNode
+}) {
   const [open, setOpen] = useState(true)
+  const accentColor = {
+    indigo: 'text-indigo-600 bg-indigo-50',
+    purple: 'text-purple-600 bg-purple-50',
+    rose: 'text-rose-600 bg-rose-50',
+  }[accent]
   return (
-    <div className="mb-3">
+    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between py-1.5 text-sm font-semibold text-[#33475b] hover:bg-[#f5f8fa] px-1 rounded"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50"
       >
-        <div className="flex items-center gap-1">
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <span>{title}{count !== undefined && ` (${count})`}</span>
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-md ${accentColor} flex items-center justify-center`}>
+            {icon}
+          </div>
+          <span className="text-sm font-semibold">{title}</span>
+          <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
         <div className="flex gap-1 items-center">
-          <span className="text-[#0091ae] hover:text-[#0070e0]"><Plus size={14} /></span>
-          <span className="text-[#7c98b6]"><Settings size={13} /></span>
+          <span className="text-slate-400 hover:text-slate-600 p-1"><Plus size={14} /></span>
+          <span className="text-slate-400 hover:text-slate-600 p-1"><Settings size={13} /></span>
+          {open ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
         </div>
       </button>
-      {open && <div className="mt-1">{children}</div>}
+      {open && <div className="p-3 pt-0">{children}</div>}
     </div>
   )
 }
 
-function EmptySection({ text }: { text: string }) {
+function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
+  deal: Record<string, Any>
+  stageLabel: string
+  pipelineLabel: string
+  ownerLabel: string
+}) {
+  // Stages génériques pour la progress bar visuelle
+  const stageOrder = ['Rdv pris', 'Délai de réflexion', 'À replanifier', 'Pré-inscription', 'Finalisation', 'Inscription confirmée']
+  const stageLower = stageLabel.toLowerCase()
+  const idx = stageOrder.findIndex(s => stageLower.includes(s.toLowerCase().split(' ')[0])) // best-effort
+  const progress = idx >= 0 ? ((idx + 1) / stageOrder.length) * 100 : 25
+
   return (
-    <div className="text-xs text-[#7c98b6] text-center py-3 px-2 border border-dashed rounded">{text}</div>
+    <Link
+      href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
+      className="block border rounded-lg p-3 bg-gradient-to-br from-indigo-50/40 to-white hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-start gap-2">
+        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+          <Briefcase size={14} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-slate-800 truncate">
+            {deal.dealname || '(sans nom)'}
+          </div>
+          {deal.formation && (
+            <div className="text-xs text-slate-500 mt-0.5">{deal.formation as string}</div>
+          )}
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className="font-medium text-indigo-700">{stageLabel}</span>
+          <span className="text-slate-400">{pipelineLabel}</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
+        <span className="flex items-center gap-1"><User size={10} /> {ownerLabel}</span>
+        <span>{deal.createdate ? format(new Date(deal.createdate as string), 'PP', { locale: fr }) : ''}</span>
+      </div>
+    </Link>
+  )
+}
+
+function EmptyTimeline() {
+  return (
+    <div className="text-center py-12 px-6">
+      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-3">
+        <TrendingUp size={28} />
+      </div>
+      <p className="text-sm font-medium text-slate-600">Pas encore d&apos;activité</p>
+      <p className="text-xs text-slate-400 mt-1">Les notes, appels, emails, formulaires apparaîtront ici.</p>
+    </div>
+  )
+}
+
+function EmptyRight({ text }: { text: string }) {
+  return (
+    <div className="text-xs text-slate-400 text-center py-4 px-2 border border-dashed rounded-lg">{text}</div>
+  )
+}
+
+function PropertiesModal({
+  properties, filteredGroups, allValues, propSearch, onSearchChange,
+  collapsed, onToggle, editing, editValue, onEditStart, onEditChange, onEditSave, onEditCancel, saving, onClose,
+}: {
+  properties: CRMProperty[]
+  filteredGroups: Record<string, CRMProperty[]>
+  allValues: Record<string, Any>
+  propSearch: string
+  onSearchChange: (v: string) => void
+  collapsed: Record<string, boolean>
+  onToggle: (g: string) => void
+  editing: string | null
+  editValue: string
+  onEditStart: (name: string, v: Any) => void
+  onEditChange: (v: string) => void
+  onEditSave: (name: string, v: string) => void
+  onEditCancel: () => void
+  saving: boolean
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div>
+            <h2 className="text-lg font-bold">Toutes les propriétés</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{properties.length} propriétés synchronisées depuis HubSpot</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+        </div>
+        <div className="px-5 py-3 border-b">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={propSearch}
+              onChange={e => onSearchChange(e.target.value)}
+              placeholder="Rechercher une propriété…"
+              className="w-full pl-9 pr-3 py-2 border rounded-md text-sm"
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5">
+          {!properties.length && (
+            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded">
+              Aucune propriété en base. Lance un full sync.
+            </p>
+          )}
+          {Object.entries(filteredGroups).map(([group, props]) => (
+            <div key={group} className="mb-3 border rounded-lg overflow-hidden">
+              <button
+                onClick={() => onToggle(group)}
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-slate-50 hover:bg-slate-100 text-sm font-semibold"
+              >
+                <span>{formatGroup(group)} <span className="text-xs text-slate-500 ml-1">({props.length})</span></span>
+                {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {!collapsed[group] && (
+                <dl className="divide-y text-sm">
+                  {props.map(p => {
+                    const val = allValues[p.name] ?? ''
+                    const isEditing = editing === p.name
+                    return (
+                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-indigo-50/30">
+                        <dt className="col-span-2 text-xs text-slate-500" title={p.name}>{p.label || p.name}</dt>
+                        <dd className="col-span-3 text-xs">
+                          {isEditing ? (
+                            <EditCell
+                              value={editValue}
+                              meta={p}
+                              onChange={onEditChange}
+                              onSave={() => onEditSave(p.name, editValue)}
+                              onCancel={onEditCancel}
+                              saving={saving}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => onEditStart(p.name, val)}
+                              className="text-left w-full block break-words hover:text-indigo-600"
+                            >
+                              {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
+                            </button>
+                          )}
+                        </dd>
+                      </div>
+                    )
+                  })}
+                </dl>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
 /* ═════════ Helpers ═════════ */
 
 function labelForType(t: string) {
-  const labels: Record<string, string> = {
-    note: 'Note', call: 'Appel', email: 'E-mail', meeting: 'Réunion',
-    task: 'Tâche', rdv: 'RDV', form: 'Formulaire',
-  }
+  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire' }
   return labels[t] ?? t
 }
 
 function formatGroup(g: string) {
   const map: Record<string, string> = {
-    contactinformation: 'Informations du contact',
+    contactinformation: 'Informations contact',
     diploma_sante: 'Diploma Santé',
-    emailinformation: 'Informations e-mail',
-    conversioninformation: 'Informations de conversion',
-    leadstatus: 'Statut du lead',
-    activityinformation: 'Informations d\'activité',
+    emailinformation: 'E-mails',
+    conversioninformation: 'Conversion',
+    leadstatus: 'Statut lead',
+    activityinformation: 'Activité',
     socialmediainformation: 'Réseaux sociaux',
     analyticsinformation: 'Analytics',
     other: 'Autres',
@@ -671,7 +960,7 @@ function formatPropValue(v: Any, p?: CRMProperty) {
     const d = new Date(str)
     if (!isNaN(d.getTime())) return format(d, 'PPp', { locale: fr })
   }
-  if (p.field_type === 'select' && p.options) {
+  if ((p.field_type === 'select' || p.field_type === 'radio') && p.options) {
     const o = p.options.find(o => o.value === str)
     if (o) return o.label
   }
