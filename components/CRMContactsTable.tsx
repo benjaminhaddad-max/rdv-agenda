@@ -1113,9 +1113,14 @@ export default function CRMContactsTable({
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
             <ContactAvatar name={name} size={30} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <a
+                href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                onClick={e => e.stopPropagation()}
+                style={{ fontSize: 13, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', display: 'block' }}
+                title="Ouvrir la fiche détaillée"
+              >
                 {name}
-              </div>
+              </a>
               {contact.email && (
                 <div style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {contact.email}

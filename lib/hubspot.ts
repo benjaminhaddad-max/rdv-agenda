@@ -782,3 +782,142 @@ export async function batchGetDealContactAssociations(
     return {}
   }
 }
+
+// ─── Sync CRM v5 : metadata des propriétés (label, groupe, options) ───
+// Utilisé pour alimenter crm_properties → UI autonome sans appel HubSpot au runtime
+export interface HubSpotPropertyMeta {
+  name: string
+  label: string
+  description?: string
+  groupName?: string
+  type: string
+  fieldType: string
+  options?: Array<{ label: string; value: string; displayOrder?: number }>
+  hubspotDefined?: boolean
+  archived?: boolean
+  displayOrder?: number
+}
+
+export async function getAllPropertiesMeta(
+  objectType: 'contacts' | 'deals'
+): Promise<HubSpotPropertyMeta[]> {
+  try {
+    const data = await hubspotFetch(
+      `/crm/v3/properties/${objectType}?archived=false&limit=1000`
+    )
+    return data.results ?? []
+  } catch {
+    return []
+  }
+}
+
+// ─── Sync CRM v5 : engagements (notes, appels, emails, meetings, tasks) ─
+// API legacy v1 — plus fiable pour récupérer l'historique complet d'un contact
+export interface HubSpotEngagement {
+  engagement: {
+    id: number
+    portalId: number
+    active: boolean
+    createdAt: number
+    lastUpdated: number
+    timestamp: number
+    type: 'NOTE' | 'CALL' | 'EMAIL' | 'MEETING' | 'TASK'
+    ownerId?: number
+  }
+  associations: {
+    contactIds: number[]
+    dealIds: number[]
+  }
+  metadata: {
+    body?: string
+    subject?: string
+    status?: string
+    direction?: string
+    title?: string
+    durationMilliseconds?: number
+    disposition?: string
+    text?: string
+    meetingOutcome?: string
+    startTime?: number
+    endTime?: number
+  }
+}
+
+/**
+ * Récupère les engagements associés à un contact (paginé).
+ * Retourne 100 engagements par page ; itérer avec offset jusqu'à hasMore=false.
+ */
+export async function getContactEngagements(
+  contactId: string,
+  offset?: number,
+): Promise<{ results: HubSpotEngagement[]; hasMore: boolean; offset?: number }> {
+  try {
+    const qs = new URLSearchParams({ count: '100' })
+    if (offset !== undefined) qs.set('offset', String(offset))
+    const data = await hubspotFetch(
+      `/engagements/v1/engagements/associated/contact/${contactId}/paged?${qs.toString()}`
+    )
+    return {
+      results: data.results ?? [],
+      hasMore: !!data.hasMore,
+      offset: data.offset,
+    }
+  } catch {
+    return { results: [], hasMore: false }
+  }
+}
+
+// ─── Sync CRM v5 : form submissions pour un contact ───────────────────
+export interface HubSpotFormSubmission {
+  'form-id': string
+  'form-type'?: string
+  'page-url'?: string
+  title?: string
+  timestamp: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  meta?: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  values?: any
+}
+
+export async function getContactFormSubmissions(
+  contactId: string
+): Promise<HubSpotFormSubmission[]> {
+  try {
+    const data = await hubspotFetch(
+      `/contacts/v1/contact/vid/${contactId}/form-submissions?count=50`
+    )
+    return data.results ?? []
+  } catch {
+    return []
+  }
+}
+
+// ─── Sync CRM v5 : owners (annuaire HubSpot → futurs users CRM) ───────
+export interface HubSpotOwner {
+  id: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  userId?: number
+  archived?: boolean
+  teams?: Array<{ id: string; name: string; primary: boolean }>
+}
+
+export async function getAllOwners(): Promise<HubSpotOwner[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = []
+  let after: string | undefined = undefined
+  try {
+    do {
+      const qs = new URLSearchParams({ limit: '100' })
+      if (after) qs.set('after', after)
+      const data = await hubspotFetch(`/crm/v3/owners/?${qs.toString()}`)
+      all.push(...(data.results ?? []))
+      after = data.paging?.next?.after
+    } while (after)
+    return all
+  } catch {
+    return all
+  }
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners } from '@/lib/hubspot'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -280,6 +280,136 @@ export async function GET(req: NextRequest) {
           classRounds++
         } while (classCursor && classRounds < 1)
       }
+    }
+
+    // ── Phase 7 : Properties metadata + Owners ───────────────────────────
+    // Import one-way : on stocke label/groupe/options/type pour que l'UI
+    // soit autonome et ne dépende pas de HubSpot au runtime.
+    currentPhase = 7
+    if (fullSync || force) {
+      try {
+        const [contactPropsMeta, dealPropsMeta, owners] = await Promise.all([
+          getAllPropertiesMeta('contacts'),
+          getAllPropertiesMeta('deals'),
+          getAllOwners(),
+        ])
+
+        const propRows = [
+          ...contactPropsMeta.map(p => ({
+            object_type:     'contacts',
+            name:            p.name,
+            label:           p.label ?? null,
+            description:     p.description ?? null,
+            group_name:      p.groupName ?? null,
+            type:            p.type ?? null,
+            field_type:      p.fieldType ?? null,
+            options:         p.options ?? null,
+            hubspot_defined: p.hubspotDefined ?? true,
+            archived:        p.archived ?? false,
+            display_order:   p.displayOrder ?? null,
+            synced_at:       now,
+          })),
+          ...dealPropsMeta.map(p => ({
+            object_type:     'deals',
+            name:            p.name,
+            label:           p.label ?? null,
+            description:     p.description ?? null,
+            group_name:      p.groupName ?? null,
+            type:            p.type ?? null,
+            field_type:      p.fieldType ?? null,
+            options:         p.options ?? null,
+            hubspot_defined: p.hubspotDefined ?? true,
+            archived:        p.archived ?? false,
+            display_order:   p.displayOrder ?? null,
+            synced_at:       now,
+          })),
+        ]
+        if (propRows.length > 0) {
+          await db.from('crm_properties').upsert(propRows, { onConflict: 'object_type,name' })
+        }
+
+        if (owners.length > 0) {
+          const ownerRows = owners.map(o => ({
+            hubspot_owner_id: o.id,
+            email:            o.email ?? null,
+            firstname:        o.firstName ?? null,
+            lastname:         o.lastName ?? null,
+            user_id:          o.userId ? String(o.userId) : null,
+            archived:         o.archived ?? false,
+            teams:            o.teams ?? null,
+            synced_at:        now,
+          }))
+          await db.from('crm_owners').upsert(ownerRows, { onConflict: 'hubspot_owner_id' })
+        }
+      } catch (e) {
+        console.error('[crm-sync] Phase 7 metadata error:', e)
+      }
+    }
+
+    // ── Phase 8 : Activities + Form submissions ──────────────────────────
+    // Pull timeline HubSpot → crm_activities, et formulaires → crm_form_submissions
+    // Limité aux contacts récemment modifiés pour tenir en un run.
+    currentPhase = 8
+    try {
+      // On cible les contacts ayant des deals (prioritaires commercialement).
+      const targetContactIds = Array.from(new Set(Object.values(dealToContact)))
+      // Limite max par run (on traite 200 contacts max par run pour rester sous la limite Vercel)
+      const MAX_ACTIVITY_CONTACTS = fullSync ? 500 : 200
+      const slice = targetContactIds.slice(0, MAX_ACTIVITY_CONTACTS)
+
+      for (const cid of slice) {
+        // Engagements (notes, appels, emails, meetings) — 1 page max par run
+        try {
+          const { results } = await getContactEngagements(cid)
+          if (results.length > 0) {
+            const rows = results.map(e => ({
+              hubspot_engagement_id: String(e.engagement.id),
+              activity_type:         (e.engagement.type || 'NOTE').toLowerCase(),
+              hubspot_contact_id:    cid,
+              hubspot_deal_id:       e.associations?.dealIds?.[0] ? String(e.associations.dealIds[0]) : null,
+              owner_id:              e.engagement.ownerId ? String(e.engagement.ownerId) : null,
+              subject:               e.metadata?.subject ?? e.metadata?.title ?? null,
+              body:                  e.metadata?.body ?? e.metadata?.text ?? null,
+              direction:             e.metadata?.direction ?? null,
+              status:                e.metadata?.status ?? null,
+              metadata:              e.metadata ?? null,
+              occurred_at:           new Date(e.engagement.timestamp || e.engagement.createdAt).toISOString(),
+            }))
+            await db
+              .from('crm_activities')
+              .upsert(rows, { onConflict: 'hubspot_engagement_id', ignoreDuplicates: false })
+          }
+        } catch (e) {
+          console.error('[crm-sync] engagements error for', cid, e)
+        }
+
+        // Form submissions
+        try {
+          const subs = await getContactFormSubmissions(cid)
+          if (subs.length > 0) {
+            const rows = subs.map(s => ({
+              hubspot_contact_id: cid,
+              form_id:            s['form-id'],
+              form_title:         s.title ?? null,
+              form_type:          s['form-type'] ?? null,
+              page_url:           s['page-url'] ?? null,
+              page_title:         null as string | null,
+              values:             s.values ?? null,
+              submitted_at:       new Date(s.timestamp).toISOString(),
+            }))
+            await db
+              .from('crm_form_submissions')
+              .upsert(rows, {
+                onConflict: 'hubspot_contact_id,form_id,submitted_at',
+                ignoreDuplicates: true,
+              })
+          }
+        } catch (e) {
+          console.error('[crm-sync] forms error for', cid, e)
+        }
+      }
+    } catch (e) {
+      console.error('[crm-sync] Phase 8 activities/forms error:', e)
     }
 
   } catch (err) {
