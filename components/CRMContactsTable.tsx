@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical } from 'lucide-react'
+import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 
@@ -573,7 +573,7 @@ function ActionsMenu({
               onClick={e => { e.stopPropagation(); setOpen(false); onNote() }}
               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
             >
-              📝 <span>Ajouter une note</span>
+              <StickyNote size={13} /><span>Ajouter une note</span>
             </button>
           )}
           {deal && (
@@ -582,13 +582,13 @@ function ActionsMenu({
                 onClick={e => { e.stopPropagation(); setOpen(false); onCloser() }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
-                👤 <span>Assigner un closer</span>
+                <User size={13} /><span>Assigner un closer</span>
               </button>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onTelepro() }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
-                📞 <span>Assigner un télépro</span>
+                <PhoneCall size={13} /><span>Assigner un télépro</span>
               </button>
             </>
           )}
@@ -784,7 +784,7 @@ function ExpandedDetail({
                 onClick={onNote}
                 style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '6px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                📝 Note
+                <StickyNote size={13} /> Note
               </button>
             )}
 
@@ -794,13 +794,13 @@ function ExpandedDetail({
                   onClick={onCloser}
                   style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 8, padding: '6px 14px', color: GOLD, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  👤 Assigner closer
+                  <User size={13} /> Assigner closer
                 </button>
                 <button
                   onClick={onTelepro}
                   style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, padding: '6px 14px', color: BLUE, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  📞 Assigner télépro
+                  <PhoneCall size={13} /> Assigner télépro
                 </button>
               </>
             )}

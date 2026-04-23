@@ -18,13 +18,13 @@ const CURRENT_PIPELINE_ID = '2313043166'
 
 const STAGE_OPTIONS = [
   { id: '',           label: 'Toutes les étapes de transaction' },
-  { id: '3165428979', label: '🔴 À Replanifier' },
-  { id: '3165428980', label: '🔵 RDV Pris' },
-  { id: '3165428981', label: '🟡 Délai Réflexion' },
-  { id: '3165428982', label: '🟢 Pré-inscription' },
-  { id: '3165428983', label: '🟣 Finalisation' },
-  { id: '3165428984', label: '✅ Inscription Confirmée' },
-  { id: '3165428985', label: '⚫ Fermé Perdu' },
+  { id: '3165428979', label: 'À Replanifier' },
+  { id: '3165428980', label: 'RDV Pris' },
+  { id: '3165428981', label: 'Délai Réflexion' },
+  { id: '3165428982', label: 'Pré-inscription' },
+  { id: '3165428983', label: 'Finalisation' },
+  { id: '3165428984', label: 'Inscription Confirmée' },
+  { id: '3165428985', label: 'Fermé Perdu' },
 ]
 
 const FORMATION_OPTIONS = [
@@ -95,7 +95,7 @@ const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 
   { key: 'departement',        label: 'Département',                   type: 'select' },
   { key: 'period',             label: 'Période',                       type: 'select' },
   { key: 'pipeline',           label: 'Pipeline (Année)',              type: 'select' },
-  { key: 'prior_preinscription', label: '🎓 Pré-inscrits années préc.', type: 'select' },
+  { key: 'prior_preinscription', label: 'Pré-inscrits années préc.', type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
@@ -2091,7 +2091,7 @@ export default function CRMPage() {
                       case 'departement': valueOptions = deptOptions.filter(o => o.id); break
                       case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
                       case 'pipeline':    valueOptions = pipelineOptions; break
-                      case 'prior_preinscription': valueOptions = [{ id: '1', label: '✅ Oui' }]; break
+                      case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                     }
                     return (
                       <div key={rule.id}>

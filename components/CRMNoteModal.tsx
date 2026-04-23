@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { StickyNote } from 'lucide-react'
 
 const NAVY = '#ffffff'
 const GOLD = '#ccac71'
@@ -51,7 +52,7 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
       <div style={{ background: NAVY, border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#33475b' }}>📝 Ajouter une note</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 6 }}><StickyNote size={15} /> Ajouter une note</div>
             <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{contactName}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', fontSize: 20, padding: '2px 6px' }}>✕</button>
@@ -93,7 +94,7 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
                 disabled={saving || !note.trim()}
                 style={{ background: note.trim() ? BLUE : 'rgba(76,171,219,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: note.trim() ? '#fff' : '#cbd6e2', cursor: note.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
               >
-                {saving ? 'Envoi…' : '📝 Ajouter dans HubSpot'}
+                {saving ? 'Envoi…' : 'Ajouter'}
               </button>
             </div>
           </>
