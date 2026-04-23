@@ -191,7 +191,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         {/* ══ Gauche ══ */}
         <aside className="col-span-3 bg-white border-r px-5 py-5 overflow-y-auto">
           <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded bg-[#00bda5] text-white flex items-center justify-center">
+            <div className="w-12 h-12 rounded bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] text-white flex items-center justify-center">
               <DollarSign size={22} />
             </div>
             <div className="min-w-0">
@@ -211,7 +211,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-semibold">À propos de la transaction</h2>
-              <button className="text-xs text-[#0091ae] hover:underline">Actions</button>
+              <button className="text-xs text-[#0038f0] hover:underline">Actions</button>
             </div>
             <dl className="divide-y">
               {ABOUT_FIELDS.map(f => {
@@ -242,13 +242,13 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                               autoFocus
                             />
                           )}
-                          <button onClick={() => saveProp(f.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0070e0] rounded text-xs">✓</button>
+                          <button onClick={() => saveProp(f.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0038f0] rounded text-xs">✓</button>
                           <button onClick={() => setEditing(null)} className="px-2 border rounded text-xs">✕</button>
                         </div>
                       ) : (
                         <button
                           onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block hover:text-[#0091ae]"
+                          className="text-left w-full block hover:text-[#0038f0]"
                         >
                           {formatPropValue(val, meta) || <span className="text-gray-400">—</span>}
                         </button>
@@ -258,7 +258,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                 )
               })}
             </dl>
-            <button onClick={() => setShowAllProps(true)} className="mt-3 text-xs text-[#0091ae] hover:underline">
+            <button onClick={() => setShowAllProps(true)} className="mt-3 text-xs text-[#0038f0] hover:underline">
               Voir toutes les propriétés ({properties.length})
             </button>
           </div>
@@ -337,7 +337,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                 href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                 className="block border rounded p-3 hover:bg-[#f5f8fa]"
               >
-                <div className="text-sm font-medium text-[#0091ae]">
+                <div className="text-sm font-medium text-[#0038f0]">
                   {[contact.firstname, contact.lastname].filter(Boolean).join(' ') || '—'}
                 </div>
                 {contact.email && <div className="text-xs text-[#7c98b6] mt-0.5">{contact.email as string}</div>}
@@ -413,13 +413,13 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                                   ) : (
                                     <input value={editValue} onChange={e => setEditValue(e.target.value)} className="w-full px-1 py-0.5 border rounded text-xs" autoFocus />
                                   )}
-                                  <button onClick={() => saveProp(p.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0070e0] rounded text-xs">✓</button>
+                                  <button onClick={() => saveProp(p.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0038f0] rounded text-xs">✓</button>
                                   <button onClick={() => setEditing(null)} className="px-2 border rounded text-xs">✕</button>
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => { setEditing(p.name); setEditValue(String(val ?? '')) }}
-                                  className="text-left w-full block break-words hover:text-[#0091ae]"
+                                  className="text-left w-full block break-words hover:text-[#0038f0]"
                                 >
                                   {formatPropValue(val, p) || <span className="text-gray-400">—</span>}
                                 </button>
@@ -457,7 +457,7 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
     <button
       onClick={onClick}
       className={`px-3 py-2.5 text-sm border-b-2 whitespace-nowrap ${
-        active ? 'border-[#ff7a59] text-[#33475b] font-semibold' : 'border-transparent text-[#516f90] hover:text-[#33475b]'
+        active ? 'border-[#0038f0] text-[#33475b] font-semibold' : 'border-transparent text-[#516f90] hover:text-[#33475b]'
       }`}
     >
       {label} {count > 0 && <span className="text-xs text-[#7c98b6]">({count})</span>}
@@ -489,7 +489,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
           <span>{title}{count !== undefined && ` (${count})`}</span>
         </div>
         <div className="flex gap-1 items-center">
-          <span className="text-[#0091ae]"><Plus size={14} /></span>
+          <span className="text-[#0038f0]"><Plus size={14} /></span>
           <span className="text-[#7c98b6]"><Settings size={13} /></span>
         </div>
       </button>

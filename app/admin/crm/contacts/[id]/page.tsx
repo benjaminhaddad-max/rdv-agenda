@@ -93,24 +93,12 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   'NRP2':                 'bg-amber-100 text-amber-800 border-amber-200',
   'NRP3':                 'bg-orange-100 text-orange-800 border-orange-200',
   'Délai de réflexion':   'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'À replanifier':        'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'À replanifier':        'bg-[#2ea3f2]/15 text-indigo-800 border-[#2ea3f2]/20',
   'Perdu':                'bg-gray-100 text-gray-800 border-gray-200',
 }
 
-// Avatar color déterministe depuis une string
-const AVATAR_COLORS = [
-  'bg-gradient-to-br from-orange-400 to-rose-500',
-  'bg-gradient-to-br from-blue-400 to-indigo-500',
-  'bg-gradient-to-br from-green-400 to-emerald-500',
-  'bg-gradient-to-br from-purple-400 to-pink-500',
-  'bg-gradient-to-br from-amber-400 to-orange-500',
-  'bg-gradient-to-br from-teal-400 to-cyan-500',
-]
-function pickAvatarColor(seed: string) {
-  let hash = 0
-  for (const c of seed) hash = (hash * 31 + c.charCodeAt(0)) | 0
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+// Charte Diploma Santé : bleu ciel (#2ea3f2) → bleu foncé (#0038f0)
+const BRAND_GRADIENT = 'bg-gradient-to-br from-[#2ea3f2] to-[#0038f0]'
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -304,12 +292,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
-  const gradient = pickAvatarColor(fullName)
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-700">
-      {/* ═════ Header banner avec gradient ═════ */}
-      <div className={`${gradient} text-white px-6 pt-3 pb-20 relative`}>
+      {/* ═════ Header banner avec gradient Diploma Santé ═════ */}
+      <div className={`${BRAND_GRADIENT} text-white px-6 pt-3 pb-20 relative`}>
         <div className="max-w-[1600px] mx-auto flex items-center gap-2 text-xs text-white/80">
           <Link href="/admin/crm" className="hover:text-white">Contacts</Link>
           <ChevronRight size={12} />
@@ -337,28 +323,28 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             label="Transactions"
             value={String(deals.length)}
             hint={deals[0]?.dealname as string | undefined}
-            color="bg-gradient-to-br from-indigo-500 to-indigo-600"
+            color="bg-gradient-to-br from-[#2ea3f2] to-[#0038f0]"
           />
           <KpiCard
             icon={<Award size={18} />}
             label="Statut du lead"
             value={leadStatusLabel || '—'}
             pillColor={leadStatusColor}
-            color="bg-gradient-to-br from-rose-500 to-pink-600"
+            color="bg-gradient-to-br from-[#ccac71] to-[#b08f50]"
           />
           <KpiCard
             icon={<Clock size={18} />}
             label="Dernière activité"
             value={lastActivity ? formatDistanceToNow(lastActivity, { locale: fr, addSuffix: true }) : '—'}
             hint={lastActivity ? format(lastActivity, 'PP', { locale: fr }) : undefined}
-            color="bg-gradient-to-br from-emerald-500 to-teal-600"
+            color="bg-gradient-to-br from-[#4cabdb] to-[#2ea3f2]"
           />
           <KpiCard
             icon={<User size={18} />}
             label="Propriétaire"
             value={ownerName}
             hint={createdAt ? `Créé ${formatDistanceToNow(createdAt, { locale: fr, addSuffix: true })}` : undefined}
-            color="bg-gradient-to-br from-amber-500 to-orange-600"
+            color="bg-gradient-to-br from-[#0038f0] to-[#0028b0]"
           />
         </div>
       </div>
@@ -372,7 +358,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <User size={15} /> À propos
               </div>
-              <button className="text-xs text-[#0091ae] hover:underline">Actions</button>
+              <button className="text-xs text-[#0038f0] hover:underline">Actions</button>
             </div>
 
             {/* Quick actions */}
@@ -413,7 +399,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       ) : (
                         <button
                           onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block text-sm hover:text-[#0091ae] truncate"
+                          className="text-left w-full block text-sm hover:text-[#0038f0] truncate"
                         >
                           {displayValue || <span className="text-slate-300">—</span>}
                         </button>
@@ -427,7 +413,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             <div className="px-4 py-3 border-t bg-slate-50">
               <button
                 onClick={() => setShowAllProps(true)}
-                className="text-xs text-[#0091ae] hover:underline font-medium"
+                className="text-xs text-[#0038f0] hover:underline font-medium"
               >
                 Voir les {properties.length} propriétés →
               </button>
@@ -454,7 +440,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   value={timelineSearch}
                   onChange={e => setTimelineSearch(e.target.value)}
                   placeholder="Rechercher dans la timeline…"
-                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-200"
+                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#2ea3f2]/20"
                 />
               </div>
             </div>
@@ -509,7 +495,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Colonne droite */}
         <aside className="col-span-3 space-y-3">
-          <RightSection icon={<Briefcase size={14} />} title="Transactions" count={deals.length} accent="indigo">
+          <RightSection icon={<Briefcase size={14} />} title="Transactions" count={deals.length} accent="brand">
             {deals.length === 0 ? (
               <EmptyRight text="Aucune transaction." />
             ) : (
@@ -528,13 +514,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="purple">
+          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="gold">
             {appointments.length === 0 ? (
               <EmptyRight text="Aucun RDV." />
             ) : (
               <ul className="space-y-2">
                 {appointments.map(a => (
-                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-purple-50/30">
+                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-[#ccac71]/5">
                     <div className="font-medium">
                       {a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}
                     </div>
@@ -545,13 +531,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          <RightSection icon={<FileText size={14} />} title="Formulaires soumis" count={formSubmissions.length} accent="rose">
+          <RightSection icon={<FileText size={14} />} title="Formulaires soumis" count={formSubmissions.length} accent="dark">
             {formSubmissions.length === 0 ? (
               <EmptyRight text="Aucune soumission." />
             ) : (
               <ul className="space-y-2">
                 {formSubmissions.slice(0, 10).map(f => (
-                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-rose-50/30">
+                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-slate-50">
                     <div className="font-medium">{f.form_title || f.form_id}</div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       {format(new Date(f.submitted_at), 'PP', { locale: fr })}
@@ -594,7 +580,7 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex items-center gap-3 text-slate-500">
-        <div className="w-6 h-6 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-slate-200 border-t-[#2ea3f2] rounded-full animate-spin" />
         <span>Chargement…</span>
       </div>
     </div>
@@ -677,7 +663,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving }: {
       <button
         onClick={onSave}
         disabled={saving}
-        className="px-2.5 text-white bg-indigo-600 rounded text-xs disabled:opacity-50 hover:bg-indigo-700"
+        className="px-2.5 text-white bg-[#0038f0] rounded text-xs disabled:opacity-50 hover:bg-[#0038f0]"
       >✓</button>
       <button
         onClick={onCancel}
@@ -692,10 +678,10 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
     <button
       onClick={onClick}
       className={`px-3.5 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
-        active ? 'border-indigo-500 text-indigo-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
+        active ? 'border-[#2ea3f2] text-[#0038f0] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
       }`}
     >
-      {label} {count > 0 && <span className={`text-xs ${active ? 'text-indigo-500' : 'text-slate-400'}`}>({count})</span>}
+      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#2ea3f2]' : 'text-slate-400'}`}>({count})</span>}
     </button>
   )
 }
@@ -707,7 +693,7 @@ function TypeDot({ type }: { type: string }) {
     call: 'bg-green-500',
     task: 'bg-slate-400',
     meeting: 'bg-purple-500',
-    rdv: 'bg-indigo-500',
+    rdv: 'bg-[#2ea3f2]',
     form: 'bg-rose-500',
   }
   return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
@@ -720,7 +706,7 @@ function TypeBadge({ type }: { type: string }) {
     call:    { icon: <Phone size={11} />,      bg: 'bg-green-100 text-green-700' },
     task:    { icon: <CheckSquare size={11} />, bg: 'bg-slate-100 text-slate-700' },
     meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
-    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-indigo-100 text-indigo-700' },
+    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#2ea3f2]/15 text-[#0038f0]' },
     form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
   }
   const m = map[type] ?? map.note
@@ -733,13 +719,13 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function RightSection({ icon, title, count, accent, children }: {
-  icon: React.ReactNode; title: string; count: number; accent: 'indigo' | 'purple' | 'rose'; children: React.ReactNode
+  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode
 }) {
   const [open, setOpen] = useState(true)
   const accentColor = {
-    indigo: 'text-indigo-600 bg-indigo-50',
-    purple: 'text-purple-600 bg-purple-50',
-    rose: 'text-rose-600 bg-rose-50',
+    brand: 'text-[#0038f0] bg-[#2ea3f2]/10',
+    gold:  'text-[#ccac71] bg-[#ccac71]/10',
+    dark:  'text-[#333] bg-slate-100',
   }[accent]
   return (
     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
@@ -780,10 +766,10 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
   return (
     <Link
       href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
-      className="block border rounded-lg p-3 bg-gradient-to-br from-indigo-50/40 to-white hover:shadow-md transition-shadow"
+      className="block border rounded-lg p-3 bg-gradient-to-br from-[#2ea3f2]/5 to-white hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-2">
-        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] text-white flex items-center justify-center shadow-sm">
           <Briefcase size={14} />
         </div>
         <div className="flex-1 min-w-0">
@@ -797,11 +783,11 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-indigo-700">{stageLabel}</span>
+          <span className="font-medium text-[#0038f0]">{stageLabel}</span>
           <span className="text-slate-400">{pipelineLabel}</span>
         </div>
         <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]" style={{ width: `${progress}%` }} />
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
@@ -894,7 +880,7 @@ function PropertiesModal({
                     const val = allValues[p.name] ?? ''
                     const isEditing = editing === p.name
                     return (
-                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-indigo-50/30">
+                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#2ea3f2]/10/30">
                         <dt className="col-span-2 text-xs text-slate-500" title={p.name}>{p.label || p.name}</dt>
                         <dd className="col-span-3 text-xs">
                           {isEditing ? (
@@ -909,7 +895,7 @@ function PropertiesModal({
                           ) : (
                             <button
                               onClick={() => onEditStart(p.name, val)}
-                              className="text-left w-full block break-words hover:text-indigo-600"
+                              className="text-left w-full block break-words hover:text-[#0038f0]"
                             >
                               {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
                             </button>
