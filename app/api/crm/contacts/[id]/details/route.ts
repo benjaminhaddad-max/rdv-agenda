@@ -88,6 +88,18 @@ export async function GET(
     formSubmissions = data ?? []
   } catch { /* table absente */ }
 
+  // Tasks
+  let tasks: Array<Record<string, unknown>> = []
+  try {
+    const { data } = await db
+      .from('crm_tasks')
+      .select('id, title, description, owner_id, status, priority, task_type, due_at, completed_at, created_at, hubspot_deal_id')
+      .eq('hubspot_contact_id', contactId)
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .limit(100)
+    tasks = data ?? []
+  } catch { /* table absente */ }
+
   // Owners (pour résoudre hubspot_owner_id → nom/email)
   const ownerIds = [
     contact.hubspot_owner_id,
@@ -126,5 +138,6 @@ export async function GET(
     activities,
     formSubmissions,
     owners,
+    tasks,
   })
 }

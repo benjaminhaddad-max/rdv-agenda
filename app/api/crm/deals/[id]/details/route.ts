@@ -69,6 +69,18 @@ export async function GET(
     activities = data ?? []
   } catch { /* table absente */ }
 
+  // Tasks du deal
+  let tasks: Array<Record<string, unknown>> = []
+  try {
+    const { data } = await db
+      .from('crm_tasks')
+      .select('id, title, description, owner_id, status, priority, task_type, due_at, completed_at, created_at, hubspot_contact_id')
+      .eq('hubspot_deal_id', dealId)
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .limit(100)
+    tasks = data ?? []
+  } catch { /* table absente */ }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groups: Record<string, any[]> = {}
   for (const p of properties) {
@@ -84,5 +96,6 @@ export async function GET(
     properties,
     groups,
     activities,
+    tasks,
   })
 }

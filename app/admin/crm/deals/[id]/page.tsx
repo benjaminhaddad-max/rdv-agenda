@@ -8,6 +8,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, DollarSign,
 } from 'lucide-react'
+import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -68,6 +69,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const [showAllProps, setShowAllProps] = useState(false)
   const [propSearch, setPropSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -201,11 +203,11 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           </div>
 
           <div className="flex items-center justify-between gap-1 mt-5 pb-4 border-b">
-            <ActionButton icon={<StickyNote size={16} />} label="Note" />
-            <ActionButton icon={<Mail size={16} />}       label="E-mail" />
-            <ActionButton icon={<Phone size={16} />}      label="Appel" />
-            <ActionButton icon={<CheckSquare size={16} />} label="Tâche" />
-            <ActionButton icon={<Calendar size={16} />}   label="Réunion" />
+            <ActionButton icon={<StickyNote size={16} />}  label="Note"    onClick={() => setQuickAction('note')} />
+            <ActionButton icon={<Mail size={16} />}        label="E-mail"  onClick={() => setQuickAction('email')} />
+            <ActionButton icon={<Phone size={16} />}       label="Appel"   onClick={() => setQuickAction('call')} />
+            <ActionButton icon={<CheckSquare size={16} />} label="Tâche"   onClick={() => setQuickAction('task')} />
+            <ActionButton icon={<Calendar size={16} />}    label="Réunion" onClick={() => setQuickAction('meeting')} />
           </div>
 
           <div className="mt-4">
@@ -362,6 +364,18 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         </aside>
       </div>
 
+      {/* Modal Quick Action */}
+      {quickAction && (
+        <QuickActionModal
+          type={quickAction}
+          dealId={id}
+          contactId={contact?.hubspot_contact_id as string | undefined}
+          defaultOwnerId={deal.hubspot_owner_id as string | undefined}
+          onClose={() => setQuickAction(null)}
+          onSaved={() => load()}
+        />
+      )}
+
       {/* Modal props */}
       {showAllProps && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAllProps(false)}>
@@ -440,10 +454,11 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   )
 }
 
-function ActionButton({ icon, label }: { icon: React.ReactNode; label: string }) {
+function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
   return (
     <button
-      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f5f8fa] text-[#506e91] w-full"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f5f8fa] text-[#506e91] w-full cursor-pointer"
       title={label}
     >
       <div className="w-7 h-7 rounded-full border-2 border-[#cbd6e2] flex items-center justify-center">{icon}</div>

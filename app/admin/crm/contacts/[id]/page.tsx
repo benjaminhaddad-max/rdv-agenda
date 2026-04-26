@@ -8,6 +8,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText,
 } from 'lucide-react'
+import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -53,6 +54,20 @@ interface Owner {
   lastname?: string
 }
 
+interface CRMTask {
+  id: number
+  title: string
+  description?: string
+  owner_id?: string
+  status: 'pending' | 'completed' | 'cancelled'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  task_type: string
+  due_at?: string
+  completed_at?: string
+  created_at: string
+  hubspot_deal_id?: string
+}
+
 interface ContactDetails {
   contact: Record<string, Any>
   deals: Array<Record<string, Any>>
@@ -63,6 +78,7 @@ interface ContactDetails {
   activities: Activity[]
   formSubmissions: FormSubmission[]
   owners: Owner[]
+  tasks: CRMTask[]
 }
 
 type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
@@ -113,6 +129,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [showAllProps, setShowAllProps] = useState(false)
   const [propSearch, setPropSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -133,7 +150,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [] } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -253,6 +270,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       body: a.notes as string | undefined,
     })
   }
+  for (const t of tasks) {
+    if (t.status !== 'completed') continue
+    timeline.push({
+      id: `task-${t.id}`,
+      type: 'task',
+      timestamp: new Date(t.completed_at ?? t.created_at).getTime(),
+      title: `Tâche terminée : ${t.title}`,
+      body: t.description ?? undefined,
+      ownerId: t.owner_id,
+    })
+  }
   timeline.sort((a, b) => b.timestamp - a.timestamp)
 
   const timelineFiltered = timeline.filter(t => {
@@ -363,11 +391,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
             {/* Quick actions */}
             <div className="px-4 py-3 border-b grid grid-cols-5 gap-2">
-              <QuickAction icon={<StickyNote size={14} />} label="Note" color="bg-amber-50 text-amber-700 border-amber-200" />
-              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-blue-50 text-blue-700 border-blue-200" />
-              <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200" />
-              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-slate-50 text-slate-700 border-slate-200" />
-              <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" />
+              <QuickAction icon={<StickyNote size={14} />} label="Note"   color="bg-amber-50 text-amber-700 border-amber-200"   onClick={() => setQuickAction('note')} />
+              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-blue-50 text-blue-700 border-blue-200"     onClick={() => setQuickAction('email')} />
+              <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200"  onClick={() => setQuickAction('call')} />
+              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-slate-50 text-slate-700 border-slate-200"  onClick={() => setQuickAction('task')} />
+              <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" onClick={() => setQuickAction('meeting')} />
             </div>
 
             <dl className="divide-y px-4 text-sm">
@@ -495,6 +523,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Colonne droite */}
         <aside className="col-span-3 space-y-3">
+          {/* Tâches en cours */}
+          <RightSection icon={<CheckSquare size={14} />} title="Tâches" count={tasks.filter(t => t.status === 'pending').length} accent="brand">
+            <PendingTasks
+              tasks={tasks.filter(t => t.status === 'pending')}
+              owners={owners}
+              onUpdated={load}
+              onAdd={() => setQuickAction('task')}
+            />
+          </RightSection>
+
           <RightSection icon={<Briefcase size={14} />} title="Transactions" count={deals.length} accent="brand">
             {deals.length === 0 ? (
               <EmptyRight text="Aucune transaction." />
@@ -549,6 +587,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           </RightSection>
         </aside>
       </div>
+
+      {/* Modal Quick Action (note / appel / email / tâche / réunion) */}
+      {quickAction && (
+        <QuickActionModal
+          type={quickAction}
+          contactId={id}
+          owners={owners}
+          defaultOwnerId={contact.hubspot_owner_id as string | undefined}
+          onClose={() => setQuickAction(null)}
+          onSaved={() => load()}
+        />
+      )}
 
       {/* Modale propriétés */}
       {showAllProps && (
@@ -610,10 +660,11 @@ function KpiCard({ icon, label, value, hint, color, pillColor }: {
   )
 }
 
-function QuickAction({ icon, label, color }: { icon: React.ReactNode; label: string; color: string }) {
+function QuickAction({ icon, label, color, onClick }: { icon: React.ReactNode; label: string; color: string; onClick?: () => void }) {
   return (
     <button
-      className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${color} hover:opacity-80 transition-opacity`}
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${color} hover:opacity-80 transition-opacity cursor-pointer`}
       title={label}
     >
       {icon}
@@ -795,6 +846,91 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
         <span>{deal.createdate ? format(new Date(deal.createdate as string), 'PP', { locale: fr }) : ''}</span>
       </div>
     </Link>
+  )
+}
+
+function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
+  tasks: CRMTask[]
+  owners: Owner[]
+  onUpdated: () => void
+  onAdd: () => void
+}) {
+  const ownerLabel = (id?: string | null) => {
+    if (!id) return ''
+    const o = owners.find(o => o.hubspot_owner_id === id)
+    if (!o) return id
+    return [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || id
+  }
+  const completeTask = async (id: number) => {
+    await fetch(`/api/crm/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    })
+    onUpdated()
+  }
+  const priorityColor: Record<string, string> = {
+    low:    'bg-slate-100 text-slate-600',
+    normal: 'bg-blue-100 text-blue-700',
+    high:   'bg-orange-100 text-orange-700',
+    urgent: 'bg-red-100 text-red-700',
+  }
+
+  return (
+    <>
+      <button
+        onClick={onAdd}
+        className="w-full flex items-center justify-center gap-1 mb-2 py-1.5 text-xs text-[#0038f0] border border-dashed border-[#2ea3f2]/40 rounded-md hover:bg-[#2ea3f2]/5"
+      >
+        <Plus size={12} /> Créer une tâche
+      </button>
+      {tasks.length === 0 ? (
+        <div className="text-xs text-slate-400 text-center py-3 px-2 border border-dashed rounded-lg">
+          Aucune tâche en cours.
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {tasks.map(t => {
+            const isOverdue = t.due_at && new Date(t.due_at).getTime() < Date.now()
+            return (
+              <li
+                key={t.id}
+                className={`border rounded-lg p-2.5 text-sm bg-white hover:shadow-sm ${isOverdue ? 'border-red-200 bg-red-50/30' : ''}`}
+              >
+                <div className="flex items-start gap-2">
+                  <button
+                    onClick={() => completeTask(t.id)}
+                    className="mt-0.5 w-4 h-4 rounded border-2 border-slate-300 hover:border-[#0038f0] hover:bg-[#0038f0]/10 flex-shrink-0"
+                    title="Marquer comme terminée"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium leading-tight">{t.title}</div>
+                    {t.description && <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{t.description}</div>}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {t.priority !== 'normal' && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityColor[t.priority] ?? ''}`}>
+                          {t.priority === 'urgent' ? 'Urgent' : t.priority === 'high' ? 'Haute' : 'Basse'}
+                        </span>
+                      )}
+                      {t.due_at && (
+                        <span className={`text-[10px] ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                          {format(new Date(t.due_at), "PP 'à' HH:mm", { locale: fr })}
+                        </span>
+                      )}
+                      {t.owner_id && (
+                        <span className="text-[10px] text-slate-500 flex items-center gap-0.5">
+                          <User size={9} /> {ownerLabel(t.owner_id)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
   )
 }
 
