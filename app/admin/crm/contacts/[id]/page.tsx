@@ -793,6 +793,26 @@ function TypeBadge({ type }: { type: string }) {
 
 function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?: EmailStats }) {
   const items: Array<{ label: string; bg: string; title?: string }> = []
+
+  // Trouve le dernier event d'un type donné dans stats.events
+  const lastEventOf = (predicate: (type: string) => boolean): string | undefined => {
+    if (!stats?.events) return undefined
+    const matches = stats.events.filter(e => predicate(e.type))
+    if (matches.length === 0) return undefined
+    // Le plus récent (occurred_at desc côté API)
+    return matches.reduce((acc, e) => (!acc || e.at > acc ? e.at : acc), '' as string) || undefined
+  }
+  const formatRelative = (iso?: string): string | undefined => {
+    if (!iso) return undefined
+    try { return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: fr }) }
+    catch { return undefined }
+  }
+  const formatExact = (iso?: string): string | undefined => {
+    if (!iso) return undefined
+    try { return format(new Date(iso), "d MMM 'à' HH:mm", { locale: fr }) }
+    catch { return undefined }
+  }
+
   if (sendStatus === 'FAILED') {
     items.push({ label: 'Échec', bg: 'bg-red-100 text-red-700' })
   } else if (sendStatus === 'SENT') {
@@ -800,8 +820,28 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
   }
   if (stats) {
     if (stats.delivered > 0) items.push({ label: 'Délivré', bg: 'bg-green-100 text-green-700' })
-    if (stats.opens > 0) items.push({ label: `Ouvert${stats.opens > 1 ? ` ×${stats.opens}` : ''}`, bg: 'bg-blue-100 text-blue-700' })
-    if (stats.clicks > 0) items.push({ label: `Cliqué${stats.clicks > 1 ? ` ×${stats.clicks}` : ''}`, bg: 'bg-violet-100 text-violet-700' })
+    if (stats.opens > 0) {
+      const last = lastEventOf(t => t === 'open' || t === 'opened' || t === 'opens' || t === 'unique_opened' || t === 'proxy_open')
+      const rel = formatRelative(last)
+      const exact = formatExact(last)
+      const cnt = stats.opens > 1 ? ` ×${stats.opens}` : ''
+      items.push({
+        label: rel ? `Ouvert${cnt} · ${rel}` : `Ouvert${cnt}`,
+        bg: 'bg-blue-100 text-blue-700',
+        title: exact ? `Dernière ouverture : ${exact}` : undefined,
+      })
+    }
+    if (stats.clicks > 0) {
+      const last = lastEventOf(t => t === 'click' || t === 'clicks' || t === 'unique_clicked')
+      const rel = formatRelative(last)
+      const exact = formatExact(last)
+      const cnt = stats.clicks > 1 ? ` ×${stats.clicks}` : ''
+      items.push({
+        label: rel ? `Cliqué${cnt} · ${rel}` : `Cliqué${cnt}`,
+        bg: 'bg-violet-100 text-violet-700',
+        title: exact ? `Dernier clic : ${exact}` : undefined,
+      })
+    }
     if (stats.bounces > 0) items.push({ label: 'Rejeté', bg: 'bg-orange-100 text-orange-700' })
     if (stats.spam > 0) items.push({ label: 'Spam', bg: 'bg-rose-100 text-rose-700' })
   }
