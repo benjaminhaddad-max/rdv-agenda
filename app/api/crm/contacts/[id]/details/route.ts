@@ -123,12 +123,12 @@ export async function GET(
         }
         const s = emailStatsByMessageId[key]
         const t = String(ev.event_type || '').toLowerCase()
-        if (t === 'sent' || t === 'request')           s.sent++
-        else if (t === 'delivered')                    s.delivered++
-        else if (t === 'open' || t === 'opens')        s.opens++
-        else if (t === 'click' || t === 'clicks')      s.clicks++
-        else if (t.includes('bounce'))                 s.bounces++
-        else if (t === 'spam' || t === 'complaint')    s.spam++
+        if (t === 'sent' || t === 'request')                                  s.sent++
+        else if (t === 'delivered')                                           s.delivered++
+        else if (t === 'open' || t === 'opens' || t === 'opened' || t === 'unique_opened' || t === 'proxy_open') s.opens++
+        else if (t === 'click' || t === 'clicks' || t === 'unique_clicked')   s.clicks++
+        else if (t.includes('bounce'))                                        s.bounces++
+        else if (t === 'spam' || t === 'complaint')                           s.spam++
         s.events.push({ type: t, at: ev.occurred_at as string, data })
         if (!s.lastEventAt || (ev.occurred_at as string) > s.lastEventAt) {
           s.lastEventAt = ev.occurred_at as string

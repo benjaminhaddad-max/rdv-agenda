@@ -95,18 +95,23 @@ export async function POST(req: Request) {
 
 function normalizeEventType(raw: string): string {
   const map: Record<string, string> = {
+    request: 'sent',
+    sent: 'sent',
     delivered: 'delivered',
     opened: 'open',
     open: 'open',
+    unique_opened: 'open',
     click: 'click',
     clicks: 'click',
+    unique_clicked: 'click',
     hard_bounce: 'bounce',
     soft_bounce: 'bounce',
     spam: 'spam',
     unsubscribed: 'unsubscribe',
     unsubscribe: 'unsubscribe',
     blocked: 'blocked',
-    sent: 'sent',
+    deferred: 'deferred',
+    proxy_open: 'open',
   }
   return map[raw] || raw
 }
