@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
       // Upsert en une seule fois (moins de round-trips Supabase)
       if (buffer.length > 0) {
-        await db.from('crm_contacts').upsert(buffer, { onConflict: 'hubspot_contact_id' })
+        await db.from('crm_contacts').upsert(dedupContactRows(buffer), { onConflict: 'hubspot_contact_id' })
         contactsUpserted = buffer.length
       }
 
@@ -201,7 +201,7 @@ export async function GET(req: NextRequest) {
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
-        await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+        await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
         contactsUpserted += rows.length
       }
     }
@@ -217,7 +217,7 @@ export async function GET(req: NextRequest) {
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
-        await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+        await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
         const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
         contactsUpserted += newOnes.length
       }
@@ -250,7 +250,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (buffer.length > 0) {
-        await db.from('crm_contacts').upsert(buffer, { onConflict: 'hubspot_contact_id' })
+        await db.from('crm_contacts').upsert(dedupContactRows(buffer), { onConflict: 'hubspot_contact_id' })
         const newOnes = buffer.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
         contactsUpserted += newOnes.length
       }
@@ -271,7 +271,7 @@ export async function GET(req: NextRequest) {
 
           if (prioContacts.length > 0) {
             const rows = prioContacts.map(c => buildContactRow(c, now))
-            await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
+            await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
             const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
             contactsUpserted += newOnes.length
           }
@@ -441,6 +441,26 @@ export async function GET(req: NextRequest) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Déduplique un batch de contact rows par email (case-insensitive).
+ * Si plusieurs contacts ont le même email, on garde le PREMIER (en pratique
+ * le plus récent vu que le batch est déjà ordonné par lastmodifieddate desc).
+ * Évite que l'upsert crée des doublons côté Supabase (l'email doit être unique).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dedupContactRows(rows: any[]): any[] {
+  const seen = new Set<string>()
+  const out: typeof rows = []
+  for (const r of rows) {
+    if (!r.email) { out.push(r); continue }
+    const e = String(r.email).toLowerCase().trim()
+    if (seen.has(e)) continue
+    seen.add(e)
+    out.push(r)
+  }
+  return out
+}
 
 /**
  * HubSpot renvoie recent_conversion_date soit comme Unix ms en string ("1710498600000")
