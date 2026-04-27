@@ -821,8 +821,9 @@ export default function CRMPage() {
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
 
-  // Tri des colonnes — par défaut : date création contact desc (plus récent en haut)
-  const [sortBy,  setSortBy]  = useState<string>('createdat_contact')
+  // Tri des colonnes — par défaut : dernière soumission de formulaire desc.
+  // Un contact qui re-soumet un form remonte automatiquement en haut.
+  const [sortBy,  setSortBy]  = useState<string>('form_submission')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // ── Outils modals ──────────────────────────────────────────────────────────

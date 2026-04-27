@@ -116,26 +116,34 @@ export async function POST(req: Request, { params }: Params) {
       existing = c
     }
 
+    // Métadonnées de conversion à enregistrer / mettre à jour à chaque soumission
+    const nowIso = new Date().toISOString()
+    const conversionMeta = {
+      recent_conversion_date:  nowIso,
+      recent_conversion_event: form.name || 'Formulaire web',
+      synced_at:               nowIso,
+    }
+
     if (existing) {
       // Met à jour le contact existant avec les nouvelles valeurs non vides
-      const updateData: Record<string, unknown> = {}
+      const updateData: Record<string, unknown> = { ...conversionMeta }
       for (const [k, v] of Object.entries(contactData)) {
         if (v !== undefined && v !== null && String(v).trim() !== '') {
           updateData[k] = v
         }
       }
-      if (Object.keys(updateData).length > 0) {
-        await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
-      }
+      await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
       contactId = existing.hubspot_contact_id
     } else {
       // Crée le contact — génère un ID natif unique pour hubspot_contact_id (NOT NULL contrainte)
       const nativeId = 'NATIVE_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10)
       const insertData: Record<string, unknown> = {
         ...contactData,
+        ...conversionMeta,
+        contact_createdate: nowIso,
         hubspot_contact_id: nativeId,
-        hubspot_owner_id: null,
-        origine: 'Formulaire web',
+        hubspot_owner_id:   null,
+        origine:            'Formulaire web',
       }
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
