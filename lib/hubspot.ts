@@ -1,8 +1,28 @@
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
+/**
+ * Indique si les écritures HubSpot (mirror) sont actives.
+ * Pour couper HubSpot : `HUBSPOT_MIRROR_ENABLED=0` dans Vercel.
+ * Tous les writes runtime (PATCH deal, createDeal au RDV, addNote, etc.)
+ * doivent respecter ce flag pour ne pas casser l'app.
+ */
+export function isHubspotMirrorEnabled(): boolean {
+  return process.env.HUBSPOT_MIRROR_ENABLED !== '0' && !!TOKEN
+}
+
+/**
+ * Indique si les lectures HubSpot (pipelines, options enum…) sont actives.
+ * Quand HUBSPOT_ACCESS_TOKEN est absent ou HUBSPOT_READ_ENABLED=0, on s'appuie
+ * uniquement sur les caches Supabase (crm_properties, etc.).
+ */
+export function isHubspotReadEnabled(): boolean {
+  return process.env.HUBSPOT_READ_ENABLED !== '0' && !!TOKEN
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<any> {
+  if (!TOKEN) throw new Error('HUBSPOT_ACCESS_TOKEN missing — HubSpot disabled')
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {

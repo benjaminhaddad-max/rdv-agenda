@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { StickyNote, Phone, CheckSquare, X, Mail, Calendar } from 'lucide-react'
+import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send } from 'lucide-react'
 
 export type QuickActionType = 'note' | 'call' | 'task' | 'email' | 'meeting'
 
@@ -10,6 +10,15 @@ interface Owner {
   firstname?: string
   lastname?: string
   email?: string
+}
+
+interface EmailTemplate {
+  id: string
+  name: string
+  subject: string
+  html_body: string
+  text_body?: string | null
+  category?: string | null
 }
 
 interface Props {
@@ -67,6 +76,32 @@ export default function QuickActionModal({
 
   useEffect(() => { setTaskOwner(defaultOwnerId ?? '') }, [defaultOwnerId])
 
+  // Spécifiques email
+  const [emailMode, setEmailMode] = useState<'send' | 'log'>('send') // par défaut on envoie vraiment
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [emailReplyTo, setEmailReplyTo] = useState('')
+  const [bodyHtml, setBodyHtml] = useState('') // pour mode 'send' on garde le HTML
+
+  // Charger les templates quand on ouvre le modal en mode email
+  useEffect(() => {
+    if (type !== 'email') return
+    fetch('/api/email-templates').then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setTemplates(d)
+      else if (Array.isArray(d?.templates)) setTemplates(d.templates)
+    }).catch(() => {})
+  }, [type])
+
+  // Quand on choisit un template, pré-remplir sujet + corps
+  useEffect(() => {
+    if (!selectedTemplateId) return
+    const t = templates.find(x => x.id === selectedTemplateId)
+    if (!t) return
+    setSubject(t.subject || '')
+    setBodyHtml(t.html_body || '')
+    setBody(stripHtml(t.html_body || '')) // fallback texte pour preview
+  }, [selectedTemplateId, templates])
+
   const cfg = TYPE_CONFIG[type]
 
   async function handleSave() {
@@ -89,7 +124,23 @@ export default function QuickActionModal({
           }),
         })
         if (!res.ok) throw new Error(await res.text())
+      } else if (type === 'email' && emailMode === 'send') {
+        // Envoi réel via Brevo + log auto dans crm_activities
+        if (!contactId) throw new Error('Contact requis pour envoyer un email')
+        const res = await fetch(`/api/crm/contacts/${contactId}/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: selectedTemplateId || undefined,
+            subject:    subject.trim() || undefined,
+            html:       bodyHtml.trim() || (body ? `<p>${body.replace(/\n/g, '<br>')}</p>` : undefined),
+            replyTo:    emailReplyTo.trim() || undefined,
+            ownerId:    defaultOwnerId ?? null,
+          }),
+        })
+        if (!res.ok) throw new Error(await res.text())
       } else {
+        // Mode "logger" : note / appel / réunion / email-log
         const payload: Record<string, unknown> = {
           activity_type:       type, // note | call | email | meeting
           hubspot_contact_id:  contactId ?? null,
@@ -192,6 +243,59 @@ export default function QuickActionModal({
             </div>
           )}
 
+          {/* Spécifique email */}
+          {type === 'email' && (
+            <>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEmailMode('send')}
+                  className={`flex-1 px-3 py-2 rounded-md text-xs font-medium border ${emailMode === 'send' ? 'bg-[#2ea3f2]/10 border-[#2ea3f2] text-[#0038f0]' : 'bg-white border-slate-200 text-slate-600'}`}
+                >
+                  <Send size={12} className="inline mr-1" /> Envoyer un e-mail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailMode('log')}
+                  className={`flex-1 px-3 py-2 rounded-md text-xs font-medium border ${emailMode === 'log' ? 'bg-[#2ea3f2]/10 border-[#2ea3f2] text-[#0038f0]' : 'bg-white border-slate-200 text-slate-600'}`}
+                >
+                  <Mail size={12} className="inline mr-1" /> Logger un e-mail (déjà envoyé)
+                </button>
+              </div>
+
+              {emailMode === 'send' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Modèle d&apos;e-mail (optionnel)</label>
+                    <select
+                      value={selectedTemplateId}
+                      onChange={e => setSelectedTemplateId(e.target.value)}
+                      className="w-full px-2 py-2 border rounded-md text-sm"
+                    >
+                      <option value="">— Sans modèle (rédaction libre) —</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}{t.category ? ` · ${t.category}` : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Variables disponibles : <code>{'{{prenom}}'}</code> <code>{'{{nom}}'}</code> <code>{'{{email}}'}</code> <code>{'{{classe}}'}</code>
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Reply-to (optionnel)</label>
+                    <input
+                      type="email"
+                      value={emailReplyTo}
+                      onChange={e => setEmailReplyTo(e.target.value)}
+                      placeholder="commercial@diploma-sante.fr"
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
           {/* Spécifique tâche */}
           {type === 'task' && (
             <>
@@ -274,7 +378,9 @@ export default function QuickActionModal({
             disabled={saving}
             className="px-4 py-2 text-sm text-white rounded-md disabled:opacity-50 hover:opacity-90 bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]"
           >
-            {saving ? 'Enregistrement…' : cfg.saveLabel}
+            {saving
+              ? (type === 'email' && emailMode === 'send' ? 'Envoi…' : 'Enregistrement…')
+              : (type === 'email' && emailMode === 'send' ? 'Envoyer' : cfg.saveLabel)}
           </button>
         </div>
       </div>
@@ -342,6 +448,15 @@ const TYPE_CONFIG: Record<QuickActionType, {
     bodyPlaceholder: 'Résumé de la réunion…',
     saveLabel: 'Enregistrer',
   },
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function toLocalDatetimeInput(d: Date): string {
