@@ -827,7 +827,9 @@ export default function CRMPage() {
   const [showRepop,         setShowRepop]         = useState(false)
 
   // Overrides des filtres par défaut
-  const [showExternal, setShowExternal] = useState(false)
+  // Plus de filtre auto "équipe externe" : on affiche tout par défaut.
+  // State conservé pour compatibilité avec les vues sauvegardées et l'export.
+  const [showExternal, setShowExternal] = useState(true)
   const [allClasses, setAllClasses]     = useState(true)
 
   // Client-side filters (appliqués sur les données déjà chargées)
@@ -1728,37 +1730,6 @@ export default function CRMPage() {
             <GraduationCap size={13} /> Transactions 2026-2027
           </a>
         </div>
-      </div>
-
-      {/* ── Quick filters bar ─────────────────────────────────────────────── */}
-      <div style={{
-        padding: '6px 20px',
-        background: '#f5f8fa',
-        borderBottom: '1px solid #cbd6e2',
-        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 10, color: '#3a5070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>
-          Filtres auto
-        </span>
-        <button
-          onClick={() => { setShowExternal(v => !v); scheduleRefetch() }}
-          style={{
-            background: showExternal ? 'rgba(239,68,68,0.1)' : 'rgba(76,171,219,0.1)',
-            border: `1px solid ${showExternal ? 'rgba(239,68,68,0.3)' : 'rgba(76,171,219,0.3)'}`,
-            borderRadius: 20, padding: '3px 10px',
-            color: showExternal ? '#ef4444' : '#4cabdb',
-            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <span style={{ fontSize: 9 }}>{showExternal ? '○' : '●'}</span>
-          {showExternal ? 'Équipe externe visible' : 'Équipe externe masquée'}
-        </button>
-        {!showExternal && (
-          <span style={{ fontSize: 10, color: '#7c98b6', fontStyle: 'italic' }}>
-            Exclut les contacts/deals dont le propriétaire, closer ou télépro est de l&apos;équipe externe
-          </span>
-        )}
       </div>
 
       {/* ── Search + quick dropdowns ──────────────────────────────────────── */}
