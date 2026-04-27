@@ -842,6 +842,9 @@ export default function CRMPage() {
   const [closers, setClosers]     = useState<RdvUser[]>([])
   const [telepros, setTelepros]   = useState<RdvUser[]>([])
   const [allUsers, setAllUsers]   = useState<RdvUser[]>([])
+  // Tous les owners HubSpot importés (51 personnes) — utilisés en complément
+  // pour avoir TOUTES les valeurs possibles dans les dropdowns Propriétaire
+  const [hubspotOwners, setHubspotOwners] = useState<Array<{ hubspot_owner_id: string; firstname?: string; lastname?: string; email?: string }>>([])
 
   // Options dynamiques depuis HubSpot (valeurs réelles)
   const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts du lead' }])
@@ -930,6 +933,11 @@ export default function CRMPage() {
       setTelepros(arr)
       setAllUsers(prev => [...prev.filter(u => u.role !== 'telepro'), ...arr])
     })
+    // Charger TOUS les owners HubSpot (table crm_owners — 51 personnes)
+    // pour alimenter complètement les dropdowns "Propriétaire du contact"
+    fetch('/api/crm/owners').then(r => r.json()).then(d => {
+      if (Array.isArray(d.owners)) setHubspotOwners(d.owners)
+    }).catch(() => {})
     // Charger les valeurs réelles HubSpot pour statut lead + origine
     fetch('/api/crm/field-options').then(r => r.json()).then(d => {
       if (d.leadStatuses?.length) {
@@ -1382,22 +1390,38 @@ export default function CRMPage() {
 
   // ── Dropdown options ───────────────────────────────────────────────────────────
 
-  // Dropdown options
+  // Helper : fusionner les owners HubSpot (51) avec les rdv_users (closer/telepro),
+  // dédupliquer sur hubspot_owner_id, trier par label.
+  const mergeOwnersWithUsers = (users: RdvUser[]): SelectOption[] => {
+    const map = new Map<string, SelectOption>()
+    // Priorité aux rdv_users (qui ont un name explicite)
+    for (const u of users) {
+      const id = u.hubspot_owner_id ?? u.hubspot_user_id ?? u.id
+      if (id) map.set(id, { id, label: u.name })
+    }
+    // Compléter avec les owners HubSpot manquants
+    for (const o of hubspotOwners) {
+      if (!o.hubspot_owner_id || map.has(o.hubspot_owner_id)) continue
+      const label = [o.firstname, o.lastname].filter(Boolean).join(' ').trim()
+        || o.email
+        || o.hubspot_owner_id
+      map.set(o.hubspot_owner_id, { id: o.hubspot_owner_id, label })
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
+  }
+
   const closerOptions: SelectOption[] = [
     { id: '', label: 'Tous les closers' },
-    ...closers.map(c => ({ id: c.hubspot_owner_id ?? c.id, label: c.name })),
+    ...mergeOwnersWithUsers(closers),
   ]
   const teleproOptions: SelectOption[] = [
     { id: '', label: 'Tous les télépros' },
-    // teleprospecteur stocke hubspot_owner_id (propriété HubSpot type "owner")
-    ...telepros.map(t => ({ id: t.hubspot_owner_id ?? t.hubspot_user_id ?? t.id, label: t.name })),
+    ...mergeOwnersWithUsers(telepros),
   ]
   // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
   const ownerExcludeOptions: SelectOption[] = [
     { id: '', label: 'Aucune exclusion' },
-    ...allUsers
-      .filter(u => u.hubspot_owner_id)
-      .map(u => ({ id: u.hubspot_owner_id!, label: u.name })),
+    ...mergeOwnersWithUsers(allUsers.filter(u => u.hubspot_owner_id)),
   ]
 
   return (
