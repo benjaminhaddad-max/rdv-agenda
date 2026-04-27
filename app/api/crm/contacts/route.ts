@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
   // Tri dynamique
-  const sortBy  = searchParams.get('sort_by')  ?? 'synced_at'
+  const sortBy  = searchParams.get('sort_by')  ?? 'createdat_contact'
   const sortDir = searchParams.get('sort_dir') ?? 'desc'
   const sortAsc = sortDir === 'asc'
   const SORT_MAP: Record<string, { col: string; foreignTable?: string }> = {
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     form_submission:     { col: 'recent_conversion_date' },
     synced_at:           { col: 'synced_at' },
   }
-  const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['synced_at']
+  const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['createdat_contact']
 
   // ── Charger rdv_users ──────────────────────────────────────────────────────
   const { data: users } = await db

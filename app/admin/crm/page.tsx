@@ -815,8 +815,8 @@ export default function CRMPage() {
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
 
-  // Tri des colonnes
-  const [sortBy,  setSortBy]  = useState<string>('synced_at')
+  // Tri des colonnes — par défaut : date création contact desc (plus récent en haut)
+  const [sortBy,  setSortBy]  = useState<string>('createdat_contact')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // ── Outils modals ──────────────────────────────────────────────────────────
