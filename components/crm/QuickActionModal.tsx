@@ -40,6 +40,15 @@ const CALL_OUTCOMES: Array<{ value: string; label: string }> = [
   { value: 'COMPLETED',           label: 'Terminé' },
 ]
 
+// Adresses Reply-to proposées par défaut dans la modale d'envoi d'e-mail.
+// Le user peut aussi en taper une autre librement.
+const REPLY_TO_PRESETS = [
+  'aaron@diploma-sante.fr',
+  'contact@diploma-sante.fr',
+  'admissions@diploma-sante.fr',
+  'pascal@diploma-sante.fr',
+]
+
 const TASK_TYPES: Array<{ value: string; label: string }> = [
   { value: 'call_back',  label: 'À rappeler' },
   { value: 'follow_up',  label: 'Relancer' },
@@ -337,14 +346,34 @@ export default function QuickActionModal({
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Reply-to (optionnel)</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Reply-to</label>
                     <input
                       type="email"
+                      list="reply-to-options"
                       value={emailReplyTo}
                       onChange={e => setEmailReplyTo(e.target.value)}
-                      placeholder="commercial@diploma-sante.fr"
+                      placeholder="Choisir ou taper une adresse…"
                       className="w-full px-3 py-2 border rounded-md text-sm"
                     />
+                    <datalist id="reply-to-options">
+                      {REPLY_TO_PRESETS.map(addr => <option key={addr} value={addr} />)}
+                    </datalist>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {REPLY_TO_PRESETS.map(addr => (
+                        <button
+                          key={addr}
+                          type="button"
+                          onClick={() => setEmailReplyTo(addr)}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                            emailReplyTo === addr
+                              ? 'bg-[#2ea3f2] text-white border-[#2ea3f2]'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-[#2ea3f2] hover:text-[#0038f0]'
+                          }`}
+                        >
+                          {addr}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Pièces jointes */}
