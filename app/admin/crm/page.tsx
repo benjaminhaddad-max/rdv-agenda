@@ -264,15 +264,16 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {
         switch (rule.field) {
-          case 'stage':       p.set('stage_not', val); break
-          case 'formation':   p.set('formation_not', val); break
-          case 'closer':      p.set('closer_not', val); break
-          case 'telepro':     p.set('telepro_not', val); break
-          case 'lead_status': p.set('lead_status_not', val); break
-          case 'source':      p.set('source_not', val); break
-          case 'zone':        p.set('zone_not', val); break
-          case 'departement': p.set('departement_not', val); break
-          case 'pipeline':    p.set('pipeline_not', val); break
+          case 'stage':         p.set('stage_not', val); break
+          case 'formation':     p.set('formation_not', val); break
+          case 'closer':        p.set('closer_not', val); break
+          case 'contact_owner': p.set('contact_owner_not', val); break
+          case 'telepro':       p.set('telepro_not', val); break
+          case 'lead_status':   p.set('lead_status_not', val); break
+          case 'source':        p.set('source_not', val); break
+          case 'zone':          p.set('zone_not', val); break
+          case 'departement':   p.set('departement_not', val); break
+          case 'pipeline':      p.set('pipeline_not', val); break
         }
       }
     }
@@ -769,6 +770,7 @@ export default function CRMPage() {
   const [zoneNot, setZoneNot]             = useState('')
   const [deptNot, setDeptNot]             = useState('')
   const [closerNot, setCloserNot]         = useState('')
+  const [contactOwnerNot, setContactOwnerNot] = useState('')
   const [teleproNot, setTeleproNot]       = useState('')
   const [formationNot, setFormationNot]   = useState('')
   const [pipeline,            setPipeline]           = useState('')
@@ -1004,6 +1006,7 @@ export default function CRMPage() {
       if (zoneNot)              params.set('zone_not', zoneNot)
       if (deptNot)              params.set('departement_not', deptNot)
       if (closerNot)            params.set('closer_not', closerNot)
+      if (contactOwnerNot)      params.set('contact_owner_not', contactOwnerNot)
       if (teleproNot)           params.set('telepro_not', teleproNot)
       if (formationNot)         params.set('formation_not', formationNot)
       if (pipeline)             params.set('pipeline', pipeline)
@@ -1033,7 +1036,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
+  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1064,7 +1067,7 @@ export default function CRMPage() {
     setZoneFilter(''); setDeptFilter('')
     // Reset all exclusion filters
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
-    setCloserNot(''); setTeleproNot(''); setFormationNot('')
+    setCloserNot(''); setContactOwnerNot(''); setTeleproNot(''); setFormationNot('')
     setPipeline(''); setPipelineNot('')
     setPriorPreinscription(false)
     // Reset empty/not-empty filters
@@ -1100,15 +1103,16 @@ export default function CRMPage() {
         // Exclusion filters: is_not, is_none
         if (rule.operator === 'is_not' || rule.operator === 'is_none') {
           switch (rule.field) {
-            case 'stage':       setStageNot(val); break
-            case 'formation':   setFormationNot(val); break
-            case 'closer':      setCloserNot(val); break
-            case 'telepro':     setTeleproNot(val); break
-            case 'lead_status': setLeadStatusNot(val); break
-            case 'source':      setSourceNot(val); break
-            case 'zone':        setZoneNot(val); break
-            case 'departement': setDeptNot(val); break
-            case 'pipeline':    setPipelineNot(val); break
+            case 'stage':         setStageNot(val); break
+            case 'formation':     setFormationNot(val); break
+            case 'closer':        setCloserNot(val); break
+            case 'contact_owner': setContactOwnerNot(val); break
+            case 'telepro':       setTeleproNot(val); break
+            case 'lead_status':   setLeadStatusNot(val); break
+            case 'source':        setSourceNot(val); break
+            case 'zone':          setZoneNot(val); break
+            case 'departement':   setDeptNot(val); break
+            case 'pipeline':      setPipelineNot(val); break
           }
         }
         // Empty / not-empty filters
@@ -2326,6 +2330,7 @@ export default function CRMPage() {
               if (zoneNot)              params.set('zone_not', zoneNot)
               if (deptNot)              params.set('departement_not', deptNot)
               if (closerNot)            params.set('closer_not', closerNot)
+      if (contactOwnerNot)      params.set('contact_owner_not', contactOwnerNot)
               if (teleproNot)           params.set('telepro_not', teleproNot)
               if (formationNot)         params.set('formation_not', formationNot)
               if (emptyFields)          params.set('empty_fields', emptyFields)

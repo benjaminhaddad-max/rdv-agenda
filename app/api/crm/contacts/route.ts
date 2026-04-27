@@ -484,6 +484,18 @@ export async function GET(req: NextRequest) {
     query = vals.length > 1 ? query.in('hubspot_owner_id', vals) : query.eq('hubspot_owner_id', contactOwnerHsId)
   }
 
+  // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
+  // On accepte aussi les contacts SANS owner (NULL) comme "n'est pas Benjamin"
+  const contactOwnerNot = searchParams.get('contact_owner_not') ?? ''
+  if (contactOwnerNot) {
+    const vals = contactOwnerNot.split(',').filter(Boolean)
+    if (vals.length > 1) {
+      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.(${vals.join(',')})`)
+    } else {
+      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${contactOwnerNot}`)
+    }
+  }
+
   // Exclusion équipe externe (owner du contact)
   if (!showExternal && excludedOwnerIds.length > 0) {
     query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
