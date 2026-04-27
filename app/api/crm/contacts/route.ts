@@ -534,36 +534,28 @@ export async function GET(req: NextRequest) {
     query = query.not('origine', 'in', `(${vals.join(',')})`)
   }
 
-  // Zone / Localité (multi-value support)
+  // Zone / Localité (multi-value support, match exact aligné HubSpot)
   if (zone) {
     const vals = splitMulti(zone)
-    if (vals.length > 1) {
-      query = query.or(vals.map(v => `zone_localite.ilike.%${v}%`).join(','))
-    } else {
-      query = query.ilike('zone_localite', `%${zone}%`)
-    }
+    query = vals.length > 1 ? query.in('zone_localite', vals) : query.eq('zone_localite', zone)
   }
   if (zoneNot) {
     const vals = splitMulti(zoneNot)
-    for (const v of vals) {
-      query = query.not('zone_localite', 'ilike', `%${v}%`)
-    }
+    query = vals.length > 1
+      ? query.not('zone_localite', 'in', `(${vals.join(',')})`)
+      : query.neq('zone_localite', zoneNot)
   }
 
-  // Département (multi-value support)
+  // Département (multi-value support, match exact aligné HubSpot)
   if (departement) {
     const vals = splitMulti(departement)
-    if (vals.length > 1) {
-      query = query.or(vals.map(v => `departement.ilike.%${v}%`).join(','))
-    } else {
-      query = query.ilike('departement', `%${departement}%`)
-    }
+    query = vals.length > 1 ? query.in('departement', vals) : query.eq('departement', departement)
   }
   if (deptNot) {
     const vals = splitMulti(deptNot)
-    for (const v of vals) {
-      query = query.not('departement', 'ilike', `%${v}%`)
-    }
+    query = vals.length > 1
+      ? query.not('departement', 'in', `(${vals.join(',')})`)
+      : query.neq('departement', deptNot)
   }
 
   // Count-only mode — return just the total without data
