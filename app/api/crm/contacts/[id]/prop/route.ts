@@ -69,6 +69,25 @@ export async function PATCH(
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
+  // ── 1.b Historique du changement (table crm_property_history) ──
+  // On enregistre la nouvelle valeur avec source CRM_UI pour qu'elle apparaisse
+  // dans le panneau "Historique" de la fiche contact.
+  try {
+    await db.from('crm_property_history').insert({
+      hubspot_contact_id: contactId,
+      property_name:      property,
+      value:              value === '' ? null : String(value ?? ''),
+      changed_at:         now,
+      source_type:        'CRM_UI',
+      source_id:          null,
+      source_label:       'Modifié depuis le CRM',
+      source_metadata:    null,
+    })
+  } catch (e) {
+    // Ne pas bloquer la modif si la table n'existe pas / problème transitoire
+    console.warn('[crm/contacts/[id]/prop] history insert failed:', e)
+  }
+
   // ── 2. Mirror HubSpot (optionnel, activable pendant la transition) ──
   const mirrorEnabled = process.env.HUBSPOT_MIRROR_ENABLED !== '0'
   let hubspotError: string | null = null

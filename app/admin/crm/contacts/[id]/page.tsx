@@ -6,9 +6,10 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
-  Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText,
+  Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
+import PropertyHistoryPanel from '@/components/crm/PropertyHistoryPanel'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -142,6 +143,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [propSearch, setPropSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
+  const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -432,8 +434,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 const displayValue = isOwner ? ownerLabel(val as string) : formatPropValue(val, meta)
 
                 return (
-                  <div key={f.name} className="py-2.5">
-                    <dt className="text-[11px] uppercase tracking-wide text-slate-400 mb-0.5">{f.label}</dt>
+                  <div key={f.name} className="py-2.5 group">
+                    <dt className="text-[11px] uppercase tracking-wide text-slate-400 mb-0.5 flex items-center justify-between">
+                      <span>{f.label}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setHistoryProp({ name: f.name, label: f.label, options: meta?.options }) }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#0038f0] transition"
+                        title="Historique des changements"
+                      >
+                        <History size={11} />
+                      </button>
+                    </dt>
                     <dd>
                       {isEditing ? (
                         <EditCell
@@ -627,6 +639,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         />
       )}
 
+      {/* Side-panel historique d'une propriété */}
+      {historyProp && (
+        <PropertyHistoryPanel
+          contactId={id}
+          propertyName={historyProp.name}
+          propertyLabel={historyProp.label}
+          options={historyProp.options}
+          onClose={() => setHistoryProp(null)}
+        />
+      )}
+
       {/* Modale propriétés */}
       {showAllProps && (
         <PropertiesModal
@@ -645,6 +668,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           onEditCancel={() => setEditing(null)}
           saving={saving}
           onClose={() => setShowAllProps(false)}
+          onShowHistory={(p) => setHistoryProp({ name: p.name, label: p.label || p.name, options: p.options })}
         />
       )}
     </div>
@@ -1042,7 +1066,7 @@ function EmptyRight({ text }: { text: string }) {
 
 function PropertiesModal({
   properties, filteredGroups, allValues, propSearch, onSearchChange,
-  collapsed, onToggle, editing, editValue, onEditStart, onEditChange, onEditSave, onEditCancel, saving, onClose,
+  collapsed, onToggle, editing, editValue, onEditStart, onEditChange, onEditSave, onEditCancel, saving, onClose, onShowHistory,
 }: {
   properties: CRMProperty[]
   filteredGroups: Record<string, CRMProperty[]>
@@ -1059,6 +1083,7 @@ function PropertiesModal({
   onEditCancel: () => void
   saving: boolean
   onClose: () => void
+  onShowHistory?: (p: CRMProperty) => void
 }) {
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1104,8 +1129,20 @@ function PropertiesModal({
                     const val = allValues[p.name] ?? ''
                     const isEditing = editing === p.name
                     return (
-                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#2ea3f2]/10/30">
-                        <dt className="col-span-2 text-xs text-slate-500" title={p.name}>{p.label || p.name}</dt>
+                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#2ea3f2]/10/30 group">
+                        <dt className="col-span-2 text-xs text-slate-500 flex items-center justify-between gap-1" title={p.name}>
+                          <span className="truncate">{p.label || p.name}</span>
+                          {onShowHistory && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onShowHistory(p) }}
+                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#0038f0] flex-shrink-0"
+                              title="Historique"
+                            >
+                              <History size={11} />
+                            </button>
+                          )}
+                        </dt>
                         <dd className="col-span-3 text-xs">
                           {isEditing ? (
                             <EditCell
