@@ -485,17 +485,15 @@ export async function GET(req: NextRequest) {
   }
 
   // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
-  // Comportement aligné HubSpot : "is none of X" ne matche que les
-  // contacts ayant un owner différent de X. Les contacts sans owner ne
-  // sont pas inclus (sur HubSpot ils n'apparaissent pas non plus).
+  // HubSpot inclut les contacts sans owner (NULL) dans ce filtre :
+  // un contact sans owner "n'est pas Benjamin", donc il matche.
   const contactOwnerNot = searchParams.get('contact_owner_not') ?? ''
   if (contactOwnerNot) {
     const vals = contactOwnerNot.split(',').filter(Boolean)
-    query = query.not('hubspot_owner_id', 'is', null)
     if (vals.length > 1) {
-      query = query.not('hubspot_owner_id', 'in', `(${vals.join(',')})`)
+      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.(${vals.join(',')})`)
     } else {
-      query = query.neq('hubspot_owner_id', contactOwnerNot)
+      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${contactOwnerNot}`)
     }
   }
 
