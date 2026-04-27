@@ -81,6 +81,17 @@ export async function GET(
     tasks = data ?? []
   } catch { /* table absente */ }
 
+  // Owners (tous les owners actifs HubSpot — pour dropdown propriétaire)
+  let owners: Array<Record<string, unknown>> = []
+  try {
+    const { data } = await db
+      .from('crm_owners')
+      .select('hubspot_owner_id, email, firstname, lastname, archived')
+      .eq('archived', false)
+      .order('firstname', { ascending: true })
+    owners = data ?? []
+  } catch { /* table absente */ }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groups: Record<string, any[]> = {}
   for (const p of properties) {
@@ -97,5 +108,6 @@ export async function GET(
     groups,
     activities,
     tasks,
+    owners,
   })
 }

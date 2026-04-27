@@ -100,25 +100,18 @@ export async function GET(
     tasks = data ?? []
   } catch { /* table absente */ }
 
-  // Owners (pour résoudre hubspot_owner_id → nom/email)
-  const ownerIds = [
-    contact.hubspot_owner_id,
-    contact.teleprospecteur,
-    ...deals.map(d => d.hubspot_owner_id as string | null),
-    ...deals.map(d => d.teleprospecteur as string | null),
-  ].filter((v): v is string => !!v)
-  const uniqueOwnerIds = [...new Set(ownerIds)]
-
+  // Owners : on charge TOUS les owners actifs (et pas seulement ceux liés
+  // à ce contact) pour alimenter le dropdown "Propriétaire" avec toutes
+  // les valeurs disponibles dans HubSpot.
   let owners: Array<Record<string, unknown>> = []
-  if (uniqueOwnerIds.length > 0) {
-    try {
-      const { data } = await db
-        .from('crm_owners')
-        .select('hubspot_owner_id, email, firstname, lastname')
-        .in('hubspot_owner_id', uniqueOwnerIds)
-      owners = data ?? []
-    } catch { /* table absente */ }
-  }
+  try {
+    const { data } = await db
+      .from('crm_owners')
+      .select('hubspot_owner_id, email, firstname, lastname, archived')
+      .eq('archived', false)
+      .order('firstname', { ascending: true })
+    owners = data ?? []
+  } catch { /* table absente */ }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groups: Record<string, any[]> = {}

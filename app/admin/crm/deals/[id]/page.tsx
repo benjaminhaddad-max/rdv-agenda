@@ -33,6 +33,13 @@ interface Activity {
   occurred_at: string
 }
 
+interface Owner {
+  hubspot_owner_id: string
+  email?: string
+  firstname?: string
+  lastname?: string
+}
+
 interface DealDetails {
   deal: Record<string, Any>
   contact: Record<string, Any> | null
@@ -40,6 +47,7 @@ interface DealDetails {
   properties: CRMProperty[]
   groups: Record<string, CRMProperty[]>
   activities: Activity[]
+  owners?: Owner[]
 }
 
 type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
@@ -90,7 +98,13 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { deal, contact, appointment, properties, groups, activities } = data
+  const { deal, contact, appointment, properties, groups, activities, owners = [] } = data
+
+  // Options pour les dropdowns "Propriétaire" / "Téléprospecteur"
+  const ownerOptions = owners.map(o => ({
+    value: o.hubspot_owner_id,
+    label: [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id,
+  }))
 
   const allValues: Record<string, Any> = {
     ...(deal.hubspot_raw ?? {}),
@@ -220,13 +234,15 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                 const val = allValues[f.name]
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
+                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'teleprospecteur'
+                const opts = isOwnerField ? ownerOptions : (meta?.field_type === 'select' || meta?.field_type === 'radio' ? meta.options : null)
                 return (
                   <div key={f.name} className="py-2">
                     <dt className="text-xs text-[#7c98b6] mb-0.5">{f.label}</dt>
                     <dd className="text-sm">
                       {isEditing ? (
                         <div className="flex gap-1">
-                          {meta?.field_type === 'select' && meta.options ? (
+                          {opts ? (
                             <select
                               value={editValue}
                               onChange={e => setEditValue(e.target.value)}
@@ -234,7 +250,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                               autoFocus
                             >
                               <option value="">—</option>
-                              {meta.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           ) : (
                             <input
@@ -252,7 +268,9 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                           onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
                           className="text-left w-full block hover:text-[#0038f0]"
                         >
-                          {formatPropValue(val, meta) || <span className="text-gray-400">—</span>}
+                          {isOwnerField
+                            ? (ownerOptions.find(o => o.value === String(val))?.label ?? formatPropValue(val, meta) ?? <span className="text-gray-400">—</span>)
+                            : (formatPropValue(val, meta) || <span className="text-gray-400">—</span>)}
                         </button>
                       )}
                     </dd>

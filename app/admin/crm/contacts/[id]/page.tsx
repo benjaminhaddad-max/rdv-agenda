@@ -178,6 +178,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
   for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label, options: p.options }
 
+  // Options pour les dropdowns "Propriétaire" / "Téléprospecteur" :
+  // toutes les valeurs possibles = tous les owners HubSpot actifs
+  const ownerOptions = owners.map(o => ({
+    value: o.hubspot_owner_id,
+    label: [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id,
+  }))
+
   const ownerMap: Record<string, Owner> = {}
   for (const o of owners) ownerMap[o.hubspot_owner_id] = o
 
@@ -418,6 +425,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                           onSave={() => saveProp(f.name, editValue)}
                           onCancel={() => setEditing(null)}
                           saving={saving}
+                          customOptions={isOwner || f.name === 'teleprospecteur' ? ownerOptions : undefined}
                         />
                       ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
                         <button
@@ -673,17 +681,22 @@ function QuickAction({ icon, label, color, onClick }: { icon: React.ReactNode; l
   )
 }
 
-function EditCell({ value, meta, onChange, onSave, onCancel, saving }: {
+function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptions }: {
   value: string
   meta?: CRMProperty
   onChange: (v: string) => void
   onSave: () => void
   onCancel: () => void
   saving: boolean
+  customOptions?: Array<{ value: string; label: string }>
 }) {
+  // customOptions prend priorité (ex: liste des owners pour hubspot_owner_id)
+  const options = customOptions ?? (
+    (meta?.field_type === 'select' || meta?.field_type === 'radio') ? meta.options : undefined
+  )
   return (
     <div className="flex gap-1">
-      {meta?.field_type === 'select' && meta.options ? (
+      {options ? (
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -691,17 +704,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving }: {
           autoFocus
         >
           <option value="">—</option>
-          {meta.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      ) : meta?.field_type === 'radio' && meta.options ? (
-        <select
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="flex-1 px-2 py-1 border rounded text-xs"
-          autoFocus
-        >
-          <option value="">—</option>
-          {meta.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       ) : (
         <input
