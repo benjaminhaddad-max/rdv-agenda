@@ -82,13 +82,23 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   const [dirty, setDirty] = useState(false)
   const [tab, setTab] = useState<'builder' | 'settings' | 'embed' | 'submissions'>('builder')
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null)
+  const [submissionCount, setSubmissionCount] = useState<number>(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/forms/${id}`)
-      const data = await res.json()
+      const [formRes, subsRes] = await Promise.all([
+        fetch(`/api/forms/${id}`),
+        fetch(`/api/forms/${id}/submissions?limit=1`).catch(() => null),
+      ])
+      const data = await formRes.json()
       setForm(data)
+      if (subsRes?.ok) {
+        const sub = await subsRes.json()
+        setSubmissionCount(sub.total ?? data.submission_count ?? 0)
+      } else {
+        setSubmissionCount(data.submission_count ?? 0)
+      }
     } finally { setLoading(false) }
   }, [id])
 
@@ -240,7 +250,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
         <Tab active={tab === 'builder'} onClick={() => setTab('builder')} icon={FileText} label="Champs" />
         <Tab active={tab === 'settings'} onClick={() => setTab('settings')} icon={Settings} label="Réglages" />
         <Tab active={tab === 'embed'} onClick={() => setTab('embed')} icon={Code} label="Intégration" />
-        <Tab active={tab === 'submissions'} onClick={() => setTab('submissions')} icon={Inbox} label={`Soumissions (${form.submission_count})`} />
+        <Tab active={tab === 'submissions'} onClick={() => setTab('submissions')} icon={Inbox} label={`Soumissions (${submissionCount})`} />
       </div>
 
       {/* Contenu */}
