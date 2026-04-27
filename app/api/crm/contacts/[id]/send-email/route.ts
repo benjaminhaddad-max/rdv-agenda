@@ -77,6 +77,10 @@ export async function POST(
   // 4. Envoyer via Brevo
   let messageId: string | undefined
   let sendError: string | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachments = Array.isArray(body.attachments) && body.attachments.length > 0
+    ? body.attachments.map((a: any) => ({ name: String(a.name), content: String(a.content) }))
+    : undefined
   try {
     const r = await sendBrevoEmail({
       subject: renderedSubject,
@@ -88,6 +92,7 @@ export async function POST(
       }],
       replyTo: body.replyTo ? { email: body.replyTo } : undefined,
       tags: [`contact:${contactId}`, 'unitaire'],
+      attachment: attachments,
     })
     messageId = r.messageId
   } catch (e) {

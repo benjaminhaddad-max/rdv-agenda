@@ -68,6 +68,17 @@ interface CRMTask {
   hubspot_deal_id?: string
 }
 
+interface EmailStats {
+  sent: number
+  delivered: number
+  opens: number
+  clicks: number
+  bounces: number
+  spam: number
+  lastEventAt?: string
+  events?: Array<{ type: string; at: string; data?: Any }>
+}
+
 interface ContactDetails {
   contact: Record<string, Any>
   deals: Array<Record<string, Any>>
@@ -79,6 +90,7 @@ interface ContactDetails {
   formSubmissions: FormSubmission[]
   owners: Owner[]
   tasks: CRMTask[]
+  emailStatsByMessageId?: Record<string, EmailStats>
 }
 
 type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
@@ -150,7 +162,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [] } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {} } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -242,12 +254,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     body?: string
     subtitle?: string
     ownerId?: string
+    emailStats?: EmailStats
+    sendStatus?: string
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
     const t = a.activity_type.toLowerCase()
     const valid: TimelineItem['type'][] = ['note', 'call', 'email', 'meeting', 'task']
     const type = (valid.includes(t as TimelineItem['type']) ? t : 'note') as TimelineItem['type']
+    const msgId = a.metadata?.brevo_message_id as string | undefined
+    const stats = type === 'email' && msgId ? emailStatsByMessageId[msgId] : undefined
     timeline.push({
       id: `act-${a.id}`,
       type,
@@ -256,6 +272,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       body: a.body ?? undefined,
       subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
       ownerId: a.owner_id,
+      emailStats: stats,
+      sendStatus: type === 'email' ? a.status : undefined,
     })
   }
   for (const f of formSubmissions) {
@@ -497,9 +515,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                             <div className="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow">
                               <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <TypeBadge type={t.type} />
                                   <div className="text-sm font-semibold">{t.title}</div>
+                                  {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}
                                 </div>
                                 <div className="text-xs text-slate-400 whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
@@ -769,6 +788,32 @@ function TypeBadge({ type }: { type: string }) {
       {m.icon}
       {labelForType(type)}
     </span>
+  )
+}
+
+function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?: EmailStats }) {
+  const items: Array<{ label: string; bg: string; title?: string }> = []
+  if (sendStatus === 'FAILED') {
+    items.push({ label: 'Échec', bg: 'bg-red-100 text-red-700' })
+  } else if (sendStatus === 'SENT') {
+    items.push({ label: 'Envoyé', bg: 'bg-slate-100 text-slate-600' })
+  }
+  if (stats) {
+    if (stats.delivered > 0) items.push({ label: 'Délivré', bg: 'bg-green-100 text-green-700' })
+    if (stats.opens > 0) items.push({ label: `Ouvert${stats.opens > 1 ? ` ×${stats.opens}` : ''}`, bg: 'bg-blue-100 text-blue-700' })
+    if (stats.clicks > 0) items.push({ label: `Cliqué${stats.clicks > 1 ? ` ×${stats.clicks}` : ''}`, bg: 'bg-violet-100 text-violet-700' })
+    if (stats.bounces > 0) items.push({ label: 'Rejeté', bg: 'bg-orange-100 text-orange-700' })
+    if (stats.spam > 0) items.push({ label: 'Spam', bg: 'bg-rose-100 text-rose-700' })
+  }
+  if (items.length === 0) return null
+  return (
+    <>
+      {items.map((it, i) => (
+        <span key={i} className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${it.bg}`} title={it.title}>
+          {it.label}
+        </span>
+      ))}
+    </>
   )
 }
 

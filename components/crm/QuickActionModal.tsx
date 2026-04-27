@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send } from 'lucide-react'
+import { StickyNote, Phone, CheckSquare, X, Mail, Calendar, Send, Eye, Paperclip } from 'lucide-react'
 
 export type QuickActionType = 'note' | 'call' | 'task' | 'email' | 'meeting'
 
@@ -82,15 +82,30 @@ export default function QuickActionModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [emailReplyTo, setEmailReplyTo] = useState('')
   const [bodyHtml, setBodyHtml] = useState('') // pour mode 'send' on garde le HTML
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState('')
+  const [previewSubject, setPreviewSubject] = useState('')
+  const [contactPreview, setContactPreview] = useState<{ firstname?: string; lastname?: string; email?: string; classe_actuelle?: string; phone?: string } | null>(null)
+  // Pièces jointes
+  const [attachments, setAttachments] = useState<Array<{ name: string; content: string; size: number }>>([])
 
-  // Charger les templates quand on ouvre le modal en mode email
+  // Charger les templates + données contact pour la preview
   useEffect(() => {
     if (type !== 'email') return
     fetch('/api/email-templates').then(r => r.json()).then(d => {
       if (Array.isArray(d)) setTemplates(d)
       else if (Array.isArray(d?.templates)) setTemplates(d.templates)
     }).catch(() => {})
-  }, [type])
+    if (contactId) {
+      fetch(`/api/crm/contacts/${contactId}/details`).then(r => r.json()).then(d => {
+        const c = d?.contact
+        if (c) setContactPreview({
+          firstname: c.firstname, lastname: c.lastname, email: c.email,
+          classe_actuelle: c.classe_actuelle, phone: c.phone,
+        })
+      }).catch(() => {})
+    }
+  }, [type, contactId])
 
   // Quand on choisit un template, pré-remplir sujet + corps
   useEffect(() => {
@@ -103,6 +118,45 @@ export default function QuickActionModal({
   }, [selectedTemplateId, templates])
 
   const cfg = TYPE_CONFIG[type]
+
+  const handlePreview = () => {
+    const vars = {
+      prenom:           contactPreview?.firstname ?? '',
+      firstname:        contactPreview?.firstname ?? '',
+      nom:              contactPreview?.lastname ?? '',
+      lastname:         contactPreview?.lastname ?? '',
+      email:            contactPreview?.email ?? '',
+      classe:           contactPreview?.classe_actuelle ?? '',
+      classe_actuelle:  contactPreview?.classe_actuelle ?? '',
+      phone:            contactPreview?.phone ?? '',
+    }
+    const renderedSubject = renderVars(subject, vars)
+    const renderedHtml    = renderVars(bodyHtml || `<p>${(body || '').replace(/\n/g, '<br>')}</p>`, vars)
+    setPreviewSubject(renderedSubject)
+    setPreviewHtml(renderedHtml)
+    setShowPreview(true)
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const total = attachments.reduce((s, a) => s + a.size, 0) +
+                  files.reduce((s, f) => s + f.size, 0)
+    if (total > 9 * 1024 * 1024) {
+      alert('Total des pièces jointes > 9 Mo (limite Brevo)')
+      return
+    }
+    const next = [...attachments]
+    for (const f of files) {
+      const b64 = await new Promise<string>((resolve) => {
+        const fr = new FileReader()
+        fr.onload = () => resolve((fr.result as string).split(',')[1] ?? '')
+        fr.readAsDataURL(f)
+      })
+      next.push({ name: f.name, content: b64, size: f.size })
+    }
+    setAttachments(next)
+    e.target.value = '' // permet de re-sélectionner le même fichier
+  }
 
   async function handleSave() {
     setErr(null)
@@ -136,6 +190,7 @@ export default function QuickActionModal({
             html:       bodyHtml.trim() || (body ? `<p>${body.replace(/\n/g, '<br>')}</p>` : undefined),
             replyTo:    emailReplyTo.trim() || undefined,
             ownerId:    defaultOwnerId ?? null,
+            attachments: attachments.length > 0 ? attachments : undefined,
           }),
         })
         if (!res.ok) throw new Error(await res.text())
@@ -278,7 +333,7 @@ export default function QuickActionModal({
                       ))}
                     </select>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      Variables disponibles : <code>{'{{prenom}}'}</code> <code>{'{{nom}}'}</code> <code>{'{{email}}'}</code> <code>{'{{classe}}'}</code>
+                      Variables : <code>{'{{prenom}}'}</code> <code>{'{{nom}}'}</code> <code>{'{{email}}'}</code> <code>{'{{classe}}'}</code> <code>{'{{phone}}'}</code>
                     </p>
                   </div>
                   <div>
@@ -290,6 +345,27 @@ export default function QuickActionModal({
                       placeholder="commercial@diploma-sante.fr"
                       className="w-full px-3 py-2 border rounded-md text-sm"
                     />
+                  </div>
+
+                  {/* Pièces jointes */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Pièces jointes</label>
+                    <label className="inline-flex items-center gap-1 cursor-pointer text-xs text-[#0038f0] hover:underline">
+                      <Paperclip size={12} /> Ajouter un fichier
+                      <input type="file" multiple onChange={handleFileChange} className="hidden" />
+                    </label>
+                    {attachments.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {attachments.map((a, i) => (
+                          <li key={i} className="flex items-center gap-2 text-xs bg-slate-50 px-2 py-1 rounded border">
+                            <Paperclip size={11} className="text-slate-400" />
+                            <span className="flex-1 truncate">{a.name}</span>
+                            <span className="text-slate-400">{(a.size / 1024).toFixed(0)} Ko</span>
+                            <button type="button" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600"><X size={11} /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </>
               )}
@@ -373,6 +449,14 @@ export default function QuickActionModal({
           <button onClick={onClose} className="px-4 py-2 text-sm border rounded-md hover:bg-white">
             Annuler
           </button>
+          {type === 'email' && emailMode === 'send' && (
+            <button
+              onClick={handlePreview}
+              className="inline-flex items-center gap-1 px-4 py-2 text-sm border rounded-md hover:bg-white"
+            >
+              <Eye size={14} /> Aperçu
+            </button>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -384,8 +468,45 @@ export default function QuickActionModal({
           </button>
         </div>
       </div>
+
+      {/* Modal Aperçu (preview avec variables résolues) */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye size={16} className="text-[#0038f0]" />
+                <h2 className="text-base font-semibold">Aperçu</h2>
+              </div>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+            </div>
+            <div className="px-5 py-3 border-b bg-slate-50 text-sm">
+              <div className="text-slate-500 text-[11px] uppercase tracking-wide">À</div>
+              <div className="font-medium">{contactPreview?.email || '—'}</div>
+              <div className="text-slate-500 text-[11px] uppercase tracking-wide mt-2">Objet</div>
+              <div className="font-medium">{previewSubject || '(sans objet)'}</div>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4">
+              <iframe
+                srcDoc={previewHtml || '<p style="color:#888;font-family:sans-serif;text-align:center;padding:40px">Aucun contenu</p>'}
+                className="w-full h-[450px] border rounded"
+                sandbox=""
+                title="Aperçu de l'e-mail"
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-slate-50 rounded-b-xl">
+              <button onClick={() => setShowPreview(false)} className="px-4 py-2 text-sm border rounded-md">Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+// Helper rendering des variables {{nom}} (côté client)
+function renderVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, k) => vars[k] ?? '')
 }
 
 const TYPE_CONFIG: Record<QuickActionType, {

@@ -100,6 +100,43 @@ export async function GET(
     tasks = data ?? []
   } catch { /* table absente */ }
 
+  // Email events (Brevo webhooks) — agrège par messageId pour mapper sur
+  // les activités email (metadata.brevo_message_id) côté UI.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emailStatsByMessageId: Record<string, { sent: number; delivered: number; opens: number; clicks: number; bounces: number; spam: number; lastEventAt?: string; events: Array<{ type: string; at: string; data?: any }> }> = {}
+  if (contact.email) {
+    try {
+      const { data: events } = await db
+        .from('email_events')
+        .select('event_type, occurred_at, event_data')
+        .eq('email', contact.email)
+        .order('occurred_at', { ascending: false })
+        .limit(500)
+      for (const ev of (events ?? [])) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = ev.event_data as any
+        const msgId = data?.messageId || data?.message_id || data?.['message-id']
+        if (!msgId) continue
+        const key = String(msgId)
+        if (!emailStatsByMessageId[key]) {
+          emailStatsByMessageId[key] = { sent: 0, delivered: 0, opens: 0, clicks: 0, bounces: 0, spam: 0, events: [] }
+        }
+        const s = emailStatsByMessageId[key]
+        const t = String(ev.event_type || '').toLowerCase()
+        if (t === 'sent' || t === 'request')           s.sent++
+        else if (t === 'delivered')                    s.delivered++
+        else if (t === 'open' || t === 'opens')        s.opens++
+        else if (t === 'click' || t === 'clicks')      s.clicks++
+        else if (t.includes('bounce'))                 s.bounces++
+        else if (t === 'spam' || t === 'complaint')    s.spam++
+        s.events.push({ type: t, at: ev.occurred_at as string, data })
+        if (!s.lastEventAt || (ev.occurred_at as string) > s.lastEventAt) {
+          s.lastEventAt = ev.occurred_at as string
+        }
+      }
+    } catch { /* table absente */ }
+  }
+
   // Owners : on charge TOUS les owners actifs (et pas seulement ceux liés
   // à ce contact) pour alimenter le dropdown "Propriétaire" avec toutes
   // les valeurs disponibles dans HubSpot.
@@ -132,5 +169,6 @@ export async function GET(
     formSubmissions,
     owners,
     tasks,
+    emailStatsByMessageId,
   })
 }

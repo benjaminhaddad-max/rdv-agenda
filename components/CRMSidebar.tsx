@@ -33,9 +33,10 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Marketing',
     items: [
-      { key: 'campaigns', label: 'Campagnes',   href: '/admin/crm/campaigns', icon: Mail },
-      { key: 'forms',     label: 'Formulaires', href: '/admin/crm/forms',     icon: FileText },
-      { key: 'events',    label: 'Événements',  href: '/admin/crm/events', icon: CalendarDays },
+      { key: 'campaigns', label: 'Campagnes',     href: '/admin/crm/campaigns',       icon: Mail },
+      { key: 'templates', label: 'Modèles email', href: '/admin/crm/email-templates', icon: FileText },
+      { key: 'forms',     label: 'Formulaires',   href: '/admin/crm/forms',           icon: FileText },
+      { key: 'events',    label: 'Événements',    href: '/admin/crm/events',          icon: CalendarDays },
     ],
   },
   {

@@ -20,6 +20,15 @@ export interface BrevoRecipient {
   params?: Record<string, string | number | boolean | null>
 }
 
+export interface BrevoAttachment {
+  /** Nom du fichier affiché au destinataire */
+  name: string
+  /** Contenu encodé en base64 */
+  content: string
+  /** Optionnel : URL distante au lieu du contenu base64 */
+  url?: string
+}
+
 export interface BrevoSendEmailParams {
   subject: string
   htmlContent: string
@@ -33,6 +42,8 @@ export interface BrevoSendEmailParams {
   params?: Record<string, string | number | boolean | null>
   /** Headers personnalisés */
   headers?: Record<string, string>
+  /** Pièces jointes (Brevo limit ~10 Mo total) */
+  attachment?: BrevoAttachment[]
 }
 
 export interface BrevoSendEmailResponse {
@@ -112,6 +123,7 @@ export async function sendBrevoEmail(
       tags: params.tags,
       params: params.params,
       headers: params.headers,
+      attachment: params.attachment,
     },
   })
 }
