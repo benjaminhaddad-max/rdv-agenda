@@ -234,7 +234,8 @@ function loadCRMViews(): CRMSavedView[] {
 // Convertit les filtres d'une vue en URLSearchParams pour l'API
 function viewToParams(view: CRMSavedView): URLSearchParams {
   const p = new URLSearchParams()
-  p.set('all_classes', '1') // toujours toutes classes pour les counts
+  p.set('all_classes', '1')   // toujours toutes classes pour les counts
+  p.set('show_external', '1') // plus de filtre auto "équipe externe" — on compte tout
   const flags = view.presetFlags
   if (flags?.noTelepro)        p.set('no_telepro', '1')
   if (flags?.recentFormMonths) p.set('recent_form_months', String(flags.recentFormMonths))
