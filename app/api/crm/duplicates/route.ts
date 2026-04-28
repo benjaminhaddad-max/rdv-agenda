@@ -24,9 +24,10 @@ interface ContactRow {
   classe_actuelle: string | null
   zone_localite: string | null
   origine: string | null
+  hs_lead_status: string | null
 }
 
-const FIELDS = 'hubspot_contact_id, firstname, lastname, email, phone, contact_createdate, recent_conversion_date, hubspot_owner_id, classe_actuelle, zone_localite, origine'
+const FIELDS = 'hubspot_contact_id, firstname, lastname, email, phone, contact_createdate, recent_conversion_date, hubspot_owner_id, classe_actuelle, zone_localite, origine, hs_lead_status'
 
 function normalizePhone(p: string): string {
   let v = p.replace(/[\s\-.()]/g, '')
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
   const type = (searchParams.get('type') || 'phone_name') as 'email' | 'phone' | 'name' | 'phone_name'
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
+  const limit = Math.min(parseInt(searchParams.get('limit') || '500', 10), 1000)
 
   // 1. Identifie les valeurs apparaissant plus d'une fois via RPC dédiée
   let groupValues: Array<{ key: string; count: number }> = []

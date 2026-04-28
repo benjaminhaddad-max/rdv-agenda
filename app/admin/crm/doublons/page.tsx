@@ -15,6 +15,7 @@ type Contact = {
   classe_actuelle: string | null
   zone_localite: string | null
   origine: string | null
+  hs_lead_status: string | null
 }
 type Group = { key: string; contacts: Contact[] }
 type Tab = 'phone_name' | 'phone' | 'email' | 'name'
@@ -47,7 +48,7 @@ export default function DoublonsPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null); setDoneMessage(null)
     try {
-      const res = await fetch(`/api/crm/duplicates?type=${tab}&limit=50`)
+      const res = await fetch(`/api/crm/duplicates?type=${tab}&limit=500`)
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
       setGroups(j.groups || [])
@@ -240,6 +241,7 @@ export default function DoublonsPage() {
                       <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Téléphone</th>
                       <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Classe / Zone</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Statut du lead</th>
                       <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Créé</th>
                       <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Dernière soumission</th>
                     </tr>
@@ -284,6 +286,14 @@ export default function DoublonsPage() {
                           <td style={{ padding: '10px 12px' }}>
                             <div>{c.classe_actuelle || '—'}</div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.zone_localite || '—'}</div>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            {c.hs_lead_status ? (
+                              <span style={{
+                                padding: '2px 8px', borderRadius: 999, background: '#eef2f7',
+                                color: '#1a2f4b', fontSize: 11, fontWeight: 600,
+                              }}>{c.hs_lead_status}</span>
+                            ) : <span style={{ color: '#cbd6e2' }}>—</span>}
                           </td>
                           <td style={{ padding: '10px 12px', color: '#64748b' }}>{fmtDate(c.contact_createdate)}</td>
                           <td style={{ padding: '10px 12px', color: '#64748b' }}>{fmtDate(c.recent_conversion_date)}</td>
