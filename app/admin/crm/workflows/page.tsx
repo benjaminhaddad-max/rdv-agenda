@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Workflow, Plus, Play, Pause, Archive, Trash2, FileText, Activity, X, Copy } from 'lucide-react'
+import { Workflow, Plus, Play, Pause, Archive, Trash2, FileText, Activity, X, Copy, Sparkles } from 'lucide-react'
 
 interface Wf {
   id: string
@@ -34,6 +34,7 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Wf[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
+  const [showAI, setShowAI] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -83,12 +84,21 @@ export default function WorkflowsPage() {
               Automatise les actions répétitives : envoi d&apos;emails, création de tâches, mise à jour de propriétés.
             </div>
           </div>
-          <button
-            onClick={() => setShowNew(true)}
-            style={{ background: '#fff', color: '#0038f0', border: 'none', padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}
-          >
-            <Plus size={14} /> Nouveau workflow
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setShowAI(true)}
+              style={{ background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(168,85,247,0.35)' }}
+              title="Décris ton workflow et l'IA le crée pour toi"
+            >
+              <Sparkles size={14} /> Générer avec l&apos;IA
+            </button>
+            <button
+              onClick={() => setShowNew(true)}
+              style={{ background: '#fff', color: '#0038f0', border: 'none', padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}
+            >
+              <Plus size={14} /> Nouveau
+            </button>
+          </div>
         </div>
       </div>
 
@@ -149,6 +159,7 @@ export default function WorkflowsPage() {
       </div>
 
       {showNew && <NewWorkflowModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load() }} />}
+      {showAI && <AIWorkflowModal onClose={() => setShowAI(false)} />}
     </div>
   )
 }
@@ -205,6 +216,133 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── AIWorkflowModal ────────────────────────────────────────────────────
+const AI_EXAMPLES = [
+  "Quand un lycéen remplit le form Bienvenue, lui envoyer un email de bienvenue, attendre 1 jour, puis un SMS pour proposer un RDV. 2 jours après, créer une tâche au commercial pour rappeler s'il n'a pas pris RDV.",
+  "Si statut du lead passe à \"Pré-inscrit\", envoyer un email de confirmation puis un SMS le lendemain à 10h avec les prochaines étapes.",
+  "Quand un contact est créé, attendre 1h, lui envoyer un email d'accueil. 3 jours après, si toujours pas de RDV, envoyer une relance SMS.",
+]
+
+function AIWorkflowModal({ onClose }: { onClose: () => void }) {
+  const [description, setDescription] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    if (!description.trim() || generating) return
+    setError(null)
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/workflows/generate-ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ description: description.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || `Erreur HTTP ${res.status}`)
+        return
+      }
+      if (data?.workflow?.id) {
+        window.location.href = `/admin/crm/workflows/${data.workflow.id}`
+      } else {
+        onClose()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur réseau')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 12, maxWidth: 600, width: '100%', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={16} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Générer un workflow avec l&apos;IA</div>
+              <div style={{ fontSize: 11, opacity: 0.85 }}>Claude Opus 4.6 — décris ton besoin en français</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff' }}><X size={16} /></button>
+        </div>
+        <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 4 }}>
+              Décris ce que tu veux que le workflow fasse
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Ex: Quand un lycéen remplit le form Bienvenue, lui envoyer un email puis attendre 1 jour et envoyer un SMS…"
+              rows={6}
+              style={{ width: '100%', padding: 10, border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }}
+              autoFocus
+              disabled={generating}
+            />
+            <div style={{ fontSize: 10, color: '#516f90', marginTop: 4, textAlign: 'right' }}>
+              {description.length} / 2000 caractères
+            </div>
+          </div>
+
+          {!generating && (
+            <div>
+              <div style={{ fontSize: 10, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                💡 Exemples — clique pour utiliser
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {AI_EXAMPLES.map((ex, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setDescription(ex)}
+                    style={{ textAlign: 'left', padding: '8px 10px', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 11, color: '#33475b', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.5 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(168,85,247,0.08)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#f5f8fa')}
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', padding: 10, borderRadius: 6, fontSize: 12, color: '#ef4444' }}>
+              ❌ {error}
+            </div>
+          )}
+
+          {generating && (
+            <div style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', padding: 12, borderRadius: 6, fontSize: 12, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="ai-spin">✨</span>
+              <span>L&apos;IA réfléchit et construit ton workflow… (10-30s)</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button onClick={onClose} disabled={generating} style={{ flex: 1, padding: 10, border: '1px solid #cbd6e2', background: '#fff', borderRadius: 8, fontSize: 13, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', color: '#33475b', opacity: generating ? 0.5 : 1 }}>Annuler</button>
+            <button
+              onClick={submit}
+              disabled={!description.trim() || generating}
+              style={{ flex: 1, padding: 10, border: 'none', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', borderRadius: 8, fontSize: 13, cursor: !description.trim() || generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: !description.trim() || generating ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              <Sparkles size={13} /> {generating ? 'Génération…' : 'Générer'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .ai-spin { display: inline-block; animation: spin 1.5s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }
