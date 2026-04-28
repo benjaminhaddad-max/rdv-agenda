@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload,
 } from 'lucide-react'
 
 interface NavItem {
@@ -29,6 +29,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'contacts',      label: 'Contacts',     href: '/admin/crm',              icon: Users },
       { key: 'transactions',  label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase },
       { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
+      { key: 'import',        label: 'Import CSV',   href: '/admin/crm/import',       icon: Upload },
     ],
   },
   {
