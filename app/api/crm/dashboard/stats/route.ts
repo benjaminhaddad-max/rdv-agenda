@@ -127,7 +127,7 @@ export async function GET() {
     return { owner_id, name, count: Number(count) }
   })
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     generated_at: now.toISOString(),
     leads: {
       today:       leadsTodayCount,
@@ -154,4 +154,9 @@ export async function GET() {
     top_owners: topOwnersPayload,
     last_submissions: lastSubs.data ?? [],
   })
+
+  // Cache 30s côté navigateur + 60s sur les CDN, avec stale-while-revalidate
+  // Permet de recharger la page rapidement sans re-déclencher 30+ queries DB.
+  response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+  return response
 }
