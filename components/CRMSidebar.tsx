@@ -25,9 +25,10 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'CRM',
     items: [
-      { key: 'contacts',     label: 'Contacts',     href: '/admin/crm',              icon: Users },
-      { key: 'transactions', label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase },
-      { key: 'tasks',        label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
+      { key: 'crm-dashboard', label: 'Dashboard',    href: '/admin/crm/dashboard',    icon: LayoutDashboard },
+      { key: 'contacts',      label: 'Contacts',     href: '/admin/crm',              icon: Users },
+      { key: 'transactions',  label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase },
+      { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
     ],
   },
   {
