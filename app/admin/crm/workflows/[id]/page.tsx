@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Workflow, Save, ChevronLeft, Mail, CheckSquare, Clock, Edit3, Webhook, Plus,
   Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle, MessageSquare,
+  CalendarClock, Target, FlaskConical,
 } from 'lucide-react'
 
 interface Wf {
@@ -23,6 +24,10 @@ interface Wf {
   total_failed: number
   steps: Step[]
   running_executions: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  active_hours: Record<string, any> | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goal_filters: Record<string, any> | null
 }
 
 interface Step {
@@ -37,13 +42,22 @@ interface FormItem { id: string; name: string; slug: string }
 interface Template { id: string; name: string; subject: string }
 
 const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: string }> = {
-  send_email:      { label: 'Envoyer un email',     icon: Mail,         color: '#2ea3f2' },
-  send_sms:        { label: 'Envoyer un SMS',       icon: MessageSquare,color: '#0ea5e9' },
-  create_task:     { label: 'Créer une tâche',      icon: CheckSquare,  color: '#22c55e' },
-  wait:            { label: 'Attendre',             icon: Clock,        color: '#ccac71' },
-  update_property: { label: 'Modifier une propriété', icon: Edit3,      color: '#a855f7' },
-  webhook:         { label: 'Appeler un webhook',   icon: Webhook,      color: '#ef4444' },
+  send_email:      { label: 'Envoyer un email',         icon: Mail,         color: '#2ea3f2' },
+  send_sms:        { label: 'Envoyer un SMS',           icon: MessageSquare,color: '#0ea5e9' },
+  create_task:     { label: 'Créer une tâche',          icon: CheckSquare,  color: '#22c55e' },
+  wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#ccac71' },
+  wait_until:      { label: 'Attendre (heure du jour)', icon: CalendarClock,color: '#f59e0b' },
+  update_property: { label: 'Modifier une propriété',   icon: Edit3,        color: '#a855f7' },
+  webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#ef4444' },
 }
+
+const SMS_SENDERS = [
+  { value: 'DiploSante',  label: 'DiploSante' },
+  { value: 'Diploma',     label: 'Diploma' },
+  { value: 'PrepaMed',    label: 'PrepaMed' },
+  { value: 'Edumove',     label: 'Edumove' },
+  { value: 'PASS-LAS',    label: 'PASS-LAS' },
+]
 
 export default function WorkflowEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -53,6 +67,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
   const [dirty, setDirty] = useState(false)
   const [forms, setForms] = useState<FormItem[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [showTestModal, setShowTestModal] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,6 +166,13 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
           <button
+            onClick={() => setShowTestModal(true)}
+            style={{ background: '#fff', border: '1px solid #cbd6e2', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, color: '#a855f7' }}
+            title="Tester le workflow sur un contact"
+          >
+            <FlaskConical size={12} /> Tester
+          </button>
+          <button
             onClick={toggleActive}
             style={{ background: wf.status === 'active' ? '#ccac71' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
           >
@@ -236,6 +258,219 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
               style={{ width: '100%', marginTop: 12, padding: 8, border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }}
             />
           </Card>
+
+          <Card title="Heures actives" icon={CalendarClock}>
+            <ActiveHoursEditor
+              hours={wf.active_hours || {}}
+              onChange={h => update({ active_hours: h })}
+            />
+          </Card>
+
+          <Card title="Objectif (sortie auto)" icon={Target}>
+            <GoalEditor
+              filters={wf.goal_filters || {}}
+              onChange={g => update({ goal_filters: g })}
+            />
+          </Card>
+        </div>
+      </div>
+
+      {showTestModal && (
+        <TestRunModal workflowId={wf.id} onClose={() => setShowTestModal(false)} />
+      )}
+    </div>
+  )
+}
+
+// ─── ActiveHoursEditor ───────────────────────────────────────────────────
+function ActiveHoursEditor({ hours, onChange }: { hours: Record<string, unknown>; onChange: (h: Record<string, unknown>) => void }) {
+  const days = (hours.days as number[] | undefined) ?? []
+  const startH = (hours.start_hour as number | undefined) ?? null
+  const endH   = (hours.end_hour   as number | undefined) ?? null
+  const dayLabels = ['D', 'L', 'M', 'M', 'J', 'V', 'S']  // index 0 = dimanche
+
+  const enabled = days.length > 0 || startH != null || endH != null
+
+  const toggleDay = (d: number) => {
+    const next = days.includes(d) ? days.filter(x => x !== d) : [...days, d].sort()
+    onChange({ ...hours, days: next })
+  }
+
+  return (
+    <div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer', marginBottom: 10 }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={e => {
+            if (e.target.checked) {
+              onChange({ days: [1,2,3,4,5], start_hour: 9, end_hour: 19, timezone: 'Europe/Paris' })
+            } else {
+              onChange({})
+            }
+          }}
+        />
+        <div>
+          <div style={{ fontWeight: 600 }}>Restreindre les envois</div>
+          <div style={{ color: '#516f90' }}>Pas de mail/SMS hors plage</div>
+        </div>
+      </label>
+
+      {enabled && (
+        <>
+          <div style={{ fontSize: 10, color: '#516f90', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Jours</div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            {dayLabels.map((label, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => toggleDay(i)}
+                style={{
+                  flex: 1, padding: '6px 0', border: '1px solid #cbd6e2',
+                  background: days.includes(i) ? '#0038f0' : '#fff',
+                  color: days.includes(i) ? '#fff' : '#33475b',
+                  borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >{label}</button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={labelStyle}>Début</label>
+              <input
+                type="number"
+                min={0} max={23}
+                value={startH ?? 9}
+                onChange={e => onChange({ ...hours, start_hour: parseInt(e.target.value || '0', 10) })}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Fin (excl.)</label>
+              <input
+                type="number"
+                min={1} max={24}
+                value={endH ?? 19}
+                onChange={e => onChange({ ...hours, end_hour: parseInt(e.target.value || '0', 10) })}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── GoalEditor ──────────────────────────────────────────────────────────
+function GoalEditor({ filters, onChange }: { filters: Record<string, unknown>; onChange: (f: Record<string, unknown>) => void }) {
+  const enabled = filters && Object.keys(filters).length > 0
+  const lead = filters?.lead_status as string | undefined
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: '#516f90', marginBottom: 8, lineHeight: 1.5 }}>
+        Quand le contact atteint cet objectif, il sort automatiquement du workflow.
+      </div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer', marginBottom: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!enabled}
+          onChange={e => {
+            if (e.target.checked) onChange({ lead_status: 'Pré-inscrit 2025/2026' })
+            else onChange({})
+          }}
+        />
+        <div>
+          <div style={{ fontWeight: 600 }}>Activer un objectif</div>
+        </div>
+      </label>
+      {enabled && (
+        <div>
+          <label style={labelStyle}>Sortir si statut du lead =</label>
+          <input value={lead || ''} onChange={e => onChange({ lead_status: e.target.value })} placeholder="ex: Pré-inscrit" style={inputStyle} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── TestRunModal ────────────────────────────────────────────────────────
+function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: () => void }) {
+  const [contactId, setContactId] = useState('')
+  const [running, setRunning] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [result, setResult] = useState<any | null>(null)
+
+  const run = async () => {
+    if (!contactId.trim()) return
+    setRunning(true)
+    setResult(null)
+    try {
+      const res = await fetch(`/api/workflows/${workflowId}/test`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contact_id: contactId.trim(), run_now: true }),
+      })
+      setResult(await res.json())
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 12, maxWidth: 520, width: '100%', overflow: 'hidden', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbd6e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, color: '#a855f7' }}>
+            <FlaskConical size={14} /> Tester le workflow
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#516f90' }}>✕</button>
+        </div>
+        <div style={{ padding: 20, overflowY: 'auto' }}>
+          <label style={labelStyle}>HubSpot contact ID (ou ID natif)</label>
+          <input value={contactId} onChange={e => setContactId(e.target.value)} placeholder="ex: 10000" style={inputStyle} autoFocus />
+          <div style={{ fontSize: 11, color: '#516f90', marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>
+            Le workflow sera exécuté immédiatement pour ce contact (max 20 étapes inline). Les vraies actions s&apos;exécutent (email, SMS, tâche…) — utilise un de tes propres comptes pour tester.
+          </div>
+          <button
+            onClick={run}
+            disabled={!contactId.trim() || running}
+            style={{ width: '100%', padding: 10, border: 'none', background: 'linear-gradient(135deg,#a855f7,#7c3aed)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: running ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: !contactId.trim() ? 0.5 : 1 }}
+          >
+            {running ? 'Exécution…' : 'Lancer le test'}
+          </button>
+
+          {result && (
+            <div style={{ marginTop: 16, padding: 12, background: '#f5f8fa', borderRadius: 8, fontSize: 11 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                {result.ok ? '✓ Test exécuté' : '✗ Erreur'}
+              </div>
+              {result.error && <div style={{ color: '#ef4444', marginBottom: 6 }}>{result.error}</div>}
+              {result.execution && (
+                <div style={{ color: '#516f90', marginBottom: 8 }}>
+                  Status : <strong>{result.execution.status}</strong>
+                  {result.execution.next_run_at && <> · Prochain run : {new Date(result.execution.next_run_at).toLocaleString('fr-FR')}</>}
+                </div>
+              )}
+              {result.logs && result.logs.length > 0 && (
+                <div>
+                  <div style={{ fontWeight: 600, marginTop: 8, marginBottom: 4 }}>Logs ({result.logs.length})</div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {result.logs.map((log: any, i: number) => (
+                      <li key={i} style={{ padding: '6px 8px', background: '#fff', border: '1px solid #cbd6e2', borderRadius: 4 }}>
+                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#ccac71' }}>
+                          {log.status === 'success' ? '✓' : log.status === 'failed' ? '✗' : '○'}
+                        </span>{' '}
+                        <span>{log.step_type}</span>
+                        {log.error_message && <span style={{ color: '#ef4444' }}> — {log.error_message}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -350,14 +585,43 @@ function StepCard({
 
       {step.step_type === 'send_sms' && (() => {
         const text = String(step.config.text || '')
-        // Estimation longueur SMS : UCS-2 (accents fr) = 67 chars/segment, sinon 160 chars
         const hasUnicode = /[^\x00-\x7F]/.test(text)
         const limit = hasUnicode ? 67 : 160
         const segments = text.length === 0 ? 0 : Math.ceil(text.length / limit)
+        const sender = String(step.config.sender || 'DiploSante')
+        const isCustom = !SMS_SENDERS.find(s => s.value === sender)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
-              <label style={labelStyle}>Texte du SMS (envoyé via SMS Factor — sender DiploSante)</label>
+              <label style={labelStyle}>Sender (max 11 caractères alphanumériques)</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select
+                  value={isCustom ? '__custom__' : sender}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') setCfg({ sender: '' })
+                    else setCfg({ sender: e.target.value })
+                  }}
+                  style={{ ...selectStyle, flex: 1 }}
+                >
+                  {SMS_SENDERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  <option value="__custom__">— Personnalisé —</option>
+                </select>
+                {isCustom && (
+                  <input
+                    value={sender}
+                    onChange={e => setCfg({ sender: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) })}
+                    placeholder="Ex: MaMarque"
+                    maxLength={11}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                )}
+              </div>
+              <div style={{ fontSize: 10, color: '#516f90', marginTop: 4 }}>
+                Le sender doit être préalablement validé sur le dashboard SMS Factor.
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Texte du SMS</label>
               <textarea
                 value={text}
                 onChange={e => setCfg({ text: e.target.value })}
@@ -411,6 +675,41 @@ function StepCard({
                 <option value="other">Autre</option>
               </select>
             </div>
+          </div>
+        </div>
+      )}
+
+      {step.step_type === 'wait_until' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={labelStyle}>Heure (0-23)</label>
+            <input
+              type="number" min={0} max={23}
+              value={step.config.until_hour ?? 9}
+              onChange={e => setCfg({ until_hour: parseInt(e.target.value || '0', 10) })}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Minutes (0-59)</label>
+            <input
+              type="number" min={0} max={59}
+              value={step.config.until_minute ?? 0}
+              onChange={e => setCfg({ until_minute: parseInt(e.target.value || '0', 10) })}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Décalage en jours</label>
+            <input
+              type="number" min={0} max={30}
+              value={step.config.day_offset ?? 0}
+              onChange={e => setCfg({ day_offset: parseInt(e.target.value || '0', 10) })}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#516f90' }}>
+            Ex : 9h, décalage 1 = demain 9h. 0 = aujourd&apos;hui (ou demain si l&apos;heure est passée).
           </div>
         </div>
       )}
@@ -522,9 +821,10 @@ function AddStepButton({ onAdd }: { onAdd: (type: string) => void }) {
 function defaultConfig(type: string): Record<string, unknown> {
   switch (type) {
     case 'wait': return { duration_minutes: 60, unit: 'minute' }
+    case 'wait_until': return { until_hour: 9, until_minute: 0, day_offset: 1 }
     case 'create_task': return { title: 'Nouvelle tâche', priority: 'normal', task_type: 'follow_up', due_in_minutes: 0 }
     case 'send_email': return {}
-    case 'send_sms': return { text: 'Bonjour {{prenom}}, ' }
+    case 'send_sms': return { text: 'Bonjour {{prenom}}, ', sender: 'DiploSante' }
     case 'update_property': return { property: '', value: '' }
     case 'webhook': return { method: 'POST', url: '' }
     default: return {}

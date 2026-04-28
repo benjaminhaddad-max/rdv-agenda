@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PUT(req: Request, { params }: Params) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const steps: Array<{ step_type: string; config?: Record<string, unknown>; label?: string }> = body.steps || []
+  const steps: Array<{ step_type: string; config?: Record<string, unknown>; label?: string; skip_if_filters?: Record<string, unknown> }> = body.steps || []
 
   const db = createServiceClient()
 
@@ -39,11 +39,12 @@ export async function PUT(req: Request, { params }: Params) {
 
   // Réinsère avec sequence calculée par position
   const rows = steps.map((s, i) => ({
-    workflow_id: id,
-    sequence:    i,
-    step_type:   s.step_type,
-    config:      s.config ?? {},
-    label:       s.label ?? null,
+    workflow_id:     id,
+    sequence:        i,
+    step_type:       s.step_type,
+    config:          s.config ?? {},
+    label:           s.label ?? null,
+    skip_if_filters: s.skip_if_filters ?? {},
   }))
 
   const { data, error } = await db.from('crm_workflow_steps').insert(rows).select()

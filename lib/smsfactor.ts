@@ -11,7 +11,20 @@
  */
 
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
-const SENDER = 'DiploSante'
+const DEFAULT_SENDER = 'DiploSante'
+
+/**
+ * Liste des senders pré-validés côté SMS Factor.
+ * Pour ajouter un nouveau sender il faut d'abord le faire valider dans
+ * le dashboard SMS Factor (max 11 chars alphanumériques).
+ */
+export const SMS_SENDERS: Array<{ value: string; label: string }> = [
+  { value: 'DiploSante',  label: 'DiploSante' },
+  { value: 'Diploma',     label: 'Diploma' },
+  { value: 'PrepaMed',    label: 'PrepaMed' },
+  { value: 'Edumove',     label: 'Edumove' },
+  { value: 'PASS-LAS',    label: 'PASS-LAS' },
+]
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -168,10 +181,14 @@ export const buildReminderSms = build48hSms
 
 /**
  * Envoie un SMS via SMS Factor.
+ *
+ * @param sender Sender alphanumérique (max 11 chars). Si non fourni : DiploSante.
+ *               Doit être pré-validé dans le dashboard SMS Factor.
  */
 export async function sendSms(
   to: string,
-  text: string
+  text: string,
+  sender?: string,
 ): Promise<{ ok: boolean; ticket?: string; error?: string }> {
   if (!SMS_FACTOR_TOKEN) {
     console.error('[smsfactor] SMSFACTOR_API_KEY manquant')
@@ -184,10 +201,13 @@ export async function sendSms(
     return { ok: false, error: `Numéro invalide : ${to}` }
   }
 
+  // Sanitize sender : max 11 chars alphanumériques
+  const cleanSender = (sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER
+
   const params = new URLSearchParams({
     text,
     to: formatted,
-    sender: SENDER,
+    sender: cleanSender,
     pushtype: 'alert',
   })
 

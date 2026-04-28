@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const ALLOWED = ['name', 'description', 'status', 'trigger_type', 'trigger_config', 'enrollment_filters', 're_enroll'] as const
+  const ALLOWED = ['name', 'description', 'status', 'trigger_type', 'trigger_config', 'enrollment_filters', 're_enroll', 'active_hours', 'goal_filters'] as const
   const patch: Record<string, unknown> = {}
   for (const k of ALLOWED) if (k in body) patch[k] = body[k]
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'no fields' }, { status: 400 })
