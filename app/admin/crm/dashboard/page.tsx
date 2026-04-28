@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import {
   LayoutDashboard, TrendingUp, Users, Briefcase, CheckSquare, Workflow,
@@ -360,9 +360,13 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-// ─── LineSpark (avec valeurs Y et axe X) ────────────────────────────────
+// ─── LineSpark (avec valeurs Y et axe X + tooltip au hover) ──────────────
 function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
   if (data.length === 0) return <div style={{ color: '#516f90', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune donnée</div>
+
   const W = 600, H = 160, padL = 30, padB = 22, padT = 8, padR = 4
   const max = Math.max(...data.map(d => d.count), 1)
   const total = data.reduce((s, d) => s + d.count, 0)
@@ -374,40 +378,116 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
   const area = `${path} L ${points[points.length - 1].x.toFixed(1)} ${(H - padB).toFixed(1)} L ${padL} ${(H - padB).toFixed(1)} Z`
 
-  // Labels X : 1er, milieu, dernier
   const labelIdx = [0, Math.floor(data.length / 2), data.length - 1]
+
+  // Convertit la position de souris en index de point (0..data.length-1)
+  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
+    const xRatio = (e.clientX - rect.left) / rect.width  // 0..1
+    // Inverse mapping de x → index
+    const usable = (W - padL - padR) / W
+    const startRatio = padL / W
+    const adj = (xRatio - startRatio) / usable
+    const idx = Math.round(adj * (data.length - 1))
+    if (idx >= 0 && idx < data.length) setHoverIdx(idx)
+    else setHoverIdx(null)
+  }
+
+  const hovered = hoverIdx !== null ? points[hoverIdx] : null
+  const tooltipLeft = hovered ? `${(hovered.x / W) * 100}%` : '0'
+  const tooltipDate = hovered ? new Date(hovered.date) : null
+  const tooltipLabel = tooltipDate
+    ? tooltipDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+    : ''
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 200 }}>
-        {/* Y-axis grid */}
-        <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#cbd6e2" strokeWidth="0.5" />
-        <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#cbd6e2" strokeWidth="0.5" />
-        {/* Y labels */}
-        <text x={padL - 4} y={padT + 4} fontSize="8" fill="#516f90" textAnchor="end">{max}</text>
-        <text x={padL - 4} y={H - padB} fontSize="8" fill="#516f90" textAnchor="end">0</text>
-        {/* Area gradient */}
-        <defs>
-          <linearGradient id="leadGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%"   stopColor="#0038f0" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#0038f0" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill="url(#leadGrad)" />
-        <path d={path} fill="none" stroke="#0038f0" strokeWidth="1.5" />
-        {/* Dots */}
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#0038f0" />
-        ))}
-        {/* X labels */}
-        {labelIdx.map(i => {
-          const p = points[i]
-          if (!p) return null
-          const d = new Date(p.date)
-          const lab = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-          return <text key={i} x={p.x} y={H - 6} fontSize="8" fill="#516f90" textAnchor="middle">{lab}</text>
-        })}
-      </svg>
+      <div
+        ref={wrapRef}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIdx(null)}
+        style={{ position: 'relative', width: '100%' }}
+      >
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 200, display: 'block', cursor: 'crosshair' }}>
+          {/* Axes */}
+          <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#cbd6e2" strokeWidth="0.5" />
+          <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#cbd6e2" strokeWidth="0.5" />
+          {/* Y labels */}
+          <text x={padL - 4} y={padT + 4} fontSize="8" fill="#516f90" textAnchor="end">{max}</text>
+          <text x={padL - 4} y={H - padB} fontSize="8" fill="#516f90" textAnchor="end">0</text>
+          {/* Area gradient */}
+          <defs>
+            <linearGradient id="leadGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%"   stopColor="#0038f0" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#0038f0" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={area} fill="url(#leadGrad)" />
+          <path d={path} fill="none" stroke="#0038f0" strokeWidth="1.5" />
+          {/* Dots */}
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={hoverIdx === i ? 3 : 1.5}
+              fill="#0038f0"
+              stroke={hoverIdx === i ? '#fff' : 'none'}
+              strokeWidth={hoverIdx === i ? 1.5 : 0}
+            />
+          ))}
+          {/* Vertical hover line */}
+          {hovered && (
+            <line
+              x1={hovered.x} y1={padT}
+              x2={hovered.x} y2={H - padB}
+              stroke="#0038f0" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.4"
+            />
+          )}
+          {/* X labels */}
+          {labelIdx.map(i => {
+            const p = points[i]
+            if (!p) return null
+            const d = new Date(p.date)
+            const lab = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+            return <text key={i} x={p.x} y={H - 6} fontSize="8" fill="#516f90" textAnchor="middle">{lab}</text>
+          })}
+        </svg>
+
+        {/* Tooltip HTML positionné au-dessus du point */}
+        {hovered && (
+          <div
+            style={{
+              position: 'absolute',
+              left: tooltipLeft,
+              top: 0,
+              transform: 'translate(-50%, -110%)',
+              background: '#33475b',
+              color: '#fff',
+              padding: '6px 10px',
+              borderRadius: 6,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 10,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>{hovered.count.toLocaleString('fr-FR')} lead{hovered.count > 1 ? 's' : ''}</div>
+            <div style={{ opacity: 0.85, fontSize: 10 }}>{tooltipLabel}</div>
+            {/* Petit triangle */}
+            <div style={{
+              position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
+              width: 0, height: 0,
+              borderLeft: '4px solid transparent',
+              borderRight: '4px solid transparent',
+              borderTop: '4px solid #33475b',
+            }} />
+          </div>
+        )}
+      </div>
       <div style={{ fontSize: 11, color: '#516f90', textAlign: 'right', marginTop: 4 }}>
         Total <strong style={{ color: '#33475b' }}>{total.toLocaleString('fr-FR')}</strong> sur 30 jours
       </div>
