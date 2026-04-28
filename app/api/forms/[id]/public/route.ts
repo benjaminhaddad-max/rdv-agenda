@@ -49,5 +49,15 @@ export async function GET(_req: Request, { params }: Params) {
     }
   }, () => {})
 
-  return NextResponse.json({ ...form, fields: fields || [] }, { headers: CORS_HEADERS })
+  // Cache navigateur 5min + CDN Vercel 10min (stale-while-revalidate 1h)
+  // → un visiteur qui ouvre 2 pages d'un site ne re-télécharge pas le schema
+  return NextResponse.json(
+    { ...form, fields: fields || [] },
+    {
+      headers: {
+        ...CORS_HEADERS,
+        'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600',
+      },
+    }
+  )
 }

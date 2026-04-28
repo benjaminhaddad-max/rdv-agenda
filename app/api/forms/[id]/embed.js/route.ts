@@ -10,9 +10,10 @@ export async function GET(req: Request, { params }: Params) {
   const url = new URL(req.url)
   const host = url.origin
 
+  // Charge le form complet (inline dans le JS pour éviter un 2e round-trip)
   const { data: form } = await db
     .from('forms')
-    .select('id')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, honeypot_enabled')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
@@ -24,23 +25,36 @@ export async function GET(req: Request, { params }: Params) {
     })
   }
 
-  const js = generateEmbedScript(host, slug)
+  const { data: fields } = await db
+    .from('form_fields')
+    .select('field_type, field_key, label, placeholder, help_text, default_value, required, options, validation, conditional, order_index')
+    .eq('form_id', form.id)
+    .order('order_index', { ascending: true })
+
+  // Le schema complet est inliné dans le JS → la 1ère ouverture évite
+  // un fetch supplémentaire vers /public (gain ~500ms en série)
+  const inlineForm = { ...form, fields: fields || [] }
+
+  const js = generateEmbedScript(host, slug, inlineForm)
 
   return new NextResponse(js, {
     headers: {
       'content-type': 'application/javascript; charset=utf-8',
-      'cache-control': 'public, max-age=300',
+      // Cache navigateur 5min + CDN Vercel 30min, revalide en arrière-plan 1h
+      // → 2e visiteur (et la même tab après refresh) sert depuis le cache
+      'cache-control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=3600',
       'access-control-allow-origin': '*',
     },
   })
 }
 
-function generateEmbedScript(host: string, slug: string): string {
+function generateEmbedScript(host: string, slug: string, inlineForm: unknown): string {
   return `/* Diploma Santé — Form Embed (card stylisée, personnalisable via réglages) */
 (function(){
   "use strict";
   var HOST = ${JSON.stringify(host)};
   var SLUG = ${JSON.stringify(slug)};
+  var INLINE_FORM = ${JSON.stringify(inlineForm)};
   var SELECTOR = '[data-diploma-form="' + SLUG + '"]';
 
   // Trouve notre propre tag <script> (robuste même en async/defer)
@@ -82,8 +96,17 @@ function generateEmbedScript(host: string, slug: string): string {
     var mode = container.dataset.mode || 'inline';
     if (mode === 'iframe') return mountIframe(container);
 
-    container.innerHTML = '<div style="padding:40px 20px;color:#888;font-size:13px;text-align:center;">Chargement du formulaire…</div>';
+    // Schema inliné dans embed.js → render immédiat sans 2e fetch
+    if (INLINE_FORM && INLINE_FORM.fields) {
+      try { render(container, INLINE_FORM); return; }
+      catch(err) {
+        container.innerHTML = '<div style="padding:20px;color:#c00;font-size:13px;text-align:center;">Erreur d\\u2019affichage : ' + (err && err.message || err) + '</div>';
+        return;
+      }
+    }
 
+    // Fallback (ne devrait jamais arriver) : ancien comportement avec fetch /public
+    container.innerHTML = '<div style="padding:40px 20px;color:#888;font-size:13px;text-align:center;">Chargement du formulaire…</div>';
     fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/public')
       .then(function(r){ if (!r.ok) throw new Error('Form not found'); return r.json(); })
       .then(function(form){ render(container, form); })
