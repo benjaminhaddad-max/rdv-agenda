@@ -49,9 +49,9 @@ export async function GET() {
     lastSubs,
   ] = await Promise.all([
     // Leads created today / 7d / 30d
-    awaitCount(db.from('crm_contacts').select('id', { count: 'exact', head: true }).gte('contact_createdate', todayStart.toISOString())),
-    awaitCount(db.from('crm_contacts').select('id', { count: 'exact', head: true }).gte('contact_createdate', day7.toISOString())),
-    awaitCount(db.from('crm_contacts').select('id', { count: 'exact', head: true }).gte('contact_createdate', day30.toISOString())),
+    awaitCount(db.from('crm_contacts').select('*', { count: 'exact', head: true }).gte('contact_createdate', todayStart.toISOString())),
+    awaitCount(db.from('crm_contacts').select('*', { count: 'exact', head: true }).gte('contact_createdate', day7.toISOString())),
+    awaitCount(db.from('crm_contacts').select('*', { count: 'exact', head: true }).gte('contact_createdate', day30.toISOString())),
 
     // Série journalière sur 30 jours (pour sparkline) — on fetch les dates et on bucket en JS
     db.from('crm_contacts')
@@ -79,19 +79,19 @@ export async function GET() {
       .limit(50_000),
 
     // Deals
-    awaitCount(db.from('crm_deals').select('id', { count: 'exact', head: true }).not('dealstage', 'in', '(closedwon,closedlost)')),
-    awaitCount(db.from('crm_deals').select('id', { count: 'exact', head: true })
+    awaitCount(db.from('crm_deals').select('*', { count: 'exact', head: true }).not('dealstage', 'in', '(closedwon,closedlost)')),
+    awaitCount(db.from('crm_deals').select('*', { count: 'exact', head: true })
       .eq('dealstage', 'closedwon')
       .gte('closedate', monthStart.toISOString())),
 
     // Tasks
-    awaitCount(db.from('crm_tasks').select('id', { count: 'exact', head: true }).eq('status', 'pending').lt('due_at', todayStart.toISOString())),
-    awaitCount(db.from('crm_tasks').select('id', { count: 'exact', head: true }).eq('status', 'pending').gte('due_at', todayStart.toISOString()).lt('due_at', tomorrowStart.toISOString())),
-    awaitCount(db.from('crm_tasks').select('id', { count: 'exact', head: true }).eq('status', 'pending').gte('due_at', todayStart.toISOString()).lt('due_at', new Date(todayStart.getTime() + 7 * 86_400_000).toISOString())),
+    awaitCount(db.from('crm_tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending').lt('due_at', todayStart.toISOString())),
+    awaitCount(db.from('crm_tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending').gte('due_at', todayStart.toISOString()).lt('due_at', tomorrowStart.toISOString())),
+    awaitCount(db.from('crm_tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending').gte('due_at', todayStart.toISOString()).lt('due_at', new Date(todayStart.getTime() + 7 * 86_400_000).toISOString())),
 
     // Workflows
-    awaitCount(db.from('crm_workflows').select('id', { count: 'exact', head: true }).eq('status', 'active')),
-    awaitCount(db.from('crm_workflow_executions').select('id', { count: 'exact', head: true }).in('status', ['running', 'waiting'])),
+    awaitCount(db.from('crm_workflows').select('*', { count: 'exact', head: true }).eq('status', 'active')),
+    awaitCount(db.from('crm_workflow_executions').select('*', { count: 'exact', head: true }).in('status', ['running', 'waiting'])),
 
     // Top owners par nb leads attribués sur 30j
     db.from('crm_contacts')
