@@ -122,7 +122,8 @@ export async function POST(req: Request, { params }: Params) {
   let contactId: string | null = null
   let contactCreated = false
 
-  if (form.auto_create_contact && (contactData.email || contactData.phone)) {
+  // Création contact par défaut (sauf si explicitement désactivé : auto_create_contact === false)
+  if (form.auto_create_contact !== false && (contactData.email || contactData.phone)) {
     // Cherche par email en priorité, sinon par téléphone (PK = hubspot_contact_id)
     let existing: { hubspot_contact_id: string } | null = null
     if (contactData.email) {
