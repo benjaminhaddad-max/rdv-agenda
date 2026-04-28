@@ -53,11 +53,18 @@ export async function GET() {
     awaitCount(db.from('crm_contacts').select('*', { count: 'exact', head: true }).gte('contact_createdate', day7.toISOString())),
     awaitCount(db.from('crm_contacts').select('*', { count: 'exact', head: true }).gte('contact_createdate', day30.toISOString())),
 
-    // Série journalière sur 30 jours (pour sparkline) — on fetch les dates et on bucket en JS
-    db.from('crm_contacts')
-      .select('contact_createdate')
-      .gte('contact_createdate', day30.toISOString())
-      .limit(50_000),
+    // Série journalière sur 30 jours : 30 count queries en parallèle (un par jour) car
+    // PostgREST plafonne à 1000 rows même avec .limit(50_000)
+    Promise.all(Array.from({ length: 30 }, (_, i) => {
+      const dayStart = new Date(now.getTime() - (29 - i) * 86_400_000)
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(dayStart.getTime() + 86_400_000)
+      return awaitCount(
+        db.from('crm_contacts').select('*', { count: 'exact', head: true })
+          .gte('contact_createdate', dayStart.toISOString())
+          .lt('contact_createdate', dayEnd.toISOString())
+      ).then(count => ({ date: dayStart.toISOString().slice(0, 10), count }))
+    })),
 
     // Leads par origine (top 8)
     db.from('crm_contacts')
@@ -108,24 +115,8 @@ export async function GET() {
       .limit(10),
   ])
 
-  // Leads sparkline : bucket par jour
-  const dailySeries: Array<{ date: string; count: number }> = []
-  const buckets: Record<string, number> = {}
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 86_400_000)
-    d.setHours(0, 0, 0, 0)
-    const k = d.toISOString().slice(0, 10)
-    buckets[k] = 0
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const row of (leadsSeries.data ?? []) as Array<{ contact_createdate: string }>) {
-    if (!row.contact_createdate) continue
-    const k = String(row.contact_createdate).slice(0, 10)
-    if (k in buckets) buckets[k]++
-  }
-  for (const k of Object.keys(buckets).sort()) {
-    dailySeries.push({ date: k, count: buckets[k] })
-  }
+  // Leads sparkline : déjà sous forme [{ date, count }] grâce aux 30 counts en parallèle
+  const dailySeries = leadsSeries as Array<{ date: string; count: number }>
 
   // Leads par origine : compte
   const sourceCounts: Record<string, number> = {}
