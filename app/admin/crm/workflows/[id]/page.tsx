@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from 'react'
 import Link from 'next/link'
 import {
   Workflow, Save, ChevronLeft, Mail, CheckSquare, Clock, Edit3, Webhook, Plus,
-  Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle,
+  Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle, MessageSquare,
 } from 'lucide-react'
 
 interface Wf {
@@ -37,11 +37,12 @@ interface FormItem { id: string; name: string; slug: string }
 interface Template { id: string; name: string; subject: string }
 
 const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: string }> = {
-  send_email:      { label: 'Envoyer un email',     icon: Mail,       color: '#2ea3f2' },
-  create_task:     { label: 'Créer une tâche',      icon: CheckSquare,color: '#22c55e' },
-  wait:            { label: 'Attendre',             icon: Clock,      color: '#ccac71' },
-  update_property: { label: 'Modifier une propriété', icon: Edit3,    color: '#a855f7' },
-  webhook:         { label: 'Appeler un webhook',   icon: Webhook,    color: '#ef4444' },
+  send_email:      { label: 'Envoyer un email',     icon: Mail,         color: '#2ea3f2' },
+  send_sms:        { label: 'Envoyer un SMS',       icon: MessageSquare,color: '#0ea5e9' },
+  create_task:     { label: 'Créer une tâche',      icon: CheckSquare,  color: '#22c55e' },
+  wait:            { label: 'Attendre',             icon: Clock,        color: '#ccac71' },
+  update_property: { label: 'Modifier une propriété', icon: Edit3,      color: '#a855f7' },
+  webhook:         { label: 'Appeler un webhook',   icon: Webhook,      color: '#ef4444' },
 }
 
 export default function WorkflowEditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -347,6 +348,35 @@ function StepCard({
         </div>
       )}
 
+      {step.step_type === 'send_sms' && (() => {
+        const text = String(step.config.text || '')
+        // Estimation longueur SMS : UCS-2 (accents fr) = 67 chars/segment, sinon 160 chars
+        const hasUnicode = /[^\x00-\x7F]/.test(text)
+        const limit = hasUnicode ? 67 : 160
+        const segments = text.length === 0 ? 0 : Math.ceil(text.length / limit)
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <label style={labelStyle}>Texte du SMS (envoyé via SMS Factor — sender DiploSante)</label>
+              <textarea
+                value={text}
+                onChange={e => setCfg({ text: e.target.value })}
+                rows={4}
+                placeholder="Bonjour {{prenom}}, ..."
+                style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+              <div style={{ fontSize: 10, color: text.length > limit * 2 ? '#ef4444' : '#516f90', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Variables : <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{classe}}'}</code></span>
+                <span>{text.length} car. · {segments} SMS{segments > 1 ? 's' : ''}{hasUnicode ? ' (accents)' : ''}</span>
+              </div>
+            </div>
+            <div style={{ background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 4, padding: 8, fontSize: 10, color: '#0369a1' }}>
+              💡 Le SMS n&apos;est envoyé que si le contact a un numéro de téléphone valide (FR).
+            </div>
+          </div>
+        )
+      })()}
+
       {step.step_type === 'create_task' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div>
@@ -494,6 +524,7 @@ function defaultConfig(type: string): Record<string, unknown> {
     case 'wait': return { duration_minutes: 60, unit: 'minute' }
     case 'create_task': return { title: 'Nouvelle tâche', priority: 'normal', task_type: 'follow_up', due_in_minutes: 0 }
     case 'send_email': return {}
+    case 'send_sms': return { text: 'Bonjour {{prenom}}, ' }
     case 'update_property': return { property: '', value: '' }
     case 'webhook': return { method: 'POST', url: '' }
     default: return {}

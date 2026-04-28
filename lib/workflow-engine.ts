@@ -23,6 +23,7 @@ import {
   htmlToText,
   BREVO_DEFAULT_SENDER,
 } from './brevo'
+import { sendSms } from './smsfactor'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any
@@ -260,6 +261,38 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
           source_label:       `Workflow ${execution.workflow_id}`,
         }).then(() => { /* ignore */ }, () => { /* ignore */ })
         await logStep(db, execution, step, 'success', { property, value })
+        break
+      }
+
+      case 'send_sms': {
+        if (!contact.phone) {
+          await logStep(db, execution, step, 'skipped', null, 'Pas de numéro de téléphone')
+          break
+        }
+        const text = String(step.config?.text ?? '')
+        if (!text) {
+          await logStep(db, execution, step, 'failed', null, 'Texte du SMS manquant')
+          break
+        }
+        const renderedText = renderTemplate(text, buildVars(contact))
+        const result = await sendSms(contact.phone, renderedText)
+        if (!result.ok) {
+          await logStep(db, execution, step, 'failed', { ticket: result.ticket }, result.error || 'Échec envoi SMS')
+          break
+        }
+        // Log activité dans crm_activities (timeline contact) — type 'sms' rangé en activity 'note'
+        // jusqu'à ce qu'on ait un activity_type dédié.
+        await db.from('crm_activities').insert({
+          activity_type:      'note',
+          hubspot_contact_id: contact.hubspot_contact_id,
+          subject:            `SMS envoyé`,
+          body:               renderedText,
+          direction:          'OUTGOING',
+          status:             'SENT',
+          metadata:           { sms_factor_ticket: result.ticket, source: 'workflow', workflow_id: execution.workflow_id, channel: 'sms' },
+          occurred_at:        new Date().toISOString(),
+        })
+        await logStep(db, execution, step, 'success', { ticket: result.ticket })
         break
       }
 
