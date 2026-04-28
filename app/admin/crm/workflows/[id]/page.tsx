@@ -182,64 +182,71 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', maxWidth: 1400, margin: '0 auto', gap: 20, padding: 24 }}>
-        {/* Builder */}
-        <div>
-          {/* Trigger */}
-          <Card title="Déclencheur" icon={Play}>
-            <TriggerEditor wf={wf} update={update} forms={forms} />
-          </Card>
+        {/* Builder — flowchart vertical */}
+        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #cbd6e2 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #cbd6e2', padding: '24px 0' }}>
+          <div style={{ maxWidth: 540, margin: '0 auto', position: 'relative' }}>
+            {/* Trigger */}
+            <FlowTrigger wf={wf} update={update} forms={forms} />
 
-          {/* Steps */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, paddingLeft: 4 }}>
-              Étapes ({wf.steps.length})
-            </div>
-            {wf.steps.length === 0 && (
-              <div style={{ background: '#fff', border: '1px dashed #cbd6e2', borderRadius: 8, padding: 20, textAlign: 'center', color: '#516f90', fontSize: 12 }}>
-                Aucune étape pour l&apos;instant. Ajoute la première ci-dessous.
-              </div>
-            )}
-            {wf.steps.map((step, i) => (
-              <StepCard
-                key={i}
-                step={step}
-                index={i}
-                total={wf.steps.length}
-                templates={templates}
-                onChange={(patch) => {
-                  const next = [...wf.steps]
-                  next[i] = { ...next[i], ...patch }
-                  updateSteps(next)
-                }}
-                onRemove={() => updateSteps(wf.steps.filter((_, j) => j !== i))}
-                onDuplicate={() => {
-                  // Insère une copie juste après le step courant. On clone profondément
-                  // le config pour éviter les références partagées entre les deux étapes.
-                  const cloned: Step = {
-                    step_type: step.step_type,
-                    config:    JSON.parse(JSON.stringify(step.config ?? {})),
-                    label:     step.label ? `${step.label} (copie)` : null,
-                  }
-                  const next = [...wf.steps]
-                  next.splice(i + 1, 0, cloned)
-                  updateSteps(next)
-                }}
-                onMoveUp={() => {
-                  if (i === 0) return
-                  const next = [...wf.steps]
-                  ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                  updateSteps(next)
-                }}
-                onMoveDown={() => {
-                  if (i === wf.steps.length - 1) return
-                  const next = [...wf.steps]
-                  ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                  updateSteps(next)
-                }}
-              />
-            ))}
+            {/* Connector + first add */}
+            <FlowConnector />
+            <FlowInsertButton onAdd={(type) => {
+              const next = [{ step_type: type, config: defaultConfig(type) }, ...wf.steps]
+              updateSteps(next)
+            }} />
 
-            <AddStepButton onAdd={(type) => updateSteps([...wf.steps, { step_type: type, config: defaultConfig(type) }])} />
+            {wf.steps.map((step, i) => {
+              const insertAfter = (type: string) => {
+                const next = [...wf.steps]
+                next.splice(i + 1, 0, { step_type: type, config: defaultConfig(type) })
+                updateSteps(next)
+              }
+              return (
+                <div key={i}>
+                  <FlowConnector />
+                  <FlowStepCard
+                    step={step}
+                    index={i}
+                    total={wf.steps.length}
+                    templates={templates}
+                    onChange={(patch) => {
+                      const next = [...wf.steps]
+                      next[i] = { ...next[i], ...patch }
+                      updateSteps(next)
+                    }}
+                    onRemove={() => updateSteps(wf.steps.filter((_, j) => j !== i))}
+                    onDuplicate={() => {
+                      const cloned: Step = {
+                        step_type: step.step_type,
+                        config:    JSON.parse(JSON.stringify(step.config ?? {})),
+                        label:     step.label ? `${step.label} (copie)` : null,
+                      }
+                      const next = [...wf.steps]
+                      next.splice(i + 1, 0, cloned)
+                      updateSteps(next)
+                    }}
+                    onMoveUp={() => {
+                      if (i === 0) return
+                      const next = [...wf.steps]
+                      ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                      updateSteps(next)
+                    }}
+                    onMoveDown={() => {
+                      if (i === wf.steps.length - 1) return
+                      const next = [...wf.steps]
+                      ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                      updateSteps(next)
+                    }}
+                  />
+                  <FlowConnector />
+                  <FlowInsertButton onAdd={insertAfter} />
+                </div>
+              )
+            })}
+
+            {/* End marker */}
+            <FlowConnector />
+            <FlowEndMarker />
           </div>
         </div>
 
@@ -532,8 +539,119 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
   )
 }
 
-// ─── StepCard ────────────────────────────────────────────────────────────
-function StepCard({
+// ─── FlowConnector ──────────────────────────────────────────────────────
+// Trait vertical qui relie deux noeuds du flowchart
+function FlowConnector() {
+  return <div style={{ width: 2, height: 24, background: '#cbd6e2', margin: '0 auto' }} />
+}
+
+// ─── FlowEndMarker ──────────────────────────────────────────────────────
+function FlowEndMarker() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <div style={{
+        background: '#fff', border: '1px solid #cbd6e2', borderRadius: 999,
+        padding: '6px 16px', fontSize: 11, fontWeight: 600, color: '#516f90',
+        textTransform: 'uppercase', letterSpacing: 0.5,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <CheckSquare size={11} /> Fin du workflow
+      </div>
+    </div>
+  )
+}
+
+// ─── FlowInsertButton ───────────────────────────────────────────────────
+// Petit bouton "+" entre deux étapes pour insérer une nouvelle action
+function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: 28, height: 28, borderRadius: 999,
+          background: open ? 'linear-gradient(135deg,#2ea3f2,#0038f0)' : '#fff',
+          border: open ? 'none' : '1px solid #cbd6e2',
+          color: open ? '#fff' : '#0038f0',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: open ? '0 4px 12px rgba(0,56,240,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
+          transition: 'all 0.15s', fontFamily: 'inherit',
+        }}
+        title="Ajouter une étape ici"
+      ><Plus size={14} /></button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '120%', left: '50%', transform: 'translateX(-50%)',
+          background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, padding: 6,
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4,
+          minWidth: 360, zIndex: 30, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+        }}>
+          {Object.entries(STEP_DEFS).map(([type, def]) => {
+            const Ic = def.icon
+            return (
+              <button
+                key={type}
+                onClick={() => { onAdd(type); setOpen(false) }}
+                style={{
+                  background: '#fff', border: '1px solid #f0f0f5', borderRadius: 6,
+                  padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: 12, fontFamily: 'inherit', color: '#33475b', textAlign: 'left',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f8fa')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 6, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Ic size={14} />
+                </div>
+                <span style={{ fontWeight: 500 }}>{def.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── FlowTrigger ────────────────────────────────────────────────────────
+function FlowTrigger({ wf, update, forms }: { wf: Wf; update: (patch: Partial<Wf>) => void; forms: FormItem[] }) {
+  const triggerLabels: Record<string, string> = {
+    form_submitted:    'Quand un formulaire est soumis',
+    property_changed:  'Quand une propriété change',
+    contact_created:   'Quand un contact est créé',
+    manual:            'Déclenchement manuel',
+  }
+  const [open, setOpen] = useState(true)
+  const triggerLabel = triggerLabels[wf.trigger_type] || wf.trigger_type
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+      borderRadius: 12, padding: 2, boxShadow: '0 6px 20px rgba(0,56,240,0.18)',
+    }}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 14 }}>
+        <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Play size={16} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Déclencheur</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#33475b' }}>{triggerLabel}</div>
+          </div>
+          <div style={{ color: '#516f90' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
+        </div>
+        {open && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f5' }}>
+            <TriggerEditor wf={wf} update={update} forms={forms} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── FlowStepCard ───────────────────────────────────────────────────────
+function FlowStepCard({
   step, index, total, templates, onChange, onRemove, onMoveUp, onMoveDown, onDuplicate,
 }: {
   step: Step
@@ -546,26 +664,60 @@ function StepCard({
   onMoveDown: () => void
   onDuplicate: () => void
 }) {
+  const [open, setOpen] = useState(false)
   const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: '#516f90' }
   const Icon = def.icon
 
   const setCfg = (patch: Record<string, unknown>) => onChange({ config: { ...step.config, ...patch } })
 
+  // Résumé court de la config (affiché à côté du label quand fermé)
+  const summary = (() => {
+    const c = step.config || {}
+    if (step.step_type === 'send_email')      return c.template_id ? 'Modèle d\'email' : (c.subject || '— sujet vide —')
+    if (step.step_type === 'send_sms')        return `${c.sender || 'DiploSante'} · ${(c.text || '').slice(0, 40)}${(c.text || '').length > 40 ? '…' : ''}`
+    if (step.step_type === 'create_task')     return c.title || '— sans titre —'
+    if (step.step_type === 'wait')            return `${Math.floor((c.duration_minutes ?? 0) / divisorOf(c.unit || 'minute'))} ${c.unit || 'minute'}(s)`
+    if (step.step_type === 'wait_until')      return `${String(c.until_hour ?? 9).padStart(2, '0')}h${String(c.until_minute ?? 0).padStart(2, '0')} J+${c.day_offset ?? 0}`
+    if (step.step_type === 'update_property') return `${c.property || '?'} = ${c.value ?? ''}`
+    if (step.step_type === 'webhook')         return `${c.method || 'POST'} ${c.url || '—'}`
+    return ''
+  })()
+
   return (
-    <div style={{ background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, padding: 14, marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 6, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={14} />
+    <div style={{
+      background: '#fff', border: `1px solid ${open ? def.color : '#cbd6e2'}`,
+      borderRadius: 12, overflow: 'hidden', position: 'relative',
+      boxShadow: open ? `0 4px 16px ${def.color}22` : '0 1px 3px rgba(0,0,0,0.04)',
+      transition: 'all 0.15s',
+    }}>
+      {/* Bandeau coloré à gauche */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: def.color }} />
+
+      {/* Header cliquable */}
+      <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', paddingLeft: 17, cursor: 'pointer' }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: def.color + '18', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon size={15} />
         </div>
-        <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
-          <span style={{ color: '#516f90', fontSize: 11, fontWeight: 500, marginRight: 6 }}>#{index + 1}</span>
-          {def.label}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: '#f5f8fa', color: '#516f90', fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>#{index + 1}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#33475b' }}>{def.label}</span>
+          </div>
+          {summary && (
+            <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {summary}
+            </div>
+          )}
         </div>
-        <button onClick={onMoveUp} disabled={index === 0} style={iconBtnStyle(index === 0)} title="Monter"><ChevronUp size={13} /></button>
-        <button onClick={onMoveDown} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)} title="Descendre"><ChevronDown size={13} /></button>
-        <button onClick={onDuplicate} style={iconBtnStyle(false)} title="Dupliquer"><Copy size={13} /></button>
-        <button onClick={onRemove} style={{ ...iconBtnStyle(false), color: '#ef4444' }} title="Supprimer"><Trash2 size={13} /></button>
+        <button onClick={(e) => { e.stopPropagation(); onMoveUp() }} disabled={index === 0} style={iconBtnStyle(index === 0)} title="Monter"><ChevronUp size={13} /></button>
+        <button onClick={(e) => { e.stopPropagation(); onMoveDown() }} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)} title="Descendre"><ChevronDown size={13} /></button>
+        <button onClick={(e) => { e.stopPropagation(); onDuplicate() }} style={iconBtnStyle(false)} title="Dupliquer"><Copy size={13} /></button>
+        <button onClick={(e) => { e.stopPropagation(); onRemove() }} style={{ ...iconBtnStyle(false), color: '#ef4444' }} title="Supprimer"><Trash2 size={13} /></button>
+        <div style={{ color: '#516f90' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
       </div>
+
+      {/* Body éditable (replié par défaut) */}
+      {open && <div style={{ padding: '0 14px 14px 17px', borderTop: '1px solid #f0f0f5' }}><div style={{ paddingTop: 12 }}>
 
       {step.step_type === 'send_email' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -793,11 +945,12 @@ function StepCard({
           </div>
         </div>
       )}
+      </div></div>}
     </div>
   )
 }
 
-// ─── AddStepButton ───────────────────────────────────────────────────────
+// ─── AddStepButton (legacy, conservé pour compat) ────────────────────────
 function AddStepButton({ onAdd }: { onAdd: (type: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
