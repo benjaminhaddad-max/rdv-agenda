@@ -220,7 +220,7 @@ interface CRMSavedView {
   id: string
   name: string
   groups: CRMFilterGroup[]
-  presetFlags?: { noTelepro?: boolean; recentFormMonths?: number }
+  presetFlags?: { noTelepro?: boolean; recentFormMonths?: number; recentFormDays?: number; createdBeforeDays?: number }
   isDefault?: boolean
 }
 
@@ -238,8 +238,10 @@ function viewToParams(view: CRMSavedView): URLSearchParams {
   p.set('all_classes', '1')   // toujours toutes classes pour les counts
   p.set('show_external', '1') // plus de filtre auto "équipe externe" — on compte tout
   const flags = view.presetFlags
-  if (flags?.noTelepro)        p.set('no_telepro', '1')
-  if (flags?.recentFormMonths) p.set('recent_form_months', String(flags.recentFormMonths))
+  if (flags?.noTelepro)         p.set('no_telepro', '1')
+  if (flags?.recentFormMonths)  p.set('recent_form_months', String(flags.recentFormMonths))
+  if (flags?.recentFormDays)    p.set('recent_form_days', String(flags.recentFormDays))
+  if (flags?.createdBeforeDays) p.set('created_before_days', String(flags.createdBeforeDays))
   const firstGroup = view.groups[0]
   if (firstGroup) {
     for (const rule of firstGroup.rules) {
@@ -758,6 +760,8 @@ export default function CRMPage() {
   const [noTelepro, setNoTelepro]     = useState(false)
   const [ownerExclude, setOwnerExclude] = useState('')
   const [recentFormMonths, setRecentFormMonths] = useState(0)
+  const [recentFormDays, setRecentFormDays]     = useState(0)
+  const [createdBeforeDays, setCreatedBeforeDays] = useState(0)
   const [leadStatus, setLeadStatus]   = useState('')
   const [source, setSource]           = useState('')
   const [zoneFilter, setZoneFilter]   = useState('')
@@ -993,6 +997,8 @@ export default function CRMPage() {
       if (noTelepro)            params.set('no_telepro', '1')
       if (ownerExclude)         params.set('owner_exclude', ownerExclude)
       if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+      if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
+      if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
       if (showExternal)         params.set('show_external', '1')
       if (allClasses)           params.set('all_classes', '1')
       if (leadStatus)           params.set('lead_status', leadStatus)
@@ -1037,7 +1043,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
+  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1075,6 +1081,8 @@ export default function CRMPage() {
     setEmptyFields(''); setNotEmptyFields('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
+    setRecentFormDays(flags?.recentFormDays ?? 0)
+    setCreatedBeforeDays(flags?.createdBeforeDays ?? 0)
 
     // Apply first group rules (AND) to the simple filter params
     const firstGroup = groups[0]
@@ -1335,7 +1343,7 @@ export default function CRMPage() {
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || contactOwnerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || leadStatus || source || zoneFilter || deptFilter
+  const hasActiveFilters = search || stage || closerHsId || contactOwnerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
 
   // Check if current filters changed from active view
@@ -1830,6 +1838,8 @@ export default function CRMPage() {
             <span style={{ fontSize: 11, color: '#3a5070' }}>Filtres :</span>
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
             {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
+            {recentFormDays > 0 && <FilterPill label={`Form. < ${recentFormDays} j`} onRemove={() => { setRecentFormDays(0); scheduleRefetch() }} />}
+            {createdBeforeDays > 0 && <FilterPill label={`Créé > ${createdBeforeDays} j`} onRemove={() => { setCreatedBeforeDays(0); scheduleRefetch() }} />}
             {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
             {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
@@ -2335,6 +2345,8 @@ export default function CRMPage() {
               if (noTelepro)            params.set('no_telepro', '1')
               if (ownerExclude)         params.set('owner_exclude', ownerExclude)
               if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+      if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
+      if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
               if (showExternal)         params.set('show_external', '1')
               if (allClasses)           params.set('all_classes', '1')
               if (leadStatus)           params.set('lead_status', leadStatus)
