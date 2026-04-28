@@ -84,10 +84,37 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   // 4. Construit l'objet contact depuis les champs mappés crm_field
+  //    Fallback : si crm_field est null mais field_key matche une colonne CRM
+  //    connue, on mappe automatiquement (couvre 95% des forms HubSpot importés
+  //    qui n'ont pas de crm_field renseigné).
+  const AUTO_MAP_FIELDS: Record<string, string> = {
+    firstname:           'firstname',
+    lastname:            'lastname',
+    email:               'email',
+    phone:               'phone',
+    mobilephone:         'phone',
+    classe_actuelle:     'classe_actuelle',
+    classe:              'classe_actuelle',
+    departement:         'departement',
+    department:          'departement',
+    zone_localite:       'zone_localite',
+    'zone___localite':   'zone_localite',
+    zone:                'zone_localite',
+    formation_souhaitee: 'formation_souhaitee',
+    formation:           'formation_souhaitee',
+    formation_demandee:  'formation_demandee',
+    'diploma_sante___formation_demandee': 'formation_demandee',
+    origine:             'origine',
+    source:              'origine',
+  }
   const contactData: Record<string, unknown> = {}
   for (const f of (fields || [])) {
-    if (f.crm_field && data[f.field_key] !== undefined) {
-      contactData[f.crm_field] = data[f.field_key]
+    const value = data[f.field_key]
+    if (value === undefined || value === null || String(value).trim() === '') continue
+    // Priorité : crm_field explicite, sinon mapping auto par field_key
+    const target = f.crm_field || AUTO_MAP_FIELDS[f.field_key]
+    if (target) {
+      contactData[target] = value
     }
   }
 
