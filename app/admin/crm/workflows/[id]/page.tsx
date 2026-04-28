@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Workflow, Save, ChevronLeft, Mail, CheckSquare, Clock, Edit3, Webhook, Plus,
   Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle, MessageSquare,
-  CalendarClock, Target, FlaskConical,
+  CalendarClock, Target, FlaskConical, Copy,
 } from 'lucide-react'
 
 interface Wf {
@@ -212,6 +212,18 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
                   updateSteps(next)
                 }}
                 onRemove={() => updateSteps(wf.steps.filter((_, j) => j !== i))}
+                onDuplicate={() => {
+                  // Insère une copie juste après le step courant. On clone profondément
+                  // le config pour éviter les références partagées entre les deux étapes.
+                  const cloned: Step = {
+                    step_type: step.step_type,
+                    config:    JSON.parse(JSON.stringify(step.config ?? {})),
+                    label:     step.label ? `${step.label} (copie)` : null,
+                  }
+                  const next = [...wf.steps]
+                  next.splice(i + 1, 0, cloned)
+                  updateSteps(next)
+                }}
                 onMoveUp={() => {
                   if (i === 0) return
                   const next = [...wf.steps]
@@ -522,7 +534,7 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
 
 // ─── StepCard ────────────────────────────────────────────────────────────
 function StepCard({
-  step, index, total, templates, onChange, onRemove, onMoveUp, onMoveDown,
+  step, index, total, templates, onChange, onRemove, onMoveUp, onMoveDown, onDuplicate,
 }: {
   step: Step
   index: number
@@ -532,6 +544,7 @@ function StepCard({
   onRemove: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  onDuplicate: () => void
 }) {
   const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: '#516f90' }
   const Icon = def.icon
@@ -548,9 +561,10 @@ function StepCard({
           <span style={{ color: '#516f90', fontSize: 11, fontWeight: 500, marginRight: 6 }}>#{index + 1}</span>
           {def.label}
         </div>
-        <button onClick={onMoveUp} disabled={index === 0} style={iconBtnStyle(index === 0)}><ChevronUp size={13} /></button>
-        <button onClick={onMoveDown} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)}><ChevronDown size={13} /></button>
-        <button onClick={onRemove} style={{ ...iconBtnStyle(false), color: '#ef4444' }}><Trash2 size={13} /></button>
+        <button onClick={onMoveUp} disabled={index === 0} style={iconBtnStyle(index === 0)} title="Monter"><ChevronUp size={13} /></button>
+        <button onClick={onMoveDown} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)} title="Descendre"><ChevronDown size={13} /></button>
+        <button onClick={onDuplicate} style={iconBtnStyle(false)} title="Dupliquer"><Copy size={13} /></button>
+        <button onClick={onRemove} style={{ ...iconBtnStyle(false), color: '#ef4444' }} title="Supprimer"><Trash2 size={13} /></button>
       </div>
 
       {step.step_type === 'send_email' && (

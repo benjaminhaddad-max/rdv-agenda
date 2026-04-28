@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Workflow, Plus, Play, Pause, Archive, Trash2, FileText, Activity, X } from 'lucide-react'
+import { Workflow, Plus, Play, Pause, Archive, Trash2, FileText, Activity, X, Copy } from 'lucide-react'
 
 interface Wf {
   id: string
@@ -51,6 +51,20 @@ export default function WorkflowsPage() {
     if (!confirm('Supprimer ce workflow ?')) return
     await fetch(`/api/workflows/${id}`, { method: 'DELETE' })
     load()
+  }
+
+  const duplicate = async (id: string) => {
+    const res = await fetch(`/api/workflows/${id}/duplicate`, { method: 'POST' })
+    if (!res.ok) {
+      alert('Erreur lors de la duplication')
+      return
+    }
+    const data = await res.json()
+    if (data?.workflow?.id) {
+      window.location.href = `/admin/crm/workflows/${data.workflow.id}`
+    } else {
+      load()
+    }
   }
 
   return (
@@ -117,6 +131,11 @@ export default function WorkflowsPage() {
                   <span style={{ background: STATUS[wf.status]?.bg, color: STATUS[wf.status]?.color, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
                     {STATUS[wf.status]?.label || wf.status}
                   </span>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); duplicate(wf.id) }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#516f90', padding: 4 }}
+                    title="Dupliquer"
+                  ><Copy size={14} /></button>
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(wf.id) }}
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#516f90', padding: 4 }}

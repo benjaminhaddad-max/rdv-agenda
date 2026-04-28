@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { format, isPast, isToday, isTomorrow, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CheckSquare, Clock, AlertCircle, User, Plus, Filter } from 'lucide-react'
+import { CheckSquare, Clock, AlertCircle, User, Plus, Filter, Copy } from 'lucide-react'
 
 interface CRMTask {
   id: number
@@ -102,6 +102,15 @@ export default function TasksPage() {
     load()
   }
 
+  const duplicateTask = async (id: number) => {
+    const res = await fetch(`/api/crm/tasks/${id}/duplicate`, { method: 'POST' })
+    if (!res.ok) {
+      alert('Erreur lors de la duplication')
+      return
+    }
+    load()
+  }
+
   const ownerLabel = (id?: string | null) => {
     if (!id) return '—'
     const o = owners.find(o => o.hubspot_owner_id === id)
@@ -174,11 +183,11 @@ export default function TasksPage() {
           <EmptyState />
         ) : (
           <div className="space-y-6">
-            <Bucket title="En retard"     icon={<AlertCircle size={16} />} color="text-red-600"   tasks={overdue} onComplete={completeTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Aujourd'hui"   icon={<Clock size={16} />}       color="text-[#0038f0]" tasks={today}   onComplete={completeTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Demain"        icon={<Clock size={16} />}       color="text-amber-600" tasks={tomorrow} onComplete={completeTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Plus tard"     icon={<Clock size={16} />}       color="text-slate-500" tasks={later}    onComplete={completeTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Sans échéance" icon={<Clock size={16} />}       color="text-slate-400" tasks={undated}  onComplete={completeTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="En retard"     icon={<AlertCircle size={16} />} color="text-red-600"   tasks={overdue} onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Aujourd'hui"   icon={<Clock size={16} />}       color="text-[#0038f0]" tasks={today}   onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Demain"        icon={<Clock size={16} />}       color="text-amber-600" tasks={tomorrow} onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Plus tard"     icon={<Clock size={16} />}       color="text-slate-500" tasks={later}    onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Sans échéance" icon={<Clock size={16} />}       color="text-slate-400" tasks={undated}  onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
           </div>
         )}
       </div>
@@ -199,12 +208,13 @@ function FilterPill({ active, onClick, label }: { active: boolean; onClick: () =
   )
 }
 
-function Bucket({ title, icon, color, tasks, onComplete, ownerLabel, contactLabel }: {
+function Bucket({ title, icon, color, tasks, onComplete, onDuplicate, ownerLabel, contactLabel }: {
   title: string
   icon: React.ReactNode
   color: string
   tasks: CRMTask[]
   onComplete: (id: number) => void
+  onDuplicate: (id: number) => void
   ownerLabel: (id?: string | null) => string
   contactLabel: (id?: string | null) => string | null
 }) {
@@ -218,16 +228,17 @@ function Bucket({ title, icon, color, tasks, onComplete, ownerLabel, contactLabe
       </h2>
       <ul className="space-y-2">
         {tasks.map(t => (
-          <TaskRow key={t.id} task={t} onComplete={onComplete} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+          <TaskRow key={t.id} task={t} onComplete={onComplete} onDuplicate={onDuplicate} ownerLabel={ownerLabel} contactLabel={contactLabel} />
         ))}
       </ul>
     </div>
   )
 }
 
-function TaskRow({ task, onComplete, ownerLabel, contactLabel }: {
+function TaskRow({ task, onComplete, onDuplicate, ownerLabel, contactLabel }: {
   task: CRMTask
   onComplete: (id: number) => void
+  onDuplicate: (id: number) => void
   ownerLabel: (id?: string | null) => string
   contactLabel: (id?: string | null) => string | null
 }) {
@@ -245,14 +256,23 @@ function TaskRow({ task, onComplete, ownerLabel, contactLabel }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="font-medium text-sm">{task.title}</div>
-            {task.due_at && (
-              <div className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
-                {format(new Date(task.due_at), "PP 'à' HH:mm", { locale: fr })}
-                <span className="text-slate-400 ml-1">
-                  ({formatDistanceToNow(new Date(task.due_at), { locale: fr, addSuffix: true })})
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {task.due_at && (
+                <div className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
+                  {format(new Date(task.due_at), "PP 'à' HH:mm", { locale: fr })}
+                  <span className="text-slate-400 ml-1">
+                    ({formatDistanceToNow(new Date(task.due_at), { locale: fr, addSuffix: true })})
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={() => onDuplicate(task.id)}
+                className="text-slate-400 hover:text-[#0038f0] p-1"
+                title="Dupliquer la tâche"
+              >
+                <Copy size={13} />
+              </button>
+            </div>
           </div>
           {task.description && <p className="text-sm text-slate-600 mt-1 line-clamp-2">{task.description}</p>}
           <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
