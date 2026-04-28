@@ -31,6 +31,17 @@ export async function GET(
   }
 
   // 2. Toutes les données spécifiques au contact en PARALLÈLE
+  // Helper: convertit une PromiseLike Supabase en Promise<T[]> avec fallback []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const safeRows = async (q: any): Promise<Array<Record<string, unknown>>> => {
+    try {
+      const r = await q
+      return r?.data ?? []
+    } catch {
+      return []
+    }
+  }
+
   const [
     dealsRes,
     activities,
@@ -42,41 +53,29 @@ export async function GET(
       .eq('hubspot_contact_id', contactId)
       .order('createdate', { ascending: false }),
 
-    db.from('crm_activities')
+    safeRows(db.from('crm_activities')
       .select('id, hubspot_engagement_id, activity_type, subject, body, direction, status, owner_id, metadata, occurred_at, hubspot_deal_id')
       .eq('hubspot_contact_id', contactId)
       .order('occurred_at', { ascending: false })
-      .limit(200)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((r: any) => r.data ?? [])
-      .catch(() => [] as Array<Record<string, unknown>>),
+      .limit(200)),
 
-    db.from('crm_form_submissions')
+    safeRows(db.from('crm_form_submissions')
       .select('id, form_id, form_title, form_type, page_url, values, submitted_at')
       .eq('hubspot_contact_id', contactId)
-      .order('submitted_at', { ascending: false })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((r: any) => r.data ?? [])
-      .catch(() => [] as Array<Record<string, unknown>>),
+      .order('submitted_at', { ascending: false })),
 
-    db.from('crm_tasks')
+    safeRows(db.from('crm_tasks')
       .select('id, title, description, owner_id, status, priority, task_type, due_at, completed_at, created_at, hubspot_deal_id')
       .eq('hubspot_contact_id', contactId)
       .order('due_at', { ascending: true, nullsFirst: false })
-      .limit(100)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((r: any) => r.data ?? [])
-      .catch(() => [] as Array<Record<string, unknown>>),
+      .limit(100)),
 
     contact.email
-      ? db.from('email_events')
+      ? safeRows(db.from('email_events')
           .select('event_type, occurred_at, event_data')
           .eq('email', contact.email)
           .order('occurred_at', { ascending: false })
-          .limit(500)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .then((r: any) => r.data ?? [])
-          .catch(() => [] as Array<Record<string, unknown>>)
+          .limit(500))
       : Promise.resolve([] as Array<Record<string, unknown>>),
   ])
 
