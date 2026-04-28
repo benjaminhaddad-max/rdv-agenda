@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, GitMerge, AlertTriangle, BookOpen } from 'lucide-react'
+import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, GitMerge, AlertTriangle, BookOpen } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
@@ -1749,6 +1749,22 @@ export default function CRMPage() {
         >
           <Download size={12} /> Exporter CSV
         </button>
+
+        {/* Import CSV link */}
+        <a
+          href="/admin/crm/import"
+          style={{
+            padding: '7px 12px',
+            background: 'none',
+            border: '1px solid #cbd6e2',
+            borderRadius: 8, color: '#4cabdb',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+            whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
+          }}
+        >
+          <Upload size={12} /> Importer CSV
+        </a>
 
         {/* Transactions link */}
         <div style={{ marginLeft: 'auto', flexShrink: 0 }}>

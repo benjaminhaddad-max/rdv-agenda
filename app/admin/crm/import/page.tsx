@@ -204,10 +204,11 @@ export default function ImportPage() {
   }, [mapping])
 
   return (
+    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b', padding: 0 }}>
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Import de contacts</h1>
-        <p className="text-sm text-gray-600">
+        <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a2f4b' }}>Import de contacts</h1>
+        <p className="text-sm" style={{ color: '#516f90' }}>
           Importe une liste de leads (CSV / Excel collé). Le département est auto-normalisé,
           la zone est calculée automatiquement, les doublons par email/téléphone sont détectés.
         </p>
@@ -403,6 +404,7 @@ Marie,Durand,marie@example.com,0612345678,Terminale,75"
           )}
         </section>
       )}
+    </div>
     </div>
   )
 }
