@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
+import CampaignRecipientsTab from '@/components/crm/CampaignRecipientsTab'
 
 interface Campaign {
   id: string
@@ -30,7 +31,13 @@ interface Campaign {
   total_bounces: number
   total_unsubscribes: number
   updated_at: string
+  // Ciblage
+  segment_ids: string[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extra_filters: Record<string, any> | null
+  manual_contact_ids: string[]
 }
+
 
 const DEFAULT_HTML = `<!DOCTYPE html>
 <html>
@@ -83,6 +90,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [testSending, setTestSending] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const editorRef = useRef<EmailEditorVisualRef>(null)
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [sending, setSending] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [sendStatus, setSendStatus] = useState<{ ok: boolean; sent: number; failed: number; pending: number; errors?: any[] } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -133,6 +144,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           html_body: htmlBody,
           text_body: campaign.text_body,
           design_json: designJson,
+          segment_ids: campaign.segment_ids ?? [],
+          extra_filters: campaign.extra_filters ?? {},
+          manual_contact_ids: campaign.manual_contact_ids ?? [],
         }),
       })
       if (res.ok) {
@@ -142,6 +156,40 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  const sendCampaign = async () => {
+    if (!campaign) return
+    setSending(true)
+    setSendStatus(null)
+    try {
+      // Sauvegarde d'abord si modifs en cours
+      if (dirty) await save()
+      // Premier envoi : déclenche la résolution + traite jusqu'à 200 destinataires inline
+      const res = await fetch(`/api/campaigns/${id}/send`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSendStatus({ ok: false, sent: 0, failed: 0, pending: 0, errors: [{ error: data.error || 'Erreur inconnue' }] })
+        return
+      }
+      setSendStatus({
+        ok: true,
+        sent: data.sent_total ?? 0,
+        failed: data.failed_total ?? 0,
+        pending: data.pending_total ?? 0,
+        errors: data.errors,
+      })
+      // Recharge la campagne pour avoir le nouveau status
+      await load()
+    } catch (e) {
+      setSendStatus({ ok: false, sent: 0, failed: 0, pending: 0, errors: [{ error: e instanceof Error ? e.message : 'Erreur réseau' }] })
+    } finally {
+      setSending(false)
     }
   }
 
@@ -225,17 +273,159 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {/* Contenu */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         {tab === 'content' && (
-          <ContentTab campaign={campaign} update={update} testEmail={testEmail} setTestEmail={setTestEmail} sendTest={sendTest} testSending={testSending} testResult={testResult} editorRef={editorRef} setDirty={() => setDirty(true)} />
+          <ContentTab
+            campaign={campaign}
+            update={update}
+            testEmail={testEmail}
+            setTestEmail={setTestEmail}
+            sendTest={sendTest}
+            testSending={testSending}
+            testResult={testResult}
+            editorRef={editorRef}
+            setDirty={() => setDirty(true)}
+            openSendModal={() => setShowSendModal(true)}
+            sending={sending}
+            sendStatus={sendStatus}
+          />
         )}
         {tab === 'preview' && (
           <PreviewTab html={campaign.html_body} subject={campaign.subject} senderName={campaign.sender_name} senderEmail={campaign.sender_email} />
         )}
         {tab === 'recipients' && (
-          <RecipientsTab campaign={campaign} />
+          <CampaignRecipientsTab
+            campaignId={id}
+            segmentIds={campaign.segment_ids ?? []}
+            extraFilters={campaign.extra_filters ?? {}}
+            manualContactIds={campaign.manual_contact_ids ?? []}
+            onChange={(patch) => {
+              update({
+                segment_ids: patch.segment_ids ?? campaign.segment_ids,
+                extra_filters: patch.extra_filters ?? campaign.extra_filters,
+                manual_contact_ids: patch.manual_contact_ids ?? campaign.manual_contact_ids,
+              })
+            }}
+            onSavedExternal={save}
+          />
         )}
         {tab === 'stats' && campaign.status === 'sent' && (
           <StatsTab campaign={campaign} />
         )}
+      </div>
+
+      {showSendModal && (
+        <SendConfirmModal
+          campaignId={id}
+          subject={campaign.subject}
+          senderEmail={campaign.sender_email}
+          senderName={campaign.sender_name}
+          onClose={() => setShowSendModal(false)}
+          onConfirm={async () => {
+            setShowSendModal(false)
+            await sendCampaign()
+          }}
+          sending={sending}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Modal de confirmation d'envoi ───────────────────────────────────────
+function SendConfirmModal({
+  campaignId, subject, senderEmail, senderName, onClose, onConfirm, sending,
+}: {
+  campaignId: string
+  subject: string
+  senderEmail: string
+  senderName: string
+  onClose: () => void
+  onConfirm: () => void
+  sending: boolean
+}) {
+  const [preview, setPreview] = useState<{ total: number; sample: Array<{ email: string; first_name: string | null; last_name: string | null }> } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [confirmText, setConfirmText] = useState('')
+
+  useEffect(() => {
+    fetch(`/api/campaigns/${campaignId}/preview`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sample_size: 5 }),
+    })
+      .then(r => r.json())
+      .then(d => setPreview({ total: d.total ?? 0, sample: d.sample ?? [] }))
+      .catch(() => setPreview({ total: 0, sample: [] }))
+      .finally(() => setLoading(false))
+  }, [campaignId])
+
+  const expected = preview?.total ?? 0
+  const canConfirm = !sending && expected > 0 && confirmText.trim() === String(expected)
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 12, maxWidth: 480, width: '100%', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg,#0038f0,#2ea3f2)', color: '#fff' }}>
+          <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Envoyer la campagne</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>{subject || '(sans sujet)'}</div>
+          <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4 }}>De : {senderName} &lt;{senderEmail}&gt;</div>
+        </div>
+        <div style={{ padding: 20 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', color: '#516f90', fontSize: 13, padding: '20px 0' }}>Calcul de l&apos;audience…</div>
+          ) : (
+            <>
+              <div style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.25)', borderRadius: 8, padding: 14, textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#0038f0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Destinataires uniques</div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: '#0038f0' }}>{expected.toLocaleString('fr-FR')}</div>
+                {preview && preview.sample.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#516f90', marginTop: 8 }}>
+                    Premiers : {preview.sample.map(s => s.email).slice(0, 3).join(', ')}{preview.sample.length > 3 && '…'}
+                  </div>
+                )}
+              </div>
+              {expected === 0 ? (
+                <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', padding: 12, borderRadius: 8, fontSize: 12 }}>
+                  Aucun destinataire. Configure des segments ou filtres dans l&apos;onglet Destinataires avant d&apos;envoyer.
+                </div>
+              ) : (
+                <>
+                  <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#a16207', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
+                    ⚠️ Cette action est <strong>irréversible</strong>. La campagne sera envoyée par batches de 200 toutes les minutes via le cron.
+                  </div>
+                  <label style={{ display: 'block', fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 6 }}>
+                    Pour confirmer, tape le nombre de destinataires : <strong>{expected}</strong>
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmText}
+                    onChange={e => setConfirmText(e.target.value)}
+                    placeholder={String(expected)}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14 }}
+                  />
+                </>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{ flex: 1, padding: 10, border: '1px solid #cbd6e2', background: '#fff', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#33475b' }}
+                >Annuler</button>
+                <button
+                  type="button"
+                  disabled={!canConfirm}
+                  onClick={onConfirm}
+                  style={{
+                    flex: 1, padding: 10, border: 'none',
+                    background: canConfirm ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#cbd6e2',
+                    color: '#fff', borderRadius: 8, fontSize: 13,
+                    cursor: canConfirm ? 'pointer' : 'not-allowed',
+                    fontFamily: 'inherit', fontWeight: 600,
+                  }}
+                >{sending ? 'Envoi…' : 'Envoyer maintenant'}</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -251,7 +441,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 }
 
 // ─── Tab : Contenu ───────────────────────────────────────────────────────
-function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testSending, testResult, editorRef, setDirty }: {
+function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testSending, testResult, editorRef, setDirty, openSendModal, sending, sendStatus }: {
   campaign: Campaign
   update: (patch: Partial<Campaign>) => void
   testEmail: string
@@ -261,6 +451,10 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
   testResult: string | null
   editorRef: React.RefObject<EmailEditorVisualRef | null>
   setDirty: () => void
+  openSendModal: () => void
+  sending: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sendStatus: { ok: boolean; sent: number; failed: number; pending: number; errors?: any[] } | null
 }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
@@ -365,20 +559,70 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Envoi réel" icon={Send}>
-          <div style={{ fontSize: 12, color: '#516f90', marginBottom: 12 }}>
-            Tu pourras envoyer aux destinataires une fois que :
-          </div>
-          <Checklist items={[
-            { done: !!campaign.subject, text: 'Le sujet est rempli' },
-            { done: !!campaign.html_body && campaign.html_body.length > 100, text: 'Le contenu HTML est prêt' },
-            { done: false, text: 'Les destinataires sont définis (Phase 5)' },
-          ]} />
-          <button
-            disabled
-            style={{ marginTop: 12, width: '100%', background: '#ffffff', border: '1px solid #cbd6e2', color: '#516f90', padding: '10px', borderRadius: 8, cursor: 'not-allowed', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-          >
-            <Send size={13} /> Envoyer (bientôt)
-          </button>
+          {(() => {
+            const hasAudience = ((campaign.segment_ids?.length ?? 0) > 0)
+              || ((campaign.manual_contact_ids?.length ?? 0) > 0)
+              || (!!campaign.extra_filters && Object.keys(campaign.extra_filters).length > 0)
+            const subjectOk = !!campaign.subject
+            const contentOk = !!campaign.html_body && campaign.html_body.length > 100
+            const ready = subjectOk && contentOk && hasAudience
+            const sent = campaign.status === 'sent'
+            const inProgress = campaign.status === 'sending'
+            return (
+              <>
+                <div style={{ fontSize: 12, color: '#516f90', marginBottom: 12 }}>
+                  {sent ? 'Cette campagne a déjà été envoyée.' : inProgress ? 'Envoi en cours…' : 'Avant l\'envoi vérifie que :'}
+                </div>
+                {!sent && (
+                  <Checklist items={[
+                    { done: subjectOk, text: 'Le sujet est rempli' },
+                    { done: contentOk, text: 'Le contenu HTML est prêt' },
+                    { done: hasAudience, text: 'Au moins un segment/filtre est défini' },
+                  ]} />
+                )}
+                <button
+                  disabled={!ready || sending || sent}
+                  onClick={openSendModal}
+                  style={{
+                    marginTop: 12,
+                    width: '100%',
+                    background: ready && !sent ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#ffffff',
+                    border: ready && !sent ? 'none' : '1px solid #cbd6e2',
+                    color: ready && !sent ? '#fff' : '#516f90',
+                    padding: '10px',
+                    borderRadius: 8,
+                    cursor: ready && !sent ? 'pointer' : 'not-allowed',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Send size={13} /> {sent ? 'Déjà envoyée' : inProgress ? 'Continuer l\'envoi' : 'Envoyer'}
+                </button>
+                {sendStatus && (
+                  <div style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: sendStatus.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                    border: `1px solid ${sendStatus.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                    fontSize: 11,
+                    color: sendStatus.ok ? '#16a34a' : '#ef4444',
+                  }}>
+                    {sendStatus.ok ? (
+                      <>✅ <strong>{sendStatus.sent}</strong> envoyés{sendStatus.failed > 0 && <>, {sendStatus.failed} échecs</>}{sendStatus.pending > 0 && <><br />⏳ {sendStatus.pending} en file (cron)</>}</>
+                    ) : (
+                      <>❌ {sendStatus.errors?.[0]?.error || 'Erreur'}</>
+                    )}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </Card>
 
         <Card title="Aide" icon={AlertCircle}>
@@ -412,24 +656,6 @@ function PreviewTab({ html, subject, senderName, senderEmail }: { html: string; 
         title="Email preview"
       />
     </div>
-  )
-}
-
-// ─── Tab : Destinataires ─────────────────────────────────────────────────
-function RecipientsTab({ campaign }: { campaign: Campaign }) {
-  return (
-    <Card title="Destinataires" icon={Users}>
-      <div style={{ textAlign: 'center', padding: 40, color: '#516f90' }}>
-        <Users size={48} style={{ color: '#cbd6e2', margin: '0 auto 16px' }} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#33475b', marginBottom: 6 }}>
-          Sélection des destinataires en Phase 5
-        </div>
-        <div style={{ fontSize: 12, maxWidth: 400, margin: '0 auto' }}>
-          Bientôt tu pourras choisir des segments pré-enregistrés (ex: "Tous les PASS",
-          "Prospects sans RDV") ou créer un filtre à la volée depuis le CRM.
-        </div>
-      </div>
-    </Card>
   )
 }
 
