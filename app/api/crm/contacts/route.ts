@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
   const withTelepro      = searchParams.get('with_telepro') === '1'
   const ownerExclude     = searchParams.get('owner_exclude') ?? ''
   const recentFormMonths = parseInt(searchParams.get('recent_form_months') ?? '0', 10)
+  const recentFormDays    = parseInt(searchParams.get('recent_form_days')   ?? '0', 10)
+  const createdBeforeDays = parseInt(searchParams.get('created_before_days') ?? '0', 10)
   const showExternal     = searchParams.get('show_external') === '1'
   const allClasses       = searchParams.get('all_classes') === '1'
   const leadStatus       = searchParams.get('lead_status') ?? ''
@@ -509,11 +511,21 @@ export async function GET(req: NextRequest) {
     query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${ownerExclude}`)
   }
 
-  // Formulaires récents
+  // Formulaires récents (par mois)
   if (recentFormMonths > 0) {
     const since = new Date()
     since.setMonth(since.getMonth() - recentFormMonths)
     query = query.gte('recent_conversion_date', since.toISOString())
+  }
+  // Formulaires récents (par jours, plus granulaire — ex 7 jours = "cette semaine")
+  if (recentFormDays > 0) {
+    const since = new Date(Date.now() - recentFormDays * 86_400_000)
+    query = query.gte('recent_conversion_date', since.toISOString())
+  }
+  // Contact créé il y a PLUS de X jours (= leads anciens qui re-soumettent)
+  if (createdBeforeDays > 0) {
+    const before = new Date(Date.now() - createdBeforeDays * 86_400_000)
+    query = query.lt('contact_createdate', before.toISOString())
   }
 
   // Statut du lead (multi-value support)
