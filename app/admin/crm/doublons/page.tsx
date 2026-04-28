@@ -17,12 +17,13 @@ type Contact = {
   origine: string | null
 }
 type Group = { key: string; contacts: Contact[] }
-type Tab = 'phone' | 'email' | 'name'
+type Tab = 'phone_name' | 'phone' | 'email' | 'name'
 
 const TAB_INFO: Record<Tab, { label: string; icon: typeof Mail; help: string }> = {
-  phone: { label: 'Par téléphone', icon: Phone, help: 'Contacts ayant le même numéro (après normalisation +33 → 0)' },
-  email: { label: 'Par email',     icon: Mail,  help: 'Contacts ayant le même email (insensible à la casse)' },
-  name:  { label: 'Par nom',       icon: User,  help: 'Contacts ayant le même prénom + nom (sans accents)' },
+  phone_name: { label: 'Vrais doublons',  icon: GitMerge, help: 'Même téléphone ET même prénom/nom — exclut les faux numéros (0600000000 etc.)' },
+  phone:      { label: 'Par téléphone',   icon: Phone,    help: 'Contacts ayant le même numéro (inclut les faux numéros bidons)' },
+  email:      { label: 'Par email',       icon: Mail,     help: 'Contacts ayant le même email (insensible à la casse)' },
+  name:       { label: 'Par nom',         icon: User,     help: 'Contacts ayant le même prénom + nom (sans accents)' },
 }
 
 function fullName(c: Contact): string {
@@ -35,7 +36,7 @@ function fmtDate(d: string | null): string {
 }
 
 export default function DoublonsPage() {
-  const [tab, setTab] = useState<Tab>('phone')
+  const [tab, setTab] = useState<Tab>('phone_name')
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -47,11 +47,10 @@ function normalizeName(fn: string | null, ln: string | null): string {
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
-  const type = (searchParams.get('type') || 'phone') as 'email' | 'phone' | 'name'
+  const type = (searchParams.get('type') || 'phone_name') as 'email' | 'phone' | 'name' | 'phone_name'
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
 
-  // 1. Identifie les valeurs apparaissant plus d'une fois via RPC ou SQL
-  // PostgREST ne supporte pas GROUP BY HAVING → on utilise une RPC dédiée
+  // 1. Identifie les valeurs apparaissant plus d'une fois via RPC dédiée
   let groupValues: Array<{ key: string; count: number }> = []
 
   if (type === 'email') {
@@ -60,8 +59,12 @@ export async function GET(req: NextRequest) {
   } else if (type === 'phone') {
     const { data } = await db.rpc('crm_duplicate_phones', { lim: limit })
     groupValues = (data ?? []) as Array<{ key: string; count: number }>
-  } else {
+  } else if (type === 'name') {
     const { data } = await db.rpc('crm_duplicate_names', { lim: limit })
+    groupValues = (data ?? []) as Array<{ key: string; count: number }>
+  } else {
+    // phone_name : "vrais doublons" (même téléphone ET même nom)
+    const { data } = await db.rpc('crm_duplicate_phone_and_name', { lim: limit })
     groupValues = (data ?? []) as Array<{ key: string; count: number }>
   }
 
@@ -87,7 +90,7 @@ export async function GET(req: NextRequest) {
         .select(FIELDS)
         .or(`phone.eq.${g.key},phone.eq.+33${g.key.slice(1)}`)
       contacts = ((data ?? []) as ContactRow[]).filter(c => normalizePhone(c.phone || '') === g.key)
-    } else {
+    } else if (type === 'name') {
       // name search : on doit re-filtrer côté JS
       const [firstname, ...rest] = g.key.split(' ')
       const lastname = rest.join(' ')
@@ -97,6 +100,17 @@ export async function GET(req: NextRequest) {
         .ilike('firstname', firstname)
         .ilike('lastname', lastname)
       contacts = ((data ?? []) as ContactRow[]).filter(c => normalizeName(c.firstname, c.lastname) === g.key)
+    } else {
+      // phone_name : key = "phone|fullname" → on cherche par téléphone PUIS filtre par nom
+      const [normPhone, fullName] = g.key.split('|')
+      const { data } = await db
+        .from('crm_contacts')
+        .select(FIELDS)
+        .or(`phone.eq.${normPhone},phone.eq.+33${normPhone.slice(1)}`)
+      contacts = ((data ?? []) as ContactRow[]).filter(c =>
+        normalizePhone(c.phone || '') === normPhone &&
+        normalizeName(c.firstname, c.lastname) === fullName
+      )
     }
 
     if (contacts.length > 1) {
