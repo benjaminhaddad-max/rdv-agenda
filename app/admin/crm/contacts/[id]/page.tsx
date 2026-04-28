@@ -148,9 +148,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/crm/contacts/${id}/details`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setData(await res.json())
+      // Charge en parallèle :
+      //  - details : données spécifiques au contact (~50 KB, non cachable)
+      //  - metadata : properties/owners partagés (cachés 5min côté navigateur)
+      const [resDetails, resMeta] = await Promise.all([
+        fetch(`/api/crm/contacts/${id}/details`),
+        fetch('/api/crm/metadata'),
+      ])
+      if (!resDetails.ok) throw new Error(`HTTP ${resDetails.status}`)
+      if (!resMeta.ok) throw new Error(`HTTP meta ${resMeta.status}`)
+      const details = await resDetails.json()
+      const meta = await resMeta.json()
+      setData({ ...details, ...meta })
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
