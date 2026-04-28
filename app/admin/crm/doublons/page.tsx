@@ -21,7 +21,7 @@ type Group = { key: string; contacts: Contact[] }
 type Tab = 'phone_name' | 'phone' | 'email' | 'name'
 
 const TAB_INFO: Record<Tab, { label: string; icon: typeof Mail; help: string }> = {
-  phone_name: { label: 'Vrais doublons',  icon: GitMerge, help: 'Même téléphone ET même prénom/nom — exclut les faux numéros (0600000000 etc.)' },
+  phone_name: { label: 'Vrais doublons',  icon: GitMerge, help: 'Même téléphone ET même prénom — exclut les faux numéros (0600000000 etc.)' },
   phone:      { label: 'Par téléphone',   icon: Phone,    help: 'Contacts ayant le même numéro (inclut les faux numéros bidons)' },
   email:      { label: 'Par email',       icon: Mail,     help: 'Contacts ayant le même email (insensible à la casse)' },
   name:       { label: 'Par nom',         icon: User,     help: 'Contacts ayant le même prénom + nom (sans accents)' },

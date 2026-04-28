@@ -102,15 +102,17 @@ export async function GET(req: NextRequest) {
         .ilike('lastname', lastname)
       contacts = ((data ?? []) as ContactRow[]).filter(c => normalizeName(c.firstname, c.lastname) === g.key)
     } else {
-      // phone_name : key = "phone|fullname" → on cherche par téléphone PUIS filtre par nom
-      const [normPhone, fullName] = g.key.split('|')
+      // phone_name : key = "phone|firstname" → on cherche par téléphone PUIS filtre par prénom
+      const [normPhone, normFirst] = g.key.split('|')
       const { data } = await db
         .from('crm_contacts')
         .select(FIELDS)
         .or(`phone.eq.${normPhone},phone.eq.+33${normPhone.slice(1)}`)
+      const normFirstOnly = (s: string | null) =>
+        (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
       contacts = ((data ?? []) as ContactRow[]).filter(c =>
         normalizePhone(c.phone || '') === normPhone &&
-        normalizeName(c.firstname, c.lastname) === fullName
+        normFirstOnly(c.firstname) === normFirst
       )
     }
 
