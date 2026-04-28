@@ -106,5 +106,26 @@ export async function PATCH(
     }
   }
 
+  // ── 3. Déclenche les workflows trigger_type='property_changed' ──
+  try {
+    const { enrollContact } = await import('@/lib/workflow-engine')
+    const { data: workflows } = await db
+      .from('crm_workflows')
+      .select('id, trigger_config')
+      .eq('status', 'active')
+      .eq('trigger_type', 'property_changed')
+    for (const wf of (workflows ?? [])) {
+      const cfg = (wf.trigger_config ?? {}) as { property?: string; to?: string | string[] }
+      if (cfg.property && cfg.property !== property) continue
+      if (cfg.to !== undefined && cfg.to !== null) {
+        const expected = Array.isArray(cfg.to) ? cfg.to : [cfg.to]
+        if (!expected.includes(String(value))) continue
+      }
+      await enrollContact(db, wf.id, contactId, { property, value, source: 'CRM_UI' })
+    }
+  } catch (e) {
+    console.warn('[crm/contacts/[id]/prop] workflow trigger failed:', e)
+  }
+
   return NextResponse.json({ ok: true, hubspot_mirrored: mirrorEnabled && !hubspotError, hubspot_error: hubspotError })
 }
