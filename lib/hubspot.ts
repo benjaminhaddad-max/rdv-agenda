@@ -20,8 +20,37 @@ export function isHubspotReadEnabled(): boolean {
   return process.env.HUBSPOT_READ_ENABLED !== '0' && !!TOKEN
 }
 
+/**
+ * Détecte si un appel hubspotFetch est une écriture (POST create, PATCH, PUT,
+ * DELETE) ou une lecture (GET, POST search/batch/read). Utilisé pour court-
+ * circuiter les écritures quand HUBSPOT_MIRROR_ENABLED=0.
+ */
+function isWriteCall(path: string, method: string): boolean {
+  const m = method.toUpperCase()
+  if (m === 'PATCH' || m === 'PUT' || m === 'DELETE') return true
+  if (m === 'POST') {
+    // Les endpoints de lecture en POST : /search, /batch/read
+    if (path.includes('/search') || path.includes('/batch/read')) return false
+    return true
+  }
+  return false
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<any> {
+  // Court-circuit : si on a coupé le mirror et que c'est une écriture, no-op
+  // immédiat (pas d'appel réseau, pas d'erreur). Permet de couper HubSpot
+  // proprement sans casser les fiches/PATCH côté Supabase.
+  const method = (options.method || 'GET').toUpperCase()
+  if (isWriteCall(path, method) && !isHubspotMirrorEnabled()) {
+    // Retourne un objet vide qui reste compatible avec la majorité des callers
+    // (deal.id, results, etc. seront undefined mais les try/catch absorbent).
+    return {}
+  }
+  // Court-circuit aussi pour les lectures si HUBSPOT_READ_ENABLED=0
+  if (!isWriteCall(path, method) && !isHubspotReadEnabled()) {
+    return { results: [] }
+  }
   if (!TOKEN) throw new Error('HUBSPOT_ACCESS_TOKEN missing — HubSpot disabled')
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
