@@ -38,18 +38,23 @@ function isWriteCall(path: string, method: string): boolean {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<any> {
-  // Court-circuit : si on a coupé le mirror et que c'est une écriture, no-op
-  // immédiat (pas d'appel réseau, pas d'erreur). Permet de couper HubSpot
-  // proprement sans casser les fiches/PATCH côté Supabase.
   const method = (options.method || 'GET').toUpperCase()
-  if (isWriteCall(path, method) && !isHubspotMirrorEnabled()) {
-    // Retourne un objet vide qui reste compatible avec la majorité des callers
-    // (deal.id, results, etc. seront undefined mais les try/catch absorbent).
-    return {}
-  }
-  // Court-circuit aussi pour les lectures si HUBSPOT_READ_ENABLED=0
-  if (!isWriteCall(path, method) && !isHubspotReadEnabled()) {
-    return { results: [] }
+  const isWrite = isWriteCall(path, method)
+
+  // Lecture du flag depuis crm_settings (DB) avec fallback env + cache 30s
+  // → permet de couper le mirror via l'UI admin sans redéployer.
+  const { getSettingBool } = await import('@/lib/settings')
+  if (isWrite) {
+    const mirrorOn = await getSettingBool('hubspot_mirror_enabled', 'HUBSPOT_MIRROR_ENABLED', true)
+    if (!mirrorOn || !TOKEN) {
+      // No-op : la fiche/PATCH côté Supabase fonctionnera, HubSpot est ignoré
+      return {}
+    }
+  } else {
+    const readOn = await getSettingBool('hubspot_read_enabled', 'HUBSPOT_READ_ENABLED', true)
+    if (!readOn || !TOKEN) {
+      return { results: [] }
+    }
   }
   if (!TOKEN) throw new Error('HUBSPOT_ACCESS_TOKEN missing — HubSpot disabled')
   const res = await fetch(`${BASE_URL}${path}`, {

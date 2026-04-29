@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
 } from 'lucide-react'
 
 interface NavItem {
@@ -31,6 +31,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
       { key: 'import',        label: 'Import CSV',   href: '/admin/crm/import',       icon: Upload },
       { key: 'doublons',      label: 'Doublons',     href: '/admin/crm/doublons',     icon: GitMerge },
+      { key: 'parametres',    label: 'Paramètres',   href: '/admin/crm/parametres',   icon: SettingsIcon },
     ],
   },
   {
