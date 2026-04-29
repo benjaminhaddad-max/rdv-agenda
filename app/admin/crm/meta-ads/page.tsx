@@ -515,6 +515,10 @@ const input: React.CSSProperties = { padding: '4px 8px', border: '1px solid #cbd
 
 // ─── Helpers de mapping ─────────────────────────────────────────────────────
 
+// Synonymes Meta → CRM. Priorité absolue sur le match littéral du nom CRM,
+// car les noms HubSpot custom (ex: niveau_dtudes) ne sont pas ceux qu'on
+// veut. Le matching est substring (cf. autoSuggest), donc `niveau` couvre
+// `niveau_d_etudes`, `niveau_d_études`, etc. Pas besoin de tout lister.
 const META_FIELD_MAP_HARDCODED: Record<string, string> = {
   email: 'email',
   full_name: 'firstname',
@@ -526,24 +530,44 @@ const META_FIELD_MAP_HARDCODED: Record<string, string> = {
   zip: 'departement',
   postal_code: 'departement',
   state: 'zone_localite',
+  // Particularité Diploma : niveau d'études → classe actuelle
+  niveau: 'classe_actuelle',
   classe: 'classe_actuelle',
   classe_actuelle: 'classe_actuelle',
-  niveau: 'classe_actuelle',
   formation: 'formation_souhaitee',
 }
 
 function autoSuggest(metaKey: string, crmProps: CrmProperty[]): string | null {
   const m = metaKey.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (!m) return null
+  const propExists = (name: string) => crmProps.some(p => p.name === name)
+
+  // 1. Synonymes : match exact sur la clé lowercase brute (rapide, gère les cas standards)
   const direct = META_FIELD_MAP_HARDCODED[metaKey.toLowerCase()]
-  if (direct && crmProps.some(p => p.name === direct)) return direct
+  if (direct && propExists(direct)) return direct
+
+  // 2. Synonymes : match substring (priorité sur le match littéral CRM)
+  // Plus longue clé d'abord pour préférer les synonymes spécifiques.
+  const sortedKeys = Object.keys(META_FIELD_MAP_HARDCODED).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (normKey.length >= 4 && (m.includes(normKey) || normKey.includes(m))) {
+      const target = META_FIELD_MAP_HARDCODED[key]
+      if (propExists(target)) return target
+    }
+  }
+
+  // 3. Match exact sur le nom CRM normalisé
   for (const p of crmProps) {
     if (p.name.toLowerCase().replace(/[^a-z0-9]/g, '') === m) return p.name
   }
+
+  // 4. Match par préfixe sur le nom CRM
   for (const p of crmProps) {
     const pn = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
     if (pn.length >= 4 && (m.startsWith(pn) || pn.startsWith(m))) return p.name
   }
+
   return null
 }
 

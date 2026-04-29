@@ -146,7 +146,12 @@ export async function fetchLeadById(leadgenId: string, pageToken: string): Promi
 
 // ─── Lead → Contact CRM ─────────────────────────────────────────────────────
 
-/** Mapping field_data Meta → colonnes crm_contacts */
+/**
+ * Table de synonymes Meta → CRM. Doit rester en sync avec
+ * META_FIELD_MAP_HARDCODED dans app/admin/crm/meta-ads/page.tsx.
+ * Le matching est substring (cf. autoSuggestCrmField), donc `niveau` couvre
+ * `niveau_d_etudes`, `niveau_d_études`, etc. Pas besoin de tout lister.
+ */
 const META_FIELD_MAP: Record<string, string> = {
   email: 'email',
   full_name: 'firstname',           // sera split en firstname+lastname
@@ -158,9 +163,10 @@ const META_FIELD_MAP: Record<string, string> = {
   zip: 'departement',
   postal_code: 'departement',
   state: 'zone_localite',
+  // Particularité Diploma : niveau d'études → classe actuelle
+  niveau: 'classe_actuelle',
   classe: 'classe_actuelle',
   classe_actuelle: 'classe_actuelle',
-  niveau: 'classe_actuelle',
   formation: 'formation_souhaitee',
 }
 
@@ -190,14 +196,25 @@ export type MetaFieldMappings = Record<string, { crm_field: string; value_map?: 
 export function autoSuggestCrmField(metaKey: string, crmPropNames: string[]): string | null {
   const m = metaKey.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (!m) return null
-  // 1. Match dans le mapping hardcodé
+  const exists = (name: string) => crmPropNames.includes(name)
+  // 1. Synonymes : match exact sur la clé brute
   const direct = META_FIELD_MAP[metaKey.toLowerCase()]
-  if (direct) return direct
-  // 2. Match exact sur le nom CRM normalisé
+  if (direct && exists(direct)) return direct
+  // 2. Synonymes : match substring (priorité sur le match littéral CRM)
+  // Plus longue clé d'abord pour préférer les synonymes spécifiques.
+  const sortedKeys = Object.keys(META_FIELD_MAP).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (normKey.length >= 4 && (m.includes(normKey) || normKey.includes(m))) {
+      const target = META_FIELD_MAP[key]
+      if (exists(target)) return target
+    }
+  }
+  // 3. Match exact sur le nom CRM normalisé
   for (const p of crmPropNames) {
     if (p.toLowerCase().replace(/[^a-z0-9]/g, '') === m) return p
   }
-  // 3. Match par préfixe (ex: "phone_number_mobile" → "phone")
+  // 4. Match par préfixe (ex: "phone_number_mobile" → "phone")
   for (const p of crmPropNames) {
     const pn = p.toLowerCase().replace(/[^a-z0-9]/g, '')
     if (pn.length >= 4 && (m.startsWith(pn) || pn.startsWith(m))) return p
