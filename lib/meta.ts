@@ -107,6 +107,127 @@ export async function fetchUserPages(userToken: string): Promise<MetaPage[]> {
   return j.data ?? []
 }
 
+export interface MetaAdAccount {
+  account_id: string         // act_XXXXXXX
+  id: string                  // act_XXXXXXX (alias)
+  name: string
+  currency?: string
+  timezone_name?: string
+  business?: { id: string; name: string }
+}
+
+/** Liste les ad accounts (Business Manager) auxquels l'user a accès */
+export async function fetchUserAdAccounts(userToken: string): Promise<MetaAdAccount[]> {
+  const fields = 'account_id,name,currency,timezone_name,business{id,name}'
+  const res = await fetch(`${GRAPH}/me/adaccounts?fields=${fields}&limit=200&access_token=${userToken}`)
+  if (!res.ok) throw new Error(`Meta /me/adaccounts: HTTP ${res.status} ${await res.text()}`)
+  const j = await res.json()
+  return (j.data ?? []).map((a: { id?: string; account_id?: string; [k: string]: unknown }) => ({
+    ...a,
+    id: (a.id || `act_${a.account_id}`) as string,
+    account_id: (a.id || `act_${a.account_id}`) as string,
+  }))
+}
+
+// ─── Ads Insights (spend, impressions, clicks, CTR, CPL) ────────────────────
+
+export type InsightsLevel = 'account' | 'campaign' | 'adset' | 'ad'
+export type DatePreset =
+  | 'today' | 'yesterday' | 'last_7d' | 'last_14d' | 'last_30d' | 'last_90d'
+  | 'this_month' | 'last_month' | 'this_quarter' | 'maximum'
+
+export interface MetaAdInsight {
+  level: InsightsLevel
+  account_id?: string
+  campaign_id?: string
+  campaign_name?: string
+  adset_id?: string
+  adset_name?: string
+  ad_id?: string
+  ad_name?: string
+  // Métriques numériques (toutes en string dans la réponse Meta, à parser)
+  impressions: number
+  clicks: number
+  spend: number              // dans la devise du compte
+  ctr: number                // en %
+  cpc: number                // coût par clic
+  cpm: number                // coût pour mille impressions
+  reach?: number
+  frequency?: number
+  // Lead-specific (calculé après en mergeant avec meta_lead_events)
+  leads?: number
+  cpl?: number               // spend / leads
+  status?: string            // ACTIVE / PAUSED / ARCHIVED — pour les niveaux campaign/adset/ad
+}
+
+const INSIGHT_FIELDS = [
+  'impressions', 'clicks', 'spend', 'ctr', 'cpc', 'cpm', 'reach', 'frequency',
+  'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
+].join(',')
+
+/**
+ * Récupère les insights Meta Ads pour un ad account.
+ * @param accountId au format `act_XXXXXXX`
+ * @param userToken user access token (pas page token)
+ * @param level account|campaign|adset|ad
+ * @param datePreset preset Meta (last_30d, lifetime, etc.) ou 'custom' avec from/to
+ */
+export async function fetchAdInsights(
+  accountId: string,
+  userToken: string,
+  level: InsightsLevel,
+  datePreset: DatePreset | 'custom' = 'last_30d',
+  customRange?: { since: string; until: string },
+): Promise<MetaAdInsight[]> {
+  const params = new URLSearchParams({
+    fields: INSIGHT_FIELDS,
+    level,
+    limit: '500',
+    access_token: userToken,
+  })
+  if (datePreset === 'custom' && customRange) {
+    params.set('time_range', JSON.stringify(customRange))
+  } else {
+    params.set('date_preset', datePreset)
+  }
+
+  const url = `${GRAPH}/${accountId}/insights?${params.toString()}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Meta insights: HTTP ${res.status} ${await res.text()}`)
+  const j = await res.json()
+  const rows = (j.data ?? []) as Array<Record<string, string>>
+  return rows.map(r => ({
+    level,
+    account_id: accountId,
+    campaign_id: r.campaign_id,
+    campaign_name: r.campaign_name,
+    adset_id: r.adset_id,
+    adset_name: r.adset_name,
+    ad_id: r.ad_id,
+    ad_name: r.ad_name,
+    impressions: Number(r.impressions || 0),
+    clicks: Number(r.clicks || 0),
+    spend: Number(r.spend || 0),
+    ctr: Number(r.ctr || 0),
+    cpc: Number(r.cpc || 0),
+    cpm: Number(r.cpm || 0),
+    reach: r.reach ? Number(r.reach) : undefined,
+    frequency: r.frequency ? Number(r.frequency) : undefined,
+  }))
+}
+
+/** Liste les campagnes d'un ad account (avec name + status) */
+export async function fetchAdAccountCampaigns(
+  accountId: string,
+  userToken: string,
+): Promise<Array<{ id: string; name: string; status: string; effective_status: string }>> {
+  const url = `${GRAPH}/${accountId}/campaigns?fields=id,name,status,effective_status&limit=500&access_token=${userToken}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Meta campaigns: HTTP ${res.status} ${await res.text()}`)
+  const j = await res.json()
+  return j.data ?? []
+}
+
 /** Abonne le webhook à une page (champ 'leadgen') */
 export async function subscribePageToLeadgen(pageId: string, pageToken: string): Promise<void> {
   const params = new URLSearchParams({

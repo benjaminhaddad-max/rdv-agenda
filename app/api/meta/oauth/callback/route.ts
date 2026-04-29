@@ -5,6 +5,7 @@ import {
   exchangeForLongLivedUserToken,
   fetchUserProfile,
   fetchUserPages,
+  fetchUserAdAccounts,
   metaConfigured,
 } from '@/lib/meta'
 
@@ -50,12 +51,21 @@ export async function GET(req: NextRequest) {
     // 4. Pages dont l'user est admin (avec page tokens long-lived)
     const pages = await fetchUserPages(userToken)
 
-    if (pages.length === 0) {
+    // 4bis. Ad accounts (Business Manager) — best-effort, ne bloque pas si echoue
+    let adAccounts: Awaited<ReturnType<typeof fetchUserAdAccounts>> = []
+    try {
+      adAccounts = await fetchUserAdAccounts(userToken)
+    } catch (e) {
+      console.error('[meta] fetchUserAdAccounts failed:', e)
+    }
+
+    if (pages.length === 0 && adAccounts.length === 0) {
       return NextResponse.redirect(`${origin}/admin/crm/meta-ads?error=no_pages`)
     }
 
     // 5. Upsert chaque page
     const db = createServiceClient()
+    const nowIso = new Date().toISOString()
     for (const p of pages) {
       await db.from('meta_lead_pages').upsert({
         page_id: p.id,
@@ -64,11 +74,35 @@ export async function GET(req: NextRequest) {
         user_id: profile.id,
         user_name: profile.name,
         active: true,
-        connected_at: new Date().toISOString(),
+        connected_at: nowIso,
       }, { onConflict: 'page_id' })
     }
 
-    const res = NextResponse.redirect(`${origin}/admin/crm/meta-ads?connected=${pages.length}`)
+    // 5bis. Upsert chaque ad account (ignore si la table n'existe pas encore)
+    for (const a of adAccounts) {
+      try {
+        await db.from('meta_ad_accounts').upsert({
+          account_id: a.account_id,
+          name: a.name,
+          currency: a.currency || null,
+          timezone_name: a.timezone_name || null,
+          business_id: a.business?.id || null,
+          business_name: a.business?.name || null,
+          user_id: profile.id,
+          user_name: profile.name,
+          access_token: userToken,
+          active: true,
+          connected_at: nowIso,
+        }, { onConflict: 'account_id' })
+      } catch (e) {
+        console.error('[meta] upsert ad account failed:', e)
+      }
+    }
+
+    const totalConnected = pages.length + adAccounts.length
+    const res = NextResponse.redirect(
+      `${origin}/admin/crm/meta-ads?connected=${pages.length}&adaccounts=${adAccounts.length}&total=${totalConnected}`
+    )
     res.cookies.delete('meta_oauth_state')
     return res
   } catch (e) {
