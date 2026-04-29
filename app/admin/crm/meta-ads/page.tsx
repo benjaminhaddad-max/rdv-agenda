@@ -1,8 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+
+export default function MetaAdsPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>Chargement…</div>}>
+      <MetaAdsPage />
+    </Suspense>
+  )
+}
 
 type Page = {
   page_id: string
@@ -39,7 +47,7 @@ type LeadEvent = {
 }
 type Owner = { hubspot_owner_id: string; firstname?: string; lastname?: string; email?: string }
 
-export default function MetaAdsPage() {
+function MetaAdsPage() {
   const params = useSearchParams()
   const [pages, setPages] = useState<Page[]>([])
   const [forms, setForms] = useState<Form[]>([])
