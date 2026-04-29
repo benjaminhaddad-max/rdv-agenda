@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Search } from 'lucide-react'
 
 export default function MetaAdsPageWrapper() {
   return (
@@ -57,6 +57,21 @@ function MetaAdsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
+  const [formSearch, setFormSearch] = useState<Record<string, string>>({})
+
+  function toggleExpanded(pageId: string) {
+    setExpandedPages(prev => {
+      const next = new Set(prev)
+      if (next.has(pageId)) next.delete(pageId)
+      else next.add(pageId)
+      return next
+    })
+  }
+  function toggleAllExpanded() {
+    if (expandedPages.size === pages.length) setExpandedPages(new Set())
+    else setExpandedPages(new Set(pages.map(p => p.page_id)))
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -196,16 +211,33 @@ function MetaAdsPage() {
         {/* Pages */}
         {!loading && pages.length > 0 && (
           <section style={{ marginBottom: 30 }}>
-            <h2 style={sectionTitle}>Pages connectées ({pages.length})</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Pages connectées ({pages.length})</h2>
+              <button onClick={toggleAllExpanded} style={btn('secondary')}>
+                {expandedPages.size === pages.length ? 'Tout replier' : 'Tout déplier'}
+              </button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {pages.map(p => (
+              {pages.map(p => {
+                const isExpanded = expandedPages.has(p.page_id)
+                const pageFormCount = forms.filter(f => f.page_id === p.page_id).length
+                return (
                 <div key={p.page_id} style={card({ padding: 16 })}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        onClick={() => toggleExpanded(p.page_id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none' }}
+                      >
+                        {isExpanded ? <ChevronDown size={14} style={{ color: '#64748b' }} /> : <ChevronRight size={14} style={{ color: '#64748b' }} />}
                         <Facebook size={14} style={{ color: '#1877F2' }} />
                         <strong>{p.page_name}</strong>
                         <span style={{ fontSize: 10, color: '#94a3b8' }}>· {p.page_id}</span>
+                        {pageFormCount > 0 && (
+                          <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: 999 }}>
+                            {pageFormCount} form{pageFormCount > 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         <span>Connectée par {p.user_name || '?'}</span>
@@ -238,18 +270,43 @@ function MetaAdsPage() {
                   </div>
 
                   {/* Forms de cette page */}
-                  {(() => {
+                  {isExpanded && (() => {
                     const pageForms = forms.filter(f => f.page_id === p.page_id)
                     if (pageForms.length === 0) return (
                       <div style={{ marginTop: 12, padding: 10, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
                         Aucun formulaire trouvé. Clique sur « Refresh forms » pour les charger.
                       </div>
                     )
+                    const search = (formSearch[p.page_id] || '').toLowerCase().trim()
+                    const filteredForms = search
+                      ? pageForms.filter(f =>
+                          (f.name || '').toLowerCase().includes(search) ||
+                          f.form_id.includes(search) ||
+                          (f.origine_label || '').toLowerCase().includes(search)
+                        )
+                      : pageForms
                     return (
                       <div style={{ marginTop: 12, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
-                          Formulaires ({pageForms.length})
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                            Formulaires ({filteredForms.length}{search && filteredForms.length !== pageForms.length ? ` / ${pageForms.length}` : ''})
+                          </div>
+                          <div style={{ position: 'relative', flex: '0 1 280px' }}>
+                            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input
+                              type="text"
+                              placeholder="Rechercher un formulaire…"
+                              value={formSearch[p.page_id] || ''}
+                              onChange={e => setFormSearch(prev => ({ ...prev, [p.page_id]: e.target.value }))}
+                              style={{ ...input, paddingLeft: 26, maxWidth: 'none', width: '100%' }}
+                            />
+                          </div>
                         </div>
+                        {filteredForms.length === 0 ? (
+                          <div style={{ padding: 10, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                            Aucun formulaire ne correspond à « {search} »
+                          </div>
+                        ) : (
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: '#fafbfc' }}>
@@ -261,7 +318,7 @@ function MetaAdsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {pageForms.map(f => (
+                            {filteredForms.map(f => (
                               <tr key={f.form_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={td}>
                                   <div style={{ fontWeight: 600 }}>{f.name || '(sans nom)'}</div>
@@ -301,11 +358,12 @@ function MetaAdsPage() {
                             ))}
                           </tbody>
                         </table>
+                        )}
                       </div>
                     )
                   })()}
                 </div>
-              ))}
+              )})}
             </div>
           </section>
         )}
