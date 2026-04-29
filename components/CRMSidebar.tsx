@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook,
 } from 'lucide-react'
 
 interface NavItem {
@@ -42,6 +42,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'templates', label: 'Modèles email', href: '/admin/crm/email-templates', icon: FileText },
       { key: 'workflows', label: 'Workflows',     href: '/admin/crm/workflows',       icon: Workflow },
       { key: 'forms',     label: 'Formulaires',   href: '/admin/crm/forms',           icon: FileText },
+      { key: 'meta-ads',  label: 'Meta Lead Ads', href: '/admin/crm/meta-ads',        icon: Facebook },
       { key: 'events',    label: 'Événements',    href: '/admin/crm/events',          icon: CalendarDays },
     ],
   },
