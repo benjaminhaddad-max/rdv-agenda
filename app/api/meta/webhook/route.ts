@@ -112,9 +112,9 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // Récupère metadata du form (origine_label, owner, workflow)
+      // Récupère metadata du form (origine_label, owner, workflow, field_mappings)
       const { data: formMeta } = await db.from('meta_lead_forms')
-        .select('origine_label, default_owner_id, workflow_id, name')
+        .select('origine_label, default_owner_id, workflow_id, name, field_mappings')
         .eq('form_id', lead.form_id || v.form_id || '')
         .maybeSingle()
 

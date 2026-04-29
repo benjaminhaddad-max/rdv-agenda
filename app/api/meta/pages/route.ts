@@ -23,7 +23,7 @@ export async function GET() {
 
   // Forms (toutes pages confondues, joignable côté UI)
   const { data: forms } = await db.from('meta_lead_forms')
-    .select('form_id, page_id, name, status, leads_count, origine_label, default_owner_id, workflow_id, refreshed_at')
+    .select('form_id, page_id, name, status, leads_count, origine_label, default_owner_id, workflow_id, refreshed_at, questions, field_mappings')
     .order('refreshed_at', { ascending: false })
 
   // 20 derniers leads reçus
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const db = createServiceClient()
-  let body: { page_id?: string; active?: boolean; form_id?: string; origine_label?: string; default_owner_id?: string; workflow_id?: string | null }
+  let body: { page_id?: string; active?: boolean; form_id?: string; origine_label?: string; default_owner_id?: string; workflow_id?: string | null; field_mappings?: Record<string, { crm_field: string; value_map?: Record<string, string> }> | null }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }) }
 
   // Update page (active toggle)
@@ -98,12 +98,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // Update form metadata (origine, owner, workflow)
+  // Update form metadata (origine, owner, workflow, field_mappings)
   if (body.form_id) {
     const updates: Record<string, unknown> = {}
     if (body.origine_label !== undefined) updates.origine_label = body.origine_label
     if (body.default_owner_id !== undefined) updates.default_owner_id = body.default_owner_id || null
     if (body.workflow_id !== undefined) updates.workflow_id = body.workflow_id || null
+    if (body.field_mappings !== undefined) updates.field_mappings = body.field_mappings
     await db.from('meta_lead_forms').update(updates).eq('form_id', body.form_id)
     return NextResponse.json({ ok: true })
   }

@@ -174,6 +174,37 @@ function normalizeMetaFieldValue(name: string, value: string): { field: string; 
   return { field: target, value }
 }
 
+/**
+ * Format des field_mappings stockés par form dans meta_lead_forms.field_mappings :
+ *   { "<meta_field_key>": { crm_field: "<prop_crm>", value_map?: { "<v_meta>": "<v_crm>" } } }
+ */
+export type MetaFieldMappings = Record<string, { crm_field: string; value_map?: Record<string, string> }>
+
+/**
+ * Auto-suggère le mapping CRM le plus probable pour un nom de champ Meta.
+ * Sert à la fois côté UI (pré-sélection dropdown) et côté runtime (fallback si
+ * field_mappings est vide pour ce form).
+ *
+ * @param crmPropNames liste des property `name` de crm_contacts disponibles
+ */
+export function autoSuggestCrmField(metaKey: string, crmPropNames: string[]): string | null {
+  const m = metaKey.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!m) return null
+  // 1. Match dans le mapping hardcodé
+  const direct = META_FIELD_MAP[metaKey.toLowerCase()]
+  if (direct) return direct
+  // 2. Match exact sur le nom CRM normalisé
+  for (const p of crmPropNames) {
+    if (p.toLowerCase().replace(/[^a-z0-9]/g, '') === m) return p
+  }
+  // 3. Match par préfixe (ex: "phone_number_mobile" → "phone")
+  for (const p of crmPropNames) {
+    const pn = p.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (pn.length >= 4 && (m.startsWith(pn) || pn.startsWith(m))) return p
+  }
+  return null
+}
+
 export interface ProcessLeadResult {
   contactId: string | null
   contactCreated: boolean
@@ -187,22 +218,32 @@ export interface ProcessLeadResult {
 export async function processMetaLead(
   lead: MetaLead,
   pageId: string,
-  formMetadata?: { origine_label?: string; default_owner_id?: string; workflow_id?: string },
+  formMetadata?: { origine_label?: string; default_owner_id?: string; workflow_id?: string; field_mappings?: MetaFieldMappings | null },
 ): Promise<ProcessLeadResult> {
   const db = createServiceClient()
   const nowIso = new Date().toISOString()
+
+  const customMappings: MetaFieldMappings = formMetadata?.field_mappings || {}
 
   // 1. Construit le contactData depuis field_data
   const contactData: Record<string, string> = {}
   let fullName: string | null = null
   for (const f of lead.field_data || []) {
-    const value = (f.values?.[0] || '').trim()
-    if (!value) continue
+    const rawValue = (f.values?.[0] || '').trim()
+    if (!rawValue) continue
     if (f.name.toLowerCase() === 'full_name') {
-      fullName = value
+      fullName = rawValue
       continue
     }
-    const mapped = normalizeMetaFieldValue(f.name, value)
+    // Priorité 1 : field_mappings personnalisé pour ce form
+    const custom = customMappings[f.name]
+    if (custom?.crm_field) {
+      const mappedValue = custom.value_map?.[rawValue] ?? custom.value_map?.[rawValue.toLowerCase()] ?? rawValue
+      contactData[custom.crm_field] = mappedValue
+      continue
+    }
+    // Priorité 2 : mapping hardcodé META_FIELD_MAP
+    const mapped = normalizeMetaFieldValue(f.name, rawValue)
     if (mapped) contactData[mapped.field] = mapped.value
   }
   // Si full_name fourni mais pas first_name/last_name, on split

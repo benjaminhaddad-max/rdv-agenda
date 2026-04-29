@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useEffect, useState, useCallback, Suspense, Fragment } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Search, Link2, X } from 'lucide-react'
 
 export default function MetaAdsPageWrapper() {
   return (
@@ -22,6 +22,8 @@ type Page = {
   last_lead_at: string | null
   total_leads: number
 }
+type MetaQuestion = { key: string; label?: string; type?: string; options?: Array<{ key: string; value: string }> }
+type FieldMapping = { crm_field: string; value_map?: Record<string, string> }
 type Form = {
   form_id: string
   page_id: string
@@ -31,6 +33,16 @@ type Form = {
   origine_label: string | null
   default_owner_id: string | null
   workflow_id: string | null
+  questions?: MetaQuestion[] | null
+  field_mappings?: Record<string, FieldMapping> | null
+}
+type CrmProperty = {
+  name: string
+  label: string
+  type: string
+  field_type?: string
+  options?: Array<{ value: string; label: string }>
+  group_name?: string
 }
 type LeadEvent = {
   id: string
@@ -53,6 +65,8 @@ function MetaAdsPage() {
   const [forms, setForms] = useState<Form[]>([])
   const [events, setEvents] = useState<LeadEvent[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
+  const [crmProps, setCrmProps] = useState<CrmProperty[]>([])
+  const [mappingForm, setMappingForm] = useState<Form | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -84,6 +98,7 @@ function MetaAdsPage() {
       setForms(pagesRes.forms || [])
       setEvents(pagesRes.events || [])
       setOwners(metaRes.owners || [])
+      setCrmProps(metaRes.properties || [])
       if (pagesRes.error) setError(pagesRes.error)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -314,6 +329,7 @@ function MetaAdsPage() {
                               <th style={th}>Statut</th>
                               <th style={th}>Origine (CRM)</th>
                               <th style={th}>Owner par défaut</th>
+                              <th style={th}>Mapping</th>
                               <th style={th}>Leads</th>
                             </tr>
                           </thead>
@@ -352,6 +368,17 @@ function MetaAdsPage() {
                                       return <option key={o.hubspot_owner_id} value={o.hubspot_owner_id}>{name}</option>
                                     })}
                                   </select>
+                                </td>
+                                <td style={td}>
+                                  {(() => {
+                                    const count = f.field_mappings ? Object.keys(f.field_mappings).length : 0
+                                    return (
+                                      <button onClick={() => setMappingForm(f)} style={btn('secondary')}>
+                                        <Link2 size={11} />
+                                        {count > 0 ? `${count} mappé${count > 1 ? 's' : ''}` : 'Mapper'}
+                                      </button>
+                                    )
+                                  })()}
                                 </td>
                                 <td style={td}>{f.leads_count}</td>
                               </tr>
@@ -416,6 +443,20 @@ function MetaAdsPage() {
           </section>
         )}
 
+        {/* Modal mapping */}
+        {mappingForm && (
+          <MappingModal
+            form={mappingForm}
+            crmProps={crmProps}
+            onClose={() => setMappingForm(null)}
+            onSave={async (mappings) => {
+              await updateForm(mappingForm.form_id, { field_mappings: mappings })
+              setMappingForm(null)
+              setSuccess('Mapping enregistré')
+            }}
+          />
+        )}
+
         {/* Help box */}
         <div style={card({ padding: 16, marginTop: 24, background: '#eff6ff', borderColor: '#bfdbfe' })}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#1e40af' }}>Comment ça marche</div>
@@ -471,3 +512,290 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
 const th: React.CSSProperties = { textAlign: 'left', padding: '6px 10px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' }
 const input: React.CSSProperties = { padding: '4px 8px', border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 12, width: '100%', maxWidth: 200 }
+
+// ─── Helpers de mapping ─────────────────────────────────────────────────────
+
+const META_FIELD_MAP_HARDCODED: Record<string, string> = {
+  email: 'email',
+  full_name: 'firstname',
+  first_name: 'firstname',
+  last_name: 'lastname',
+  phone_number: 'phone',
+  phone: 'phone',
+  city: 'zone_localite',
+  zip: 'departement',
+  postal_code: 'departement',
+  state: 'zone_localite',
+  classe: 'classe_actuelle',
+  classe_actuelle: 'classe_actuelle',
+  niveau: 'classe_actuelle',
+  formation: 'formation_souhaitee',
+}
+
+function autoSuggest(metaKey: string, crmProps: CrmProperty[]): string | null {
+  const m = metaKey.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!m) return null
+  const direct = META_FIELD_MAP_HARDCODED[metaKey.toLowerCase()]
+  if (direct && crmProps.some(p => p.name === direct)) return direct
+  for (const p of crmProps) {
+    if (p.name.toLowerCase().replace(/[^a-z0-9]/g, '') === m) return p.name
+  }
+  for (const p of crmProps) {
+    const pn = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (pn.length >= 4 && (m.startsWith(pn) || pn.startsWith(m))) return p.name
+  }
+  return null
+}
+
+function autoSuggestValue(metaValue: string, crmOptions: Array<{ value: string; label: string }>): string | null {
+  if (!metaValue) return null
+  const m = metaValue.toLowerCase().trim()
+  for (const o of crmOptions) {
+    if (o.value.toLowerCase() === m || o.label.toLowerCase() === m) return o.value
+  }
+  // Match partiel (ex: "troisième" → "Troisième")
+  for (const o of crmOptions) {
+    const ov = o.value.toLowerCase()
+    const ol = o.label.toLowerCase()
+    if (ov.includes(m) || m.includes(ov) || ol.includes(m) || m.includes(ol)) return o.value
+  }
+  return null
+}
+
+// ─── MappingModal ────────────────────────────────────────────────────────────
+
+function MappingModal({
+  form,
+  crmProps,
+  onClose,
+  onSave,
+}: {
+  form: Form
+  crmProps: CrmProperty[]
+  onClose: () => void
+  onSave: (mappings: Record<string, FieldMapping>) => Promise<void>
+}) {
+  const questions = (form.questions || []) as MetaQuestion[]
+  const initial = form.field_mappings || {}
+
+  // Init l'état : pour chaque question, soit le mapping existant, soit l'auto-suggestion
+  const [mappings, setMappings] = useState<Record<string, FieldMapping>>(() => {
+    const init: Record<string, FieldMapping> = {}
+    for (const q of questions) {
+      if (initial[q.key]) {
+        init[q.key] = initial[q.key]
+      } else {
+        const suggested = autoSuggest(q.key, crmProps)
+        if (suggested) init[q.key] = { crm_field: suggested }
+      }
+    }
+    return init
+  })
+  const [search, setSearch] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  function setField(key: string, crmField: string) {
+    setMappings(prev => {
+      const next = { ...prev }
+      if (!crmField) {
+        delete next[key]
+      } else {
+        // Si on change de prop CRM, on reset le value_map
+        const existing = prev[key]
+        if (existing?.crm_field !== crmField) {
+          next[key] = { crm_field: crmField }
+          // Auto-suggère le value_map si la nouvelle prop a des options
+          const prop = crmProps.find(p => p.name === crmField)
+          const q = questions.find(qq => qq.key === key)
+          if (prop?.options?.length && q?.options?.length) {
+            const vm: Record<string, string> = {}
+            for (const opt of q.options) {
+              const sugg = autoSuggestValue(opt.value, prop.options)
+              if (sugg) vm[opt.value] = sugg
+            }
+            if (Object.keys(vm).length) next[key] = { crm_field: crmField, value_map: vm }
+          }
+        } else {
+          next[key] = { ...existing, crm_field: crmField }
+        }
+      }
+      return next
+    })
+  }
+
+  function setValueMap(key: string, metaValue: string, crmValue: string) {
+    setMappings(prev => {
+      const next = { ...prev }
+      const existing = next[key]
+      if (!existing) return prev
+      const vm = { ...(existing.value_map || {}) }
+      if (!crmValue) delete vm[metaValue]
+      else vm[metaValue] = crmValue
+      next[key] = { ...existing, value_map: Object.keys(vm).length ? vm : undefined }
+      return next
+    })
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try { await onSave(mappings) } finally { setSaving(false) }
+  }
+
+  // Filtrage des props CRM par recherche
+  const filteredProps = search.trim()
+    ? crmProps.filter(p => {
+        const s = search.toLowerCase()
+        return p.name.toLowerCase().includes(s) || p.label.toLowerCase().includes(s)
+      })
+    : crmProps
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 12, width: '100%', maxWidth: 800,
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid #e2e8f0',
+          background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+          color: '#fff', borderRadius: '12px 12px 0 0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Mappage de champs</div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>{form.name || form.form_id}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Rechercher une propriété CRM…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ ...input, paddingLeft: 26, maxWidth: 'none', width: '100%' }}
+            />
+          </div>
+        </div>
+
+        {/* Body — table de mapping */}
+        <div style={{ overflowY: 'auto', padding: '12px 20px', flex: 1 }}>
+          {questions.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              Aucune question trouvée pour ce form. Refresh forms d&apos;abord.
+            </div>
+          ) : (
+            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={th}>Champ Facebook</th>
+                  <th style={th}>Propriété CRM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {questions.map(q => {
+                  const mapping = mappings[q.key]
+                  const crmProp = mapping ? crmProps.find(p => p.name === mapping.crm_field) : null
+                  const isEnum = crmProp?.options && crmProp.options.length > 0 && q.options && q.options.length > 0
+                  return (
+                    <Fragment key={q.key}>
+                      <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f1f5f9' }}>
+                        <td style={{ ...td, width: '50%' }}>
+                          <div style={{ fontWeight: 600 }}>{q.label || q.key}</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
+                        </td>
+                        <td style={td}>
+                          <select
+                            value={mapping?.crm_field || ''}
+                            onChange={e => setField(q.key, e.target.value)}
+                            style={{ ...input, maxWidth: 'none', width: '100%' }}
+                          >
+                            <option value="">— Ne pas mapper —</option>
+                            {filteredProps.map(p => (
+                              <option key={p.name} value={p.name}>
+                                {p.label} ({p.name})
+                              </option>
+                            ))}
+                          </select>
+                          {crmProp && (
+                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                              {crmProp.label} · {crmProp.field_type || crmProp.type}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      {isEnum && (
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td colSpan={2} style={{ padding: '8px 10px 14px', background: '#fafbfc' }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
+                              Mappage des valeurs
+                            </div>
+                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                              <tbody>
+                                {q.options!.map(opt => (
+                                  <tr key={opt.value}>
+                                    <td style={{ padding: '4px 6px', width: '50%' }}>
+                                      <span style={{ fontWeight: 500 }}>{opt.value}</span>
+                                    </td>
+                                    <td style={{ padding: '4px 6px' }}>
+                                      <select
+                                        value={mapping?.value_map?.[opt.value] || ''}
+                                        onChange={e => setValueMap(q.key, opt.value, e.target.value)}
+                                        style={{ ...input, maxWidth: 'none', width: '100%' }}
+                                      >
+                                        <option value="">— Aucune —</option>
+                                        {crmProp!.options!.map(o => (
+                                          <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid #e2e8f0',
+          display: 'flex', justifyContent: 'flex-end', gap: 8,
+        }}>
+          <button onClick={onClose} style={btn('secondary')} disabled={saving}>
+            Annuler
+          </button>
+          <button onClick={handleSave} style={btn('primary')} disabled={saving}>
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
