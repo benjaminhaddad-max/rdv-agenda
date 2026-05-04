@@ -48,6 +48,7 @@ export default function ProprietesPage() {
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [doneMessage, setDoneMessage] = useState<string | null>(null)
+  const [detail, setDetail] = useState<Property | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -185,7 +186,13 @@ export default function ProprietesPage() {
                       {props.map(p => {
                         const Icon = TYPE_ICONS[p.type] || FileText
                         return (
-                          <tr key={p.name} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr
+                            key={p.name}
+                            onClick={() => setDetail(p)}
+                            style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .12s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
                             <td style={{ padding: '8px 12px' }}>
                               <div style={{ fontWeight: 600 }}>{p.label}</div>
                               {p.description && (
@@ -242,6 +249,127 @@ export default function ProprietesPage() {
           }}
         />
       )}
+
+      {detail && <PropertyDetailModal property={detail} onClose={() => setDetail(null)} />}
+    </div>
+  )
+}
+
+// ─── Modal détail propriété (read-only) ────────────────────────────────────
+function PropertyDetailModal({ property, onClose }: { property: Property; onClose: () => void }) {
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div style={{
+        background: '#fff', borderRadius: 12, width: '100%', maxWidth: 720,
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid #e2e8f0',
+          background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+          color: '#fff', borderRadius: '12px 12px 0 0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{property.label}</div>
+            <div style={{ fontSize: 11, opacity: 0.9, fontFamily: 'monospace' }}>{property.name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+          {/* Métadonnées */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <Meta label="Type technique">{property.type}</Meta>
+            <Meta label="Field type">{property.field_type}</Meta>
+            <Meta label="Groupe">{property.group_name || '—'}</Meta>
+            <Meta label="Source">{property.hubspot_defined ? 'HubSpot natif' : 'Locale Diploma'}</Meta>
+            {property.display_order != null && <Meta label="Display order">{property.display_order}</Meta>}
+            {property.archived && <Meta label="État">Archivée</Meta>}
+          </div>
+
+          {property.description && (
+            <div style={{ padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#516f90', marginBottom: 16 }}>
+              {property.description}
+            </div>
+          )}
+
+          {/* Options (si enumeration) */}
+          {property.options && property.options.length > 0 ? (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+                Valeurs possibles ({property.options.length})
+              </div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: '50%' }}>Label affiché</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Valeur stockée</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {property.options.map((opt, i) => (
+                      <tr key={i} style={{ borderBottom: i < property.options!.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{opt.label}</td>
+                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#516f90' }}>{opt.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #cbd6e2', borderRadius: 8 }}>
+              Cette propriété n&apos;a pas de valeurs prédéfinies (texte libre, nombre, date, etc.).
+            </div>
+          )}
+
+          {/* Note édition */}
+          <div style={{
+            marginTop: 16, padding: 12, borderRadius: 8,
+            background: '#fef9e7', border: '1px solid #fde68a',
+            fontSize: 12, color: '#92400e', display: 'flex', gap: 8,
+          }}>
+            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <strong>Lecture seule pour l&apos;instant.</strong> L&apos;édition est désactivée tant que le mirror HubSpot
+              tourne (sinon le sync écraserait tes modifs). Ça sera réactivé le jour où on coupe HubSpot
+              (<code style={{ background: '#fbbf24', padding: '0 4px', borderRadius: 3 }}>HUBSPOT_MIRROR_ENABLED=0</code>).
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd6e2',
+            background: '#fff', color: '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13, color: '#1a2f4b', fontWeight: 500 }}>
+        {children}
+      </div>
     </div>
   )
 }
