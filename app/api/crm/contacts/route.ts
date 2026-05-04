@@ -140,11 +140,7 @@ export async function GET(req: NextRequest) {
   const splitMulti = (v: string) => v.split(',').filter(Boolean)
 
   // A) Filtres positifs deal
-  // Note : teleproHsId, withTelepro, noTelepro, teleproNot ont ete deplaces
-  // vers un filtre direct sur crm_contacts.hubspot_raw->>'teleprospecteur'
-  // (la prop "Teleprospecteur" est sur le CONTACT dans HubSpot, pas le deal).
-  // Avant : filtrait via crm_deals.teleprospecteur -> sous-comptait les contacts.
-  const hasDealFilter = !!(stage || closerHsId || formation || pipeline || pipelineNot || priorPreinscription)
+  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro || pipeline || pipelineNot || priorPreinscription)
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
@@ -166,7 +162,10 @@ export async function GET(req: NextRequest) {
         const closers = splitMulti(closerHsId)
         q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
       }
-      // teleproHsId déplacé sur le contact directement (cf. plus bas)
+      if (teleproHsId) {
+        const telepros = splitMulti(teleproHsId)
+        q = telepros.length > 1 ? q.in('teleprospecteur', telepros) : q.eq('teleprospecteur', teleproHsId)
+      }
       if (formation) {
         const formations = splitMulti(formation)
         q = formations.length > 1 ? q.in('formation', formations) : q.eq('formation', formation)
@@ -186,14 +185,16 @@ export async function GET(req: NextRequest) {
       if (priorPreinscription && priorIds.length > 0) {
         q = q.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
       }
-      // withTelepro et exclusion external déplacés sur le contact (cf. plus bas)
+      if (withTelepro) q = q.not('teleprospecteur', 'is', null)
+      if (!showExternal && excludedUserIds.length > 0) {
+        q = q.not('teleprospecteur', 'in', `(${excludedUserIds.join(',')})`)
+      }
       return q
     })
   }
 
-  // A-bis) Exclusion deal filters (stage_not, closer_not, formation_not)
-  // teleproNot a ete deplacé sur le contact directement (cf. plus bas)
-  const hasDealExclusion = !!(stageNot || closerNot || formationNot)
+  // A-bis) Exclusion deal filters (stage_not, closer_not, telepro_not, formation_not)
+  const hasDealExclusion = !!(stageNot || closerNot || teleproNot || formationNot)
   let excludeByDealFilter: string[] = []
 
   if (hasDealExclusion) {
@@ -206,6 +207,10 @@ export async function GET(req: NextRequest) {
         const vals = splitMulti(closerNot)
         q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', closerNot)
       }
+      if (teleproNot) {
+        const vals = splitMulti(teleproNot)
+        q = vals.length > 1 ? q.in('teleprospecteur', vals) : q.eq('teleprospecteur', teleproNot)
+      }
       if (formationNot) {
         const vals = splitMulti(formationNot)
         q = vals.length > 1 ? q.in('formation', vals) : q.eq('formation', formationNot)
@@ -214,11 +219,38 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // B) noTelepro / withTelepro / exclusion external sur telepro :
-  // tous deplaces sur le filtre direct contact (cf. plus bas dans la route).
-  // Garde excludeByExternalTelepro vide pour compat avec le code en aval.
-  const excludeByTelepro: string[] = []
-  const excludeByExternalTelepro: string[] = []
+  // B) noTelepro → contacts à exclure (ont un deal avec télépro renseigné)
+  let excludeByTelepro: string[] = []
+  if (noTelepro) {
+    excludeByTelepro = await fetchAllDealContactIds(q =>
+      q.not('teleprospecteur', 'is', null)
+    )
+  }
+
+  // C) Exclusion équipe externe sur le télépro ET le closer du deal
+  let excludeByExternalTelepro: string[] = []
+  if (!showExternal && !hasDealFilter) {
+    // Exclure les contacts dont le deal a un télépro OU un closer de l'équipe externe
+    const hasUserIds = excludedUserIds.length > 0
+    const hasOwnerIds = excludedOwnerIds.length > 0
+    if (hasUserIds || hasOwnerIds) {
+      excludeByExternalTelepro = await fetchAllDealContactIds(q => {
+        // Build OR: teleprospecteur IN excludedUserIds OR hubspot_owner_id IN excludedOwnerIds
+        const orParts: string[] = []
+        if (hasUserIds) {
+          orParts.push(excludedUserIds.length === 1
+            ? `teleprospecteur.eq.${excludedUserIds[0]}`
+            : `teleprospecteur.in.(${excludedUserIds.join(',')})`)
+        }
+        if (hasOwnerIds) {
+          orParts.push(excludedOwnerIds.length === 1
+            ? `hubspot_owner_id.eq.${excludedOwnerIds[0]}`
+            : `hubspot_owner_id.in.(${excludedOwnerIds.join(',')})`)
+        }
+        return q.or(orParts.join(','))
+      })
+    }
+  }
 
   // D) Empty / not-empty filters on deal-level fields
   // Deal fields: stage, closer, telepro, formation
@@ -467,35 +499,6 @@ export async function GET(req: NextRequest) {
   if (contactOwnerHsId) {
     const vals = contactOwnerHsId.split(',').filter(Boolean)
     query = vals.length > 1 ? query.in('hubspot_owner_id', vals) : query.eq('hubspot_owner_id', contactOwnerHsId)
-  }
-
-  // Filtre TELEPRO sur la propriété CONTACT teleprospecteur (pas via deals).
-  // C'est aligne sur HubSpot ou "Teleprospecteur" est une prop contact, et donne
-  // les bons comptes (avant on filtrait via crm_deals.teleprospecteur, sous-comptait).
-  // Stocke l'ID user HubSpot : 29597800 = Pascal Tawfik, etc.
-  if (teleproHsId) {
-    const vals = splitMulti(teleproHsId)
-    query = vals.length > 1
-      ? query.in('hubspot_raw->>teleprospecteur', vals)
-      : query.eq('hubspot_raw->>teleprospecteur', teleproHsId)
-  }
-  if (teleproNot) {
-    const vals = splitMulti(teleproNot)
-    if (vals.length > 1) {
-      query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.not.in.(${vals.join(',')})`)
-    } else {
-      query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.neq.${teleproNot}`)
-    }
-  }
-  if (withTelepro) {
-    query = query.not('hubspot_raw->>teleprospecteur', 'is', null)
-  }
-  if (noTelepro) {
-    query = query.is('hubspot_raw->>teleprospecteur', null)
-  }
-  // Exclusion équipe externe (telepro du contact, en plus de owner)
-  if (!showExternal && excludedUserIds.length > 0) {
-    query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.not.in.(${excludedUserIds.join(',')})`)
   }
 
   // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
