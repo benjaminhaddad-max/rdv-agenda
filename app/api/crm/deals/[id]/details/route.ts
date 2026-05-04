@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { CONTACT_DETAIL_COLS, DEAL_DETAIL_COLS } from '@/lib/crm-columns'
 
 /**
  * GET /api/crm/deals/[id]/details
@@ -12,11 +13,12 @@ export async function GET(
   const db = createServiceClient()
   const { id: dealId } = await params
 
-  const { data: deal, error } = await db
+  const { data: dealRaw, error } = await db
     .from('crm_deals')
-    .select('*')
+    .select(DEAL_DETAIL_COLS)
     .eq('hubspot_deal_id', dealId)
     .maybeSingle()
+  const deal = dealRaw as Record<string, unknown> | null
 
   if (error || !deal) {
     return NextResponse.json({ error: 'Deal introuvable' }, { status: 404 })
@@ -27,10 +29,10 @@ export async function GET(
   if (deal.hubspot_contact_id) {
     const { data } = await db
       .from('crm_contacts')
-      .select('*')
-      .eq('hubspot_contact_id', deal.hubspot_contact_id)
+      .select(CONTACT_DETAIL_COLS)
+      .eq('hubspot_contact_id', deal.hubspot_contact_id as string)
       .maybeSingle()
-    contact = data
+    contact = data as Record<string, unknown> | null
   }
 
   // RDV lié
@@ -39,7 +41,7 @@ export async function GET(
     const { data } = await db
       .from('rdv_appointments')
       .select('id, start_at, end_at, status, prospect_name, prospect_phone, prospect_email, notes, commercial_id')
-      .eq('id', deal.supabase_appt_id)
+      .eq('id', deal.supabase_appt_id as string)
       .maybeSingle()
     appointment = data
   }

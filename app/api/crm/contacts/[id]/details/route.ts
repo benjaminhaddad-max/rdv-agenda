@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { CONTACT_DETAIL_COLS, DEAL_DETAIL_COLS } from '@/lib/crm-columns'
 
 /**
  * GET /api/crm/contacts/[id]/details
@@ -20,11 +21,14 @@ export async function GET(
   const { id: contactId } = await params
 
   // 1. Contact (séquentiel — il faut savoir s'il existe + récupérer l'email)
-  const { data: contact, error: contactErr } = await db
+  // Colonnes explicites au lieu de select('*') pour éviter de charger
+  // hubspot_raw (5-10 KB de JSONB inutile sur le wire)
+  const { data: contactRaw, error: contactErr } = await db
     .from('crm_contacts')
-    .select('*')
+    .select(CONTACT_DETAIL_COLS)
     .eq('hubspot_contact_id', contactId)
     .maybeSingle()
+  const contact = contactRaw as Record<string, unknown> | null
 
   if (contactErr || !contact) {
     return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
@@ -49,7 +53,7 @@ export async function GET(
     tasks,
     emailEvents,
   ] = await Promise.all([
-    db.from('crm_deals').select('*')
+    db.from('crm_deals').select(DEAL_DETAIL_COLS)
       .eq('hubspot_contact_id', contactId)
       .order('createdate', { ascending: false }),
 
@@ -70,10 +74,10 @@ export async function GET(
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(100)),
 
-    contact.email
+    contact?.email
       ? safeRows(db.from('email_events')
           .select('event_type, occurred_at, event_data')
-          .eq('email', contact.email)
+          .eq('email', contact.email as string)
           .order('occurred_at', { ascending: false })
           .limit(500))
       : Promise.resolve([] as Array<Record<string, unknown>>),

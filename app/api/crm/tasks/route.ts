@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { TASK_COLS } from '@/lib/crm-columns'
 
 /**
  * GET /api/crm/tasks
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const due     = searchParams.get('due') ?? 'all'
   const limit   = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 500)
 
-  let q = db.from('crm_tasks').select('*').limit(limit)
+  let q = db.from('crm_tasks').select(TASK_COLS).limit(limit)
 
   if (owner)   q = q.eq('owner_id', owner)
   if (contact) q = q.eq('hubspot_contact_id', contact)

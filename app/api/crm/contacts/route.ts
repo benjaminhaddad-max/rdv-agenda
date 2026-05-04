@@ -475,11 +475,24 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Recherche textuelle
+  // Recherche textuelle.
+  // Active CRM_FTS_ENABLED=1 dans Vercel APRÈS avoir appliqué la migration v20
+  // (search_vector + GIN index). Sinon on garde le fallback ilike + trgm de v11.
   if (search) {
-    query = query.or(
-      `firstname.ilike.%${search}%,lastname.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-    )
+    const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
+    if (safeSearch) {
+      if (process.env.CRM_FTS_ENABLED === '1') {
+        // websearch supporte "phrase exacte", -exclusion, OR — plus robuste
+        query = query.textSearch('search_vector', safeSearch, {
+          type: 'websearch',
+          config: 'simple',
+        })
+      } else {
+        query = query.or(
+          `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
+        )
+      }
+    }
   }
 
   // Filtre par propriétaire du contact (view télépro)
