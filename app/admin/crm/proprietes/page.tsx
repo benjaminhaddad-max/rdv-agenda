@@ -49,6 +49,24 @@ export default function ProprietesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [doneMessage, setDoneMessage] = useState<string | null>(null)
   const [detail, setDetail] = useState<Property | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  async function resyncFromHubSpot() {
+    if (!confirm(`Re-synchroniser toutes les propriétés ${object} depuis HubSpot ? Met à jour notamment les options (valeurs prédéfinies).`)) return
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/crm/properties/sync?object=${object}`, { method: 'POST' })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      setDoneMessage(`Re-sync OK : ${j.total} propriétés (${j.with_options} avec options)`)
+      load()
+      setTimeout(() => setDoneMessage(null), 5000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -99,17 +117,31 @@ export default function ProprietesPage() {
               Toutes les propriétés (contacts / deals) — synchronisées depuis HubSpot ou créées en interne.
             </p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            style={{
-              padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-              color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            <Plus size={14} /> Nouvelle propriété
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={resyncFromHubSpot}
+              disabled={syncing}
+              style={{
+                padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd6e2',
+                background: '#fff', color: '#516f90', fontSize: 13, fontWeight: 600,
+                cursor: syncing ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {syncing ? '⟳ Sync…' : '⟳ Re-sync HubSpot'}
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+                color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <Plus size={14} /> Nouvelle propriété
+            </button>
+          </div>
         </div>
 
         {/* Tabs object_type + search */}
