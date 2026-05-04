@@ -18,17 +18,16 @@
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- 1. Colonne search_vector calculée automatiquement
--- Inclut firstname, lastname, email, phone, company pour matcher les usages
--- les plus courants. Toutes les valeurs sont passées dans `unaccent` pour
--- ignorer les accents (français-friendly).
+-- Inclut firstname, lastname, email, phone pour matcher les usages les plus
+-- courants. Toutes les valeurs sont passées dans `unaccent` pour ignorer les
+-- accents (français-friendly).
 ALTER TABLE crm_contacts
   ADD COLUMN IF NOT EXISTS search_vector tsvector
   GENERATED ALWAYS AS (
     setweight(to_tsvector('simple', unaccent(coalesce(firstname, ''))), 'A') ||
     setweight(to_tsvector('simple', unaccent(coalesce(lastname, ''))), 'A') ||
     setweight(to_tsvector('simple', unaccent(coalesce(email, ''))), 'B') ||
-    setweight(to_tsvector('simple', unaccent(coalesce(phone, ''))), 'C') ||
-    setweight(to_tsvector('simple', unaccent(coalesce(company, ''))), 'D')
+    setweight(to_tsvector('simple', unaccent(coalesce(phone, ''))), 'C')
   ) STORED;
 
 -- 2. Index GIN sur le tsvector (le seul index pertinent pour la recherche)
@@ -48,5 +47,5 @@ NOTIFY pgrst, 'reload schema';
 -- websearch convertit "Benjamin Dupont" en `benjamin & dupont` correctement,
 -- accepte les guillemets pour phrase exacte, etc.
 --
--- Les poids A/B/C/D donnent priorité à firstname/lastname > email > phone
--- > company. Permet un tri par pertinence avec ts_rank côté SQL.
+-- Les poids A/B/C donnent priorité à firstname/lastname > email > phone.
+-- Permet un tri par pertinence avec ts_rank côté SQL.
