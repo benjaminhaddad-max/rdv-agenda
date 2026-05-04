@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle,
 } from 'lucide-react'
 
 interface NavItem {
@@ -14,6 +14,7 @@ interface NavItem {
   href: string
   icon: typeof Users
   external?: boolean // ouvre dans un nouvel onglet
+  badgeKey?: 'errors' // clé pour afficher un badge de notif
 }
 
 interface NavSection {
@@ -57,6 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { key: 'dashboard', label: 'Dashboard',  href: '/admin',           icon: LayoutDashboard },
       { key: 'agenda',    label: 'Mon agenda', href: '/closer',          icon: Calendar },
+      { key: 'errors',    label: 'Erreurs',    href: '/admin/errors',    icon: AlertTriangle, badgeKey: 'errors' },
       { key: 'migration', label: 'Migration',  href: '/admin/migration', icon: Rocket },
     ],
   },
@@ -78,12 +80,35 @@ const COLORS = {
 export default function CRMSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [errorCount, setErrorCount] = useState<number>(0)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const stored = localStorage.getItem('crm-sidebar-collapsed')
     if (stored === 'true') setCollapsed(true)
   }, [])
+
+  // Fetch le compte d'erreurs non résolues toutes les 60 sec.
+  // Best-effort : si l'endpoint répond mal, on garde la valeur précédente.
+  useEffect(() => {
+    let cancelled = false
+    async function fetchCount() {
+      try {
+        const res = await fetch('/api/admin/errors?resolved=0&limit=1', { cache: 'no-store' })
+        if (!res.ok) return
+        const j = await res.json()
+        if (!cancelled) setErrorCount(typeof j.total === 'number' ? j.total : 0)
+      } catch { /* ignore */ }
+    }
+    fetchCount()
+    const id = setInterval(fetchCount, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  const badgeFor = (key?: string): number => {
+    if (key === 'errors') return errorCount
+    return 0
+  }
 
   const toggleCollapse = () => {
     const next = !collapsed
@@ -178,13 +203,14 @@ export default function CRMSidebar() {
                 {section.items.map(item => {
                   const active = isActive(item.href)
                   const Icon = item.icon
+                  const badge = badgeFor(item.badgeKey)
                   return (
                     <a
                       key={item.key}
                       href={item.href}
                       target={item.external ? '_blank' : undefined}
                       rel={item.external ? 'noopener noreferrer' : undefined}
-                      title={collapsed ? item.label : undefined}
+                      title={collapsed ? `${item.label}${badge > 0 ? ` (${badge})` : ''}` : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -200,6 +226,7 @@ export default function CRMSidebar() {
                         fontWeight: active ? 600 : 500,
                         transition: 'all .12s',
                         justifyContent: collapsed ? 'center' : 'flex-start',
+                        position: 'relative',
                       }}
                       onMouseEnter={e => {
                         if (!active) e.currentTarget.style.background = COLORS.bgAlt
@@ -208,19 +235,60 @@ export default function CRMSidebar() {
                         if (!active) e.currentTarget.style.background = 'transparent'
                       }}
                     >
-                      <Icon
-                        size={16}
-                        strokeWidth={2}
-                        style={{
-                          color: active ? COLORS.accent : COLORS.textLight,
-                          flexShrink: 0,
-                        }}
-                      />
+                      <div style={{ position: 'relative', flexShrink: 0, display: 'flex' }}>
+                        <Icon
+                          size={16}
+                          strokeWidth={2}
+                          style={{
+                            color: active ? COLORS.accent : COLORS.textLight,
+                          }}
+                        />
+                        {/* Badge en mode collapsed : pastille rouge sur l'icône */}
+                        {collapsed && badge > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: -5,
+                            right: -7,
+                            background: COLORS.danger,
+                            color: '#fff',
+                            fontSize: 9,
+                            fontWeight: 700,
+                            minWidth: 14,
+                            height: 14,
+                            padding: '0 3px',
+                            borderRadius: 7,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                          }}>
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        )}
+                      </div>
                       {!collapsed && (
                         <>
                           <span style={{ whiteSpace: 'nowrap', flex: 1 }}>{item.label}</span>
                           {item.external && (
                             <ExternalLink size={11} style={{ color: COLORS.textLight, flexShrink: 0, opacity: 0.6 }} />
+                          )}
+                          {badge > 0 && (
+                            <span style={{
+                              background: COLORS.danger,
+                              color: '#fff',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              minWidth: 18,
+                              height: 18,
+                              padding: '0 6px',
+                              borderRadius: 9,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}>
+                              {badge > 99 ? '99+' : badge}
+                            </span>
                           )}
                         </>
                       )}
