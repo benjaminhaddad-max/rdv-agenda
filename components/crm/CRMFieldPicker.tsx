@@ -20,6 +20,25 @@ export type CrmPropertyMeta = {
   options: Array<{ label: string; value: string }> | null
 }
 
+/**
+ * Mapping nom HubSpot → clé du filtre hardcodé.
+ * Permet à un user qui choisit "teleprospecteur" dans la liste des 829 props
+ * de tomber automatiquement sur le filtre natif "telepro" (qui filtre la
+ * bonne colonne et est totalement supporté côté API).
+ */
+const HUBSPOT_NAME_TO_FILTER_KEY: Record<string, string> = {
+  teleprospecteur:     'telepro',
+  classe_actuelle:     'classe',
+  formation_souhaitee: 'formation',
+  hs_lead_status:      'lead_status',
+  origine:             'source',
+  zone_localite:       'zone',
+  hubspot_owner_id:    'contact_owner',
+  closer_hs_id:        'closer',
+  contact_owner_hs_id: 'contact_owner',
+  // pipeline, departement → noms identiques aux clés hardcodées
+}
+
 export function CRMFieldPicker({
   value,
   onChange,
@@ -68,7 +87,9 @@ export function CRMFieldPicker({
   const hardcodedNames = useMemo(() => new Set(CRM_FILTER_FIELDS.map(f => f.key as string)), [])
   const otherProps = useMemo(() => {
     const filtered = crmProps.filter(p =>
+      // Exclut les props qui correspondent à un filtre hardcodé (par alias HubSpot)
       !hardcodedNames.has(p.name) &&
+      !HUBSPOT_NAME_TO_FILTER_KEY[p.name] &&
       (!q || p.label.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || (p.group_name || '').toLowerCase().includes(q))
     )
     const grouped: Record<string, CrmPropertyMeta[]> = {}
