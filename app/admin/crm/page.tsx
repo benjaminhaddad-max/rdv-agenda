@@ -26,6 +26,7 @@ import {
 } from '@/lib/crm-views'
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect } from '@/components/crm/CRMSelects'
 import ExportCSVModal from '@/components/crm/CRMExportModal'
+import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -209,6 +210,10 @@ export default function CRMPage() {
   // pour avoir TOUTES les valeurs possibles dans les dropdowns Propriétaire
   const [hubspotOwners, setHubspotOwners] = useState<Array<{ hubspot_owner_id: string; firstname?: string; lastname?: string; email?: string }>>([])
 
+  // Toutes les 829 propriétés CRM contacts — utilisées pour le picker des
+  // filtres avancés (permet de filtrer sur n'importe quelle prop, pas que les 14)
+  const [allCrmProps, setAllCrmProps] = useState<CrmPropertyMeta[]>([])
+
   // Options dynamiques depuis HubSpot (valeurs réelles)
   const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts du lead' }])
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
@@ -300,6 +305,10 @@ export default function CRMPage() {
     // pour alimenter complètement les dropdowns "Propriétaire du contact"
     fetch('/api/crm/owners').then(r => r.json()).then(d => {
       if (Array.isArray(d.owners)) setHubspotOwners(d.owners)
+    }).catch(() => {})
+    // Charger les 829 propriétés contacts pour le picker des filtres avancés
+    fetch('/api/crm/properties?object=contacts&limit=2000').then(r => r.json()).then(d => {
+      if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
     // Charger les valeurs réelles HubSpot pour statut lead + origine
     fetch('/api/crm/field-options').then(r => r.json()).then(d => {
@@ -1484,9 +1493,16 @@ export default function CRMPage() {
                         {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
                           <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
-                          <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField })} style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
-                            {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                          </select>
+                          <CRMFieldPicker
+                            value={rule.field}
+                            onChange={(field) => updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: 'is', value: '' })}
+                            crmProps={allCrmProps}
+                          />
+                          {isCustomField(rule.field) && (
+                            <div style={{ fontSize: 10, color: '#94a3b8', padding: '0 4px' }}>
+                              Filtre custom — pour appliquer ce filtre dans la liste, utilise pour l&apos;instant la page <a href="/admin/crm/recherche-prop" style={{ color: '#2ea3f2', textDecoration: 'underline' }}>Recherche propriété</a>. Intégration directe à venir.
+                            </div>
+                          )}
                           <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                           </select>
