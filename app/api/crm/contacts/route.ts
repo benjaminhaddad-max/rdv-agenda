@@ -140,7 +140,9 @@ export async function GET(req: NextRequest) {
   const splitMulti = (v: string) => v.split(',').filter(Boolean)
 
   // A) Filtres positifs deal
-  const hasDealFilter = !!(stage || closerHsId || teleproHsId || formation || withTelepro || pipeline || pipelineNot || priorPreinscription)
+  // Note: teleproHsId, withTelepro, noTelepro, teleproNot ne passent plus par les deals
+  // mais directement sur la colonne native crm_contacts.telepro_user_id (independance HubSpot).
+  const hasDealFilter = !!(stage || closerHsId || formation || pipeline || pipelineNot || priorPreinscription)
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
@@ -162,10 +164,6 @@ export async function GET(req: NextRequest) {
         const closers = splitMulti(closerHsId)
         q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
       }
-      if (teleproHsId) {
-        const telepros = splitMulti(teleproHsId)
-        q = telepros.length > 1 ? q.in('teleprospecteur', telepros) : q.eq('teleprospecteur', teleproHsId)
-      }
       if (formation) {
         const formations = splitMulti(formation)
         q = formations.length > 1 ? q.in('formation', formations) : q.eq('formation', formation)
@@ -185,16 +183,13 @@ export async function GET(req: NextRequest) {
       if (priorPreinscription && priorIds.length > 0) {
         q = q.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
       }
-      if (withTelepro) q = q.not('teleprospecteur', 'is', null)
-      if (!showExternal && excludedUserIds.length > 0) {
-        q = q.not('teleprospecteur', 'in', `(${excludedUserIds.join(',')})`)
-      }
       return q
     })
   }
 
-  // A-bis) Exclusion deal filters (stage_not, closer_not, telepro_not, formation_not)
-  const hasDealExclusion = !!(stageNot || closerNot || teleproNot || formationNot)
+  // A-bis) Exclusion deal filters (stage_not, closer_not, formation_not)
+  // teleproNot ne passe plus par les deals (filtre direct sur telepro_user_id)
+  const hasDealExclusion = !!(stageNot || closerNot || formationNot)
   let excludeByDealFilter: string[] = []
 
   if (hasDealExclusion) {
@@ -207,10 +202,6 @@ export async function GET(req: NextRequest) {
         const vals = splitMulti(closerNot)
         q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', closerNot)
       }
-      if (teleproNot) {
-        const vals = splitMulti(teleproNot)
-        q = vals.length > 1 ? q.in('teleprospecteur', vals) : q.eq('teleprospecteur', teleproNot)
-      }
       if (formationNot) {
         const vals = splitMulti(formationNot)
         q = vals.length > 1 ? q.in('formation', vals) : q.eq('formation', formationNot)
@@ -219,38 +210,9 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // B) noTelepro → contacts à exclure (ont un deal avec télépro renseigné)
-  let excludeByTelepro: string[] = []
-  if (noTelepro) {
-    excludeByTelepro = await fetchAllDealContactIds(q =>
-      q.not('teleprospecteur', 'is', null)
-    )
-  }
-
-  // C) Exclusion équipe externe sur le télépro ET le closer du deal
-  let excludeByExternalTelepro: string[] = []
-  if (!showExternal && !hasDealFilter) {
-    // Exclure les contacts dont le deal a un télépro OU un closer de l'équipe externe
-    const hasUserIds = excludedUserIds.length > 0
-    const hasOwnerIds = excludedOwnerIds.length > 0
-    if (hasUserIds || hasOwnerIds) {
-      excludeByExternalTelepro = await fetchAllDealContactIds(q => {
-        // Build OR: teleprospecteur IN excludedUserIds OR hubspot_owner_id IN excludedOwnerIds
-        const orParts: string[] = []
-        if (hasUserIds) {
-          orParts.push(excludedUserIds.length === 1
-            ? `teleprospecteur.eq.${excludedUserIds[0]}`
-            : `teleprospecteur.in.(${excludedUserIds.join(',')})`)
-        }
-        if (hasOwnerIds) {
-          orParts.push(excludedOwnerIds.length === 1
-            ? `hubspot_owner_id.eq.${excludedOwnerIds[0]}`
-            : `hubspot_owner_id.in.(${excludedOwnerIds.join(',')})`)
-        }
-        return q.or(orParts.join(','))
-      })
-    }
-  }
+  // B) noTelepro / withTelepro / exclusion equipe externe :
+  //    plus de pre-fetch via deals — filtres directs sur crm_contacts.telepro_user_id
+  //    appliques en aval sur la query principale.
 
   // D) Empty / not-empty filters on deal-level fields
   // Deal fields: stage, closer, telepro, formation
@@ -320,7 +282,7 @@ export async function GET(req: NextRequest) {
       `hubspot_contact_id, firstname, lastname, email, phone,
        departement, classe_actuelle, zone_localite,
        formation_demandee, formation_souhaitee, contact_createdate,
-       hubspot_owner_id, recent_conversion_date, recent_conversion_event,
+       hubspot_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
        hs_lead_status, origine,
        crm_deals (
          hubspot_deal_id, dealstage, pipeline, formation,
@@ -362,22 +324,34 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // noTelepro → NOT IN (batched)
-  if (noTelepro && excludeByTelepro.length > 0) {
-    const BATCH = 5000
-    for (let i = 0; i < excludeByTelepro.length; i += BATCH) {
-      const batch = excludeByTelepro.slice(i, i + BATCH)
-      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+  // Filtre Telepro (positif) — colonne native crm_contacts.telepro_user_id
+  if (teleproHsId) {
+    const vals = splitMulti(teleproHsId)
+    query = vals.length > 1
+      ? query.in('telepro_user_id', vals)
+      : query.eq('telepro_user_id', teleproHsId)
+  }
+
+  // Filtre Telepro (exclusion) — inclut les contacts sans telepro (NULL),
+  // comme HubSpot : un contact sans telepro "n'est pas Pascal", donc il matche.
+  if (teleproNot) {
+    const vals = splitMulti(teleproNot)
+    if (vals.length > 1) {
+      query = query.or(`telepro_user_id.is.null,telepro_user_id.not.in.(${vals.join(',')})`)
+    } else {
+      query = query.or(`telepro_user_id.is.null,telepro_user_id.neq.${teleproNot}`)
     }
   }
 
-  // External telepro → NOT IN (batched for large sets)
-  if (excludeByExternalTelepro.length > 0) {
-    const BATCH = 5000
-    for (let i = 0; i < excludeByExternalTelepro.length; i += BATCH) {
-      const batch = excludeByExternalTelepro.slice(i, i + BATCH)
-      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
-    }
+  // withTelepro = a un telepro renseigne
+  if (withTelepro) query = query.not('telepro_user_id', 'is', null)
+
+  // noTelepro = pas de telepro renseigne
+  if (noTelepro) query = query.is('telepro_user_id', null)
+
+  // Exclusion equipe externe sur le telepro du contact (natif)
+  if (!showExternal && excludedUserIds.length > 0) {
+    query = query.or(`telepro_user_id.is.null,telepro_user_id.not.in.(${excludedUserIds.join(',')})`)
   }
 
   // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN (batched)
@@ -605,9 +579,10 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deal         = (c.crm_deals as any[])?.[0] ?? null
     const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
-    // teleprospecteur stocke le hubspot_owner_id du télépro (propriété HubSpot de type "owner")
-    const telepro      = deal?.teleprospecteur  ? (userByOwnerId[deal.teleprospecteur] ?? userByUserId[deal.teleprospecteur] ?? null) : null
-    const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]    ?? null : null
+    // Telepro = colonne native crm_contacts.telepro_user_id (independance HubSpot).
+    // Resolution via userByUserId puis fallback userByOwnerId pour couvrir les 2 conventions.
+    const telepro      = c.telepro_user_id      ? (userByUserId[c.telepro_user_id]    ?? userByOwnerId[c.telepro_user_id]   ?? null) : null
+    const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]   ?? null : null
 
     return {
       hubspot_contact_id:      c.hubspot_contact_id,
@@ -622,12 +597,13 @@ export async function GET(req: NextRequest) {
       formation_souhaitee:     c.formation_souhaitee,
       contact_createdate:      c.contact_createdate,
       hubspot_owner_id:        c.hubspot_owner_id,
+      telepro_user_id:         c.telepro_user_id ?? null,
       recent_conversion_date:  c.recent_conversion_date,
       recent_conversion_event: c.recent_conversion_event,
       hs_lead_status:          c.hs_lead_status,
       origine:                 c.origine,
-      teleprospecteur:         c.teleprospecteur ?? null,
       contact_owner:           contactOwner,
+      telepro,
       deal: deal ? {
         hubspot_deal_id:  deal.hubspot_deal_id,
         dealstage:        deal.dealstage,
@@ -638,7 +614,7 @@ export async function GET(req: NextRequest) {
         hubspot_owner_id: deal.hubspot_owner_id,
         teleprospecteur:  deal.teleprospecteur,
         closer,
-        telepro,
+        telepro,  // retro-compat avec front qui lit deal.telepro
       } : null,
     }
   })
