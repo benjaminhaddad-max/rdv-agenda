@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -182,7 +183,7 @@ export async function POST(req: Request, { params }: Params) {
         contactId = created.hubspot_contact_id
         contactCreated = true
       } else if (cErr) {
-        console.error('Form submit — contact create error:', cErr)
+        logger.error('forms-submit-create-contact', cErr, { form_id: form.id, email: data.email })
       }
     }
   }
@@ -215,6 +216,7 @@ export async function POST(req: Request, { params }: Params) {
     .single()
 
   if (sErr) {
+    logger.error('forms-submit-insert', sErr, { form_id: form.id })
     return NextResponse.json(
       { error: "Erreur lors de l'enregistrement de la soumission" },
       { status: 500, headers: CORS_HEADERS }
@@ -251,7 +253,9 @@ export async function POST(req: Request, { params }: Params) {
         }
       }
     } catch (e) {
-      console.error('[forms/submit] workflow trigger failed:', e)
+      logger.error('forms-submit-workflow-trigger', e, {
+        form_id: form.id, contact_id: contactId, submission_id: submission.id,
+      })
     }
   }
 

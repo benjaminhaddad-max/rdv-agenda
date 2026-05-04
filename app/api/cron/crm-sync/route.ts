@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners } from '@/lib/hubspot'
+import { logger } from '@/lib/logger'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
 
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : String(err)
-      console.error('[crm-sync] Chunk error:', errorMessage)
+      logger.error('crm-sync-chunk', err)
     }
 
     const durationMs = Date.now() - startMs
@@ -342,7 +343,7 @@ export async function GET(req: NextRequest) {
           await db.from('crm_owners').upsert(ownerRows, { onConflict: 'hubspot_owner_id' })
         }
       } catch (e) {
-        console.error('[crm-sync] Phase 7 metadata error:', e)
+        logger.error('crm-sync-phase7-metadata', e)
       }
     }
 
@@ -380,7 +381,9 @@ export async function GET(req: NextRequest) {
               .upsert(rows, { onConflict: 'hubspot_engagement_id', ignoreDuplicates: false })
           }
         } catch (e) {
-          console.error('[crm-sync] engagements error for', cid, e)
+          logger.warn('crm-sync-engagements', `engagements error for contact ${cid}`, {
+            contact_id: cid, error: e instanceof Error ? e.message : String(e),
+          })
         }
 
         // Form submissions
@@ -405,17 +408,19 @@ export async function GET(req: NextRequest) {
               })
           }
         } catch (e) {
-          console.error('[crm-sync] forms error for', cid, e)
+          logger.warn('crm-sync-forms', `forms error for contact ${cid}`, {
+            contact_id: cid, error: e instanceof Error ? e.message : String(e),
+          })
         }
       }
     } catch (e) {
-      console.error('[crm-sync] Phase 8 activities/forms error:', e)
+      logger.error('crm-sync-phase8', e)
     }
 
   } catch (err) {
     const rawMsg = err instanceof Error ? err.message : String(err)
     errorMessage = `[Phase ${currentPhase}] ${rawMsg}`
-    console.error('[crm-sync] Error:', errorMessage)
+    logger.error('crm-sync-fatal', err, { phase: currentPhase })
   }
 
   const durationMs = Date.now() - startMs
@@ -426,6 +431,9 @@ export async function GET(req: NextRequest) {
     duration_ms:       durationMs,
     error_message:     errorMessage,
   })
+
+  // Flush les logs avant de retourner
+  await logger.flush()
 
   return NextResponse.json({
     ok:                 !errorMessage,

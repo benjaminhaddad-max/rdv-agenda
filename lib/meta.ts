@@ -484,7 +484,10 @@ export async function processMetaLead(
         }
       }
     } catch (e) {
-      console.error('[meta] workflow trigger failed:', e)
+      const { logger } = await import('@/lib/logger')
+      logger.error('meta-workflow-trigger', e, {
+        contact_id: contactId, form_id: lead.form_id, page_id: pageId,
+      })
     }
   }
 

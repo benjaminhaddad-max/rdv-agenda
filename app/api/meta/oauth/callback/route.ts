@@ -8,6 +8,7 @@ import {
   fetchUserAdAccounts,
   metaConfigured,
 } from '@/lib/meta'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/meta/oauth/callback
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
     try {
       adAccounts = await fetchUserAdAccounts(userToken)
     } catch (e) {
-      console.error('[meta] fetchUserAdAccounts failed:', e)
+      logger.error('meta-oauth-fetch-ad-accounts', e, { user_id: profile.id })
     }
 
     if (pages.length === 0 && adAccounts.length === 0) {
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
           connected_at: nowIso,
         }, { onConflict: 'account_id' })
       } catch (e) {
-        console.error('[meta] upsert ad account failed:', e)
+        logger.error('meta-oauth-upsert-ad-account', e, { account_id: a.account_id, name: a.name })
       }
     }
 
@@ -106,6 +107,8 @@ export async function GET(req: NextRequest) {
     res.cookies.delete('meta_oauth_state')
     return res
   } catch (e) {
+    logger.error('meta-oauth-callback', e)
+    await logger.flush()
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.redirect(`${origin}/admin/crm/meta-ads?error=${encodeURIComponent(msg)}`)
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchLeadById, processMetaLead, type MetaLead } from '@/lib/meta'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/meta/webhook — vérification du webhook par Meta (challenge response)
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
       try {
         lead = await fetchLeadById(leadgenId, pageRow.access_token)
       } catch (err) {
+        logger.error('meta-webhook-fetch-lead', err, {
+          leadgen_id: leadgenId, page_id: pageId, form_id: v.form_id,
+        })
         await db.from('meta_lead_events').insert({
           leadgen_id: leadgenId,
           page_id: pageId,
@@ -121,6 +125,13 @@ export async function POST(req: NextRequest) {
       // Process : crée/maj le contact
       const result = await processMetaLead(lead, pageId, formMeta || undefined)
 
+      if (result.error) {
+        logger.error('meta-webhook-process-lead', result.error, {
+          leadgen_id: leadgenId, page_id: pageId, form_id: lead.form_id,
+          field_data: lead.field_data,
+        })
+      }
+
       // Enregistre l'event
       await db.from('meta_lead_events').insert({
         leadgen_id: leadgenId,
@@ -139,6 +150,9 @@ export async function POST(req: NextRequest) {
       })
     }
   }
+
+  // Flush les logs avant que la fonction serverless meurt
+  await logger.flush()
 
   // Meta exige un 200 OK rapide sinon retry
   return NextResponse.json({ ok: true })
