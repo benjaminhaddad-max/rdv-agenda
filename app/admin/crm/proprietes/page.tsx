@@ -257,6 +257,30 @@ export default function ProprietesPage() {
 
 // ─── Modal détail propriété (read-only) ────────────────────────────────────
 function PropertyDetailModal({ property, onClose }: { property: Property; onClose: () => void }) {
+  const [actualValues, setActualValues] = useState<Array<{ value: string; count: number }> | null>(null)
+  const [valuesLoading, setValuesLoading] = useState(true)
+  const [valuesSource, setValuesSource] = useState<string>('')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/crm/properties/${encodeURIComponent(property.name)}/values?object=${property.object_type}`)
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return
+        setActualValues(j.values || [])
+        setValuesSource(j.source || '')
+        setValuesLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setActualValues([])
+        setValuesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [property.name, property.object_type])
+
+  const totalCount = actualValues?.reduce((sum, v) => sum + Number(v.count), 0) || 0
+
   return (
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -301,11 +325,11 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
             </div>
           )}
 
-          {/* Options (si enumeration) */}
-          {property.options && property.options.length > 0 ? (
-            <div>
+          {/* Options prédéfinies (si enumeration et synchro HubSpot a chargé les options) */}
+          {property.options && property.options.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
-                Valeurs possibles ({property.options.length})
+                Valeurs prédéfinies ({property.options.length})
               </div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
@@ -326,11 +350,55 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                 </table>
               </div>
             </div>
-          ) : (
-            <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #cbd6e2', borderRadius: 8 }}>
-              Cette propriété n&apos;a pas de valeurs prédéfinies (texte libre, nombre, date, etc.).
-            </div>
           )}
+
+          {/* Valeurs réellement utilisées en base */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+              Valeurs utilisées dans la base
+              {actualValues && actualValues.length > 0 && (
+                <span style={{ marginLeft: 6, fontWeight: 500, textTransform: 'none', color: '#94a3b8' }}>
+                  · {actualValues.length} distinctes · {totalCount.toLocaleString('fr-FR')} {property.object_type === 'deals' ? 'deals' : 'contacts'}
+                  {valuesSource === 'hubspot_raw' && ' · depuis hubspot_raw'}
+                </span>
+              )}
+            </div>
+            {valuesLoading ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Chargement…</div>
+            ) : !actualValues || actualValues.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #cbd6e2', borderRadius: 8 }}>
+                Aucune valeur trouvée. La propriété est peut-être vide partout, ou la migration v23
+                (RPC d&apos;extraction) n&apos;a pas été appliquée.
+              </div>
+            ) : (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 360, overflowY: 'auto' }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#fafbfc' }}>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Valeur</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: 110 }}>Nb {property.object_type === 'deals' ? 'deals' : 'contacts'}</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: 60 }}>%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actualValues.map((v, i) => (
+                      <tr key={i} style={{ borderBottom: i < actualValues.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                        <td style={{ padding: '8px 12px', fontFamily: v.value && v.value.length < 40 ? 'inherit' : 'monospace', wordBreak: 'break-all' }}>
+                          {v.value || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                          {Number(v.count).toLocaleString('fr-FR')}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                          {totalCount > 0 ? ((Number(v.count) / totalCount) * 100).toFixed(1) : '0'}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* Note édition */}
           <div style={{
