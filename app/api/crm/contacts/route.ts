@@ -469,33 +469,84 @@ export async function GET(req: NextRequest) {
     query = vals.length > 1 ? query.in('hubspot_owner_id', vals) : query.eq('hubspot_owner_id', contactOwnerHsId)
   }
 
-  // Filtre TELEPRO sur la propriété CONTACT teleprospecteur (pas via deals).
-  // C'est aligne sur HubSpot ou "Teleprospecteur" est une prop contact, et donne
-  // les bons comptes (avant on filtrait via crm_deals.teleprospecteur, sous-comptait).
-  // Stocke l'ID user HubSpot : 29597800 = Pascal Tawfik, etc.
+  // Filtre TELEPRO sur la propriete CONTACT teleprospecteur (pas via deals).
+  // PostgREST .eq('hubspot_raw->>X', Y) ne marche pas de facon fiable, donc on
+  // passe par la RPC v24 crm_search_contacts_by_jsonb : elle retourne les IDs
+  // des contacts matchant, qu'on injecte ensuite dans .in() sur la query principale.
+  let teleproContactIds: string[] | null = null
+  let excludeByTeleproContact: string[] = []
+
+  async function resolveTeleproIds(values: string[]): Promise<string[]> {
+    const acc = new Set<string>()
+    for (const v of values) {
+      const { data } = await db.rpc('crm_search_contacts_by_jsonb', {
+        p_property: 'teleprospecteur',
+        p_operator: 'is',
+        p_value: v,
+        p_limit: 200000,
+        p_offset: 0,
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const row of (data ?? []) as Array<any>) {
+        if (row.hubspot_contact_id) acc.add(row.hubspot_contact_id)
+      }
+    }
+    return Array.from(acc)
+  }
+
   if (teleproHsId) {
-    const vals = splitMulti(teleproHsId)
-    query = vals.length > 1
-      ? query.in('hubspot_raw->>teleprospecteur', vals)
-      : query.eq('hubspot_raw->>teleprospecteur', teleproHsId)
+    teleproContactIds = await resolveTeleproIds(splitMulti(teleproHsId))
   }
   if (teleproNot) {
-    const vals = splitMulti(teleproNot)
-    if (vals.length > 1) {
-      query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.not.in.(${vals.join(',')})`)
-    } else {
-      query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.neq.${teleproNot}`)
-    }
+    excludeByTeleproContact = await resolveTeleproIds(splitMulti(teleproNot))
   }
   if (withTelepro) {
-    query = query.not('hubspot_raw->>teleprospecteur', 'is', null)
+    const { data } = await db.rpc('crm_search_contacts_by_jsonb', {
+      p_property: 'teleprospecteur', p_operator: 'is_not_empty', p_value: '', p_limit: 200000, p_offset: 0,
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ids = ((data ?? []) as Array<any>).map(r => r.hubspot_contact_id).filter(Boolean)
+    teleproContactIds = teleproContactIds ? teleproContactIds.filter(id => ids.includes(id)) : ids
   }
   if (noTelepro) {
-    query = query.is('hubspot_raw->>teleprospecteur', null)
+    const { data } = await db.rpc('crm_search_contacts_by_jsonb', {
+      p_property: 'teleprospecteur', p_operator: 'is_not_empty', p_value: '', p_limit: 200000, p_offset: 0,
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const idsToExclude = ((data ?? []) as Array<any>).map(r => r.hubspot_contact_id).filter(Boolean)
+    excludeByTeleproContact = [...excludeByTeleproContact, ...idsToExclude]
   }
-  // Exclusion équipe externe (telepro du contact, en plus de owner)
+  // Exclusion équipe externe (les contacts dont le télépro est dans excludedUserIds)
   if (!showExternal && excludedUserIds.length > 0) {
-    query = query.or(`hubspot_raw->>teleprospecteur.is.null,hubspot_raw->>teleprospecteur.not.in.(${excludedUserIds.join(',')})`)
+    const ids = await resolveTeleproIds(excludedUserIds)
+    excludeByTeleproContact = [...excludeByTeleproContact, ...ids]
+  }
+
+  // Application du filtre positif teleproContactIds → .in() sur main query
+  if (teleproContactIds !== null) {
+    if (teleproContactIds.length === 0) {
+      return NextResponse.json({ data: [], total: 0, page, limit })
+    }
+    if (teleproContactIds.length <= 5000) {
+      query = query.in('hubspot_contact_id', teleproContactIds)
+    } else {
+      const BATCH = 5000
+      const orParts: string[] = []
+      for (let i = 0; i < teleproContactIds.length; i += BATCH) {
+        const batch = teleproContactIds.slice(i, i + BATCH)
+        orParts.push(`hubspot_contact_id.in.(${batch.join(',')})`)
+      }
+      query = query.or(orParts.join(','))
+    }
+  }
+  // Exclusion telepro → NOT IN batched
+  if (excludeByTeleproContact.length > 0) {
+    const BATCH = 5000
+    const uniq = Array.from(new Set(excludeByTeleproContact))
+    for (let i = 0; i < uniq.length; i += BATCH) {
+      const batch = uniq.slice(i, i + BATCH)
+      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+    }
   }
 
   // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
