@@ -1,79 +1,111 @@
 /**
- * Logger central. Wrappe Sentry quand SENTRY_DSN est défini, sinon
- * console.* en local. Permet de remplacer les console.error éparpillés
- * (45+ occurrences dans le codebase) par un canal centralisé.
+ * Logger natif Diploma. Écrit dans la table Supabase crm_error_logs.
+ * Zéro dépendance externe — si Sentry/Datadog/etc tombent, on s'en fout.
+ *
+ * Visualisable dans /admin/errors.
  *
  * Usage :
  *   import { logger } from '@/lib/logger'
  *
  *   try { ... } catch (err) {
  *     logger.error('crm-sync', err, { contactId, formId })
- *     throw err  // ou return Response error
+ *     throw err
  *   }
  *
- *   logger.info('webhook-received', { source: 'meta', count: 3 })
- *   logger.warn('quota-near-limit', { remaining: 100 })
+ *   logger.warn('quota-near-limit', 'HubSpot daily quota at 90%', { remaining: 100 })
+ *   logger.info('webhook-received', 'meta lead reçu', { source: 'meta', count: 3 })
+ *
+ * Le logger est best-effort : si Supabase est down, on log juste en console
+ * et on ne bloque jamais l'appelant.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Sentry = any
-let sentry: Sentry | null = null
+import { createServiceClient } from './supabase'
 
-// Lazy import pour ne pas charger Sentry si DSN absent (dev local)
-async function getSentry(): Promise<Sentry | null> {
-  if (sentry !== null) return sentry
-  const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
-  if (!dsn) {
-    sentry = false
-    return null
-  }
+type LogLevel = 'error' | 'warn' | 'info'
+
+interface LogPayload {
+  level: LogLevel
+  label: string
+  message: string
+  stack?: string | null
+  context?: Record<string, unknown> | null
+  request_path?: string | null
+  request_method?: string | null
+}
+
+// Buffer pour éviter de spammer Supabase si beaucoup d'erreurs en même temps.
+// Flush toutes les 2 sec ou quand >20 entrées.
+const buffer: LogPayload[] = []
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+async function flush() {
+  flushTimer = null
+  if (buffer.length === 0) return
+  const batch = buffer.splice(0, buffer.length)
   try {
-    sentry = await import('@sentry/nextjs')
-    return sentry
-  } catch {
-    sentry = false
-    return null
+    const db = createServiceClient()
+    await db.from('crm_error_logs').insert(batch)
+  } catch (e) {
+    console.error('[logger] flush failed:', e instanceof Error ? e.message : e)
   }
 }
 
+function scheduleFlush() {
+  if (flushTimer) return
+  const delay = buffer.length >= 20 ? 0 : 2000
+  flushTimer = setTimeout(flush, delay)
+}
+
+function record(payload: LogPayload) {
+  if (process.env.NODE_ENV !== 'production') {
+    const prefix = `[${payload.level}][${payload.label}]`
+    if (payload.level === 'error') console.error(prefix, payload.message, payload.context || '')
+    else if (payload.level === 'warn') console.warn(prefix, payload.message, payload.context || '')
+    else console.log(prefix, payload.message, payload.context || '')
+  }
+  buffer.push(payload)
+  scheduleFlush()
+}
+
 export const logger = {
-  /** Erreur : envoyée à Sentry + console.error en local. */
+  /** Erreur runtime. */
   error(label: string, err: unknown, context?: Record<string, unknown>) {
     const errorObj = err instanceof Error ? err : new Error(String(err))
-    if (process.env.NODE_ENV !== 'production') {
-      console.error(`[${label}]`, errorObj.message, context || '')
-    }
-    getSentry().then(s => {
-      if (s?.captureException) {
-        s.captureException(errorObj, {
-          tags: { label },
-          extra: context,
-        })
-      }
+    record({
+      level: 'error',
+      label,
+      message: errorObj.message,
+      stack: errorObj.stack || null,
+      context: context || null,
     })
   },
 
-  /** Warning : Sentry breadcrumb + console.warn en local. */
+  /** Warning : situation anormale mais récupérable. */
   warn(label: string, message: string, context?: Record<string, unknown>) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`[${label}]`, message, context || '')
-    }
-    getSentry().then(s => {
-      if (s?.addBreadcrumb) {
-        s.addBreadcrumb({ category: label, message, level: 'warning', data: context })
-      }
+    record({
+      level: 'warn',
+      label,
+      message,
+      context: context || null,
     })
   },
 
-  /** Info : breadcrumb only (utile pour le contexte autour d'une erreur). */
-  info(label: string, context?: Record<string, unknown>) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[${label}]`, context || '')
-    }
-    getSentry().then(s => {
-      if (s?.addBreadcrumb) {
-        s.addBreadcrumb({ category: label, level: 'info', data: context })
-      }
+  /** Info : traçabilité (à utiliser avec parcimonie sinon ça inonde la table). */
+  info(label: string, message: string, context?: Record<string, unknown>) {
+    record({
+      level: 'info',
+      label,
+      message,
+      context: context || null,
     })
+  },
+
+  /** Force le flush immédiat (utile en fin de cron / serverless). */
+  async flush() {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    await flush()
   },
 }

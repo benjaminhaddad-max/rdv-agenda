@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { cached } from '@/lib/cache'
 
 /**
  * GET /api/crm/metadata
@@ -10,31 +11,19 @@ import { createServiceClient } from '@/lib/supabase'
  *  - owners                — 51 entrées
  *  - groups (contacts) calculés côté DB
  *
- * Ces données changent rarement → cache navigateur 5min + CDN 10min.
- * Avant : 950 KB renvoyés à CHAQUE ouverture de fiche.
- * Après : 1ère ouverture 950 KB, suivantes 0 KB (304 Not Modified).
+ * Cache 3 niveaux :
+ *  1. L1 : navigateur (Cache-Control 5min)
+ *  2. L2 : Redis Upstash si configuré, partagé entre tous les serverless Vercel
+ *  3. L3 : memory cache process (fallback si pas de Redis)
  */
 
-// Cache mémoire process — partagé avec details/route.ts via process global
-type CacheEntry<T> = { data: T; expiresAt: number }
-const cache: Record<string, CacheEntry<unknown>> = {}
-const TTL_MS = 5 * 60_000
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const now = Date.now()
-  const hit = cache[key]
-  if (hit && hit.expiresAt > now) return hit.data as T
-  const data = await fn()
-  cache[key] = { data, expiresAt: now + TTL_MS }
-  return data
-}
+const TTL_SECONDS = 300  // 5 minutes
 
 export async function GET() {
   const db = createServiceClient()
 
   const [properties, dealProperties, owners] = await Promise.all([
-    cached('properties_contacts', async () => {
+    cached('crm:metadata:properties_contacts', TTL_SECONDS, async () => {
       const { data } = await db
         .from('crm_properties')
         .select('name, label, description, group_name, type, field_type, options, display_order')
@@ -44,7 +33,7 @@ export async function GET() {
         .order('label', { ascending: true })
       return data ?? []
     }),
-    cached('properties_deals', async () => {
+    cached('crm:metadata:properties_deals', TTL_SECONDS, async () => {
       const { data } = await db
         .from('crm_properties')
         .select('name, label, options')
@@ -52,7 +41,7 @@ export async function GET() {
         .eq('archived', false)
       return data ?? []
     }),
-    cached('owners', async () => {
+    cached('crm:metadata:owners', TTL_SECONDS, async () => {
       const { data } = await db
         .from('crm_owners')
         .select('hubspot_owner_id, email, firstname, lastname, archived')
