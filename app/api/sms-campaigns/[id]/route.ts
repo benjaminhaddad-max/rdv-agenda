@@ -46,7 +46,13 @@ export async function PATCH(
     return NextResponse.json({ error: `Campagne ${existing.status}, modification impossible` }, { status: 400 })
   }
 
-  const allowed = ['name', 'message', 'sender', 'segment_ids', 'filters', 'manual_contact_ids', 'scheduled_at', 'status']
+  const allowed = [
+    'name', 'message', 'sender',
+    'campaign_type', 'shorten_links',
+    'segment_ids', 'filters', 'filter_groups', 'preset_flags',
+    'manual_contact_ids', 'manual_phones',
+    'scheduled_at', 'status',
+  ]
   const updates: Record<string, unknown> = {}
   for (const k of allowed) if (k in body) updates[k] = body[k]
 

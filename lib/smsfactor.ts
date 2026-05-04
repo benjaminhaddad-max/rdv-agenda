@@ -179,16 +179,37 @@ export const buildReminderSms = build48hSms
 
 // ─── Envoi SMS ───────────────────────────────────────────────────────────────
 
+export type SmsPushType = 'alert' | 'marketing'
+
+export interface SendSmsOptions {
+  /** Sender alphanumérique (max 11 chars). Doit être pré-validé chez SMS Factor. */
+  sender?: string
+  /**
+   * Type de SMS :
+   * - 'alert' (défaut) → SMS transactionnel (pas de fenêtre horaire, pas de mention STOP)
+   * - 'marketing' → SMS commercial (envoi 8h-20h L-S uniquement, mention STOP auto-ajoutée
+   *   par SMS Factor pour les senders personnalisés).
+   */
+  pushtype?: SmsPushType
+  /**
+   * Si fourni, bascule sur l'endpoint POST /send qui raccourcit les URLs.
+   * Le caller doit avoir remplacé les URLs par `<-short->` dans `text`,
+   * et fournir les URLs originales ici (dans l'ordre d'apparition).
+   */
+  shortenLinks?: { urls: string[] }
+}
+
 /**
  * Envoie un SMS via SMS Factor.
  *
- * @param sender Sender alphanumérique (max 11 chars). Si non fourni : DiploSante.
- *               Doit être pré-validé dans le dashboard SMS Factor.
+ * Surcharge legacy : `sendSms(to, text, 'DiploSante')` → équivalent à
+ * `sendSms(to, text, { sender: 'DiploSante' })`. Maintenue pour ne pas casser
+ * les flows transactionnels existants (build48hSms, build24hRelanceSms, etc.).
  */
 export async function sendSms(
   to: string,
   text: string,
-  sender?: string,
+  optsOrSender?: string | SendSmsOptions,
 ): Promise<{ ok: boolean; ticket?: string; error?: string }> {
   if (!SMS_FACTOR_TOKEN) {
     console.error('[smsfactor] SMSFACTOR_API_KEY manquant')
@@ -201,14 +222,53 @@ export async function sendSms(
     return { ok: false, error: `Numéro invalide : ${to}` }
   }
 
-  // Sanitize sender : max 11 chars alphanumériques
-  const cleanSender = (sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER
+  const opts: SendSmsOptions =
+    typeof optsOrSender === 'string' ? { sender: optsOrSender } : (optsOrSender ?? {})
+  const pushtype: SmsPushType = opts.pushtype ?? 'alert'
 
+  // Sanitize sender : max 11 chars alphanumériques
+  const cleanSender = (opts.sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER
+
+  // Branche raccourcissement de liens → POST /send (doc : send/short-url)
+  if (opts.shortenLinks && opts.shortenLinks.urls.length > 0) {
+    try {
+      const body = {
+        text,
+        value: formatted,
+        sender: cleanSender,
+        pushtype,
+        links: opts.shortenLinks.urls,
+      }
+      const res = await fetch('https://api.smsfactor.com/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SMS_FACTOR_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.status !== 1) {
+        const errMsg = data?.message ?? JSON.stringify(data)
+        console.error(`[smsfactor] Erreur envoi SMS (short) à ${formatted} : ${errMsg}`)
+        return { ok: false, error: errMsg }
+      }
+      console.log(`[smsfactor] SMS (short) envoyé à ${formatted} (ticket: ${data?.ticket})`)
+      return { ok: true, ticket: String(data?.ticket ?? '') }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[smsfactor] Exception (short) : ${message}`)
+      return { ok: false, error: message }
+    }
+  }
+
+  // Branche standard → GET /send
   const params = new URLSearchParams({
     text,
     to: formatted,
     sender: cleanSender,
-    pushtype: 'alert',
+    pushtype,
   })
 
   try {
@@ -228,11 +288,35 @@ export async function sendSms(
       return { ok: false, error: errMsg }
     }
 
-    console.log(`[smsfactor] SMS envoyé à ${formatted} (ticket: ${data?.ticket})`)
+    console.log(`[smsfactor] SMS envoyé à ${formatted} (ticket: ${data?.ticket}, pushtype: ${pushtype})`)
     return { ok: true, ticket: String(data?.ticket ?? '') }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[smsfactor] Exception : ${message}`)
     return { ok: false, error: message }
   }
+}
+
+/**
+ * Détecte les URLs (http/https) dans un texte.
+ * Utilisé par les campagnes pour activer le raccourcissement automatique.
+ */
+export function detectUrls(text: string): string[] {
+  const re = /https?:\/\/[^\s<>"']+/g
+  return text.match(re) ?? []
+}
+
+/**
+ * Remplace chaque URL d'un texte par le placeholder `<-short->` attendu par
+ * l'endpoint POST de SMS Factor. Retourne le texte transformé et la liste
+ * ordonnée des URLs originales (à passer en `links`).
+ */
+export function replaceUrlsWithShortPlaceholder(text: string): { text: string; urls: string[] } {
+  const urls: string[] = []
+  const re = /https?:\/\/[^\s<>"']+/g
+  const out = text.replace(re, (m) => {
+    urls.push(m)
+    return '<-short->'
+  })
+  return { text: out, urls }
 }
