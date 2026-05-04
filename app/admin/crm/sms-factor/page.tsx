@@ -217,7 +217,14 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
                 <span>{campaign.segments_used} segments</span>
               </>
             ) : (
-              <span>{targetingLabel}</span>
+              <>
+                <span>{targetingLabel}</span>
+                {campaign.status === 'scheduled' && campaign.scheduled_at && (
+                  <span style={{ color: '#f59e0b' }}>
+                    Programmée pour le {new Date(campaign.scheduled_at).toLocaleString('fr-FR')}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -284,6 +291,10 @@ function NewCampaignModal({ onClose, onCreated }: {
   const [sender, setSender] = useState('DiploSante')
   const [campaignType, setCampaignType] = useState<CampaignType>('alert')
   const [shortenLinks, setShortenLinks] = useState(false)
+
+  // Planification
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now')
+  const [scheduledAt, setScheduledAt] = useState('')  // datetime-local string
 
   // Ciblage
   const [mode, setMode] = useState<TargetingMode>('filters')
@@ -402,6 +413,15 @@ function NewCampaignModal({ onClose, onCreated }: {
     if (mode === 'phones' && phonesParsed.valid.length === 0) return setErr('Aucun numéro valide')
     if ((mode === 'filters' || mode === 'view') && filterGroups.length === 0) return setErr('Aucun filtre défini')
 
+    let scheduledIso: string | null = null
+    if (scheduleMode === 'later') {
+      if (!scheduledAt) return setErr('Date d\'envoi requise')
+      const d = new Date(scheduledAt)
+      if (isNaN(d.getTime())) return setErr('Date invalide')
+      if (d.getTime() <= Date.now()) return setErr('La date d\'envoi doit être dans le futur')
+      scheduledIso = d.toISOString()
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch('/api/sms-campaigns', {
@@ -416,6 +436,7 @@ function NewCampaignModal({ onClose, onCreated }: {
           filter_groups: mode === 'phones' ? [] : filterGroups,
           preset_flags: mode === 'phones' ? null : presetFlags,
           manual_phones: mode === 'phones' ? phonesParsed.valid : [],
+          scheduled_at: scheduledIso,
         }),
       })
       const j = await res.json()
@@ -521,6 +542,45 @@ function NewCampaignModal({ onClose, onCreated }: {
               </label>
             )}
           </Field>
+
+          {/* Planification */}
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+              Planification
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <TypePill
+                active={scheduleMode === 'now'}
+                onClick={() => setScheduleMode('now')}
+                label="Envoi immédiat"
+              />
+              <TypePill
+                active={scheduleMode === 'later'}
+                onClick={() => setScheduleMode('later')}
+                label="Programmer"
+              />
+            </div>
+            {scheduleMode === 'later' && (
+              <Field label="Date et heure d'envoi (Europe/Paris)">
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={e => setScheduledAt(e.target.value)}
+                  min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+                  style={input}
+                />
+                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                  La campagne sera envoyée automatiquement par le cron (vérifie toutes les minutes).
+                  {campaignType === 'marketing' && <> Marketing : envoi limité à 8h–20h L–S.</>}
+                </div>
+              </Field>
+            )}
+            {scheduleMode === 'now' && (
+              <div style={{ fontSize: 11, color: '#64748b' }}>
+                La campagne sera créée en brouillon. Clique « Envoyer » dans la liste pour déclencher l&apos;envoi.
+              </div>
+            )}
+          </div>
 
           {/* Ciblage */}
           <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>

@@ -27,6 +27,7 @@ import {
   type SelectOption,
 } from '@/lib/crm-constants'
 import { MultiSelectDropdown } from '@/components/crm/CRMSelects'
+import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 
 interface RdvUser {
   id: string
@@ -69,6 +70,7 @@ export default function CRMFilterBuilder({
   const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([])
   const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([])
   const [deptOptions, setDeptOptions] = useState<SelectOption[]>([])
+  const [allCrmProps, setAllCrmProps] = useState<CrmPropertyMeta[]>([])
 
   useEffect(() => {
     fetch('/api/users?roles=closer,admin').then(r => r.json()).then(d => {
@@ -84,6 +86,9 @@ export default function CRMFilterBuilder({
       if (!Array.isArray(rows)) return
       setPipelinesData(rows)
       setPipelineOptions(rows.map(p => ({ id: p.id, label: p.label })))
+    }).catch(() => {})
+    fetch('/api/crm/properties?object=contacts&limit=2000').then(r => r.json()).then(d => {
+      if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
     fetch('/api/crm/field-options').then(r => r.json()).then(d => {
       if (d.leadStatuses?.length) {
@@ -224,35 +229,49 @@ export default function CRMFilterBuilder({
               const ops = opsForField(rule.field)
               const showVal = opNeedsValue(rule.operator)
               const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
+              const customName = isCustomField(rule.field)
+              const customProp = customName ? allCrmProps.find(p => p.name === customName) : null
               let valueOptions: SelectOption[] = []
-              switch (rule.field) {
-                case 'stage':       valueOptions = allStageOptions; break
-                case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
-                case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
-                case 'closer':        valueOptions = closerOptions; break
-                case 'contact_owner': valueOptions = closerOptions; break
-                case 'telepro':       valueOptions = teleproOptions; break
-                case 'lead_status': valueOptions = leadStatusOptions; break
-                case 'source':      valueOptions = sourceOptions; break
-                case 'zone':        valueOptions = zoneOptions; break
-                case 'departement': valueOptions = deptOptions; break
-                case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
-                case 'pipeline':    valueOptions = pipelineOptions; break
-                case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
+              if (customProp && customProp.options && customProp.options.length > 0) {
+                valueOptions = customProp.options.map(o => ({ id: o.value, label: o.label }))
+              } else {
+                switch (rule.field) {
+                  case 'stage':       valueOptions = allStageOptions; break
+                  case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
+                  case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
+                  case 'closer':        valueOptions = closerOptions; break
+                  case 'contact_owner': valueOptions = closerOptions; break
+                  case 'telepro':       valueOptions = teleproOptions; break
+                  case 'lead_status': valueOptions = leadStatusOptions; break
+                  case 'source':      valueOptions = sourceOptions; break
+                  case 'zone':        valueOptions = zoneOptions; break
+                  case 'departement': valueOptions = deptOptions; break
+                  case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
+                  case 'pipeline':    valueOptions = pipelineOptions; break
+                  case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
+                }
               }
+              const showSelect = (fieldDef?.type === 'select' && valueOptions.length > 0) || (customProp && valueOptions.length > 0)
               return (
                 <div key={rule.id}>
                   {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
                     <button type="button" onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
-                    <select value={rule.field} onChange={e => updateRule(group.id, rule.id, { field: e.target.value as CRMFilterField, operator: 'is', value: '' })} style={selectStyle}>
-                      {CRM_FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                    </select>
+                    <CRMFieldPicker
+                      value={rule.field}
+                      onChange={(field) => updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: 'is', value: '' })}
+                      crmProps={allCrmProps}
+                    />
+                    {customName && (
+                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '0 4px' }}>
+                        Filtre custom — non encore appliqué côté API. Pour cibler par cette propriété, utilise <a href="/admin/crm/recherche-prop" target="_blank" rel="noopener" style={{ color: '#2ea3f2', textDecoration: 'underline' }}>Recherche propriété</a> pour récupérer les numéros, puis colle-les dans l&apos;onglet « Liste de numéros ».
+                      </div>
+                    )}
                     <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={selectStyle}>
                       {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                     </select>
                     {showVal && (
-                      fieldDef?.type === 'select' && valueOptions.length > 0 ? (
+                      showSelect ? (
                         opIsMulti(rule.operator) ? (
                           <MultiSelectDropdown
                             options={valueOptions}
