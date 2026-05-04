@@ -1,61 +1,87 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- MIGRATION v20 : Recherche full-text Postgres sur crm_contacts
 -- ═══════════════════════════════════════════════════════════════════════════
--- Aujourd'hui la recherche dans le CRM utilise des `ilike '%search%'` chained
--- avec OR sur firstname/lastname/email/phone. C'est OK pour 160k contacts
--- (grâce aux index trigram déjà en place), mais à 500k+ ça commence à ramer
--- et on ne peut pas trier par pertinence.
+-- Aujourd'hui la recherche utilise des `ilike '%x%'` chained avec OR sur
+-- firstname/lastname/email/phone. C'est OK pour 160k contacts grâce aux index
+-- trigram, mais à 500k+ ça commence à ramer et on ne peut pas trier par
+-- pertinence.
 --
--- Cette migration ajoute une colonne search_vector tsvector calculée
--- automatiquement (GENERATED ALWAYS AS), indexée en GIN. Postgres saute
--- direct au bon résultat en <50ms même sur 1M lignes.
+-- Cette migration ajoute une colonne search_vector tsvector + index GIN.
+-- Recherche en <50ms même sur 1M lignes, avec ranking ts_rank.
 --
--- L'API doit ensuite utiliser query.textSearch('search_vector', ...) au
--- lieu de query.or('firstname.ilike...').
+-- IMPORTANT : on utilise une colonne classique + TRIGGER plutôt que GENERATED
+-- ALWAYS AS, parce que GENERATED essaie de backfill 160k rows en une seule
+-- transaction et hit le timeout HTTP du SQL Editor (~60s). Avec un trigger,
+-- l'add column est instantané et on backfill en batches manuels.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Extensions nécessaires (déjà présentes en général sur Supabase)
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
--- Wrapper IMMUTABLE de unaccent. Postgres refuse unaccent() dans une colonne
--- GENERATED parce que la fonction n'est pas marquée immutable (le dictionnaire
--- pourrait théoriquement changer). On wrap avec un marqueur IMMUTABLE — c'est
--- un pattern classique et safe en pratique.
+-- Wrapper IMMUTABLE de unaccent (Postgres refuse unaccent() en GENERATED ou
+-- dans certains contextes parce que pas marqué immutable côté extension).
 CREATE OR REPLACE FUNCTION public.immutable_unaccent(text)
   RETURNS text
   LANGUAGE sql
   IMMUTABLE PARALLEL SAFE STRICT
   AS $$ SELECT public.unaccent('public.unaccent', $1); $$;
 
--- 1. Colonne search_vector calculée automatiquement
--- Inclut firstname, lastname, email, phone pour matcher les usages les plus
--- courants. Toutes les valeurs sont passées dans `immutable_unaccent` pour
--- ignorer les accents (français-friendly).
-ALTER TABLE crm_contacts
-  ADD COLUMN IF NOT EXISTS search_vector tsvector
-  GENERATED ALWAYS AS (
-    setweight(to_tsvector('simple', immutable_unaccent(coalesce(firstname, ''))), 'A') ||
-    setweight(to_tsvector('simple', immutable_unaccent(coalesce(lastname, ''))), 'A') ||
-    setweight(to_tsvector('simple', immutable_unaccent(coalesce(email, ''))), 'B') ||
-    setweight(to_tsvector('simple', immutable_unaccent(coalesce(phone, ''))), 'C')
-  ) STORED;
+-- Drop l'ancienne version (si une tentative GENERATED a partiellement réussi)
+ALTER TABLE crm_contacts DROP COLUMN IF EXISTS search_vector;
 
--- 2. Index GIN sur le tsvector (le seul index pertinent pour la recherche)
+-- 1. Colonne classique nullable (instant, 0 backfill)
+ALTER TABLE crm_contacts ADD COLUMN search_vector tsvector;
+
+-- 2. Index GIN sur le tsvector
 CREATE INDEX IF NOT EXISTS idx_crm_contacts_search_vector
   ON crm_contacts USING gin(search_vector);
 
+-- 3. Function + trigger pour MAJ automatique
+CREATE OR REPLACE FUNCTION public.crm_contacts_update_search_vector()
+  RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', immutable_unaccent(coalesce(NEW.firstname, ''))), 'A') ||
+    setweight(to_tsvector('simple', immutable_unaccent(coalesce(NEW.lastname, ''))), 'A') ||
+    setweight(to_tsvector('simple', immutable_unaccent(coalesce(NEW.email, ''))), 'B') ||
+    setweight(to_tsvector('simple', immutable_unaccent(coalesce(NEW.phone, ''))), 'C');
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_crm_contacts_search_vector ON crm_contacts;
+CREATE TRIGGER trg_crm_contacts_search_vector
+  BEFORE INSERT OR UPDATE OF firstname, lastname, email, phone
+  ON crm_contacts
+  FOR EACH ROW
+  EXECUTE FUNCTION public.crm_contacts_update_search_vector();
+
 NOTIFY pgrst, 'reload schema';
 
+-- ─── Backfill (à lancer séparément en boucle de 20k) ──────────────────────
+-- Le UPDATE complet de 160k lignes hit le timeout du SQL Editor. Relancer ce
+-- SQL jusqu'à ce qu'il retourne "0 rows affected" :
+--
+--   UPDATE crm_contacts
+--   SET search_vector =
+--     setweight(to_tsvector('simple', immutable_unaccent(coalesce(firstname, ''))), 'A') ||
+--     setweight(to_tsvector('simple', immutable_unaccent(coalesce(lastname, ''))), 'A') ||
+--     setweight(to_tsvector('simple', immutable_unaccent(coalesce(email, ''))), 'B') ||
+--     setweight(to_tsvector('simple', immutable_unaccent(coalesce(phone, ''))), 'C'))
+--   WHERE hubspot_contact_id IN (
+--     SELECT hubspot_contact_id FROM crm_contacts
+--     WHERE search_vector IS NULL
+--     LIMIT 20000
+--   );
+--
+-- Vérification :
+--   SELECT COUNT(*) AS total, COUNT(search_vector) AS indexed,
+--          COUNT(*) - COUNT(search_vector) AS remaining
+--   FROM crm_contacts;
+
 -- ─── Notes pour l'API ──────────────────────────────────────────────────────
--- Côté Supabase JS, on utilise :
+-- query.textSearch('search_vector', searchString, {
+--   type: 'websearch', config: 'simple',
+-- })
 --
---   query.textSearch('search_vector', searchString, {
---     type: 'websearch',  // supporte les opérateurs "" - OR, plus tolérant
---     config: 'simple',
---   })
---
--- websearch convertit "Benjamin Dupont" en `benjamin & dupont` correctement,
--- accepte les guillemets pour phrase exacte, etc.
---
--- Les poids A/B/C donnent priorité à firstname/lastname > email > phone.
--- Permet un tri par pertinence avec ts_rank côté SQL.
+-- websearch supporte "phrase exacte", -exclusion, OR.
+-- Poids A/B/C donnent priorité firstname/lastname > email > phone.
