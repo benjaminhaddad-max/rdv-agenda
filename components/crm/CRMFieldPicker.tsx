@@ -74,12 +74,27 @@ export function CRMFieldPicker({
 
   const q = search.toLowerCase().trim()
 
-  // Hardcodés en premier (filtrés par recherche)
+  // Index inverse : pour chaque clé hardcodée, liste des noms HubSpot qui pointent dessus
+  // (permet de trouver "Télépro" en cherchant "teleprospecteur")
+  const reverseAliases = useMemo(() => {
+    const out: Record<string, string[]> = {}
+    for (const [hubspotName, key] of Object.entries(HUBSPOT_NAME_TO_FILTER_KEY)) {
+      if (!out[key]) out[key] = []
+      out[key].push(hubspotName)
+    }
+    return out
+  }, [])
+
+  // Hardcodés en premier (filtrés par recherche, en matchant aussi les alias HubSpot)
   const hardcoded = useMemo(() =>
-    CRM_FILTER_FIELDS.filter(f =>
-      !q || f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q)
-    ),
-    [q],
+    CRM_FILTER_FIELDS.filter(f => {
+      if (!q) return true
+      if (f.label.toLowerCase().includes(q)) return true
+      if (f.key.toLowerCase().includes(q)) return true
+      const aliases = reverseAliases[f.key as string] || []
+      return aliases.some(a => a.toLowerCase().includes(q))
+    }),
+    [q, reverseAliases],
   )
 
   // Custom props (groupées par group_name) — exclure celles déjà en hardcoded
@@ -151,23 +166,31 @@ export function CRMFieldPicker({
               <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', background: '#fafbfc' }}>
                 Filtres principaux
               </div>
-              {hardcoded.map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => { onChange(f.key); setOpen(false) }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '6px 10px', background: value === f.key ? 'rgba(204,172,113,0.12)' : 'transparent',
-                    border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                    color: value === f.key ? '#ccac71' : '#1a2f4b',
-                    fontWeight: value === f.key ? 600 : 400,
-                  }}
-                  onMouseEnter={e => { if (value !== f.key) e.currentTarget.style.background = '#f5f8fa' }}
-                  onMouseLeave={e => { if (value !== f.key) e.currentTarget.style.background = 'transparent' }}
-                >
-                  {f.label}
-                </button>
-              ))}
+              {hardcoded.map(f => {
+                const aliases = reverseAliases[f.key as string] || []
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => { onChange(f.key); setOpen(false) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '6px 10px', background: value === f.key ? 'rgba(204,172,113,0.12)' : 'transparent',
+                      border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+                      color: value === f.key ? '#ccac71' : '#1a2f4b',
+                      fontWeight: value === f.key ? 600 : 400,
+                    }}
+                    onMouseEnter={e => { if (value !== f.key) e.currentTarget.style.background = '#f5f8fa' }}
+                    onMouseLeave={e => { if (value !== f.key) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div>{f.label}</div>
+                    {aliases.length > 0 && (
+                      <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
+                        alias HubSpot : {aliases.join(', ')}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
             </>
           )}
 
