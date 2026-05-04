@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Search, Plus, FileText, Hash, Calendar, ListChecks, ToggleLeft, Phone, X, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
 
 type Property = {
   name: string
@@ -292,6 +293,19 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
   const [actualValues, setActualValues] = useState<Array<{ value: string; count: number }> | null>(null)
   const [valuesLoading, setValuesLoading] = useState(true)
   const [valuesSource, setValuesSource] = useState<string>('')
+  const [owners, setOwners] = useState<Owner[]>([])
+
+  const isUserProp = isUserTypeProperty(property.name)
+  const userIndex = useMemo(() => buildUserNameIndex(owners), [owners])
+
+  // Charge les owners si la prop est de type User (pour résoudre IDs → noms)
+  useEffect(() => {
+    if (!isUserProp) return
+    fetch('/api/crm/owners')
+      .then(r => r.json())
+      .then(j => setOwners(j.owners || []))
+      .catch(() => setOwners([]))
+  }, [isUserProp])
 
   useEffect(() => {
     let cancelled = false
@@ -413,19 +427,33 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                     </tr>
                   </thead>
                   <tbody>
-                    {actualValues.map((v, i) => (
-                      <tr key={i} style={{ borderBottom: i < actualValues.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                        <td style={{ padding: '8px 12px', fontFamily: v.value && v.value.length < 40 ? 'inherit' : 'monospace', wordBreak: 'break-all' }}>
-                          {v.value || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                          {Number(v.count).toLocaleString('fr-FR')}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
-                          {totalCount > 0 ? ((Number(v.count) / totalCount) * 100).toFixed(1) : '0'}%
-                        </td>
-                      </tr>
-                    ))}
+                    {actualValues.map((v, i) => {
+                      const resolved = isUserProp && v.value ? userIndex.get(String(v.value)) : null
+                      return (
+                        <tr key={i} style={{ borderBottom: i < actualValues.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <td style={{ padding: '8px 12px', wordBreak: 'break-all' }}>
+                            {v.value ? (
+                              resolved ? (
+                                <>
+                                  <div style={{ fontWeight: 500 }}>{resolved}</div>
+                                  <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{v.value}</div>
+                                </>
+                              ) : (
+                                <span style={{ fontFamily: v.value.length < 40 ? 'inherit' : 'monospace' }}>{v.value}</span>
+                              )
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                            {Number(v.count).toLocaleString('fr-FR')}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                            {totalCount > 0 ? ((Number(v.count) / totalCount) * 100).toFixed(1) : '0'}%
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

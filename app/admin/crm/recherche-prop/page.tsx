@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Search, ChevronDown, Loader2, ExternalLink } from 'lucide-react'
+import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
 
 type Property = {
   name: string
@@ -70,6 +71,18 @@ export default function RecherchePropPage() {
   const [storage, setStorage] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [owners, setOwners] = useState<Owner[]>([])
+
+  const isUserProp = pickedProp ? isUserTypeProperty(pickedProp.name) : false
+  const userIndex = useMemo(() => buildUserNameIndex(owners), [owners])
+
+  // Charge les owners (pour résoudre les props User)
+  useEffect(() => {
+    fetch('/api/crm/owners')
+      .then(r => r.json())
+      .then(j => setOwners(j.owners || []))
+      .catch(() => setOwners([]))
+  }, [])
 
   // Charge les 829 propriétés une fois
   useEffect(() => {
@@ -170,6 +183,19 @@ export default function RecherchePropPage() {
               <label style={labelStyle}>Valeur</label>
               {!opNeedsValue ? (
                 <input value="(pas de valeur requise)" disabled style={{ ...input, color: '#94a3b8' }} />
+              ) : isUserProp && owners.length > 0 ? (
+                <select value={value} onChange={e => setValue(e.target.value)} style={input}>
+                  <option value="">— Choisir un utilisateur —</option>
+                  {owners
+                    .slice()
+                    .sort((a, b) => (a.firstname || '').localeCompare(b.firstname || ''))
+                    .map(o => {
+                      const name = [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
+                      // Pour teleprospecteur on filtre par user_id, sinon par hubspot_owner_id
+                      const id = pickedProp?.name === 'teleprospecteur' ? (o.user_id || o.hubspot_owner_id) : o.hubspot_owner_id
+                      return <option key={String(id)} value={String(id)}>{name}</option>
+                    })}
+                </select>
               ) : isEnum ? (
                 <select value={value} onChange={e => setValue(e.target.value)} style={input}>
                   <option value="">— Choisir —</option>
@@ -261,8 +287,19 @@ export default function RecherchePropPage() {
                         <div>{c.classe_actuelle || '—'}</div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>{c.formation_souhaitee || ''}</div>
                       </td>
-                      <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, color: '#516f90', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.matched_value || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>}
+                      <td style={{ ...td, maxWidth: 240, overflow: 'hidden' }}>
+                        {c.matched_value ? (
+                          isUserProp && userIndex.get(c.matched_value) ? (
+                            <>
+                              <div style={{ fontWeight: 500 }}>{userIndex.get(c.matched_value)}</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{c.matched_value}</div>
+                            </>
+                          ) : (
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#516f90' }}>{c.matched_value}</span>
+                          )
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>
+                        )}
                       </td>
                       <td style={td}>{c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'}</td>
                       <td style={td}>

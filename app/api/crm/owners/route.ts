@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const { data } = await db
       .from('crm_owners')
-      .select('hubspot_owner_id, email, firstname, lastname, archived')
+      .select('hubspot_owner_id, user_id, email, firstname, lastname, archived')
       .eq('archived', false)
       .order('firstname', { ascending: true })
     return NextResponse.json({ owners: data ?? [] })
