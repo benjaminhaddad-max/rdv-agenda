@@ -650,19 +650,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Inscription par saison — alimenté par la plateforme externe */}
           {preInscriptions.map(pi => {
-            // Derive le statut affichable depuis paiement_status + finalisation_step
+            // Titre court (26-27 au lieu de 2026-2027) pour rester sur 1 ligne
+            const yyShort = pi.saison.split('-').map(y => y.slice(2)).join('-')
             const ext = pi.external_data || {}
             const finalisationStep = Number(ext.finalisation_step ?? 0)
-            const finalisationPaid = Boolean(ext.finalisation_payment_received)
             const paidAt = ext.paid_at as string | undefined
             const acompteCents = Number(ext.amount_paid_cents ?? 0)
             const acompteEuros = acompteCents / 100
 
             const status = (() => {
               const s = pi.paiement_status
-              if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-600' }
-              if (s === 'en_cours' && finalisationStep > 0) return { label: 'En finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
-              if (s === 'en_cours')   return { label: 'En finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
+              if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-300' }
+              if (s === 'en_cours' && finalisationStep > 0) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
+              if (s === 'en_cours')   return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
               if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
               if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
               if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
@@ -674,22 +674,22 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <RightSection
                 key={pi.id}
                 icon={<GraduationCap size={14} />}
-                title={`Inscription ${pi.saison}`}
+                title={`Inscription ${yyShort}`}
                 count={1}
                 accent="brand"
               >
-                <div className="space-y-3 text-[13px]">
-                  {/* Statut en haut, gros et visible */}
+                <div className="space-y-3 text-xs">
+                  {/* Statut en haut */}
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
                     <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
-                    <span className="font-semibold text-[13px]">{status.label}</span>
+                    <span className="font-semibold">{status.label}</span>
                   </div>
 
                   {/* Formation */}
                   {pi.formation && (
-                    <div>
-                      <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-0.5">Formation</div>
-                      <div className="font-medium text-slate-800 text-[13px]">{pi.formation}</div>
+                    <div className="space-y-0.5">
+                      <div className="text-slate-500">Formation</div>
+                      <div className="font-medium text-slate-800">{pi.formation}</div>
                     </div>
                   )}
 
@@ -698,26 +698,26 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div className="bg-slate-50 rounded-lg p-2.5 space-y-1.5">
                       {pi.montant != null && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[12px] text-slate-500">Total formule</span>
-                          <span className="font-semibold text-[13px]">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
+                          <span className="text-slate-500">Total formule</span>
+                          <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {acompteEuros > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[12px] text-slate-500">Acompte payé</span>
-                          <span className="font-medium text-[13px] text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
+                          <span className="text-slate-500">Acompte payé</span>
+                          <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {paidAt && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[12px] text-slate-500">Date paiement</span>
-                          <span className="text-[12px]">{format(new Date(paidAt), 'PP', { locale: fr })}</span>
+                          <span className="text-slate-500">Date paiement</span>
+                          <span>{format(new Date(paidAt), 'PP', { locale: fr })}</span>
                         </div>
                       )}
                       {ext.payment_method && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[12px] text-slate-500">Méthode</span>
-                          <span className="text-[12px] capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
+                          <span className="text-slate-500">Méthode</span>
+                          <span className="capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
                         </div>
                       )}
                     </div>
@@ -725,14 +725,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
                   {/* Notes */}
                   {pi.notes && (
-                    <div>
-                      <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Notes</div>
-                      <div className="text-[12px] whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
+                    <div className="space-y-1">
+                      <div className="text-slate-500">Notes</div>
+                      <div className="whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
                     </div>
                   )}
 
                   {/* Date detection (footer discret) */}
-                  <div className="text-[11px] text-slate-400 pt-1 border-t flex items-center justify-between">
+                  <div className="text-slate-400 pt-1 border-t flex items-center justify-between">
                     <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
                     {ext.inscription_id && (
                       <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
