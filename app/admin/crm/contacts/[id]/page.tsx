@@ -648,59 +648,96 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          {/* Suivi pré-inscription par saison — alimenté par la plateforme externe */}
+          {/* Inscription par saison — alimenté par la plateforme externe */}
           {preInscriptions.map(pi => {
-            const yy = pi.saison.split('-').map(y => y.slice(2)).join('-') // 2026-2027 -> 26-27
+            // Derive le statut affichable depuis paiement_status + finalisation_step
+            const ext = pi.external_data || {}
+            const finalisationStep = Number(ext.finalisation_step ?? 0)
+            const finalisationPaid = Boolean(ext.finalisation_payment_received)
+            const paidAt = ext.paid_at as string | undefined
+            const acompteCents = Number(ext.amount_paid_cents ?? 0)
+            const acompteEuros = acompteCents / 100
+
+            const status = (() => {
+              const s = pi.paiement_status
+              if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-600' }
+              if (s === 'en_cours' && finalisationStep > 0) return { label: 'En finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
+              if (s === 'en_cours')   return { label: 'En finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
+              if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
+              if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
+              if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+              if (s === 'annulee')    return { label: 'Inscription annulée', color: 'bg-red-100 text-red-800', dot: 'bg-red-500' }
+              return { label: 'En attente données…', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-300' }
+            })()
+
             return (
               <RightSection
                 key={pi.id}
                 icon={<GraduationCap size={14} />}
-                title={`Suivi pré-inscription ${yy}`}
+                title={`Inscription ${pi.saison}`}
                 count={1}
                 accent="brand"
               >
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 text-xs">Saison</span>
-                    <span className="font-medium">{pi.saison}</span>
+                <div className="space-y-3 text-sm">
+                  {/* Statut en haut, gros et visible */}
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
+                    <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
+                    <span className="font-semibold">{status.label}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 text-xs">Détectée le</span>
-                    <span className="text-xs">{format(new Date(pi.detected_at), 'PP', { locale: fr })}</span>
-                  </div>
+
+                  {/* Formation */}
                   {pi.formation && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-xs">Formation</span>
-                      <span className="font-medium">{pi.formation}</span>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-0.5">Formation</div>
+                      <div className="font-medium text-slate-800">{pi.formation}</div>
                     </div>
                   )}
-                  {pi.paiement_status && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-xs">Paiement</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        pi.paiement_status === 'paye' ? 'bg-green-100 text-green-700'
-                        : pi.paiement_status === 'partiel' ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-700'
-                      }`}>{pi.paiement_status}</span>
+
+                  {/* Bloc montants */}
+                  {(pi.montant != null || acompteEuros > 0) && (
+                    <div className="bg-slate-50 rounded-lg p-2.5 space-y-1.5">
+                      {pi.montant != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Total formule</span>
+                          <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
+                        </div>
+                      )}
+                      {acompteEuros > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Acompte payé</span>
+                          <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
+                        </div>
+                      )}
+                      {paidAt && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Date paiement</span>
+                          <span className="text-xs">{format(new Date(paidAt), 'PP', { locale: fr })}</span>
+                        </div>
+                      )}
+                      {ext.payment_method && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Méthode</span>
+                          <span className="text-xs capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {pi.montant != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-xs">Montant</span>
-                      <span className="font-medium">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
-                    </div>
-                  )}
+
+                  {/* Notes */}
                   {pi.notes && (
-                    <div className="border-t pt-2 mt-2">
-                      <div className="text-slate-500 text-xs mb-1">Notes</div>
-                      <div className="text-xs whitespace-pre-wrap">{pi.notes}</div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Notes</div>
+                      <div className="text-xs whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2">{pi.notes}</div>
                     </div>
                   )}
-                  {!pi.formation && !pi.paiement_status && !pi.montant && !pi.notes && (
-                    <div className="text-xs text-slate-400 italic border-t pt-2 mt-1">
-                      En attente des données de la plateforme de pré-inscription…
-                    </div>
-                  )}
+
+                  {/* Date detection (footer discret) */}
+                  <div className="text-xs text-slate-400 pt-1 border-t flex items-center justify-between">
+                    <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
+                    {ext.inscription_id && (
+                      <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
+                    )}
+                  </div>
                 </div>
               </RightSection>
             )
