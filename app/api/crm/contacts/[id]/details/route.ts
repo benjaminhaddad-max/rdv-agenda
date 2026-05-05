@@ -48,6 +48,7 @@ export async function GET(
     formSubmissions,
     tasks,
     emailEvents,
+    preInscriptions,
   ] = await Promise.all([
     db.from('crm_deals').select('*')
       .eq('hubspot_contact_id', contactId)
@@ -77,6 +78,11 @@ export async function GET(
           .order('occurred_at', { ascending: false })
           .limit(500))
       : Promise.resolve([] as Array<Record<string, unknown>>),
+
+    safeRows(db.from('crm_pre_inscriptions')
+      .select('id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
+      .eq('hubspot_contact_id', contactId)
+      .order('saison', { ascending: false })),
   ])
 
   const deals = dealsRes.data ?? []
@@ -136,5 +142,6 @@ export async function GET(
     formSubmissions,
     tasks,
     emailStatsByMessageId,
+    preInscriptions,
   })
 }

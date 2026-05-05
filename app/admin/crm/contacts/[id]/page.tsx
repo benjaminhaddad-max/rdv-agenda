@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
+  GraduationCap,
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 import PropertyHistoryPanel from '@/components/crm/PropertyHistoryPanel'
@@ -92,6 +93,19 @@ interface ContactDetails {
   owners: Owner[]
   tasks: CRMTask[]
   emailStatsByMessageId?: Record<string, EmailStats>
+  preInscriptions?: PreInscription[]
+}
+
+interface PreInscription {
+  id: number
+  saison: string                      // ex: "2026-2027"
+  detected_at: string                 // ISO timestamp
+  paiement_status: string | null      // 'en_attente' | 'paye' | 'partiel' | null
+  formation: string | null
+  montant: number | null
+  notes: string | null
+  external_data: Record<string, Any>
+  updated_at: string
 }
 
 type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
@@ -173,7 +187,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {} } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [] } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -633,6 +647,64 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               </ul>
             )}
           </RightSection>
+
+          {/* Suivi pré-inscription par saison — alimenté par la plateforme externe */}
+          {preInscriptions.map(pi => {
+            const yy = pi.saison.split('-').map(y => y.slice(2)).join('-') // 2026-2027 -> 26-27
+            return (
+              <RightSection
+                key={pi.id}
+                icon={<GraduationCap size={14} />}
+                title={`Suivi pré-inscription ${yy}`}
+                count={1}
+                accent="brand"
+              >
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-xs">Saison</span>
+                    <span className="font-medium">{pi.saison}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-xs">Détectée le</span>
+                    <span className="text-xs">{format(new Date(pi.detected_at), 'PP', { locale: fr })}</span>
+                  </div>
+                  {pi.formation && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-xs">Formation</span>
+                      <span className="font-medium">{pi.formation}</span>
+                    </div>
+                  )}
+                  {pi.paiement_status && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-xs">Paiement</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        pi.paiement_status === 'paye' ? 'bg-green-100 text-green-700'
+                        : pi.paiement_status === 'partiel' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-700'
+                      }`}>{pi.paiement_status}</span>
+                    </div>
+                  )}
+                  {pi.montant != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-xs">Montant</span>
+                      <span className="font-medium">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
+                    </div>
+                  )}
+                  {pi.notes && (
+                    <div className="border-t pt-2 mt-2">
+                      <div className="text-slate-500 text-xs mb-1">Notes</div>
+                      <div className="text-xs whitespace-pre-wrap">{pi.notes}</div>
+                    </div>
+                  )}
+                  {!pi.formation && !pi.paiement_status && !pi.montant && !pi.notes && (
+                    <div className="text-xs text-slate-400 italic border-t pt-2 mt-1">
+                      En attente des données de la plateforme de pré-inscription…
+                    </div>
+                  )}
+                </div>
+              </RightSection>
+            )
+          })}
         </aside>
       </div>
 
