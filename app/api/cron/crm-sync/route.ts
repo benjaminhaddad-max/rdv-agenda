@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners } from '@/lib/hubspot'
+import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners, getAllDealPipelineIds } from '@/lib/hubspot'
 import { logger } from '@/lib/logger'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
@@ -139,14 +139,20 @@ export async function GET(req: NextRequest) {
     const contactPropsToFetch = allContactProps.length > 0 ? allContactProps : undefined
     const dealPropsToFetch    = allDealProps.length > 0    ? allDealProps    : undefined
 
-    // ── Phase 1 : Récupérer tous les deals du pipeline ────────────────────
+    // ── Phase 1 : Récupérer tous les deals de TOUS les pipelines ──────────
+    // Avant : un seul pipeline (PIPELINE_ID) → on perdait l'historique des
+    // saisons precedentes (Diploma 2024-25, 2025-26, etc.).
+    // Maintenant : tous les pipelines deals → l'historique multi-saisons est
+    // entierement visible dans le CRM.
     currentPhase = 1
     const allDealRows: ReturnType<typeof buildDealRow>[] = []
     const allDealIds: string[] = []
     let dealCursor: string | undefined = undefined
 
+    const allPipelineIds = await getAllDealPipelineIds()
+
     do {
-      const { deals, nextCursor } = await getAllDealsForSync(dealCursor, dealPropsToFetch)
+      const { deals, nextCursor } = await getAllDealsForSync(dealCursor, dealPropsToFetch, allPipelineIds)
 
       for (const d of deals) {
         allDealIds.push(d.id)

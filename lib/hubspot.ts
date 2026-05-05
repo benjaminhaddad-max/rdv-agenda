@@ -743,9 +743,22 @@ const DEAL_SYNC_PROPS = [
   'closedate', 'createdate', 'description',
 ].join(',')
 
+// Liste tous les pipelines deals (utilise par le sync pour ne pas se limiter
+// au pipeline en cours — les annees precedentes restent visibles)
+export async function getAllDealPipelineIds(): Promise<string[]> {
+  try {
+    const data = await hubspotFetch('/crm/v3/pipelines/deals')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data.results ?? []).map((p: any) => p.id as string)
+  } catch {
+    return [PIPELINE_ID]  // fallback : au moins le pipeline courant
+  }
+}
+
 export async function getAllDealsForSync(
   after?: string,
   properties?: string[],
+  pipelineIds?: string[],
 ): Promise<{
   deals: Array<{
     id: string
@@ -757,10 +770,15 @@ export async function getAllDealsForSync(
   // NOTE: associations: ['contacts'] n'est PAS supporté dans le body du endpoint
   // search v3 → 400 Bad Request. Les associations sont récupérées séparément
   // via batchGetDealContactAssociations (v4).
+  // Filtre pipeline : par defaut TOUS les pipelines (pour conserver
+  // l'historique multi-saisons). Fallback sur PIPELINE_ID si vide.
+  const pipelines = pipelineIds && pipelineIds.length > 0 ? pipelineIds : [PIPELINE_ID]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
     filterGroups: [{
-      filters: [{ propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID }],
+      filters: pipelines.length === 1
+        ? [{ propertyName: 'pipeline', operator: 'EQ', value: pipelines[0] }]
+        : [{ propertyName: 'pipeline', operator: 'IN', values: pipelines }],
     }],
     properties: properties && properties.length > 0 ? properties : DEAL_SYNC_PROPS.split(','),
     limit: 100,
