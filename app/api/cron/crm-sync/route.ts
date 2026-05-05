@@ -197,6 +197,37 @@ export async function GET(req: NextRequest) {
       dealsUpserted += chunk.length
     }
 
+    // ── Phase 3-bis : Cleanup deals supprimes dans HubSpot ───────────────
+    // Tout deal en base qui n'est plus dans HubSpot (allDealIds) = supprime cote
+    // HubSpot et doit etre retire de Supabase pour garder les comptes alignes.
+    {
+      const allDealIdsSet = new Set(allDealIds)
+      // Pull tous les deal IDs en base, par chunks (respecte max_rows Supabase)
+      const dealsInDb: string[] = []
+      let dbCursor = 0
+      const DB_PAGE = 1000
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data: page } = await db
+          .from('crm_deals')
+          .select('hubspot_deal_id')
+          .order('hubspot_deal_id', { ascending: true })
+          .range(dbCursor, dbCursor + DB_PAGE - 1)
+        if (!page || page.length === 0) break
+        for (const r of page) if (r.hubspot_deal_id) dealsInDb.push(r.hubspot_deal_id)
+        if (page.length < DB_PAGE) break
+        dbCursor += DB_PAGE
+      }
+      const stale = dealsInDb.filter(id => !allDealIdsSet.has(id))
+      if (stale.length > 0) {
+        const DEL_BATCH = 200
+        for (let i = 0; i < stale.length; i += DEL_BATCH) {
+          await db.from('crm_deals').delete().in('hubspot_deal_id', stale.slice(i, i + DEL_BATCH))
+        }
+        logger.info('crm-sync', `Cleanup: ${stale.length} deals supprimes (n'existent plus dans HubSpot)`)
+      }
+    }
+
     // ── Phase 4 : Batch-read des contacts liés aux deals ─────────────────
     currentPhase = 4
     const uniqueContactIds = [...new Set(Object.values(dealToContact))]
