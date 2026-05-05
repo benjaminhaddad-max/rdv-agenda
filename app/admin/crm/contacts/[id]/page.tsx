@@ -1002,7 +1002,21 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
 function RightSection({ icon, title, count, accent, children }: {
   icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode
 }) {
-  const [open, setOpen] = useState(true)
+  // Persiste l'etat ouvert/ferme par section dans localStorage (defaut : ferme)
+  const storageKey = `rs-open:${title}`
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const saved = localStorage.getItem(storageKey)
+    if (saved === '1') setOpen(true)
+  }, [storageKey])
+  const toggle = () => {
+    setOpen(o => {
+      const next = !o
+      if (typeof window !== 'undefined') localStorage.setItem(storageKey, next ? '1' : '0')
+      return next
+    })
+  }
   const accentColor = {
     brand: 'text-[#0038f0] bg-[#2ea3f2]/10',
     gold:  'text-[#ccac71] bg-[#ccac71]/10',
@@ -1011,7 +1025,7 @@ function RightSection({ icon, title, count, accent, children }: {
   return (
     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={toggle}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50"
       >
         <div className="flex items-center gap-2">
