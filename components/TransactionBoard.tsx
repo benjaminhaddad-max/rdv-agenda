@@ -2,28 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import type { TransactionDetail } from './TransactionDetailPanel'
+import { getStagesForPipeline, getStageMeta } from '@/lib/crm-stages'
 
 // ── Stage config ─────────────────────────────────────────────────────────────
-
-const DEFAULT_STAGE_ORDER = [
-  '3165428980', // RDV Pris
-  '3165428979', // À Replanifier
-  '3165428981', // Délai Réflexion
-  '3165428982', // Pré-inscription
-  '3165428983', // Finalisation
-  '3165428984', // Inscription Confirmée
-  '3165428985', // Fermé Perdu
-]
-
-const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }> = {
-  '3165428979': { label: 'À Replanifier',        color: '#ef4444', emoji: '🔴' },
-  '3165428980': { label: 'RDV Pris',              color: '#4cabdb', emoji: '🔵' },
-  '3165428981': { label: 'Délai Réflexion',       color: '#ccac71', emoji: '🟡' },
-  '3165428982': { label: 'Pré-inscription',       color: '#22c55e', emoji: '🟢' },
-  '3165428983': { label: 'Finalisation',          color: '#a855f7', emoji: '🟣' },
-  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', emoji: '⚫' },
-}
+// Mapping centralise dans @/lib/crm-stages (couvre les 4 pipelines).
 
 // ── Undo action type ─────────────────────────────────────────────────────────
 
@@ -44,6 +26,7 @@ interface Props {
   onSelectDeal: (deal: TransactionDetail) => void
   undoAction: UndoAction | null
   onUndo: () => void
+  pipelineId?: string
 }
 
 // ── Deal Card ────────────────────────────────────────────────────────────────
@@ -244,7 +227,7 @@ function BoardColumn({
   isDraggingColumn: boolean
 }) {
   const [headerHovered, setHeaderHovered] = useState(false)
-  const stage = STAGE_MAP[stageId]
+  const stage = getStageMeta(stageId)
   if (!stage) return null
 
   const isOver = dragOverStage === stageId
@@ -412,18 +395,20 @@ function BoardColumn({
 
 export default function TransactionBoard({
   columns, onStageChange, onBatchStageChange, onSelectDeal,
-  undoAction, onUndo,
+  undoAction, onUndo, pipelineId,
 }: Props) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set())
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null)
-  const [stageOrder, setStageOrder] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tx-column-order')
-      if (saved) try { return JSON.parse(saved) } catch { /* ignore */ }
-    }
-    return DEFAULT_STAGE_ORDER
-  })
+  // Stages selon le pipeline. Si pipelineId est 'all' ou inconnu, on retombe
+  // sur l'ordre de la saison courante (2026-2027). Sinon on prend les stages
+  // exacts du pipeline (les IDs different par saison).
+  const pipelineStageOrder = getStagesForPipeline(pipelineId || '2313043166').map(s => s.id)
+  const [stageOrder, setStageOrder] = useState<string[]>(pipelineStageOrder)
+  // Refresh quand le pipeline change
+  useEffect(() => {
+    setStageOrder(getStagesForPipeline(pipelineId || '2313043166').map(s => s.id))
+  }, [pipelineId])
 
   // Escape to clear selection
   useEffect(() => {
@@ -478,7 +463,7 @@ export default function TransactionBoard({
     e.dataTransfer.setData('columnid', stageId)
     setDraggingColumn(stageId)
 
-    const stageName = STAGE_MAP[stageId]?.label ?? stageId
+    const stageName = getStageMeta(stageId)?.label ?? stageId
     const badge = document.createElement('div')
     badge.textContent = `⇄ ${stageName}`
     badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#4cabdb;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'

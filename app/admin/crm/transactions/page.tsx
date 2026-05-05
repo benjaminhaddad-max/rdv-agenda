@@ -1347,6 +1347,7 @@ export default function TransactionsPage() {
               onSelectDeal={handleSelectDeal}
               undoAction={undoAction}
               onUndo={handleUndo}
+              pipelineId={season}
             />
           )
         )}
