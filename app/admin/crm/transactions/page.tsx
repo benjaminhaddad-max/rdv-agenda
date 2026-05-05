@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Search, X, ChevronDown, ChevronUp, LayoutDashboard, Users, ExternalLink,
   ArrowUpDown, GraduationCap, MapPin, BookOpen, Phone, Mail, RefreshCw,
@@ -341,6 +342,7 @@ function SortHeader({
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function TransactionsPage() {
+  const router = useRouter()
   // View mode — default board, persisted in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>('board')
 
@@ -637,7 +639,15 @@ export default function TransactionsPage() {
   // ── Deal selection (for detail panel) ──────────────────────────────────────
 
   function handleSelectDeal(deal: TransactionDetail | Transaction) {
-    setSelectedDeal(deal as TransactionDetail)
+    // Click sur une transaction = ouverture de la fiche contact
+    // (Les transactions associees sont visibles en haut a droite de la fiche.)
+    const contactId = (deal as TransactionDetail | Transaction).contact?.hubspot_contact_id
+    if (contactId) {
+      router.push(`/admin/crm/contacts/${contactId}`)
+    } else {
+      // Fallback: panel de detail si pas de contact lie
+      setSelectedDeal(deal as TransactionDetail)
+    }
   }
 
   function handleDetailClose() {
