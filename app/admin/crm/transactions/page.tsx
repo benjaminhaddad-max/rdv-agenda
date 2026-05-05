@@ -341,10 +341,21 @@ function SortHeader({
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
+// Saisons disponibles (pipelines HubSpot)
+const SEASONS: { id: string; label: string }[] = [
+  { id: '2313043166', label: '2026-2027' },
+  { id: '1329267902', label: '2025-2026' },
+  { id: '322737657',  label: '2024-2025' },
+  { id: '55039960',   label: '2023-2024' },
+  { id: 'all',        label: 'Toutes saisons' },
+]
+
 export default function TransactionsPage() {
   const router = useRouter()
   // View mode — default board, persisted in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>('board')
+  // Saison selectionnee (pipeline HubSpot)
+  const [season, setSeason] = useState<string>('2313043166')
 
   // List view state
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -409,7 +420,7 @@ export default function TransactionsPage() {
   const fetchBoard = useCallback(async () => {
     setBoardLoading(true)
     try {
-      const res = await fetch('/api/crm/transactions?view=board')
+      const res = await fetch(`/api/crm/transactions?view=board&pipeline=${season}`)
       if (res.ok) {
         const data = await res.json()
         setBoardColumns(data.columns ?? {})
@@ -419,7 +430,7 @@ export default function TransactionsPage() {
     } finally {
       setBoardLoading(false)
     }
-  }, [])
+  }, [season])
 
   // Load board on mount (it's default view)
   useEffect(() => { fetchBoard() }, [fetchBoard])
@@ -431,7 +442,7 @@ export default function TransactionsPage() {
     const p = resetPage ? 0 : page
     if (resetPage) setPage(0)
 
-    const params = new URLSearchParams({ limit: String(LIMIT), page: String(p), sort: sortCol, order: sortOrder })
+    const params = new URLSearchParams({ limit: String(LIMIT), page: String(p), sort: sortCol, order: sortOrder, pipeline: season })
     if (search)    params.set('search', search)
     if (stage)     params.set('stage', stage)
     if (formation) params.set('formation', formation)
@@ -449,7 +460,7 @@ export default function TransactionsPage() {
       setListLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, formation, classe, sortCol, sortOrder, page])
+  }, [search, stage, formation, classe, sortCol, sortOrder, page, season])
 
   // Fetch list data when in list mode
   useEffect(() => {
@@ -795,7 +806,20 @@ export default function TransactionsPage() {
           <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <GraduationCap size={14} style={{ color: '#ccac71' }} />
-            <span style={{ fontSize: 13, color: '#ccac71', fontWeight: 700 }}>Transactions 2026-2027</span>
+            <span style={{ fontSize: 13, color: '#ccac71', fontWeight: 700 }}>Transactions</span>
+            <select
+              value={season}
+              onChange={e => setSeason(e.target.value)}
+              style={{
+                fontSize: 12, fontWeight: 600, color: '#ccac71',
+                background: '#fff', border: '1px solid #cbd6e2', borderRadius: 6,
+                padding: '3px 6px', cursor: 'pointer', marginLeft: 4,
+              }}
+            >
+              {SEASONS.map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

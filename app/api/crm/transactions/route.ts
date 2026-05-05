@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
   const teleproHsId  = searchParams.get('telepro_hs_id') ?? ''
   const page         = parseInt(searchParams.get('page') ?? '0', 10)
   const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  // Pipeline (saison). Defaut: 2026-2027. 'all' = toutes saisons.
+  const pipelineParam = searchParams.get('pipeline') ?? '2313043166'
 
   // ── Charger rdv_users pour enrichissement ─────────────────────────────────
   const { data: users } = await db
@@ -49,10 +51,12 @@ export async function GET(req: NextRequest) {
   let hasMore = true
 
   while (hasMore) {
-    const { data: batch, error } = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = db
       .from('crm_deals')
       .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, description')
-      .eq('pipeline', '2313043166')
+    if (pipelineParam !== 'all') q = q.eq('pipeline', pipelineParam)
+    const { data: batch, error } = await q
       .order('createdate', { ascending: false, nullsFirst: false })
       .range(from, from + PAGE_SIZE - 1)
 
