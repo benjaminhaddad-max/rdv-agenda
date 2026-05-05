@@ -678,18 +678,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 count={1}
                 accent="brand"
               >
-                <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-[13px]">
                   {/* Statut en haut, gros et visible */}
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
                     <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
-                    <span className="font-semibold">{status.label}</span>
+                    <span className="font-semibold text-[13px]">{status.label}</span>
                   </div>
 
                   {/* Formation */}
                   {pi.formation && (
                     <div>
-                      <div className="text-xs text-slate-500 mb-0.5">Formation</div>
-                      <div className="font-medium text-slate-800">{pi.formation}</div>
+                      <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-0.5">Formation</div>
+                      <div className="font-medium text-slate-800 text-[13px]">{pi.formation}</div>
                     </div>
                   )}
 
@@ -698,26 +698,26 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div className="bg-slate-50 rounded-lg p-2.5 space-y-1.5">
                       {pi.montant != null && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">Total formule</span>
-                          <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
+                          <span className="text-[12px] text-slate-500">Total formule</span>
+                          <span className="font-semibold text-[13px]">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {acompteEuros > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">Acompte payé</span>
-                          <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
+                          <span className="text-[12px] text-slate-500">Acompte payé</span>
+                          <span className="font-medium text-[13px] text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {paidAt && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">Date paiement</span>
-                          <span className="text-xs">{format(new Date(paidAt), 'PP', { locale: fr })}</span>
+                          <span className="text-[12px] text-slate-500">Date paiement</span>
+                          <span className="text-[12px]">{format(new Date(paidAt), 'PP', { locale: fr })}</span>
                         </div>
                       )}
                       {ext.payment_method && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">Méthode</span>
-                          <span className="text-xs capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
+                          <span className="text-[12px] text-slate-500">Méthode</span>
+                          <span className="text-[12px] capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
                         </div>
                       )}
                     </div>
@@ -726,13 +726,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   {/* Notes */}
                   {pi.notes && (
                     <div>
-                      <div className="text-xs text-slate-500 mb-1">Notes</div>
-                      <div className="text-xs whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2">{pi.notes}</div>
+                      <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Notes</div>
+                      <div className="text-[12px] whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
                     </div>
                   )}
 
                   {/* Date detection (footer discret) */}
-                  <div className="text-xs text-slate-400 pt-1 border-t flex items-center justify-between">
+                  <div className="text-[11px] text-slate-400 pt-1 border-t flex items-center justify-between">
                     <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
                     {ext.inscription_id && (
                       <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
