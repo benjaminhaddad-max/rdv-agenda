@@ -420,7 +420,9 @@ export default function TransactionsPage() {
   const fetchBoard = useCallback(async () => {
     setBoardLoading(true)
     try {
-      const res = await fetch(`/api/crm/transactions?view=board&pipeline=${season}`)
+      const params = new URLSearchParams({ view: 'board', pipeline: season })
+      if (search) params.set('search', search)
+      const res = await fetch(`/api/crm/transactions?${params}`)
       if (res.ok) {
         const data = await res.json()
         setBoardColumns(data.columns ?? {})
@@ -430,7 +432,7 @@ export default function TransactionsPage() {
     } finally {
       setBoardLoading(false)
     }
-  }, [season])
+  }, [season, search])
 
   // Load board on mount (it's default view)
   useEffect(() => { fetchBoard() }, [fetchBoard])
@@ -823,6 +825,33 @@ export default function TransactionsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Recherche transactions (par nom de transaction OU contact) */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Search size={13} style={{ position: 'absolute', left: 8, color: '#7c98b6', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Rechercher une transaction..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
+                padding: '5px 28px 5px 28px', color: '#33475b', fontSize: 12,
+                width: 220, outline: 'none',
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute', right: 6, background: 'transparent', border: 'none',
+                  cursor: 'pointer', color: '#7c98b6', display: 'flex', padding: 2,
+                }}
+                aria-label="Effacer la recherche"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
           <a href="/admin/crm" style={{
             background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
             padding: '5px 12px', color: '#516f90', fontSize: 12, textDecoration: 'none',
