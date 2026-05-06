@@ -1489,7 +1489,7 @@ export default function CRMContactsTable({
             {allCrmProps && allCrmProps.length > 0 && onExtraColumnsChange && (
               <>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
-                  Propriétés HubSpot
+                  Propriétés du contact
                 </div>
                 {/* Liste des extra columns actives + bouton retirer */}
                 {(extraColumns ?? []).map(propName => {
