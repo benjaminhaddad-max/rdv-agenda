@@ -436,6 +436,7 @@ export interface CRMContact {
   formation_souhaitee?: string | null
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
+  closer_du_contact_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
@@ -830,7 +831,7 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission'
+type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -843,6 +844,7 @@ const COL_LABELS: Record<ColKey, string> = {
   lead_status:          'Statut du lead',
   origine:              'Origine',
   closer:               'Propriétaire du contact',
+  closer_du_contact:    'Closer du contact',
   telepro:              'Télépro',
   createdat_contact:    'Date de création (contact)',
   createdat_deal:       'Date de création (deal)',
@@ -860,6 +862,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   lead_status:          130,
   origine:              120,
   closer:               120,
+  closer_du_contact:    140,
   telepro:              110,
   createdat_contact:     100,
   createdat_deal:        100,
@@ -873,8 +876,11 @@ const SORTABLE_COLS = new Set<ColKey>([
 
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','phone','form_submission','formation_souhaitee','classe',
-  'zone','departement','etape','lead_status','origine','closer','telepro','createdat_contact','createdat_deal',
+  'zone','departement','etape','lead_status','origine','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
+
+// Colonnes cachées par défaut (l'utilisateur peut les afficher via le menu Colonnes)
+const DEFAULT_HIDDEN_COLS: ColKey[] = ['closer_du_contact']
 
 export default function CRMContactsTable({
   contacts,
@@ -945,6 +951,40 @@ export default function CRMContactsTable({
     return { ...COL_WIDTHS }
   })
   const resizingRef = useRef<{ key: ColKey; startX: number; startW: number } | null>(null)
+
+  // ── Visibilité des colonnes ────────────────────────────────────────────────
+  const [hiddenCols, setHiddenCols] = useState<Set<ColKey>>(() => {
+    if (typeof window === 'undefined') return new Set(DEFAULT_HIDDEN_COLS)
+    try {
+      const saved = localStorage.getItem('crm-col-hidden')
+      if (saved) return new Set(JSON.parse(saved) as ColKey[])
+    } catch { /* ignore */ }
+    return new Set(DEFAULT_HIDDEN_COLS)
+  })
+  const [colMenuOpen, setColMenuOpen] = useState(false)
+  const colMenuRef = useRef<HTMLDivElement>(null)
+
+  function toggleColVisibility(key: ColKey) {
+    setHiddenCols(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      localStorage.setItem('crm-col-hidden', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
+  // Fermer le menu colonnes quand on clique ailleurs
+  useEffect(() => {
+    if (!colMenuOpen) return
+    function onDoc(e: MouseEvent) {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
+        setColMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [colMenuOpen])
 
   // ── Chargement des préférences utilisateur depuis Supabase ────────────────
   useEffect(() => {
@@ -1058,9 +1098,9 @@ export default function CRMContactsTable({
 
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
+    if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
     if (key === 'origine'            && !sourceOptions?.length)     return false
-    // Colonne "closer" visible pour tous les modes
     return true
   }
 
@@ -1221,6 +1261,22 @@ export default function CRMContactsTable({
         )
       }
 
+      case 'closer_du_contact': {
+        const cdcVal = contact.closer_du_contact_owner_id || ''
+        const cdcSaving = savingContactField === `${contact.hubspot_contact_id}:closer_du_contact_owner_id`
+        const cdcOnSel = (v: string) =>
+          handleContactFieldChange(contact.hubspot_contact_id, 'closer_du_contact_owner_id', v)
+        return (
+          <InlineCellSelect
+            value={cdcVal}
+            options={closerSelectOptions ?? []}
+            onSelect={cdcOnSel}
+            saving={cdcSaving}
+            renderValue={v => renderUserOption(v, closerSelectOptions)}
+          />
+        )
+      }
+
       case 'telepro': {
         const tVal    = deal ? (deal.teleprospecteur || '') : (contact.teleprospecteur || '')
         const tSaving = deal
@@ -1327,6 +1383,80 @@ export default function CRMContactsTable({
 
   return (
     <>
+      {/* Toolbar : gestion des colonnes affichées */}
+      <div ref={colMenuRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4px 8px', position: 'relative' }}>
+        <button
+          onClick={() => setColMenuOpen(o => !o)}
+          style={{
+            background: colMenuOpen ? 'rgba(76,171,219,0.10)' : '#ffffff',
+            border: `1px solid ${colMenuOpen ? BLUE : NAVY_BORDER}`,
+            borderRadius: 8,
+            padding: '5px 12px',
+            color: colMenuOpen ? BLUE : '#3a5070',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: 'inherit',
+          }}
+          title="Choisir les colonnes affichées"
+        >
+          <GripVertical size={11} />
+          Colonnes ({visibleCols.length}/{colOrder.length})
+        </button>
+        {colMenuOpen && (
+          <div style={{
+            position: 'absolute',
+            top: 32,
+            right: 4,
+            background: '#ffffff',
+            border: `1px solid ${NAVY_BORDER}`,
+            borderRadius: 10,
+            padding: 10,
+            zIndex: 30,
+            minWidth: 240,
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
+              Afficher les colonnes
+            </div>
+            {colOrder.map(key => {
+              // Cacher les options non pertinentes pour le mode courant
+              if (key === 'lead_status' && !leadStatusOptions?.length) return null
+              if (key === 'origine' && !sourceOptions?.length) return null
+              const checked = !hiddenCols.has(key)
+              return (
+                <label key={key} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 4px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: '#1e293b',
+                  borderRadius: 4,
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleColVisibility(key)}
+                    style={{ accentColor: BLUE, cursor: 'pointer' }}
+                  />
+                  {COL_LABELS[key]}
+                </label>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       <div style={{ width: '100%', overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 900 }}>
           <colgroup>
