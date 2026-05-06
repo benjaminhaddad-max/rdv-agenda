@@ -375,8 +375,8 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        background: '#0b1624',
-        border: '1px solid #2d4a6b',
+        background: '#f8fafc',
+        border: '1px solid #e2e8f0',
         borderRadius: 20,
         width: '100%', maxWidth: 900,
         padding: '32px',
@@ -388,9 +388,9 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
           onClick={onClose}
           style={{
             position: 'absolute', top: 20, right: 20,
-            background: '#1d2f4b', border: '1px solid #2d4a6b',
+            background: '#ffffff', border: '1px solid #e2e8f0',
             borderRadius: 8, padding: '6px 8px',
-            cursor: 'pointer', color: '#8b8fa8', display: 'flex',
+            cursor: 'pointer', color: '#64748b', display: 'flex',
           }}
         >
           <X size={16} />
@@ -408,10 +408,10 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
               <Zap size={22} style={{ color: '#ccac71' }} />
             </div>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0', margin: 0 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', margin: 0 }}>
                 {ROLE_TITLES[role] || 'Guide de la Plateforme'}
               </h2>
-              <p style={{ fontSize: 13, color: '#555870', margin: 0 }}>
+              <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
                 RDV Agenda — Diploma Sante
               </p>
             </div>
@@ -430,12 +430,12 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
               ].map(s => (
                 <div key={s.label} style={{
                   flex: '1 1 180px',
-                  background: '#1d2f4b', border: '1px solid #2d4a6b',
+                  background: '#ffffff', border: '1px solid #e2e8f0',
                   borderRadius: 12, padding: '12px 16px',
                 }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: '#ccac71' }}>{s.value}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#e8eaf0' }}>{s.label}</div>
-                  <div style={{ fontSize: 11, color: '#555870', marginTop: 2 }}>{s.detail}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.detail}</div>
                 </div>
               ))}
             </div>
@@ -448,8 +448,8 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
             const isOpen = openSection === section.id
             return (
               <div key={section.id} style={{
-                background: '#1d2f4b',
-                border: `1px solid ${isOpen ? `rgba(${hexToRgb(section.color)},0.4)` : '#2d4a6b'}`,
+                background: '#ffffff',
+                border: `1px solid ${isOpen ? `rgba(${hexToRgb(section.color)},0.4)` : '#e2e8f0'}`,
                 borderRadius: 12,
                 overflow: 'hidden',
                 transition: 'border-color 0.2s',
@@ -461,7 +461,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                     width: '100%', background: 'transparent', border: 'none',
                     padding: '14px 18px',
                     display: 'flex', alignItems: 'center', gap: 12,
-                    cursor: 'pointer', color: '#e8eaf0',
+                    cursor: 'pointer', color: '#1e293b',
                     fontFamily: 'inherit',
                   }}
                 >
@@ -484,8 +484,8 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                     {section.items.length}
                   </span>
                   {isOpen
-                    ? <ChevronDown size={16} style={{ color: '#555870' }} />
-                    : <ChevronRight size={16} style={{ color: '#555870' }} />
+                    ? <ChevronDown size={16} style={{ color: '#64748b' }} />
+                    : <ChevronRight size={16} style={{ color: '#64748b' }} />
                   }
                 </button>
 
@@ -498,7 +498,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                       {section.items.map((item, i) => (
                         <div key={i} style={{
                           display: 'flex', gap: 12, alignItems: 'flex-start',
-                          background: '#0b1624',
+                          background: '#f8fafc',
                           borderRadius: 10, padding: '12px 14px',
                           border: '1px solid #1a2840',
                         }}>
@@ -506,10 +506,10 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                             {item.emoji}
                           </span>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 3 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
                               {item.title}
                             </div>
-                            <div style={{ fontSize: 12, color: '#8b8fa8', lineHeight: 1.6 }}>
+                            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
                               {item.desc}
                             </div>
                           </div>
@@ -526,7 +526,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
         {/* Footer */}
         <div style={{
           marginTop: 24, textAlign: 'center',
-          fontSize: 11, color: '#555870', lineHeight: 1.6,
+          fontSize: 11, color: '#64748b', lineHeight: 1.6,
         }}>
           RDV Agenda — Diploma Santé © 2026
         </div>

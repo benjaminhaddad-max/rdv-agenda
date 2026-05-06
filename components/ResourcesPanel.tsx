@@ -193,20 +193,20 @@ export default function ResourcesPanel({ onClose, role }: Props) {
       }}
     >
       <div style={{
-        background: '#0b1624', border: '1px solid #2d4a6b', borderRadius: 20,
+        background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20,
         width: '100%', maxWidth: 800, maxHeight: '90vh',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
       }}>
         {/* Header */}
         <div style={{
-          padding: '20px 24px', borderBottom: '1px solid #2d4a6b',
+          padding: '20px 24px', borderBottom: '1px solid #e2e8f0',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 22 }}>📦</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf0' }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
               {ROLE_TITLES[role]}
             </span>
           </div>
@@ -227,8 +227,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
             <button
               onClick={onClose}
               style={{
-                background: 'rgba(255,255,255,0.06)', border: '1px solid #2d4a6b',
-                borderRadius: 8, padding: 6, cursor: 'pointer', color: '#555870',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid #e2e8f0',
+                borderRadius: 8, padding: 6, cursor: 'pointer', color: '#64748b',
                 display: 'flex', alignItems: 'center',
               }}
             >
@@ -243,7 +243,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
           {/* Admin form */}
           {isAdmin && showForm && (
             <div style={{
-              background: '#152438', border: '1px solid #2d4a6b', borderRadius: 12,
+              background: '#e2e8f0', border: '1px solid #e2e8f0', borderRadius: 12,
               padding: 20, marginBottom: 20,
             }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', marginBottom: 16 }}>
@@ -256,8 +256,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                 onChange={e => setFormTitle(e.target.value)}
                 placeholder="Titre de la ressource"
                 style={{
-                  width: '100%', background: '#0b1624', border: '1px solid #2d4a6b',
-                  borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                  width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                  borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                   fontSize: 13, marginBottom: 12, fontFamily: 'inherit',
                   outline: 'none', boxSizing: 'border-box',
                 }}
@@ -269,8 +269,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                   value={formType}
                   onChange={e => setFormType(e.target.value as 'link' | 'pdf' | 'text')}
                   style={{
-                    flex: 1, background: '#0b1624', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                    flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                     fontSize: 13, fontFamily: 'inherit', outline: 'none',
                   }}
                 >
@@ -282,8 +282,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                   value={formCategory}
                   onChange={e => setFormCategory(e.target.value)}
                   style={{
-                    flex: 1, background: '#0b1624', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                    flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                     fontSize: 13, fontFamily: 'inherit', outline: 'none',
                   }}
                 >
@@ -297,8 +297,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                   onChange={e => setFormOrder(parseInt(e.target.value) || 0)}
                   placeholder="Ordre"
                   style={{
-                    width: 70, background: '#0b1624', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                    width: 70, background: '#f8fafc', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                     fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'center',
                   }}
                 />
@@ -311,8 +311,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                   onChange={e => setFormUrl(e.target.value)}
                   placeholder={formType === 'pdf' ? 'URL du PDF (Google Drive, etc.)' : 'URL du lien'}
                   style={{
-                    width: '100%', background: '#0b1624', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                    width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                     fontSize: 13, marginBottom: 12, fontFamily: 'inherit',
                     outline: 'none', boxSizing: 'border-box',
                   }}
@@ -324,8 +324,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                   placeholder="Contenu texte (script d'appel, FAQ, notes...)"
                   rows={6}
                   style={{
-                    width: '100%', background: '#0b1624', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '10px 14px', color: '#e8eaf0',
+                    width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '10px 14px', color: '#1e293b',
                     fontSize: 13, marginBottom: 12, fontFamily: 'inherit',
                     outline: 'none', resize: 'vertical', boxSizing: 'border-box',
                   }}
@@ -334,7 +334,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
 
               {/* Roles */}
               <div style={{ marginBottom: 16 }}>
-                <span style={{ fontSize: 11, color: '#8b8fa8', fontWeight: 600, marginBottom: 6, display: 'block' }}>
+                <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, display: 'block' }}>
                   Visible par :
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -344,9 +344,9 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                       onClick={() => toggleRole(r)}
                       style={{
                         background: formRoles.includes(r) ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${formRoles.includes(r) ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
+                        border: `1px solid ${formRoles.includes(r) ? 'rgba(204,172,113,0.4)' : '#e2e8f0'}`,
                         borderRadius: 6, padding: '5px 12px',
-                        color: formRoles.includes(r) ? '#ccac71' : '#555870',
+                        color: formRoles.includes(r) ? '#ccac71' : '#64748b',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                         textTransform: 'capitalize',
                       }}
@@ -374,8 +374,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                 <button
                   onClick={resetForm}
                   style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b',
-                    borderRadius: 8, padding: '8px 20px', color: '#8b8fa8',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid #e2e8f0',
+                    borderRadius: 8, padding: '8px 20px', color: '#64748b',
                     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
@@ -387,18 +387,18 @@ export default function ResourcesPanel({ onClose, role }: Props) {
 
           {/* Loading */}
           {loading && (
-            <div style={{ textAlign: 'center', padding: 40, color: '#555870', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#64748b', fontSize: 13 }}>
               Chargement…
             </div>
           )}
 
           {/* Empty */}
           {!loading && filtered.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: '#555870' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 12 }}>📭</span>
               <span style={{ fontSize: 13 }}>Aucune ressource disponible</span>
               {isAdmin && (
-                <div style={{ marginTop: 8, fontSize: 12, color: '#3a5070' }}>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
                   Cliquez sur &quot;Ajouter&quot; pour créer votre première ressource
                 </div>
               )}
@@ -409,7 +409,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
           {Object.entries(grouped).map(([cat, items]) => (
             <div key={cat} style={{ marginBottom: 20 }}>
               <div style={{
-                fontSize: 12, fontWeight: 700, color: '#8b8fa8',
+                fontSize: 12, fontWeight: 700, color: '#64748b',
                 textTransform: 'uppercase', letterSpacing: '0.05em',
                 marginBottom: 10, paddingBottom: 6,
                 borderBottom: '1px solid rgba(45,74,107,0.5)',
@@ -420,7 +420,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {items.map(r => (
                   <div key={r.id} style={{
-                    background: '#152438', border: '1px solid #2d4a6b',
+                    background: '#e2e8f0', border: '1px solid #e2e8f0',
                     borderRadius: 10, overflow: 'hidden',
                   }}>
                     <div style={{
@@ -439,13 +439,13 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                       </span>
 
                       {/* Title */}
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#e8eaf0' }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
                         {r.title}
                       </span>
 
                       {/* Type badge */}
                       <span style={{
-                        fontSize: 10, fontWeight: 700, color: '#555870',
+                        fontSize: 10, fontWeight: 700, color: '#64748b',
                         background: 'rgba(255,255,255,0.04)', borderRadius: 4,
                         padding: '2px 6px', textTransform: 'uppercase',
                       }}>
@@ -488,7 +488,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                       )}
 
                       {r.type === 'text' && (
-                        <span style={{ color: '#555870', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center' }}>
                           {expandedTexts.has(r.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </span>
                       )}
@@ -499,8 +499,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                           <button
                             onClick={() => startEdit(r)}
                             style={{
-                              background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b',
-                              borderRadius: 6, padding: 4, cursor: 'pointer', color: '#8b8fa8',
+                              background: 'rgba(255,255,255,0.04)', border: '1px solid #e2e8f0',
+                              borderRadius: 6, padding: 4, cursor: 'pointer', color: '#64748b',
                               display: 'flex', alignItems: 'center',
                             }}
                           >
@@ -521,8 +521,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                             <button
                               onClick={() => setDeletingId(r.id)}
                               style={{
-                                background: 'rgba(255,255,255,0.04)', border: '1px solid #2d4a6b',
-                                borderRadius: 6, padding: 4, cursor: 'pointer', color: '#555870',
+                                background: 'rgba(255,255,255,0.04)', border: '1px solid #e2e8f0',
+                                borderRadius: 6, padding: 4, cursor: 'pointer', color: '#64748b',
                                 display: 'flex', alignItems: 'center',
                               }}
                             >
@@ -552,9 +552,9 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                           onClick={() => handleCopy(r.content!, r.id)}
                           style={{
                             background: copiedId === r.id ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${copiedId === r.id ? 'rgba(34,197,94,0.3)' : '#2d4a6b'}`,
+                            border: `1px solid ${copiedId === r.id ? 'rgba(34,197,94,0.3)' : '#e2e8f0'}`,
                             borderRadius: 6, padding: '5px 12px',
-                            color: copiedId === r.id ? '#22c55e' : '#8b8fa8',
+                            color: copiedId === r.id ? '#22c55e' : '#64748b',
                             fontSize: 11, fontWeight: 600, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                           }}
@@ -572,8 +572,8 @@ export default function ResourcesPanel({ onClose, role }: Props) {
 
         {/* Footer */}
         <div style={{
-          padding: '12px 24px', borderTop: '1px solid #2d4a6b',
-          textAlign: 'center', fontSize: 11, color: '#3a5070', flexShrink: 0,
+          padding: '12px 24px', borderTop: '1px solid #e2e8f0',
+          textAlign: 'center', fontSize: 11, color: '#475569', flexShrink: 0,
         }}>
           {filtered.length} ressource{filtered.length !== 1 ? 's' : ''} disponible{filtered.length !== 1 ? 's' : ''}
         </div>

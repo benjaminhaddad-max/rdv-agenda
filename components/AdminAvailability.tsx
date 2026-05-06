@@ -50,11 +50,11 @@ for (let h = 7; h <= 22; h++) {
 }
 
 const selectStyle: React.CSSProperties = {
-  background: '#243d5c',
-  border: '1px solid #2d4a6b',
+  background: '#f1f5f9',
+  border: '1px solid #e2e8f0',
   borderRadius: 6,
   padding: '5px 8px',
-  color: '#e8eaf0',
+  color: '#1e293b',
   fontSize: 12,
   outline: 'none',
   cursor: 'pointer',
@@ -179,8 +179,8 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 
   return (
     <div style={{
-      background: '#152438',
-      border: `1px solid ${expanded ? 'rgba(204,172,113,0.3)' : '#2d4a6b'}`,
+      background: '#e2e8f0',
+      border: `1px solid ${expanded ? 'rgba(204,172,113,0.3)' : '#e2e8f0'}`,
       borderRadius: 12,
       overflow: 'hidden',
       transition: 'border-color 0.2s',
@@ -206,9 +206,9 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#e8eaf0' }}>{closer.name}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: '#1e293b' }}>{closer.name}</div>
           <div style={{
-            fontSize: 11, color: '#555870', marginTop: 2,
+            fontSize: 11, color: '#64748b', marginTop: 2,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {summary}
@@ -220,16 +220,16 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
           </div>
         </div>
 
-        {expanded ? <ChevronUp size={16} style={{ color: '#555870' }} /> : <ChevronDown size={16} style={{ color: '#555870' }} />}
+        {expanded ? <ChevronUp size={16} style={{ color: '#64748b' }} /> : <ChevronDown size={16} style={{ color: '#64748b' }} />}
       </div>
 
       {/* Expanded content */}
       {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #2d4a6b' }}>
+        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #e2e8f0' }}>
 
           {/* Planning hebdomadaire compact */}
           <div style={{ paddingTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
               Planning récurrent
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -265,7 +265,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 
                     <span style={{
                       width: 30, fontSize: 12, fontWeight: 600,
-                      color: rule.is_active ? '#e8eaf0' : '#555870',
+                      color: rule.is_active ? '#1e293b' : '#64748b',
                     }}>
                       {day.label}
                     </span>
@@ -279,7 +279,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                       {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
 
-                    <span style={{ color: '#555870', fontSize: 11 }}>→</span>
+                    <span style={{ color: '#64748b', fontSize: 11 }}>→</span>
 
                     <select
                       value={rule.end_time}
@@ -315,8 +315,8 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
           </div>
 
           {/* Jours bloqués */}
-          <div style={{ paddingTop: 14, marginTop: 14, borderTop: '1px solid #2d4a6b' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ paddingTop: 14, marginTop: 14, borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
               Jours bloqués
             </div>
 
@@ -353,7 +353,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 
             {/* List */}
             {blockedDates.length === 0 ? (
-              <div style={{ fontSize: 11, color: '#555870' }}>Aucun jour bloqué</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Aucun jour bloqué</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {blockedDates.map(b => (
@@ -361,12 +361,12 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                     key={b.id}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      background: '#243d5c', borderRadius: 6, padding: '5px 10px',
+                      background: '#f1f5f9', borderRadius: 6, padding: '5px 10px',
                     }}
                   >
-                    <span style={{ fontSize: 11, color: '#e8eaf0', textTransform: 'capitalize' }}>
+                    <span style={{ fontSize: 11, color: '#1e293b', textTransform: 'capitalize' }}>
                       {format(new Date(b.blocked_date + 'T00:00:00'), 'EEE d MMM', { locale: fr })}
-                      {b.reason && <span style={{ color: '#555870' }}> — {b.reason}</span>}
+                      {b.reason && <span style={{ color: '#64748b' }}> — {b.reason}</span>}
                     </span>
                     <button
                       onClick={() => removeBlockedDate(b.id)}
@@ -409,8 +409,8 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#1d2f4b',
-        border: '1px solid #2d4a6b',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
         borderRadius: 16,
         width: '100%', maxWidth: 640,
         maxHeight: '90vh',
@@ -421,26 +421,26 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
         {/* Header */}
         <div style={{
           padding: '18px 24px',
-          borderBottom: '1px solid #2d4a6b',
+          borderBottom: '1px solid #e2e8f0',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Clock size={18} style={{ color: '#b89450' }} />
               Disponibilités des closers
             </div>
-            <div style={{ fontSize: 12, color: '#555870', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
               Gérer le planning récurrent et les jours bloqués de chaque closer
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: '#243d5c', border: '1px solid #2d4a6b',
+              background: '#f1f5f9', border: '1px solid #e2e8f0',
               borderRadius: 8, width: 32, height: 32,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#8b8fa8',
+              cursor: 'pointer', color: '#64748b',
             }}
           >
             <X size={16} />
@@ -450,7 +450,7 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
         {/* List of closers */}
         <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {closers.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#555870', padding: '24px 0', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
               Chargement…
             </div>
           )}
