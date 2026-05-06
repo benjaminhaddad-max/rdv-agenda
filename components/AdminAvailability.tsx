@@ -249,7 +249,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                       onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
                       style={{
                         width: 36, height: 20, borderRadius: 10,
-                        background: rule.is_active ? '#b89450' : '#353849',
+                        background: rule.is_active ? '#b89450' : '#e2e8f0',
                         border: 'none', cursor: 'pointer',
                         position: 'relative', transition: 'background 0.2s',
                         flexShrink: 0,
@@ -339,7 +339,7 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
                 onClick={addBlockedDate}
                 disabled={!blockDate}
                 style={{
-                  background: blockDate ? '#ef4444' : '#353849',
+                  background: blockDate ? '#ef4444' : '#e2e8f0',
                   color: 'white', border: 'none',
                   borderRadius: 6, padding: '5px 10px',
                   fontSize: 11, fontWeight: 700, cursor: blockDate ? 'pointer' : 'default',

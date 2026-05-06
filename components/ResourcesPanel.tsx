@@ -542,7 +542,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                         <pre style={{
                           margin: '12px 0 10px',
                           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                          fontSize: 12, lineHeight: 1.7, color: '#c0c4d0',
+                          fontSize: 12, lineHeight: 1.7, color: '#475569',
                           fontFamily: 'inherit', background: 'rgba(0,0,0,0.2)',
                           padding: 14, borderRadius: 8,
                         }}>

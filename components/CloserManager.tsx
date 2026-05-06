@@ -155,7 +155,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
     }} onClick={e => e.target === e.currentTarget && onClose()}>
 
       <div style={{
-        width: 480, height: '100vh', background: '#13151f',
+        width: 480, height: '100vh', background: '#ffffff',
         borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column',
         animation: 'slideIn 0.2s ease',
         overflowY: 'auto',
@@ -597,11 +597,11 @@ function CloserRow({
                 <button onClick={() => setShownPassword(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                <div style={{ background: '#13151f', borderRadius: 7, padding: '8px 12px' }}>
+                <div style={{ background: '#ffffff', borderRadius: 7, padding: '8px 12px' }}>
                   <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
                   <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 600 }}>{cl.email}</div>
                 </div>
-                <div style={{ background: '#13151f', borderRadius: 7, padding: '8px 12px' }}>
+                <div style={{ background: '#ffffff', borderRadius: 7, padding: '8px 12px' }}>
                   <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mot de passe (nouveau)</div>
                   <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#ccac71', letterSpacing: '0.05em' }}>{shownPassword}</div>
                 </div>

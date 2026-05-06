@@ -500,7 +500,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                           display: 'flex', gap: 12, alignItems: 'flex-start',
                           background: '#f8fafc',
                           borderRadius: 10, padding: '12px 14px',
-                          border: '1px solid #1a2840',
+                          border: '1px solid #f1f5f9',
                         }}>
                           <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>
                             {item.emoji}

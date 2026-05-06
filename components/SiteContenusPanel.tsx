@@ -163,7 +163,7 @@ function TabContenus() {
                             <div style={{ fontSize: 10, color: GOLD, fontWeight: 700 }}>{(draft.subtitle as string) || type.subtitle}</div>
                           </div>
                         </div>
-                        <div style={{ fontSize: 10, color: '#6b82a0', lineHeight: 1.5, marginBottom: 8 }}>{(draft.description as string) || type.description}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.5, marginBottom: 8 }}>{(draft.description as string) || type.description}</div>
                         <div style={{ background: NAVY, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{(draft.btn_label as string) || type.btn_label} →</div>
                       </div>
                     </div>
