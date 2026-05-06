@@ -2030,11 +2030,10 @@ export default function TeleproClient({
       {/* ── Onglet Mes Transactions (télépro sur le deal) ─────────── */}
       {activeTab === 'transactions' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <UserCRMView
-            ownerParam="telepro_hs_id"
-            ownerId={teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''}
-            mode="telepro"
-            onTotalChange={setTxTotal}
+          <iframe
+            src={`/admin/crm/transactions?telepro=${encodeURIComponent(teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || '')}&embed=1`}
+            style={{ flex: 1, width: '100%', border: 'none' }}
+            title="Kanban Mes Transactions"
           />
         </div>
       )}
