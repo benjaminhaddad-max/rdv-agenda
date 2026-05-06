@@ -487,6 +487,31 @@ export default function TransactionBoard({
   }
 
   function handleDropDeals(dealIds: string[], targetStage: string) {
+    // Lock UI : on verifie la transition AVANT d'appeler les handlers parents.
+    // Stages aval (3165428982/83/84/85) -> non modifiables manuellement.
+    // Exception : amont -> Ferme Perdu (3165428985) autorise.
+    const AMONT = new Set(['3165428979', '3165428980', '3165428981'])
+    const FERME = '3165428985'
+    const allowed = (from: string, to: string): boolean => {
+      if (!from || !to) return false
+      if (from === to) return true
+      if (AMONT.has(from) && AMONT.has(to)) return true
+      if (AMONT.has(from) && to === FERME) return true
+      return false
+    }
+    // Trouver le stage source
+    const fromStages = new Set<string>()
+    for (const sid of Object.keys(columns)) {
+      for (const d of columns[sid]) {
+        if (dealIds.includes(d.hubspot_deal_id)) fromStages.add(sid)
+      }
+    }
+    for (const fs of fromStages) {
+      if (!allowed(fs, targetStage)) {
+        alert('Ce stage est piloté automatiquement par la plateforme Diploma. Modification manuelle interdite (sauf passage en Fermé Perdu depuis un stage amont).')
+        return
+      }
+    }
     if (dealIds.length === 1) {
       onStageChange(dealIds[0], targetStage)
     } else {
