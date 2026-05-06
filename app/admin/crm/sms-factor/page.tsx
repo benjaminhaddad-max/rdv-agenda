@@ -19,6 +19,13 @@ const SMS_SENDERS = [
 
 type CampaignType = 'alert' | 'marketing'
 
+type TrackedLinkUI = {
+  placeholder: string   // ex: "{lien1}"
+  url: string
+  label?: string
+  tracked: boolean      // true = passe par /r/[token], false = URL d'origine telle quelle
+}
+
 type Campaign = {
   id: string
   name: string
@@ -26,6 +33,12 @@ type Campaign = {
   sender: string
   campaign_type?: CampaignType
   shorten_links?: boolean
+  tracked_links?: TrackedLinkUI[]
+  // Stats agregees ajoutees par GET /api/sms-campaigns (presents seulement si
+  // tracked_links non vide)
+  clicks_total?: number
+  clicked_recipients?: number
+  tracked_tokens_total?: number
   status: string
   scheduled_at: string | null
   sent_at: string | null
@@ -196,6 +209,11 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
                 <LinkIcon size={10} /> liens courts
               </span>
             )}
+            {campaign.tracked_links && campaign.tracked_links.length > 0 && (
+              <span style={{ fontSize: 10, color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: 2 }} title={`${campaign.tracked_links.length} lien(s) tracké(s)`}>
+                <LinkIcon size={10} /> {campaign.tracked_links.length} lien{campaign.tracked_links.length > 1 ? 's' : ''} tracké{campaign.tracked_links.length > 1 ? 's' : ''}
+              </span>
+            )}
             <span style={{ fontSize: 10, color: '#94a3b8' }}>
               {new Date(campaign.created_at).toLocaleString('fr-FR')}
             </span>
@@ -215,6 +233,14 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
                 <span><Users size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {campaign.sent_count}/{campaign.total_recipients} envoyés</span>
                 {campaign.failed_count > 0 && <span style={{ color: '#dc2626' }}>{campaign.failed_count} échecs</span>}
                 <span>{campaign.segments_used} segments</span>
+                {campaign.tracked_links && campaign.tracked_links.length > 0 && (
+                  <span style={{ color: '#7c3aed', fontWeight: 600 }} title={`${campaign.clicked_recipients ?? 0} destinataire(s) ont cliqué`}>
+                    <LinkIcon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {campaign.clicks_total ?? 0} clic{(campaign.clicks_total ?? 0) > 1 ? 's' : ''}
+                    {campaign.clicked_recipients !== undefined && campaign.clicked_recipients > 0 && (
+                      <span style={{ color: '#94a3b8', fontWeight: 400 }}> ({campaign.clicked_recipients} destinataire{campaign.clicked_recipients > 1 ? 's' : ''})</span>
+                    )}
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -292,6 +318,16 @@ function NewCampaignModal({ onClose, onCreated }: {
   const [campaignType, setCampaignType] = useState<CampaignType>('alert')
   const [shortenLinks, setShortenLinks] = useState(false)
 
+  // Liens trackes : chaque lien a un placeholder ({lien1}, {lien2}…) qui sera
+  // remplace par une URL courte unique par destinataire (ou par l'URL
+  // d'origine si tracked=false). Saisis via le bouton "Inserer un lien".
+  const [trackedLinks, setTrackedLinks] = useState<TrackedLinkUI[]>([])
+  const [linkFormOpen, setLinkFormOpen] = useState(false)
+  const [linkFormUrl, setLinkFormUrl] = useState('')
+  const [linkFormLabel, setLinkFormLabel] = useState('')
+  const [linkFormTracked, setLinkFormTracked] = useState(true)
+  const messageRef = useRef<HTMLTextAreaElement>(null)
+
   // Planification
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now')
   const [scheduledAt, setScheduledAt] = useState('')  // datetime-local string
@@ -344,6 +380,60 @@ function NewCampaignModal({ onClose, onCreated }: {
     setFilterGroups(v.filter_groups)
     setPresetFlags((v.preset_flags as typeof presetFlags) ?? null)
   }, [selectedViewId, views, mode])
+
+  // ─── Liens trackes : helpers ──────────────────────────────────────────────
+  function nextLinkPlaceholder(): string {
+    const used = new Set(trackedLinks.map(l => l.placeholder))
+    for (let i = 1; i <= 99; i++) {
+      const p = `{lien${i}}`
+      if (!used.has(p) && !message.includes(p)) return p
+    }
+    return `{lien${trackedLinks.length + 1}}`
+  }
+
+  function insertTextAtCursor(text: string) {
+    const ta = messageRef.current
+    if (!ta) {
+      setMessage(prev => prev + text)
+      return
+    }
+    const start = ta.selectionStart ?? message.length
+    const end = ta.selectionEnd ?? message.length
+    const next = message.slice(0, start) + text + message.slice(end)
+    setMessage(next)
+    setTimeout(() => {
+      if (!ta) return
+      ta.focus()
+      ta.setSelectionRange(start + text.length, start + text.length)
+    }, 0)
+  }
+
+  function handleAddLink() {
+    let url = linkFormUrl.trim()
+    if (!url) return
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    try { new URL(url) } catch { return }
+    const placeholder = nextLinkPlaceholder()
+    const link: TrackedLinkUI = {
+      placeholder,
+      url,
+      label: linkFormLabel.trim() || undefined,
+      tracked: linkFormTracked,
+    }
+    setTrackedLinks(prev => [...prev, link])
+    insertTextAtCursor(placeholder)
+    // reset form
+    setLinkFormUrl('')
+    setLinkFormLabel('')
+    setLinkFormTracked(true)
+    setLinkFormOpen(false)
+  }
+
+  function handleRemoveLink(placeholder: string) {
+    setTrackedLinks(prev => prev.filter(l => l.placeholder !== placeholder))
+    // Retire egalement le placeholder du message s'il y est
+    setMessage(prev => prev.split(placeholder).join('').replace(/\s{2,}/g, ' ').trimEnd())
+  }
 
   // Détection URLs dans le message (pour le toggle "liens courts")
   const detectedUrls = useMemo(() => {
@@ -424,6 +514,10 @@ function NewCampaignModal({ onClose, onCreated }: {
 
     setSubmitting(true)
     try {
+      // Ne garde que les liens dont le placeholder est encore present dans
+      // le message (l'utilisateur peut avoir supprime manuellement le tag).
+      const usedTrackedLinks = trackedLinks.filter(l => message.includes(l.placeholder))
+
       const res = await fetch('/api/sms-campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -433,6 +527,7 @@ function NewCampaignModal({ onClose, onCreated }: {
           sender,
           campaign_type: campaignType,
           shorten_links: shortenLinks,
+          tracked_links: usedTrackedLinks,
           filter_groups: mode === 'phones' ? [] : filterGroups,
           preset_flags: mode === 'phones' ? null : presetFlags,
           manual_phones: mode === 'phones' ? phonesParsed.valid : [],
@@ -516,6 +611,7 @@ function NewCampaignModal({ onClose, onCreated }: {
 
           <Field label="Message">
             <textarea
+              ref={messageRef}
               value={message} onChange={e => setMessage(e.target.value)}
               placeholder="Bonjour {firstname}, je vous recontacte au sujet de votre inscription chez Diploma Santé…"
               rows={5}
@@ -530,7 +626,176 @@ function NewCampaignModal({ onClose, onCreated }: {
                   <LinkIcon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {detectedUrls.length} URL détectée{detectedUrls.length > 1 ? 's' : ''}
                 </span>
               )}
+              {trackedLinks.length > 0 && (
+                <span style={{ color: '#7c3aed' }}>
+                  {trackedLinks.length} lien{trackedLinks.length > 1 ? 's' : ''} tracké{trackedLinks.length > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
+
+            {/* ─── Bouton + formulaire d'insertion de lien tracké ──────── */}
+            <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setLinkFormOpen(o => !o)}
+                style={{
+                  background: linkFormOpen ? '#eaf4fd' : '#f8fafc',
+                  border: `1px solid ${linkFormOpen ? '#2ea3f2' : '#e2e8f0'}`,
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                <LinkIcon size={12} /> Insérer un lien
+              </button>
+            </div>
+
+            {linkFormOpen && (
+              <div style={{
+                marginTop: 8,
+                padding: 12,
+                border: '1px dashed #cbd5e1',
+                borderRadius: 8,
+                background: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ flex: '2 1 240px', minWidth: 200 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>
+                      URL de destination
+                    </label>
+                    <input
+                      type="text"
+                      value={linkFormUrl}
+                      onChange={e => setLinkFormUrl(e.target.value)}
+                      placeholder="https://www.diploma-sante.fr/inscription"
+                      style={input}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
+                    />
+                  </div>
+                  <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>
+                      Libellé (optionnel)
+                    </label>
+                    <input
+                      type="text"
+                      value={linkFormLabel}
+                      onChange={e => setLinkFormLabel(e.target.value)}
+                      placeholder="Page inscription"
+                      style={input}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink() } }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1e293b', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={linkFormTracked}
+                      onChange={e => setLinkFormTracked(e.target.checked)}
+                    />
+                    Tracker les clics par contact
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setLinkFormOpen(false); setLinkFormUrl(''); setLinkFormLabel('') }}
+                      style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#475569', cursor: 'pointer' }}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddLink}
+                      disabled={!linkFormUrl.trim()}
+                      style={{
+                        background: linkFormUrl.trim() ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#cbd5e1',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px 12px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: linkFormUrl.trim() ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Insérer
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+                  Le lien sera inséré dans le message sous forme de tag (ex: <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3 }}>{'{lien1}'}</code>).
+                  Au moment de l'envoi, chaque destinataire reçoit une URL courte unique
+                  qui redirige vers ta destination. {linkFormTracked
+                    ? 'Tu pourras voir qui a cliqué dans le détail de la campagne.'
+                    : 'Les clics ne seront pas tracés (URL d\'origine envoyée telle quelle).'}
+                </div>
+              </div>
+            )}
+
+            {/* ─── Liste des liens trackés déjà insérés ─────────────────── */}
+            {trackedLinks.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {trackedLinks.map(l => {
+                  const isInMessage = message.includes(l.placeholder)
+                  return (
+                    <div
+                      key={l.placeholder}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        border: `1px solid ${isInMessage ? '#e2e8f0' : '#fde68a'}`,
+                        background: isInMessage ? '#fff' : '#fffbeb',
+                        borderRadius: 6,
+                        fontSize: 12,
+                      }}
+                    >
+                      <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, color: '#7c3aed', fontWeight: 600 }}>
+                        {l.placeholder}
+                      </code>
+                      <span style={{ color: '#64748b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
+                        {l.url}
+                      </span>
+                      {l.label && <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>({l.label})</span>}
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: 999,
+                        background: l.tracked ? '#dbeafe' : '#f1f5f9',
+                        color: l.tracked ? '#1d4ed8' : '#64748b',
+                      }}>
+                        {l.tracked ? 'tracké' : 'brut'}
+                      </span>
+                      {!isInMessage && (
+                        <span style={{ fontSize: 10, color: '#b45309', fontWeight: 600 }} title="Le tag a été supprimé du message — il ne sera pas envoyé">
+                          ⚠ retiré du message
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLink(l.placeholder)}
+                        style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                        title="Supprimer ce lien"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             {detectedUrls.length > 0 && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#1e293b', cursor: 'pointer' }}>
                 <input

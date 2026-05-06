@@ -48,7 +48,7 @@ export async function PATCH(
 
   const allowed = [
     'name', 'message', 'sender',
-    'campaign_type', 'shorten_links',
+    'campaign_type', 'shorten_links', 'tracked_links',
     'segment_ids', 'filters', 'filter_groups', 'preset_flags',
     'manual_contact_ids', 'manual_phones',
     'scheduled_at', 'status',

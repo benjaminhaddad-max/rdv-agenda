@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import {
   sendSms,
@@ -9,6 +10,28 @@ import {
 import { logger } from '@/lib/logger'
 import { viewToParams } from '@/lib/crm-views'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
+
+interface TrackedLink {
+  placeholder: string  // ex: "{lien1}"
+  url: string
+  label?: string
+  tracked?: boolean
+}
+
+/** Genere un token URL-safe (~10 chars). */
+function makeToken(): string {
+  return randomBytes(8).toString('base64url').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 10)
+}
+
+/** Construit l'URL absolue de redirection /r/[token] selon l'env. */
+function getPublicRedirectUrl(req: NextRequest, token: string): string {
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (req.headers.get('host')
+      ? `${req.headers.get('x-forwarded-proto') ?? 'https'}://${req.headers.get('host')}`
+      : 'https://localhost:3000')
+  return `${base.replace(/\/$/, '')}/r/${token}`
+}
 
 /**
  * POST /api/sms-campaigns/[id]/send
@@ -196,29 +219,88 @@ export async function POST(
       })
     }
 
-    // Insert pending + skipped en bulk
-    const recipientsRows = [
-      ...validRecipients.map(r => ({
-        campaign_id: id,
-        hubspot_contact_id: r.contact.hubspot_contact_id,
-        phone: r.phone,
-        firstname: r.contact.firstname,
-        rendered_message: r.rendered,
-        segments_count: r.segments,
-        status: 'pending',
-      })),
-      ...skipped.map(s => ({
-        campaign_id: id,
-        hubspot_contact_id: s.contact.hubspot_contact_id,
-        phone: s.contact.phone || '',
-        firstname: s.contact.firstname,
-        rendered_message: null,
-        status: 'skipped',
-        error_message: s.reason,
-      })),
-    ]
-    if (recipientsRows.length > 0) {
-      await db.from('sms_campaign_recipients').insert(recipientsRows)
+    // Insert pending + skipped en bulk + recupere les IDs pour les liens trackes
+    const pendingRows = validRecipients.map(r => ({
+      campaign_id: id,
+      hubspot_contact_id: r.contact.hubspot_contact_id,
+      phone: r.phone,
+      firstname: r.contact.firstname,
+      rendered_message: r.rendered,
+      segments_count: r.segments,
+      status: 'pending',
+    }))
+    const skippedRows = skipped.map(s => ({
+      campaign_id: id,
+      hubspot_contact_id: s.contact.hubspot_contact_id,
+      phone: s.contact.phone || '',
+      firstname: s.contact.firstname,
+      rendered_message: null,
+      status: 'skipped',
+      error_message: s.reason,
+    }))
+
+    // recipientId par phone (les phones sont uniques dans validRecipients apres dedup)
+    const recipientIdByPhone = new Map<string, string>()
+    if (pendingRows.length > 0) {
+      const { data: insertedPending } = await db
+        .from('sms_campaign_recipients')
+        .insert(pendingRows)
+        .select('id, phone')
+      for (const row of insertedPending ?? []) {
+        if (row.id && row.phone) recipientIdByPhone.set(row.phone as string, row.id as string)
+      }
+    }
+    if (skippedRows.length > 0) {
+      await db.from('sms_campaign_recipients').insert(skippedRows)
+    }
+
+    // 4-bis. Liens trackes : pour chaque (recipient x tracked link), genere un
+    // token et prepare l'URL courte qui remplacera le placeholder.
+    // urlByRecipientPhone[phone][placeholder] = url courte (ou URL d'origine
+    // si le lien n'est pas tracke).
+    const trackedLinks: TrackedLink[] = Array.isArray(campaign.tracked_links) ? campaign.tracked_links : []
+    const urlByRecipientPhone = new Map<string, Record<string, string>>()
+    const tokenInserts: Array<{
+      token: string
+      campaign_id: string
+      recipient_id: string
+      placeholder: string
+      label: string | null
+      original_url: string
+    }> = []
+
+    if (trackedLinks.length > 0) {
+      for (const r of validRecipients) {
+        const recipientId = recipientIdByPhone.get(r.phone)
+        const map: Record<string, string> = {}
+        for (const link of trackedLinks) {
+          if (!link?.placeholder || !link.url) continue
+          if (link.tracked === false || !recipientId) {
+            // pas de tracking : on injecte l'URL d'origine telle quelle
+            map[link.placeholder] = link.url
+            continue
+          }
+          const token = makeToken()
+          tokenInserts.push({
+            token,
+            campaign_id: id,
+            recipient_id: recipientId,
+            placeholder: link.placeholder,
+            label: link.label ?? null,
+            original_url: link.url,
+          })
+          map[link.placeholder] = getPublicRedirectUrl(req, token)
+        }
+        urlByRecipientPhone.set(r.phone, map)
+      }
+      // Insert bulk des tokens (best effort — par batches de 500 pour eviter
+      // les payloads trop gros sur les grosses campagnes).
+      if (tokenInserts.length > 0) {
+        const BATCH = 500
+        for (let i = 0; i < tokenInserts.length; i += BATCH) {
+          await db.from('sms_campaign_link_tokens').insert(tokenInserts.slice(i, i + BATCH))
+        }
+      }
     }
 
     // 5. Envoi sequentiel (rate limit ~10 SMS/sec)
@@ -231,16 +313,38 @@ export async function POST(
 
     for (const r of validRecipients) {
       try {
-        // Si raccourcissement activé et URLs détectées dans le rendu → bascule POST
+        // 5a. Remplace les placeholders de liens trackes par leurs URLs finales
+        // (URL courte trackee /r/xyz ou URL d'origine si lien non tracke).
         let textToSend = r.rendered
+        const linkMap = urlByRecipientPhone.get(r.phone)
+        if (linkMap) {
+          for (const [placeholder, finalUrl] of Object.entries(linkMap)) {
+            textToSend = textToSend.split(placeholder).join(finalUrl)
+          }
+        }
+
+        // 5b. Si raccourcissement SMS Factor activé et URLs détectées → bascule POST
         let shortenLinksOpt: { urls: string[] } | undefined
         if (shortenLinks) {
-          const urls = detectUrls(r.rendered)
+          const urls = detectUrls(textToSend)
           if (urls.length > 0) {
-            const transformed = replaceUrlsWithShortPlaceholder(r.rendered)
+            const transformed = replaceUrlsWithShortPlaceholder(textToSend)
             textToSend = transformed.text
             shortenLinksOpt = { urls: transformed.urls }
           }
+        }
+
+        // 5c. Recalcule les segments sur le texte final
+        const finalSegments = estimateSegments(textToSend)
+
+        // Met a jour le rendered_message + segments_count avec la version finale
+        // (utile pour debug + stats).
+        const recipientId = recipientIdByPhone.get(r.phone)
+        if (recipientId) {
+          await db.from('sms_campaign_recipients').update({
+            rendered_message: textToSend,
+            segments_count: finalSegments,
+          }).eq('id', recipientId)
         }
 
         const result = await sendSms(r.phone, textToSend, {
@@ -251,7 +355,7 @@ export async function POST(
 
         if (result.ok) {
           sentCount++
-          segmentsUsed += r.segments
+          segmentsUsed += finalSegments
           await db.from('sms_campaign_recipients').update({
             status: 'sent',
             sms_factor_ticket: result.ticket || null,
