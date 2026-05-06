@@ -11,7 +11,9 @@ import { logger } from '@/lib/logger'
 // Scope : statuts 'archivee' (Inscriptions finalisees) + 'annulee' (Annulees / Ferme perdu)
 // Pas de push HubSpot : Supabase = source de verite.
 
-export const maxDuration = 60
+// 5 min max (pattern crm-sync). Le sync local prend ~30s, on garde de la marge
+// pour le delta latence Vercel <-> Supabase et la pagination gmail (~70k contacts).
+export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
 const DIPLOMA_KEY = process.env.DIPLOMA_API_KEY
