@@ -490,7 +490,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     if (!newFirstname.trim() || !newLastname.trim() || !newEmail.trim()) return
     setCreating(true); setLookupError(null)
     try {
-      const res = await fetch('/api/hubspot/contact', {
+      const res = await fetch('/api/crm/contacts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstname: newFirstname.trim(), lastname: newLastname.trim(),

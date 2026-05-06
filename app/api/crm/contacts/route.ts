@@ -640,3 +640,96 @@ export async function GET(req: NextRequest) {
     limit,
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/crm/contacts — Créer un nouveau contact 100 % Supabase
+//
+// Indépendant de HubSpot : génère un ID natif au format crm_<uuid> et insère
+// directement dans crm_contacts. Détecte les doublons d'email et renvoie le
+// contact existant le cas échéant pour éviter la duplication.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const db = createServiceClient()
+  try {
+    const body = await req.json()
+    const firstname    = String(body.firstname ?? '').trim()
+    const lastname     = String(body.lastname ?? '').trim()
+    const email        = String(body.email ?? '').trim().toLowerCase()
+    const phone        = body.phone        ? String(body.phone).trim()        : null
+    const departement  = body.departement  ? String(body.departement).trim()  : null
+    const classe       = body.classe_actuelle ? String(body.classe_actuelle).trim() : null
+    const formation    = body.formation    ? String(body.formation).trim()    : null
+
+    if (!firstname || !lastname || !email) {
+      return NextResponse.json({ error: 'Prénom, nom et email requis' }, { status: 400 })
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
+    }
+
+    // Détection de doublon par email (insensible à la casse)
+    const { data: existing } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, departement, formation_demandee')
+      .ilike('email', email)
+      .limit(1)
+      .maybeSingle()
+
+    if (existing) {
+      // Retourne le contact déjà existant (statut 200 — l'app peut s'en servir)
+      return NextResponse.json({
+        id: existing.hubspot_contact_id,
+        properties: {
+          email:                                existing.email ?? '',
+          firstname:                            existing.firstname ?? '',
+          lastname:                             existing.lastname ?? '',
+          phone:                                existing.phone ?? '',
+          departement:                          existing.departement ?? '',
+          classe_actuelle:                      existing.classe_actuelle ?? '',
+          diploma_sante___formation_demandee:   existing.formation_demandee ?? '',
+        },
+        existed: true,
+      })
+    }
+
+    // Nouveau contact natif Supabase — ID préfixé pour le distinguer des
+    // contacts HubSpot (numériques) et des contacts Diploma (dpl_c_*)
+    const newId = `crm_${crypto.randomUUID()}`
+    const now = new Date().toISOString()
+
+    const { error: insertErr } = await db
+      .from('crm_contacts')
+      .insert({
+        hubspot_contact_id:   newId,
+        firstname,
+        lastname,
+        email,
+        phone,
+        departement,
+        classe_actuelle:      classe,
+        formation_demandee:   formation,
+        contact_createdate:   now,
+        synced_at:            now,
+      })
+
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      id: newId,
+      properties: {
+        email,
+        firstname,
+        lastname,
+        phone:                                phone ?? '',
+        departement:                          departement ?? '',
+        classe_actuelle:                      classe ?? '',
+        diploma_sante___formation_demandee:   formation ?? '',
+      },
+    }, { status: 201 })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erreur création contact'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}

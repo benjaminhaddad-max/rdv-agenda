@@ -856,12 +856,12 @@ export default function TeleproClient({
     if (c.formation_demandee) setFormation(c.formation_demandee)
   }
 
-  // ── Créer nouveau contact HubSpot ─────────────────────────────────────
+  // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
   async function createNewContact() {
     if (!newFirstname.trim() || !newLastname.trim() || !newEmail.trim()) return
     setCreating(true); setLookupError(null)
     try {
-      const res = await fetch('/api/hubspot/contact', {
+      const res = await fetch('/api/crm/contacts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstname: newFirstname.trim(), lastname: newLastname.trim(),
