@@ -34,7 +34,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'doublons',      label: 'Doublons',     href: '/admin/crm/doublons',     icon: GitMerge },
       { key: 'recherche-prop',label: 'Recherche propriété', href: '/admin/crm/recherche-prop', icon: Search },
       { key: 'proprietes',    label: 'Propriétés',   href: '/admin/crm/proprietes',   icon: Database },
-      { key: 'users',         label: 'Utilisateurs', href: '/admin/users',            icon: Users },
+      { key: 'users',         label: 'Utilisateurs', href: '/admin/crm/users',        icon: Users },
       { key: 'parametres',    label: 'Paramètres',   href: '/admin/crm/parametres',   icon: SettingsIcon },
     ],
   },
