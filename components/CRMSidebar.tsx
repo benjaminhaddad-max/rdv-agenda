@@ -58,10 +58,11 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Gestion',
     items: [
-      { key: 'dashboard', label: 'Dashboard',  href: '/admin',           icon: LayoutDashboard },
-      { key: 'agenda',    label: 'Mon agenda', href: '/closer',          icon: Calendar },
-      { key: 'errors',    label: 'Erreurs',    href: '/admin/errors',    icon: AlertTriangle, badgeKey: 'errors' },
-      { key: 'migration', label: 'Migration',  href: '/admin/migration', icon: Rocket },
+      { key: 'dashboard', label: 'Dashboard',    href: '/admin',           icon: LayoutDashboard },
+      { key: 'agenda',    label: 'Mon agenda',   href: '/closer',          icon: Calendar },
+      { key: 'users',     label: 'Utilisateurs', href: '/admin/users',     icon: Users },
+      { key: 'errors',    label: 'Erreurs',      href: '/admin/errors',    icon: AlertTriangle, badgeKey: 'errors' },
+      { key: 'migration', label: 'Migration',    href: '/admin/migration', icon: Rocket },
     ],
   },
 ]
