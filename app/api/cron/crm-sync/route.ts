@@ -235,7 +235,10 @@ export async function GET(req: NextRequest) {
         if (page.length < DB_PAGE) break
         dbCursor += DB_PAGE
       }
-      const stale = dealsInDb.filter(id => !allDealIdsSet.has(id))
+      // Ne pas supprimer les deals "dpl_*" : ce sont des deals natifs Supabase
+      // crees par diploma-sync pour les inscriptions plateforme qui n'avaient pas
+      // de deal HubSpot a l'origine. Ils ne sont volontairement pas dans HubSpot.
+      const stale = dealsInDb.filter(id => !allDealIdsSet.has(id) && !id.startsWith('dpl_'))
       if (stale.length > 0) {
         const DEL_BATCH = 200
         for (let i = 0; i < stale.length; i += DEL_BATCH) {
