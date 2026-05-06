@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const classe       = searchParams.get('classe') ?? ''
   const closerHsId   = searchParams.get('closer_hs_id') ?? ''
   const teleproHsId  = searchParams.get('telepro_hs_id') ?? ''
+  const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const page         = parseInt(searchParams.get('page') ?? '0', 10)
   const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
   // Pipeline (saison). Defaut: 2026-2027. 'all' = toutes saisons.
@@ -108,6 +109,7 @@ export async function GET(req: NextRequest) {
     if (formation  && d.formation !== formation)               return false
     if (closerHsId && d.hubspot_owner_id !== closerHsId)       return false
     if (teleproHsId && d.teleprospecteur !== teleproHsId)      return false
+    if (contactOwnerHsId && contact?.hubspot_owner_id !== contactOwnerHsId) return false
     if (classe     && contact?.classe_actuelle !== classe)     return false
 
     return true

@@ -423,10 +423,13 @@ export default function TransactionsPage() {
     try {
       const params = new URLSearchParams({ view: 'board', pipeline: season })
       if (search) params.set('search', search)
-      // Filtre embed: telepro=<hs_id> applique automatiquement le filtre teleprospecteur
+      // Filtre embed: telepro=<hs_id> ou contact_owner=<hs_id>
       if (typeof window !== 'undefined') {
-        const urlTelepro = new URLSearchParams(window.location.search).get('telepro')
+        const sp = new URLSearchParams(window.location.search)
+        const urlTelepro = sp.get('telepro')
         if (urlTelepro) params.set('telepro_hs_id', urlTelepro)
+        const urlContactOwner = sp.get('contact_owner')
+        if (urlContactOwner) params.set('contact_owner_hs_id', urlContactOwner)
       }
       const res = await fetch(`/api/crm/transactions?${params}`)
       if (res.ok) {

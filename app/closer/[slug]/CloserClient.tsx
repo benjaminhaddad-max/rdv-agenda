@@ -1288,7 +1288,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         </div>
       )}
 
-      {/* ── Tab: Mes Transactions (closer sur le deal) ────────────── */}
+      {/* ── Tab: Mes Transactions — kanban filtre par contact_owner_hs_id ─ */}
       {activeTab === 'leads' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!user.hubspot_owner_id ? (
@@ -1296,11 +1296,10 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
             </div>
           ) : (
-            <UserCRMView
-              ownerParam="closer_hs_id"
-              ownerId={user.hubspot_owner_id}
-              mode="closer"
-              onTotalChange={setLeadsTotal}
+            <iframe
+              src={`/admin/crm/transactions?contact_owner=${encodeURIComponent(user.hubspot_owner_id)}&embed=1`}
+              style={{ flex: 1, width: '100%', border: 'none' }}
+              title="Kanban Mes Transactions"
             />
           )}
         </div>
