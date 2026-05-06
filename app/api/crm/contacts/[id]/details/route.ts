@@ -91,6 +91,7 @@ export async function GET(
     emailEvents,
     preInscriptions,
     smsRecipients,
+    emailRecipients,
   ] = await Promise.all([
     db.from('crm_deals').select('*')
       .eq('hubspot_contact_id', contactId)
@@ -131,6 +132,13 @@ export async function GET(
     safeRows(db.from('sms_campaign_recipients')
       .select('id, campaign_id, phone, rendered_message, status, sms_factor_ticket, error_message, segments_count, sent_at, created_at')
       .eq('hubspot_contact_id', contactId)
+      .order('sent_at', { ascending: false, nullsFirst: false })
+      .limit(200)),
+
+    // Emails de campagne envoyes au contact (Brevo) — tous les contacts dupliques
+    safeRows(db.from('email_campaign_recipients')
+      .select('id, campaign_id, contact_id, email, status, error_message, sent_at, delivered_at, first_open_at, last_open_at, open_count, first_click_at, last_click_at, click_count, brevo_message_id, created_at')
+      .in('contact_id', linkedContactIds)
       .order('sent_at', { ascending: false, nullsFirst: false })
       .limit(200)),
   ])
@@ -252,6 +260,9 @@ export async function GET(
   // 4. Agrège email_events par messageId
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const emailStatsByMessageId: Record<string, { sent: number; delivered: number; opens: number; clicks: number; bounces: number; spam: number; lastEventAt?: string; events: Array<{ type: string; at: string; data?: any }> }> = {}
+  // Aggrege en plus les URLs cliquees par messageId : { url: { count, events: [{ at, ip?, ua? }] } }
+  const clicksByUrlByMessageId: Record<string, Record<string, { count: number; events: Array<{ at: string; ip?: string | null; ua?: string | null }> }>> = {}
+
   for (const ev of emailEvents) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = (ev as any).event_data as any
@@ -276,7 +287,87 @@ export async function GET(
     if (!s.lastEventAt || occurredAt > s.lastEventAt) {
       s.lastEventAt = occurredAt
     }
+
+    // Click : extrait l'URL cliquee depuis event_data.link (Brevo) ou .url
+    if (t === 'click' || t === 'clicks' || t === 'unique_clicked') {
+      const url = (data?.link || data?.url || data?.URL) as string | undefined
+      if (url) {
+        if (!clicksByUrlByMessageId[key]) clicksByUrlByMessageId[key] = {}
+        if (!clicksByUrlByMessageId[key][url]) clicksByUrlByMessageId[key][url] = { count: 0, events: [] }
+        clicksByUrlByMessageId[key][url].count++
+        clicksByUrlByMessageId[key][url].events.push({
+          at: occurredAt,
+          ip: (data?.ip as string | undefined) ?? null,
+          ua: (data?.user_agent as string | undefined) ?? (data?.ua as string | undefined) ?? null,
+        })
+      }
+    }
   }
+
+  // 4-bis. Email campaigns : pour chaque destinataire-campagne, recupere les
+  // infos de la campagne + agrege les URLs cliquees.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emailRecipientsArr = (emailRecipients ?? []) as Array<any>
+  const emailCampaignIds = [...new Set(emailRecipientsArr.map(r => r.campaign_id).filter(Boolean) as string[])]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let emailCampaignsArr: any[] = []
+  if (emailCampaignIds.length > 0) {
+    const { data } = await db
+      .from('email_campaigns')
+      .select('id, name, subject, sender_name, sender_email')
+      .in('id', emailCampaignIds)
+    emailCampaignsArr = data ?? []
+  }
+  const emailCampaignById = new Map<string, { id: string; name: string | null; subject: string | null; sender_name: string | null; sender_email: string | null }>()
+  for (const c of emailCampaignsArr) emailCampaignById.set(c.id as string, c)
+
+  const emailCampaigns = emailRecipientsArr.map(r => {
+    const camp = emailCampaignById.get(r.campaign_id as string) ?? null
+    const msgId = r.brevo_message_id as string | null
+    const stats = msgId ? emailStatsByMessageId[msgId] : undefined
+    const linkClicks = msgId && clicksByUrlByMessageId[msgId] ? clicksByUrlByMessageId[msgId] : {}
+    const links = Object.entries(linkClicks)
+      .map(([url, info]) => ({
+        url,
+        click_count: info.count,
+        clicks: info.events.sort((a, b) => (a.at < b.at ? 1 : -1)),
+      }))
+      .sort((a, b) => b.click_count - a.click_count)
+    return {
+      id: r.id,
+      campaign_id: r.campaign_id,
+      contact_id: r.contact_id,
+      email: r.email,
+      status: r.status,
+      error_message: r.error_message ?? null,
+      sent_at: r.sent_at,
+      delivered_at: r.delivered_at,
+      first_open_at: r.first_open_at,
+      last_open_at: r.last_open_at,
+      open_count: r.open_count ?? 0,
+      first_click_at: r.first_click_at,
+      last_click_at: r.last_click_at,
+      click_count: r.click_count ?? 0,
+      brevo_message_id: msgId,
+      created_at: r.created_at,
+      campaign: camp ? {
+        id: camp.id,
+        name: camp.name,
+        subject: camp.subject,
+        sender_name: camp.sender_name,
+        sender_email: camp.sender_email,
+      } : null,
+      stats: stats ? {
+        sent: stats.sent,
+        delivered: stats.delivered,
+        opens: stats.opens,
+        clicks: stats.clicks,
+        bounces: stats.bounces,
+        spam: stats.spam,
+      } : null,
+      links,
+    }
+  })
 
   // Note : properties / dealProperties / owners / groups ne sont plus inclus
   // ici. Ils sont servis par /api/crm/metadata (cache navigateur 5min).
@@ -312,5 +403,6 @@ export async function GET(
     preInscriptions: dedupedPreInsc,
     duplicateContactIds: linkedContactIds.filter(id => id !== contactId),
     smsMessages,
+    emailCampaigns,
   })
 }

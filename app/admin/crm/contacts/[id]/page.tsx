@@ -113,6 +113,40 @@ interface SMSMessage {
   total_clicks: number
 }
 
+interface EmailCampaignLinkClick {
+  at: string
+  ip?: string | null
+  ua?: string | null
+}
+
+interface EmailCampaignLink {
+  url: string
+  click_count: number
+  clicks: EmailCampaignLinkClick[]
+}
+
+interface EmailCampaign {
+  id: string
+  campaign_id: string | null
+  contact_id?: string | null
+  email: string | null
+  status: string | null
+  error_message?: string | null
+  sent_at: string | null
+  delivered_at: string | null
+  first_open_at: string | null
+  last_open_at: string | null
+  open_count: number
+  first_click_at: string | null
+  last_click_at: string | null
+  click_count: number
+  brevo_message_id: string | null
+  created_at: string
+  campaign: { id: string; name: string | null; subject: string | null; sender_name: string | null; sender_email: string | null } | null
+  stats: EmailStats | null
+  links: EmailCampaignLink[]
+}
+
 interface ContactDetails {
   contact: Record<string, Any>
   deals: Array<Record<string, Any>>
@@ -127,6 +161,7 @@ interface ContactDetails {
   emailStatsByMessageId?: Record<string, EmailStats>
   preInscriptions?: PreInscription[]
   smsMessages?: SMSMessage[]
+  emailCampaigns?: EmailCampaign[]
 }
 
 interface PreInscription {
@@ -241,7 +276,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [] } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [] } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -337,6 +372,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     emailStats?: EmailStats
     sendStatus?: string
     sms?: SMSMessage
+    emailCampaign?: EmailCampaign
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -401,6 +437,22 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       body: sms.rendered_message ?? undefined,
       sms,
       sendStatus: sms.status,
+    })
+  }
+  for (const ec of emailCampaigns) {
+    const ts = ec.sent_at ? new Date(ec.sent_at).getTime() : new Date(ec.created_at).getTime()
+    const subject = ec.campaign?.subject || ec.campaign?.name || 'Email de campagne'
+    const senderName = ec.campaign?.sender_name || ec.campaign?.sender_email || 'Brevo'
+    const statusBit = (ec.status && ec.status !== 'sent' && ec.status !== 'delivered') ? ` · ${ec.status}` : ''
+    timeline.push({
+      id: `email-camp-${ec.id}`,
+      type: 'email',
+      timestamp: ts,
+      title: subject,
+      subtitle: `Campagne · ${senderName}${statusBit}`,
+      sendStatus: ec.status ?? undefined,
+      emailStats: ec.stats ?? undefined,
+      emailCampaign: ec,
     })
   }
   timeline.sort((a, b) => b.timestamp - a.timestamp)
@@ -654,6 +706,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                               )}
                               {t.type === 'sms' && t.sms?.links && t.sms.links.length > 0 && (
                                 <SMSLinksSection links={t.sms.links} />
+                              )}
+                              {t.type === 'email' && t.emailCampaign?.error_message && (
+                                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
+                                  Erreur : {t.emailCampaign.error_message}
+                                </div>
+                              )}
+                              {t.type === 'email' && t.emailCampaign?.links && t.emailCampaign.links.length > 0 && (
+                                <EmailLinksSection links={t.emailCampaign.links} />
                               )}
                             </div>
                           </li>
@@ -1112,6 +1172,71 @@ function SMSLinksSection({ links }: { links: SMSLink[] }) {
                     {c.user_agent && (
                       <span className="text-slate-400 truncate max-w-[200px]" title={c.user_agent}>
                         {c.user_agent.split(/[/\s]/)[0]}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  return (
+    <div className="mt-2 space-y-1.5">
+      {links.map((link, idx) => {
+        const key = link.url + idx
+        const isExpanded = expandedKey === key
+        return (
+          <div key={key} className="text-xs border rounded-md bg-slate-50 px-2 py-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-700 underline-offset-2 hover:underline truncate max-w-[300px]"
+                title={link.url}
+              >
+                {link.url}
+              </a>
+              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
+                {link.click_count} clic{link.click_count > 1 ? 's' : ''}
+              </span>
+              {link.clicks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedKey(isExpanded ? null : key)}
+                  className="text-[10px] text-blue-600 hover:underline"
+                >
+                  {isExpanded ? 'Masquer' : 'Détails'}
+                </button>
+              )}
+            </div>
+            {link.clicks.length > 0 && link.clicks[0]?.at && (
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Dernier clic : {(() => {
+                  try { return formatDistanceToNow(new Date(link.clicks[0].at), { addSuffix: true, locale: fr }) }
+                  catch { return link.clicks[0].at }
+                })()}
+              </div>
+            )}
+            {isExpanded && link.clicks.length > 0 && (
+              <ul className="mt-2 space-y-1 border-t pt-2">
+                {link.clicks.map((c, i) => (
+                  <li key={i} className="text-[10px] text-slate-600 flex items-center gap-2">
+                    <span className="text-slate-400">•</span>
+                    <span className="font-mono">
+                      {format(new Date(c.at), "d MMM 'à' HH:mm:ss", { locale: fr })}
+                    </span>
+                    {c.ip && <span className="text-slate-400">IP {c.ip}</span>}
+                    {c.ua && (
+                      <span className="text-slate-400 truncate max-w-[200px]" title={c.ua}>
+                        {c.ua.split(/[/\s]/)[0]}
                       </span>
                     )}
                   </li>
