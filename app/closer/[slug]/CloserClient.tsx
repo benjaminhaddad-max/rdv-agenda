@@ -297,11 +297,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   )
 
   // ── Booking form — contact ──
-  const [lookupMode, setLookupMode] = useState<'url' | 'phone' | 'new'>('url')
+  const [lookupMode, setLookupMode] = useState<'search' | 'new'>('search')
   const [lookupInput, setLookupInput] = useState('')
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [contact, setContact] = useState<HubSpotContact | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [searchResults, setSearchResults] = useState<any[]>([])
   const [newFirstname, setNewFirstname] = useState('')
   const [newLastname, setNewLastname] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -446,28 +448,42 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     loadSlots(date)
   }
 
-  // ── Booking: HubSpot contact ──
+  // ── Booking: recherche dans le CRM (Supabase) ──
   async function searchContact() {
     if (!lookupInput.trim()) return
-    setLookupLoading(true); setLookupError(null); setContact(null)
+    setLookupLoading(true); setLookupError(null); setSearchResults([])
     try {
-      const param = lookupMode === 'url'
-        ? `url=${encodeURIComponent(lookupInput.trim())}`
-        : `phone=${encodeURIComponent(lookupInput.trim())}`
-      const res = await fetch(`/api/hubspot/contact?${param}`)
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10`)
       const data = await res.json()
       if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
-      const found: HubSpotContact[] = data.results || []
-      if (found.length === 0) { setLookupError('Aucun contact trouvé.'); return }
-      const c = found[0]; setContact(c)
-      const p = c.properties
-      const ev = p.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-      if (p.phone) setPhone(p.phone)
-      if (p.departement) setDepartement(String(p.departement))
-      if (p.classe_actuelle) setClasseActuelle(p.classe_actuelle)
-      if (p.diploma_sante___formation_demandee) setFormation(p.diploma_sante___formation_demandee)
+      const results = data.data ?? []
+      if (results.length === 0) { setLookupError('Aucun contact trouvé dans le CRM.'); return }
+      setSearchResults(results)
     } catch { setLookupError('Erreur réseau') }
     finally { setLookupLoading(false) }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function pickSearchResult(c: any) {
+    const shaped: HubSpotContact = {
+      id: c.hubspot_contact_id,
+      properties: {
+        email: c.email ?? '',
+        firstname: c.firstname ?? '',
+        lastname: c.lastname ?? '',
+        phone: c.phone ?? '',
+        departement: c.departement != null ? String(c.departement) : '',
+        classe_actuelle: c.classe_actuelle ?? '',
+        diploma_sante___formation_demandee: c.formation_demandee ?? '',
+      },
+    }
+    setContact(shaped)
+    setSearchResults([])
+    const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
+    if (c.phone) setPhone(c.phone)
+    if (c.departement) setDepartement(String(c.departement))
+    if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
+    if (c.formation_demandee) setFormation(c.formation_demandee)
   }
 
   async function createNewContact() {
@@ -496,7 +512,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   }
 
   function resetContact() {
-    setContact(null); setLookupInput(''); setLookupError(null)
+    setContact(null); setLookupInput(''); setLookupError(null); setSearchResults([])
     setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
     setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
     setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setLinkCopied(false)
@@ -687,11 +703,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 20px' }}>
 
-            {/* Step 1 — Contact HubSpot */}
+            {/* Step 1 — Contact CRM */}
             <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <User size={16} style={{ color: user.avatar_color }} />
-                {contact ? '✓ Contact HubSpot' : 'Étape 1 — Contact HubSpot'}
+                {contact ? '✓ Contact sélectionné' : 'Étape 1 — Trouver le contact dans le CRM'}
               </div>
 
               {contact ? (
@@ -711,31 +727,57 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   {/* Mode selector */}
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                     {([
-                      { key: 'url' as const, label: 'Lien HubSpot', icon: <Link size={11} /> },
-                      { key: 'phone' as const, label: 'Téléphone', icon: <Phone size={11} /> },
+                      { key: 'search' as const, label: 'Rechercher dans le CRM', icon: <Search size={11} /> },
                       { key: 'new' as const, label: 'Nouveau contact', icon: <Plus size={11} /> },
                     ]).map(m => (
-                      <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null) }}
+                      <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null); setSearchResults([]) }}
                         style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#e2e8f0'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                         {m.icon} {m.label}
                       </button>
                     ))}
                   </div>
 
-                  {lookupMode !== 'new' ? (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        value={lookupInput}
-                        onChange={e => setLookupInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && searchContact()}
-                        placeholder={lookupMode === 'url' ? 'https://app.hubspot.com/contacts/...' : '+33 6 00 00 00 00'}
-                        style={{ ...fieldInputStyle, flex: 1 }}
-                      />
-                      <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
-                        style={{ background: user.avatar_color, color: 'white', border: 'none', borderRadius: 10, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: lookupLoading || !lookupInput.trim() ? 0.6 : 1 }}>
-                        <Search size={14} /> {lookupLoading ? 'Recherche…' : 'Chercher'}
-                      </button>
-                    </div>
+                  {lookupMode === 'search' ? (
+                    <>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          value={lookupInput}
+                          onChange={e => setLookupInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && searchContact()}
+                          placeholder="Nom, prénom, email ou téléphone…"
+                          style={{ ...fieldInputStyle, flex: 1 }}
+                        />
+                        <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
+                          style={{ background: user.avatar_color, color: 'white', border: 'none', borderRadius: 10, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: lookupLoading || !lookupInput.trim() ? 0.6 : 1 }}>
+                          <Search size={14} /> {lookupLoading ? 'Recherche…' : 'Chercher'}
+                        </button>
+                      </div>
+                      {searchResults.length > 0 && (
+                        <div style={{ marginTop: 10, border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
+                          {searchResults.map(r => {
+                            const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
+                            return (
+                              <button key={r.hubspot_contact_id}
+                                onClick={() => pickSearchResult(r)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #f1f5f9', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${user.avatar_color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <User size={14} style={{ color: user.avatar_color }} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
+                                  <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                                  </div>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -749,7 +791,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       </div>
                       <button onClick={createNewContact} disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
                         style={{ background: user.avatar_color, color: 'white', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim() ? 0.6 : 1 }}>
-                        {creating ? 'Création…' : 'Créer le contact HubSpot'}
+                        {creating ? 'Création…' : 'Créer le contact'}
                       </button>
                     </div>
                   )}

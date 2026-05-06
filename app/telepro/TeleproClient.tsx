@@ -454,12 +454,15 @@ export default function TeleproClient({
     .filter(d => d.getDay() !== 0 && d.getDay() !== 6)
     .slice(0, 10)
 
-  // ── Contact HubSpot ───────────────────────────────────────────────────
+  // ── Recherche contact dans le CRM ──────────────────────────────────────
   const [lookupInput, setLookupInput] = useState('')
-  const [lookupMode, setLookupMode] = useState<'url' | 'phone' | 'new'>('url')
+  const [lookupMode, setLookupMode] = useState<'search' | 'new'>('search')
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [contact, setContact] = useState<HubSpotContact | null>(null)
+  // Résultats de recherche dans le CRM (Supabase)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [searchResults, setSearchResults] = useState<any[]>([])
 
   // ── Nouveau contact ──────────────────────────────────────────────────
   const [newFirstname, setNewFirstname] = useState('')
@@ -813,28 +816,44 @@ export default function TeleproClient({
     loadPoolSlots(date)
   }
 
-  // ── Recherche HubSpot ─────────────────────────────────────────────────
+  // ── Recherche dans le CRM (Supabase) ──────────────────────────────────
   async function searchContact() {
     if (!lookupInput.trim()) return
-    setLookupLoading(true); setLookupError(null); setContact(null)
+    setLookupLoading(true); setLookupError(null); setSearchResults([])
     try {
-      const param = lookupMode === 'url'
-        ? `url=${encodeURIComponent(lookupInput.trim())}`
-        : `phone=${encodeURIComponent(lookupInput.trim())}`
-      const res = await fetch(`/api/hubspot/contact?${param}`)
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10`)
       const data = await res.json()
       if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
-      const found: HubSpotContact[] = data.results || []
-      if (found.length === 0) { setLookupError('Aucun contact trouvé.'); return }
-      const c = found[0]; setContact(c)
-      const p = c.properties
-      const ev = p.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-      if (p.phone) setPhone(p.phone)
-      if (p.departement) setDepartement(String(p.departement))
-      if (p.classe_actuelle) setClasseActuelle(p.classe_actuelle)
-      if (p.diploma_sante___formation_demandee) setFormation(p.diploma_sante___formation_demandee)
+      const results = data.data ?? []
+      if (results.length === 0) { setLookupError('Aucun contact trouvé dans le CRM.'); return }
+      setSearchResults(results)
     } catch { setLookupError('Erreur réseau') }
     finally { setLookupLoading(false) }
+  }
+
+  // Sélectionne un contact dans la liste des résultats CRM
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function pickSearchResult(c: any) {
+    // Convertit la ligne CRM en shape HubSpotContact pour le reste du code
+    const shaped: HubSpotContact = {
+      id: c.hubspot_contact_id,
+      properties: {
+        email: c.email ?? '',
+        firstname: c.firstname ?? '',
+        lastname: c.lastname ?? '',
+        phone: c.phone ?? '',
+        departement: c.departement != null ? String(c.departement) : '',
+        classe_actuelle: c.classe_actuelle ?? '',
+        diploma_sante___formation_demandee: c.formation_demandee ?? '',
+      },
+    }
+    setContact(shaped)
+    setSearchResults([])
+    const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
+    if (c.phone) setPhone(c.phone)
+    if (c.departement) setDepartement(String(c.departement))
+    if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
+    if (c.formation_demandee) setFormation(c.formation_demandee)
   }
 
   // ── Créer nouveau contact HubSpot ─────────────────────────────────────
@@ -864,7 +883,7 @@ export default function TeleproClient({
   }
 
   function resetContact() {
-    setContact(null); setLookupInput(''); setLookupError(null)
+    setContact(null); setLookupInput(''); setLookupError(null); setSearchResults([])
     setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
     setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
     setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setLinkCopied(false)
@@ -1561,7 +1580,7 @@ export default function TeleproClient({
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>{contactName || '(Sans nom)'}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{contactEmail} · HubSpot #{contact.id}</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{contactEmail} · CRM #{contact.id}</div>
                   </div>
                 </div>
                 <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1572,15 +1591,14 @@ export default function TeleproClient({
               <>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Search size={14} style={{ color: '#ccac71' }} />
-                  Étape 1 — Trouver le contact HubSpot
+                  Étape 1 — Trouver le contact dans le CRM
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                   {([
-                    { key: 'url' as const, icon: <Link size={11} />, label: 'Lien HubSpot' },
-                    { key: 'phone' as const, icon: <Phone size={11} />, label: 'Téléphone' },
+                    { key: 'search' as const, icon: <Search size={11} />, label: 'Rechercher dans le CRM' },
                     { key: 'new' as const, icon: <Plus size={11} />, label: 'Nouveau contact' },
                   ]).map(tab => (
-                    <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null) }}
+                    <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null); setSearchResults([]) }}
                       style={{
                         background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)' : 'transparent',
                         border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.4)' : '#e2e8f0'}`,
@@ -1592,11 +1610,11 @@ export default function TeleproClient({
                     </button>
                   ))}
                 </div>
-                {lookupMode !== 'new' && (
+                {lookupMode === 'search' && (
                   <>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input value={lookupInput} onChange={e => setLookupInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchContact()}
-                        placeholder={lookupMode === 'url' ? 'Coller le lien du contact HubSpot…' : 'Ex : 0612345678'}
+                        placeholder="Nom, prénom, email ou téléphone…"
                         style={{ ...inputStyle, flex: 1 }} autoFocus />
                       <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
                         style={{ background: lookupInput.trim() ? '#b89450' : '#f1f5f9', color: lookupInput.trim() ? 'white' : '#64748b', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -1604,8 +1622,39 @@ export default function TeleproClient({
                       </button>
                     </div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 10 }}>
-                      Copie-colle le lien depuis la fiche contact HubSpot.
+                      Recherche dans la base contacts du CRM (nom, email, téléphone).
                     </div>
+                    {searchResults.length > 0 && (
+                      <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
+                        {searchResults.map(r => {
+                          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
+                          return (
+                            <button key={r.hubspot_contact_id}
+                              onClick={() => pickSearchResult(r)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                width: '100%', padding: '10px 14px',
+                                background: 'transparent', border: 'none',
+                                borderBottom: '1px solid #f1f5f9',
+                                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <User size={14} style={{ color: '#b89450' }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
+                                <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </>
                 )}
                 {lookupMode === 'new' && (
@@ -1631,7 +1680,7 @@ export default function TeleproClient({
                     <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département (ex: 75)" maxLength={3} style={inputStyle} />
                     <button onClick={createNewContact} disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
                       style={{ background: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? '#22c55e' : '#f1f5f9', color: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'white' : '#64748b', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'pointer' : 'default' }}>
-                      {creating ? 'Création…' : 'Créer le contact HubSpot'}
+                      {creating ? 'Création…' : 'Créer le contact'}
                     </button>
                   </div>
                 )}
