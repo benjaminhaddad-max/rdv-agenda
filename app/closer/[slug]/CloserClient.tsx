@@ -126,11 +126,11 @@ const CLASSES = [
 ]
 
 const inputStyle: React.CSSProperties = {
-  background: '#243d5c',
+  background: '#f1f5f9',
   border: '1px solid #2d4a6b',
   borderRadius: 8,
   padding: '8px 12px',
-  color: '#e8eaf0',
+  color: '#1e293b',
   fontSize: 13,
   outline: 'none',
   cursor: 'pointer',
@@ -138,13 +138,13 @@ const inputStyle: React.CSSProperties = {
 }
 
 const fieldInputStyle: React.CSSProperties = {
-  width: '100%', background: '#243d5c', border: '1px solid #2d4a6b',
-  borderRadius: 10, padding: '11px 14px', color: '#e8eaf0',
+  width: '100%', background: '#f1f5f9', border: '1px solid #2d4a6b',
+  borderRadius: 10, padding: '11px 14px', color: '#1e293b',
   fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
 }
 
 const labelStyle: React.CSSProperties = {
-  fontWeight: 700, fontSize: 12, color: '#8b8fa8', marginBottom: 6,
+  fontWeight: 700, fontSize: 12, color: '#64748b', marginBottom: 6,
   display: 'flex', alignItems: 'center', gap: 5,
   textTransform: 'uppercase', letterSpacing: '0.05em',
 }
@@ -199,7 +199,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const uniqueStages = histRdvs.reduce<Array<{ label: string; color: string; count: number }>>((acc, r) => {
     if (!r.hs_stage_label) return acc
     const existing = acc.find(s => s.label === r.hs_stage_label)
-    if (existing) { existing.count++ } else { acc.push({ label: r.hs_stage_label, color: r.hs_stage_color || '#8b8fa8', count: 1 }) }
+    if (existing) { existing.count++ } else { acc.push({ label: r.hs_stage_label, color: r.hs_stage_color || '#64748b', count: 1 }) }
     return acc
   }, [])
 
@@ -561,11 +561,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // ─── Success screen RDV ────────────────────────────────────────────────
   if (rdvSuccess) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0b1624', color: '#e8eaf0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: '#152438', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
+      <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#ffffff', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
           <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
-          <div style={{ fontSize: 15, color: '#8b8fa8', marginBottom: 4 }}>{contactName}</div>
+          <div style={{ fontSize: 15, color: '#64748b', marginBottom: 4 }}>{contactName}</div>
           <div style={{ fontSize: 14, color: '#22c55e', fontWeight: 600, marginBottom: 4 }}>
             {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
           </div>
@@ -594,11 +594,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
   // ─── Render ───────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0b1624', color: '#e8eaf0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', color: '#1e293b' }}>
 
       {/* Header */}
       <div style={{
-        background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
+        background: '#ffffff', borderBottom: '1px solid #2d4a6b',
         padding: '0 24px', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
@@ -614,12 +614,12 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div>
-            <div style={{ fontSize: 11, color: '#555870' }}>Mon espace closer</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>Mon espace closer</div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', background: '#243d5c', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
+        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
@@ -635,7 +635,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               style={{
                 background: activeTab === tab.key ? user.avatar_color : 'transparent',
                 border: 'none', borderRadius: 6, padding: '6px 16px',
-                color: activeTab === tab.key ? 'white' : '#8b8fa8',
+                color: activeTab === tab.key ? 'white' : '#64748b',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 transition: 'all 0.15s',
@@ -689,7 +689,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 20px' }}>
 
             {/* Step 1 — Contact HubSpot */}
-            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <User size={16} style={{ color: user.avatar_color }} />
                 {contact ? '✓ Contact HubSpot' : 'Étape 1 — Contact HubSpot'}
@@ -701,7 +701,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>
                       {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || 'Sans nom'}
                     </div>
-                    <div style={{ fontSize: 12, color: '#555870' }}>{contact.properties.email}</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{contact.properties.email}</div>
                   </div>
                   <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <X size={12} /> Changer
@@ -717,7 +717,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       { key: 'new' as const, label: 'Nouveau contact', icon: <Plus size={11} /> },
                     ]).map(m => (
                       <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null) }}
-                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#243d5c', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#2d4a6b'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#e2e8f0'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                         {m.icon} {m.label}
                       </button>
                     ))}
@@ -765,7 +765,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Step 2 — Date + créneau */}
-            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Calendar size={16} style={{ color: user.avatar_color }} />
                 Étape 2 — Date &amp; créneau
@@ -777,7 +777,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   const isSelected = selectedDate && isBefore(day, addDays(selectedDate, 1)) && !isBefore(day, selectedDate)
                   return (
                     <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                      style={{ background: isSelected ? `${user.avatar_color}25` : '#243d5c', border: `1px solid ${isSelected ? user.avatar_color : '#2d4a6b'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
+                      style={{ background: isSelected ? `${user.avatar_color}25` : '#f1f5f9', border: `1px solid ${isSelected ? user.avatar_color : '#e2e8f0'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
                       <div style={{ fontSize: 10, textTransform: 'uppercase' }}>{format(day, 'EEE', { locale: fr })}</div>
                       <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'd')}</div>
                       <div style={{ fontSize: 10 }}>{format(day, 'MMM', { locale: fr })}</div>
@@ -789,16 +789,16 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               {/* Slots */}
               {selectedDate && (
                 slotsLoading ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#555870', fontSize: 13 }}>Chargement des créneaux…</div>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13 }}>Chargement des créneaux…</div>
                 ) : slots.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#555870', fontSize: 13 }}>Aucun créneau disponible ce jour.</div>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13 }}>Aucun créneau disponible ce jour.</div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
                     {slots.map(slot => {
                       const isSelected = selectedSlot?.start === slot.start
                       return (
                         <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                          style={{ background: isSelected ? `${user.avatar_color}25` : '#243d5c', border: `1px solid ${isSelected ? user.avatar_color : '#2d4a6b'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#e8eaf0', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
+                          style={{ background: isSelected ? `${user.avatar_color}25` : '#f1f5f9', border: `1px solid ${isSelected ? user.avatar_color : '#e2e8f0'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#1e293b', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
                           {format(new Date(slot.start), 'HH:mm')}
                         </button>
                       )
@@ -809,7 +809,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Step 3 — Détails */}
-            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
+            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} style={{ color: user.avatar_color }} />
                 Étape 3 — Informations prospect
@@ -864,7 +864,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       { value: 'presentiel', label: 'Présentiel', icon: <User size={12} /> },
                     ] as const).map(t => (
                       <button key={t.value} onClick={() => setMeetingType(t.value)}
-                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#243d5c', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#2d4a6b'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#8b8fa8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#e2e8f0'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
@@ -902,7 +902,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             <button onClick={submitRdv} disabled={submitting || !canSubmit}
-              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#243d5c', color: canSubmit ? 'white' : '#555870', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
+              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#f1f5f9', color: canSubmit ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
               <CheckCircle size={16} />
               {submitting ? 'Enregistrement…' : 'Valider le RDV'}
             </button>
@@ -917,7 +917,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
 
             {/* Section 1 : Planning hebdomadaire */}
-            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
+            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={16} style={{ color: '#b89450' }} />
                 Planning hebdomadaire récurrent
@@ -927,8 +927,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                 {DAYS.map(day => {
                   const rule = rules.find(r => r.day_of_week === day.value)!
                   return (
-                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#243d5c', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#2d4a6b'}`, borderRadius: 10, transition: 'all 0.15s' }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: rule.is_active ? '#e8eaf0' : '#555870' }}>{day.label}</div>
+                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#f1f5f9', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#e2e8f0'}`, borderRadius: 10, transition: 'all 0.15s' }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: rule.is_active ? '#1e293b' : '#94a3b8' }}>{day.label}</div>
                       <button onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
                         style={{ width: 44, height: 24, borderRadius: 12, background: rule.is_active ? '#b89450' : '#353849', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
                         <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: rule.is_active ? 23 : 3, transition: 'left 0.2s' }} />
@@ -936,7 +936,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       <select value={rule.start_time} onChange={e => updateRule(day.value, 'start_time', e.target.value)} disabled={!rule.is_active} style={{ ...inputStyle, opacity: rule.is_active ? 1 : 0.3 }}>
                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
-                      <div style={{ textAlign: 'center', color: '#555870', fontSize: 13 }}>→</div>
+                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>→</div>
                       <select value={rule.end_time} onChange={e => updateRule(day.value, 'end_time', e.target.value)} disabled={!rule.is_active} style={{ ...inputStyle, opacity: rule.is_active ? 1 : 0.3 }}>
                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
@@ -957,27 +957,27 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
 
             {/* Section 2 : Jours bloqués */}
-            <div style={{ background: '#152438', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px' }}>
+            <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px' }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Ban size={16} style={{ color: '#ef4444' }} />
                 Jours bloqués (vacances, indisponibilités)
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
                   <ChevronLeft size={14} />
                 </button>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#8b8fa8' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>
                   {format(calendarWeekStart, 'd MMM', { locale: fr })} — {format(addDays(calendarWeekStart, 27), 'd MMM yyyy', { locale: fr })}
                 </div>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
                   <ChevronRight size={14} />
                 </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 16 }}>
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
-                  <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#555870', textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
+                  <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
                 ))}
                 {calendarDays.map(day => {
                   const dateStr = format(day, 'yyyy-MM-dd')
@@ -998,7 +998,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                           }
                         }}
                         disabled={isPast}
-                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#243d5c', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#ccac71' : '#8b8fa8', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#f1f5f9', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#e2e8f0'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#ccac71' : '#64748b', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                         {format(day, 'd')}
                       </button>
                     </div>
@@ -1012,10 +1012,10 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     Bloquer le {format(new Date(blockingDate + 'T00:00:00'), 'EEEE d MMMM', { locale: fr })}
                   </div>
                   <input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Raison (optionnel)…" style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
-                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#ccac71', color: '#152438', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#ccac71', color: '#ffffff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     <Plus size={12} style={{ display: 'inline', verticalAlign: -2 }} /> Bloquer
                   </button>
-                  <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 8px', color: '#8b8fa8', cursor: 'pointer' }}>
+                  <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 8px', color: '#64748b', cursor: 'pointer' }}>
                     <X size={14} />
                   </button>
                 </div>
@@ -1024,13 +1024,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               {blockedDates.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {blockedDates.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Ban size={13} style={{ color: '#ef4444' }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#e8eaf0', textTransform: 'capitalize' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', textTransform: 'capitalize' }}>
                           {format(new Date(b.blocked_date + 'T00:00:00'), 'EEEE d MMMM yyyy', { locale: fr })}
                         </span>
-                        {b.reason && <span style={{ fontSize: 12, color: '#555870' }}>— {b.reason}</span>}
+                        {b.reason && <span style={{ fontSize: 12, color: '#94a3b8' }}>— {b.reason}</span>}
                       </div>
                       <button onClick={() => unblockDate(b.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 10px', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                         Débloquer
@@ -1041,7 +1041,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               )}
 
               {blockedDates.length === 0 && !blockingDate && (
-                <div style={{ fontSize: 12, color: '#555870', textAlign: 'center', padding: '8px 0' }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
                   Aucun jour bloqué. Cliquez sur une date ci-dessus pour la bloquer.
                 </div>
               )}
@@ -1059,25 +1059,25 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             {/* En-tête */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#e8eaf0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Clock size={18} style={{ color: user.avatar_color }} />
                   Historique RDV
                 </div>
-                <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                   Diploma Santé 2026-2027 — Mes RDVs passés
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {histLoading && (
-                  <span style={{ fontSize: 12, color: '#555870', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
                   </span>
                 )}
-                <button onClick={fetchHistorique} style={{ background: '#243d5c', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8b8fa8' }}>
+                <button onClick={fetchHistorique} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
                   <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
                 </button>
                 {!histLoading && (
-                  <span style={{ fontSize: 12, color: '#555870' }}>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
                     {histRdvs.length} RDV{histRdvs.length > 1 ? 's' : ''}
                   </span>
                 )}
@@ -1090,7 +1090,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                 {stageFilter && (
                   <button
                     onClick={() => setStageFilter(null)}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid #3a3d50', borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#8b8fa8', cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid #3a3d50', borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     ✕ Tous ({histRdvs.length})
                   </button>
@@ -1103,7 +1103,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       background: stageFilter === s.label ? `${s.color}22` : 'rgba(255,255,255,0.04)',
                       border: `1px solid ${stageFilter === s.label ? `${s.color}66` : '#3a3d50'}`,
                       borderRadius: 20, padding: '3px 10px',
-                      color: stageFilter === s.label ? s.color : '#8b8fa8',
+                      color: stageFilter === s.label ? s.color : '#64748b',
                       fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
                     }}
                   >
@@ -1114,7 +1114,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             {!histLoading && histRdvs.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555870', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: 13 }}>
                 {user.hubspot_owner_id
                   ? 'Aucun RDV trouvé sur la pipeline Diploma Santé 2026-2027.'
                   : 'Aucun hubspot_owner_id configuré pour ce closer.'}
@@ -1122,7 +1122,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
-              <div style={{ textAlign: 'center', padding: '30px 20px', color: '#555870', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: '30px 20px', color: '#94a3b8', fontSize: 13 }}>
                 Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
               </div>
             )}
@@ -1136,23 +1136,23 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   key={rdv.id}
                   onClick={() => setSelectedHistRdv(rdv)}
                   style={{
-                    background: '#1d2f4b',
+                    background: '#ffffff',
                     border: '1px solid #2d4a6b',
                     borderRadius: 12, marginBottom: 10, overflow: 'hidden',
                     cursor: 'pointer', transition: 'border-color 0.15s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = user.avatar_color)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#2d4a6b')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#e2e8f0')}
                 >
                   {/* Ligne principale */}
                   <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ minWidth: 80, fontSize: 11, color: '#555870', flexShrink: 0 }}>
+                    <div style={{ minWidth: 80, fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
                       {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
                     </div>
-                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#e8eaf0', minWidth: 0 }}>
+                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#1e293b', minWidth: 0 }}>
                       {rdv.prospect_name}
                       {rdv.telepro && (
-                        <span style={{ marginLeft: 8, fontSize: 11, color: '#555870', fontWeight: 400 }}>
+                        <span style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>
                           via {rdv.telepro.name}
                         </span>
                       )}
@@ -1180,14 +1180,14 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   {/* Infos prospect */}
                   <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {rdv.prospect_phone && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748b', background: '#f1f5f9', borderRadius: 5, padding: '2px 8px' }}>
                         <Phone size={10} /> {rdv.prospect_phone}
                       </span>
                     )}
                     {rdv.formation_type && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8b8fa8', background: '#243d5c', borderRadius: 5, padding: '2px 8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748b', background: '#f1f5f9', borderRadius: 5, padding: '2px 8px' }}>
                         <Tag size={10} style={{ color: '#ccac71' }} />
-                        Filière : <strong style={{ color: '#e8eaf0' }}>{rdv.formation_type}</strong>
+                        Filière : <strong style={{ color: '#1e293b' }}>{rdv.formation_type}</strong>
                       </span>
                     )}
                     {resultCfg && (
@@ -1232,7 +1232,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   {/* Suivi post-RDV pour "Délai de réflexion" */}
                   {rdv.hs_stage_label === 'Délai de réflexion' && (
                     <div style={{ padding: '0 20px 14px' }} onClick={e => e.stopPropagation()}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: '#555870', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         Suivi post-RDV
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1247,7 +1247,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                                 background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
                                 border: `1px solid ${isActive ? `${opt.color}66` : '#3a3d50'}`,
                                 borderRadius: 7, padding: '5px 12px',
-                                color: isActive ? opt.color : '#8b8fa8',
+                                color: isActive ? opt.color : '#64748b',
                                 fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                               }}
                             >
@@ -1257,7 +1257,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         })}
                       </div>
                       {rdv.telepro_suivi && rdv.telepro_suivi_at && (
-                        <p style={{ fontSize: 11, color: '#555870', margin: '6px 0 0' }}>
+                        <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>
                           Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       )}
