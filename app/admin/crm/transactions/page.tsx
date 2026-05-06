@@ -13,6 +13,7 @@ import type { UndoAction } from '@/components/TransactionBoard'
 import TransactionDetailPanel from '@/components/TransactionDetailPanel'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
 import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
+import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -423,25 +424,45 @@ export default function TransactionsPage() {
   // ── Board Fetch ────────────────────────────────────────────────────────────
 
   const fetchBoard = useCallback(async () => {
+    const params = new URLSearchParams({ view: 'board', pipeline: season })
+    if (search) params.set('search', search)
+    // Filtre embed: telepro=<hs_id> ou contact_owner=<hs_id>
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search)
+      const urlTelepro = sp.get('telepro')
+      if (urlTelepro) params.set('telepro_hs_id', urlTelepro)
+      const urlContactOwner = sp.get('contact_owner')
+      if (urlContactOwner) params.set('contact_owner_hs_id', urlContactOwner)
+    }
+    const url = `/api/crm/transactions?${params}`
+
+    type BoardData = { columns?: Record<string, TransactionDetail[]>; total?: number; stats?: StatsData }
+
+    // Cache hit → render immediat + revalidation en arriere-plan
+    const cached = getCached<BoardData>(url)
+    if (cached) {
+      setBoardColumns(cached.columns ?? {})
+      setBoardTotal(cached.total ?? 0)
+      setBoardStats(cached.stats ?? null)
+      setBoardLoading(false)
+      refetch<BoardData>(url, () => jsonFetcher(url), 30_000)
+        .then(d => {
+          setBoardColumns(d.columns ?? {})
+          setBoardTotal(d.total ?? 0)
+          setBoardStats(d.stats ?? null)
+        })
+        .catch(() => {})
+      return
+    }
+
     setBoardLoading(true)
     try {
-      const params = new URLSearchParams({ view: 'board', pipeline: season })
-      if (search) params.set('search', search)
-      // Filtre embed: telepro=<hs_id> ou contact_owner=<hs_id>
-      if (typeof window !== 'undefined') {
-        const sp = new URLSearchParams(window.location.search)
-        const urlTelepro = sp.get('telepro')
-        if (urlTelepro) params.set('telepro_hs_id', urlTelepro)
-        const urlContactOwner = sp.get('contact_owner')
-        if (urlContactOwner) params.set('contact_owner_hs_id', urlContactOwner)
-      }
-      const res = await fetch(`/api/crm/transactions?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setBoardColumns(data.columns ?? {})
-        setBoardTotal(data.total ?? 0)
-        setBoardStats(data.stats ?? null)
-      }
+      const data = await refetch<BoardData>(url, () => jsonFetcher(url), 30_000)
+      setBoardColumns(data.columns ?? {})
+      setBoardTotal(data.total ?? 0)
+      setBoardStats(data.stats ?? null)
+    } catch {
+      // garde le state precedent en cas d'erreur reseau
     } finally {
       setBoardLoading(false)
     }

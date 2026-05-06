@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 import PropertyHistoryPanel from '@/components/crm/PropertyHistoryPanel'
+import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -160,20 +161,40 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
+    const force = opts?.force === true
+    const detailKey = `/api/crm/contacts/${id}/details`
+    const metaKey   = '/api/crm/metadata'
+
+    // Si on force (ex: apres un save) → on invalide le cache details (la
+    // metadata change rarement, on garde le cache 5min).
+    if (force) invalidate(detailKey)
+
+    // Cache hit (typiquement issu du prefetch au hover) → render immediat,
+    // puis revalidation silencieuse en arriere-plan.
+    if (!force) {
+      const cachedDetails = getCached<Any>(detailKey)
+      const cachedMeta    = getCached<Any>(metaKey)
+      if (cachedDetails && cachedMeta) {
+        setData({ ...cachedDetails, ...cachedMeta })
+        setLoading(false)
+        // revalidate background — pas de await
+        Promise.all([
+          refetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000),
+          refetch<Any>(metaKey,   () => jsonFetcher(metaKey),   5 * 60_000),
+        ]).then(([d, m]) => setData({ ...d, ...m })).catch(() => {})
+        return
+      }
+    }
+
     setLoading(true)
     try {
-      // Charge en parallèle :
-      //  - details : données spécifiques au contact (~50 KB, non cachable)
-      //  - metadata : properties/owners partagés (cachés 5min côté navigateur)
-      const [resDetails, resMeta] = await Promise.all([
-        fetch(`/api/crm/contacts/${id}/details`),
-        fetch('/api/crm/metadata'),
+      const [details, meta] = await Promise.all([
+        force
+          ? refetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000)
+          : prefetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000),
+        prefetch<Any>(metaKey, () => jsonFetcher(metaKey), 5 * 60_000),
       ])
-      if (!resDetails.ok) throw new Error(`HTTP ${resDetails.status}`)
-      if (!resMeta.ok) throw new Error(`HTTP meta ${resMeta.status}`)
-      const details = await resDetails.json()
-      const meta = await resMeta.json()
       setData({ ...details, ...meta })
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -255,7 +276,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({ property: propName, value }),
       })
       if (!res.ok) throw new Error(await res.text())
-      await load()
+      await load({ force: true })
       setEditing(null)
     } catch (e) {
       alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
@@ -764,7 +785,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           owners={owners}
           defaultOwnerId={contact.hubspot_owner_id as string | undefined}
           onClose={() => setQuickAction(null)}
-          onSaved={() => load()}
+          onSaved={() => load({ force: true })}
         />
       )}
 

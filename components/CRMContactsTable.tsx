@@ -4,6 +4,14 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
+import { prefetch, jsonFetcher } from '@/lib/client-cache'
+
+// Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
+// quand l'utilisateur clique, les donnees sont deja la.
+function prefetchContactDetail(id: string) {
+  prefetch(`/api/crm/contacts/${id}/details`, () => jsonFetcher(`/api/crm/contacts/${id}/details`), 60_000).catch(() => {})
+  prefetch('/api/crm/metadata', () => jsonFetcher('/api/crm/metadata'), 5 * 60_000).catch(() => {})
+}
 
 // ── HubSpot-style inline cell select ─────────────────────────────────────────
 // Popover blanc avec barre de recherche, position:fixed pour éviter le clipping
@@ -919,6 +927,24 @@ export default function CRMContactsTable({
   const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
   const [hovered,           setHovered]            = useState<string | null>(null)
 
+  // Prefetch debounce : on hover plus de 150ms → on tire la fiche en arriere-plan
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleRowEnter = useCallback((id: string) => {
+    setHovered(id)
+    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+    prefetchTimerRef.current = setTimeout(() => prefetchContactDetail(id), 150)
+  }, [])
+  const handleRowLeave = useCallback(() => {
+    setHovered(null)
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current)
+      prefetchTimerRef.current = null
+    }
+  }, [])
+  useEffect(() => () => {
+    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+  }, [])
+
   // ── Select-all page ──────────────────────────────────────────────────────
   const selectAllRef  = useRef<HTMLInputElement>(null)
   const pageIds       = contacts.map(c => c.hubspot_contact_id)
@@ -1708,8 +1734,8 @@ export default function CRMContactsTable({
                 <>
                   <tr
                     key={contact.hubspot_contact_id}
-                    onMouseEnter={() => setHovered(contact.hubspot_contact_id)}
-                    onMouseLeave={() => setHovered(null)}
+                    onMouseEnter={() => handleRowEnter(contact.hubspot_contact_id)}
+                    onMouseLeave={handleRowLeave}
                     onClick={() => {
                       if (onOpenDrawer) onOpenDrawer(contact)
                       else toggleExpand(contact.hubspot_contact_id)

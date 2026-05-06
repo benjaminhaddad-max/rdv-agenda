@@ -27,6 +27,7 @@ import {
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect } from '@/components/crm/CRMSelects'
 import ExportCSVModal from '@/components/crm/CRMExportModal'
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
+import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -357,68 +358,86 @@ export default function CRMPage() {
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
-    setLoading(true)
     const currentPage = resetPage ? 0 : page
     if (resetPage) setPage(0)
 
+    const params = new URLSearchParams({
+      limit: String(limit),
+      page: String(currentPage),
+    })
+    if (search)               params.set('search', search)
+    if (stage)                params.set('stage', stage)
+    if (closerHsId)           params.set('closer_hs_id', closerHsId)
+    if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
+    if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
+    if (noTelepro)            params.set('no_telepro', '1')
+    if (ownerExclude)         params.set('owner_exclude', ownerExclude)
+    if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+    if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
+    if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
+    if (showExternal)         params.set('show_external', '1')
+    if (allClasses)           params.set('all_classes', '1')
+    if (leadStatus)           params.set('lead_status', leadStatus)
+    if (source)               params.set('source', source)
+    if (zoneFilter)           params.set('zone', zoneFilter)
+    if (deptFilter)           params.set('departement', deptFilter)
+
+    // Exclusion params (is_not / is_none)
+    if (stageNot)             params.set('stage_not', stageNot)
+    if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
+    if (sourceNot)            params.set('source_not', sourceNot)
+    if (zoneNot)              params.set('zone_not', zoneNot)
+    if (deptNot)              params.set('departement_not', deptNot)
+    if (closerNot)            params.set('closer_not', closerNot)
+    if (contactOwnerNot)      params.set('contact_owner_not', contactOwnerNot)
+    if (teleproNot)           params.set('telepro_not', teleproNot)
+    if (formationNot)         params.set('formation_not', formationNot)
+    if (pipeline)             params.set('pipeline', pipeline)
+    if (pipelineNot)          params.set('pipeline_not', pipelineNot)
+    if (priorPreinscription)  params.set('prior_preinscription', '1')
+
+    // Empty / not-empty filters
+    if (emptyFields)            params.set('empty_fields', emptyFields)
+    if (notEmptyFields)         params.set('not_empty_fields', notEmptyFields)
+
+    // Filtres client-side → serveur
+    if (formation)              params.set('formation', formation)
+    if (classe)                 params.set('classe', classe)
+    if (period)                 params.set('period', period)
+
+    // Tri
+    params.set('sort_by',  sortBy)
+    params.set('sort_dir', sortDir)
+
+    // Colonnes dynamiques HubSpot (ajoutées via le menu Colonnes)
+    if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
+
+    const url = `/api/crm/contacts?${params.toString()}`
+
+    // Cache hit (typiquement : retour sur la page apres avoir ouvert un
+    // contact) → render immediat avec les anciennes donnees, puis revalidation
+    // silencieuse en arriere-plan.
+    const cached = getCached<{ data?: CRMContact[]; total?: number }>(url)
+    if (cached) {
+      setContacts(cached.data ?? [])
+      setTotal(cached.total ?? 0)
+      setLoading(false)
+      refetch<{ data?: CRMContact[]; total?: number }>(url, () => jsonFetcher(url), 30_000)
+        .then(d => {
+          setContacts(d.data ?? [])
+          setTotal(d.total ?? 0)
+        })
+        .catch(() => {})
+      return
+    }
+
+    setLoading(true)
     try {
-      const params = new URLSearchParams({
-        limit: String(limit),
-        page: String(currentPage),
-      })
-      if (search)               params.set('search', search)
-      if (stage)                params.set('stage', stage)
-      if (closerHsId)           params.set('closer_hs_id', closerHsId)
-      if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
-      if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
-      if (noTelepro)            params.set('no_telepro', '1')
-      if (ownerExclude)         params.set('owner_exclude', ownerExclude)
-      if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
-      if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
-      if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
-      if (showExternal)         params.set('show_external', '1')
-      if (allClasses)           params.set('all_classes', '1')
-      if (leadStatus)           params.set('lead_status', leadStatus)
-      if (source)               params.set('source', source)
-      if (zoneFilter)           params.set('zone', zoneFilter)
-      if (deptFilter)           params.set('departement', deptFilter)
-
-      // Exclusion params (is_not / is_none)
-      if (stageNot)             params.set('stage_not', stageNot)
-      if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
-      if (sourceNot)            params.set('source_not', sourceNot)
-      if (zoneNot)              params.set('zone_not', zoneNot)
-      if (deptNot)              params.set('departement_not', deptNot)
-      if (closerNot)            params.set('closer_not', closerNot)
-      if (contactOwnerNot)      params.set('contact_owner_not', contactOwnerNot)
-      if (teleproNot)           params.set('telepro_not', teleproNot)
-      if (formationNot)         params.set('formation_not', formationNot)
-      if (pipeline)             params.set('pipeline', pipeline)
-      if (pipelineNot)          params.set('pipeline_not', pipelineNot)
-      if (priorPreinscription)  params.set('prior_preinscription', '1')
-
-      // Empty / not-empty filters
-      if (emptyFields)            params.set('empty_fields', emptyFields)
-      if (notEmptyFields)         params.set('not_empty_fields', notEmptyFields)
-
-      // Filtres client-side → serveur
-      if (formation)              params.set('formation', formation)
-      if (classe)                 params.set('classe', classe)
-      if (period)                 params.set('period', period)
-
-      // Tri
-      params.set('sort_by',  sortBy)
-      params.set('sort_dir', sortDir)
-
-      // Colonnes dynamiques HubSpot (ajoutées via le menu Colonnes)
-      if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
-
-      const res = await fetch(`/api/crm/contacts?${params.toString()}`)
-      if (res.ok) {
-        const data = await res.json()
-        setContacts(data.data ?? [])
-        setTotal(data.total ?? 0)
-      }
+      const data = await refetch<{ data?: CRMContact[]; total?: number }>(url, () => jsonFetcher(url), 30_000)
+      setContacts(data.data ?? [])
+      setTotal(data.total ?? 0)
+    } catch {
+      // garde le state precedent en cas d'erreur reseau
     } finally {
       setLoading(false)
     }
