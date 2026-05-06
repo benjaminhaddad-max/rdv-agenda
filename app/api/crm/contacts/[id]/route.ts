@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: contactId } = await params
   const body = await req.json()
 
-  const { teleprospecteur, ...contactFields } = body
+  const { teleprospecteur, closer_du_contact_owner_id, ...contactFields } = body
 
   // Build updates for Supabase + HubSpot
   const supabaseUpdates: Record<string, string | null> = {}
@@ -34,6 +34,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         hubspotProps[hsField] = contactFields[field]
       }
     }
+  }
+
+  // closer_du_contact_owner_id : Supabase uniquement (pas de propriété HubSpot)
+  if (closer_du_contact_owner_id !== undefined) {
+    supabaseUpdates.closer_du_contact_owner_id = closer_du_contact_owner_id || null
   }
 
   // Update Supabase contact

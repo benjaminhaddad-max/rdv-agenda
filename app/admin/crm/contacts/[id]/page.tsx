@@ -122,7 +122,8 @@ const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'origine',               label: 'Origine' },
   { name: 'diploma_sante___formation_demandee', label: 'Formation demandée' },
   { name: 'formation_souhaitee',   label: 'Formation souhaitée' },
-  { name: 'hubspot_owner_id',      label: 'Propriétaire' },
+  { name: 'hubspot_owner_id',           label: 'Propriétaire' },
+  { name: 'closer_du_contact_owner_id', label: 'Closer du contact' },
 ]
 
 // Couleurs pour les status de lead (pills)
@@ -204,6 +205,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     hs_lead_status:   contact.hs_lead_status,
     origine:          contact.origine,
     hubspot_owner_id: contact.hubspot_owner_id,
+    closer_du_contact_owner_id: contact.closer_du_contact_owner_id,
     zone___localite:  contact.zone_localite,
     formation_souhaitee:                contact.formation_souhaitee,
     diploma_sante___formation_demandee: contact.formation_demandee,
@@ -453,8 +455,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 const val = allValues[f.name]
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
+                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'closer_du_contact_owner_id' || f.name === 'teleprospecteur'
                 const isOwner = f.name === 'hubspot_owner_id'
-                const displayValue = isOwner ? ownerLabel(val as string) : formatPropValue(val, meta)
+                const displayValue = isOwnerField ? ownerLabel(val as string) : formatPropValue(val, meta)
 
                 return (
                   <div key={f.name} className="py-2.5 group">
@@ -478,7 +481,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                           onSave={() => saveProp(f.name, editValue)}
                           onCancel={() => setEditing(null)}
                           saving={saving}
-                          customOptions={isOwner || f.name === 'teleprospecteur' ? ownerOptions : undefined}
+                          customOptions={isOwnerField ? ownerOptions : undefined}
                         />
                       ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
                         <button
