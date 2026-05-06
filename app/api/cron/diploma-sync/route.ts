@@ -220,6 +220,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Pre-fetch tous les deals du pipeline 26-27 indexes par contact_id.
+    // On match par contact (pas par hubspot_deal_id cote Diploma, souvent absent).
+    // -> tous les deals d'un contact dans le pipeline 26-27 prennent le stage cible.
+    const PIPELINE_2627 = '2313043166'
+    const dealsByContact = new Map<string, string[]>()
+    {
+      let off = 0
+      const PAGE = 1000
+      while (true) {
+        const { data } = await db
+          .from('crm_deals')
+          .select('hubspot_deal_id,hubspot_contact_id')
+          .eq('pipeline', PIPELINE_2627)
+          .range(off, off + PAGE - 1)
+        const rows = (data || []) as Array<{ hubspot_deal_id: string; hubspot_contact_id: string | null }>
+        if (rows.length === 0) break
+        for (const d of rows) {
+          if (!d.hubspot_contact_id) continue
+          const arr = dealsByContact.get(d.hubspot_contact_id) || []
+          arr.push(String(d.hubspot_deal_id))
+          dealsByContact.set(d.hubspot_contact_id, arr)
+        }
+        if (rows.length < PAGE) break
+        off += PAGE
+      }
+    }
+
     for (const ins of targets) {
       if (!ins.email) { skipNoEmail++; continue }
       const norm = normalizeEmail(ins.email)
@@ -242,11 +269,17 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Match-by-contact : tous les deals 26-27 du contact prennent le stage cible
       const stage = stageFor(ins)
-      if (stage && ins.hubspot_deal_id) {
-        dealUpdates.set(String(ins.hubspot_deal_id), stage)
-      } else if (stage && !ins.hubspot_deal_id) {
-        dealSkipNoDealId++
+      if (stage) {
+        const dealsForContact = dealsByContact.get(contactId) || []
+        if (dealsForContact.length === 0) {
+          dealSkipNoDealId++
+        } else {
+          for (const dealId of dealsForContact) {
+            dealUpdates.set(dealId, stage)
+          }
+        }
       }
     }
 
