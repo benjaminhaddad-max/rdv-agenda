@@ -625,7 +625,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
             { key: 'contacts' as const, label: 'Mes Contacts', icon: <User size={13} /> },
             { key: 'leads' as const, label: 'Mes Transactions', icon: <Tag size={13} /> },
-            { key: 'historique' as const, label: 'Historique', icon: <Clock size={13} /> },
             { key: 'repop' as const, label: '🔁 Repop', icon: null },
             { key: 'dispos' as const, label: 'Mes dispos', icon: <Clock size={13} /> },
           ]).map(tab => (

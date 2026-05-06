@@ -1040,25 +1040,6 @@ export default function TeleproClient({
                   </span>
                 )}
               </button>
-              <button onClick={() => setActiveTab('historique')} style={{
-                background: activeTab === 'historique' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'historique' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'historique' ? '#ccac71' : '#64748b',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: 'inherit',
-              }}>
-                <Clock size={12} /> Historique
-                {histRdvs.length > 0 && (
-                  <span style={{ background: 'rgba(204,172,113,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                    {histRdvs.length}
-                  </span>
-                )}
-                {repriseCount > 0 && (
-                  <span style={{ background: '#f97316', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#fff' }}>
-                    🔔 {repriseCount}
-                  </span>
-                )}
-              </button>
               <button onClick={() => setActiveTab('contacts')} style={{
                 background: activeTab === 'contacts' ? 'rgba(76,171,219,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${activeTab === 'contacts' ? 'rgba(76,171,219,0.4)' : '#475569'}`,
