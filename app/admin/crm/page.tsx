@@ -184,6 +184,21 @@ export default function CRMPage() {
   const [sortBy,  setSortBy]  = useState<string>('form_submission')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
+  // Colonnes dynamiques (propriétés HubSpot ajoutées par l'utilisateur via le menu Colonnes)
+  // Persisté en localStorage
+  const [extraColumns, setExtraColumns] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem('crm-extra-columns')
+      if (saved) return JSON.parse(saved) as string[]
+    } catch { /* ignore */ }
+    return []
+  })
+  function persistExtraColumns(next: string[]) {
+    setExtraColumns(next)
+    localStorage.setItem('crm-extra-columns', JSON.stringify(next))
+  }
+
   // ── Outils modals ──────────────────────────────────────────────────────────
   const [showCheckRdv,      setShowCheckRdv]      = useState(false)
   const [showDoublons,      setShowDoublons]      = useState(false)
@@ -395,6 +410,9 @@ export default function CRMPage() {
       params.set('sort_by',  sortBy)
       params.set('sort_dir', sortDir)
 
+      // Colonnes dynamiques HubSpot (ajoutées via le menu Colonnes)
+      if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
+
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
@@ -405,7 +423,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page])
+  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1341,6 +1359,9 @@ export default function CRMPage() {
           sortBy={sortBy}
           sortDir={sortDir}
           onSortChange={handleSortChange}
+          allCrmProps={allCrmProps}
+          extraColumns={extraColumns}
+          onExtraColumnsChange={persistExtraColumns}
         /></div>
 
         {/* Pagination */}

@@ -56,6 +56,16 @@ export async function GET(req: NextRequest) {
   const zone             = searchParams.get('zone') ?? ''
   const departement      = searchParams.get('departement') ?? ''
 
+  // Propriétés dynamiques additionnelles à inclure dans le SELECT
+  // (ex: ?props=lifecyclestage,jobtitle,birthdate)
+  // Validation : on n'accepte que les noms en [a-z0-9_], pour éviter toute
+  // injection dans la chaîne SELECT.
+  const extraProps = (searchParams.get('props') ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => /^[a-z0-9_]+$/i.test(s))
+    .slice(0, 30) // hard cap pour éviter d'envoyer 600 colonnes par accident
+
   // Exclusion params (is_not / is_none — comma-separated for multi)
   const stageNot         = searchParams.get('stage_not') ?? ''
   const leadStatusNot    = searchParams.get('lead_status_not') ?? ''
@@ -283,7 +293,7 @@ export async function GET(req: NextRequest) {
        departement, classe_actuelle, zone_localite,
        formation_demandee, formation_souhaitee, contact_createdate,
        hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
-       hs_lead_status, origine,
+       hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''},
        crm_deals (
          hubspot_deal_id, dealstage, pipeline, formation,
          hubspot_owner_id, teleprospecteur, closedate, createdate,
@@ -599,6 +609,9 @@ export async function GET(req: NextRequest) {
       hubspot_owner_id:        c.hubspot_owner_id,
       closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
       telepro_user_id:         c.telepro_user_id ?? null,
+      extra_props:             extraProps.length > 0
+        ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
+        : undefined,
       recent_conversion_date:  c.recent_conversion_date,
       recent_conversion_event: c.recent_conversion_event,
       hs_lead_status:          c.hs_lead_status,

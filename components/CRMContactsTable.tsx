@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
@@ -437,6 +437,7 @@ export interface CRMContact {
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
   closer_du_contact_owner_id?: string | null
+  extra_props?: Record<string, unknown> | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
@@ -474,6 +475,10 @@ interface Props {
   sortBy?:       string
   sortDir?:      'asc' | 'desc'
   onSortChange?: (col: string) => void
+  // Colonnes dynamiques : propriétés HubSpot ajoutées par l'utilisateur
+  allCrmProps?: Array<{ name: string; label?: string; type?: string; groupName?: string }>
+  extraColumns?: string[]
+  onExtraColumnsChange?: (next: string[]) => void
 }
 
 // ── Formatage numéro de téléphone ─────────────────────────────────────────────
@@ -899,6 +904,9 @@ export default function CRMContactsTable({
   sortBy,
   sortDir,
   onSortChange,
+  allCrmProps,
+  extraColumns,
+  onExtraColumnsChange,
 }: Props) {
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
@@ -1105,8 +1113,31 @@ export default function CRMContactsTable({
   }
 
   const visibleCols = colOrder.filter(isColVisible)
+  const dynamicCols = extraColumns ?? []
   // +1 pour checkbox (optionnel) +1 pour actions — non draggables
-  const totalCols = visibleCols.length + (onToggleSelect ? 1 : 0) + 1
+  const totalCols = visibleCols.length + dynamicCols.length + (onToggleSelect ? 1 : 0) + 1
+
+  // Lookup label HubSpot pour une propriété dynamique
+  function dynamicLabel(propName: string): string {
+    return allCrmProps?.find(p => p.name === propName)?.label ?? propName
+  }
+  // Format simple d'une valeur dynamique
+  function formatDynamicValue(v: unknown): string {
+    if (v === null || v === undefined || v === '') return '—'
+    if (typeof v === 'string') {
+      // Si c'est une date ISO, on l'affiche jolie
+      if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
+        try { return new Date(v).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) }
+        catch { return v }
+      }
+      return v
+    }
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+    if (typeof v === 'object') {
+      try { return JSON.stringify(v) } catch { return '—' }
+    }
+    return '—'
+  }
 
   // ── Handlers drag-and-drop ────────────────────────────────────────────────
   function handleDragStart(idx: number) {
@@ -1453,6 +1484,47 @@ export default function CRMContactsTable({
                 </label>
               )
             })}
+
+            {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
+            {allCrmProps && allCrmProps.length > 0 && onExtraColumnsChange && (
+              <>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
+                  Propriétés HubSpot
+                </div>
+                {/* Liste des extra columns actives + bouton retirer */}
+                {(extraColumns ?? []).map(propName => {
+                  const meta = allCrmProps.find(p => p.name === propName)
+                  return (
+                    <div key={propName} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 4px', fontSize: 13, color: '#1e293b',
+                    }}>
+                      <input type="checkbox" checked readOnly style={{ accentColor: BLUE }} />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {meta?.label ?? propName}
+                      </span>
+                      <button
+                        onClick={() => onExtraColumnsChange((extraColumns ?? []).filter(p => p !== propName))}
+                        style={{
+                          background: 'transparent', border: 'none', cursor: 'pointer',
+                          color: '#ef4444', fontSize: 16, padding: '0 4px', lineHeight: 1,
+                        }}
+                        title="Retirer cette colonne"
+                      >×</button>
+                    </div>
+                  )
+                })}
+                {/* Picker : ajouter une propriété */}
+                <PropertyPicker
+                  allProps={allCrmProps}
+                  excludeNames={new Set(extraColumns ?? [])}
+                  onPick={(name) => {
+                    const next = [...(extraColumns ?? []), name]
+                    onExtraColumnsChange(next)
+                  }}
+                />
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1463,6 +1535,9 @@ export default function CRMContactsTable({
             {onToggleSelect && <col style={{ width: 38 }} />}
             {visibleCols.map(key => (
               <col key={key} style={{ width: colWidths[key] }} />
+            ))}
+            {dynamicCols.map(name => (
+              <col key={`dyn-${name}`} style={{ width: 160 }} />
             ))}
             <col style={{ width: 50 }} />
           </colgroup>
@@ -1581,6 +1656,28 @@ export default function CRMContactsTable({
               )
               })}
 
+              {/* Colonnes dynamiques HubSpot */}
+              {dynamicCols.map(name => (
+                <th key={`dyn-${name}`} style={{
+                  padding: '9px 12px',
+                  textAlign: 'left',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#3a5070',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  background: '#ffffff',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }} title={dynamicLabel(name)}>
+                  {dynamicLabel(name)}
+                </th>
+              ))}
+
               {/* Actions (non-draggable) */}
               <th style={{
                 padding: '9px 12px',
@@ -1647,6 +1744,23 @@ export default function CRMContactsTable({
                       </td>
                     ))}
 
+                    {/* Cellules dynamiques HubSpot (read-only) */}
+                    {dynamicCols.map(propName => {
+                      const v = contact.extra_props?.[propName]
+                      return (
+                        <td key={`dyn-${propName}`} style={{
+                          padding: '10px 12px',
+                          fontSize: 13,
+                          color: '#1e293b',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }} title={formatDynamicValue(v)}>
+                          {formatDynamicValue(v)}
+                        </td>
+                      )
+                    })}
+
                     {/* Actions */}
                     <td style={{ padding: '6px 8px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                       <ActionsMenu
@@ -1710,5 +1824,85 @@ export default function CRMContactsTable({
         }
       `}</style>
     </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PropertyPicker : champ de recherche pour ajouter une propriété HubSpot
+// comme colonne dynamique de la table contacts
+// ─────────────────────────────────────────────────────────────────────────────
+function PropertyPicker({
+  allProps,
+  excludeNames,
+  onPick,
+}: {
+  allProps: Array<{ name: string; label?: string; type?: string; groupName?: string }>
+  excludeNames: Set<string>
+  onPick: (name: string) => void
+}) {
+  const [query, setQuery] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const candidates = allProps.filter(p => !excludeNames.has(p.name))
+    if (!q) return candidates.slice(0, 50)
+    return candidates
+      .filter(p =>
+        (p.label ?? '').toLowerCase().includes(q) ||
+        p.name.toLowerCase().includes(q)
+      )
+      .slice(0, 50)
+  }, [allProps, excludeNames, query])
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <input
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Rechercher une propriété..."
+        style={{
+          width: '100%',
+          padding: '6px 10px',
+          border: '1px solid #cbd6e2',
+          borderRadius: 6,
+          fontSize: 12,
+          fontFamily: 'inherit',
+          outline: 'none',
+          boxSizing: 'border-box',
+        }}
+      />
+      <div style={{
+        maxHeight: 200, overflowY: 'auto', marginTop: 6,
+        border: '1px solid #e2e8f0', borderRadius: 6,
+      }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '8px 10px', fontSize: 12, color: '#94a3b8' }}>
+            {query ? 'Aucun résultat' : 'Toutes les propriétés sont déjà ajoutées'}
+          </div>
+        ) : (
+          filtered.map(p => (
+            <button
+              key={p.name}
+              onClick={() => { onPick(p.name); setQuery('') }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '6px 10px', fontSize: 12,
+                background: 'transparent', border: 'none',
+                cursor: 'pointer', color: '#1e293b', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              title={p.name}
+            >
+              <span style={{ fontWeight: 500 }}>{p.label ?? p.name}</span>
+              {p.label && p.label !== p.name && (
+                <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
   )
 }
