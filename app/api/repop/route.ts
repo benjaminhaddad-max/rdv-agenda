@@ -45,22 +45,59 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
 
   // ── 1. Récupérer les deals depuis Supabase (crm_deals) ────────────────
-  let dealQuery = db
-    .from('crm_deals')
-    .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, hubspot_owner_id, teleprospecteur, formation, closedate, createdate')
-    .eq('pipeline', PIPELINE_2026_2027)
-    .in('dealstage', targetStages)
+  // Pour les closers, on filtre via crm_contacts.closer_du_contact_owner_id
+  // (= contacts dont le closer est attribué via la prise de RDV ou la migration).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let deals: any[] | null = null
 
-  // Scope filtering
-  if (!isAdmin && hubspotOwnerId) {
-    if (ownerType === 'telepro') {
-      dealQuery = dealQuery.eq('teleprospecteur', hubspotOwnerId)
-    } else {
-      dealQuery = dealQuery.eq('hubspot_owner_id', hubspotOwnerId)
+  if (!isAdmin && hubspotOwnerId && ownerType === 'closer') {
+    // 1a. Récupérer les contact IDs où ce user est "Closer du contact"
+    const closerContactIds: string[] = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data: cs } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id')
+        .eq('closer_du_contact_owner_id', hubspotOwnerId)
+        .range(from, from + PAGE - 1)
+      if (!cs || cs.length === 0) break
+      closerContactIds.push(...cs.map(c => c.hubspot_contact_id).filter(Boolean))
+      if (cs.length < PAGE) break
+      from += PAGE
     }
+    if (closerContactIds.length === 0) return NextResponse.json([])
+
+    // 1b. Charger les deals correspondants par chunks (.in() limité à ~300)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const collected: any[] = []
+    const CHUNK = 300
+    for (let i = 0; i < closerContactIds.length; i += CHUNK) {
+      const chunk = closerContactIds.slice(i, i + CHUNK)
+      const { data: batch } = await db
+        .from('crm_deals')
+        .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, hubspot_owner_id, teleprospecteur, formation, closedate, createdate')
+        .eq('pipeline', PIPELINE_2026_2027)
+        .in('dealstage', targetStages)
+        .in('hubspot_contact_id', chunk)
+      collected.push(...(batch ?? []))
+    }
+    deals = collected
+  } else {
+    let dealQuery = db
+      .from('crm_deals')
+      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, hubspot_owner_id, teleprospecteur, formation, closedate, createdate')
+      .eq('pipeline', PIPELINE_2026_2027)
+      .in('dealstage', targetStages)
+
+    if (!isAdmin && hubspotOwnerId && ownerType === 'telepro') {
+      dealQuery = dealQuery.eq('teleprospecteur', hubspotOwnerId)
+    }
+
+    const { data } = await dealQuery
+    deals = data
   }
 
-  const { data: deals } = await dealQuery
   if (!deals || deals.length === 0) return NextResponse.json([])
 
   // ── 2. Récupérer les contacts associés depuis Supabase (crm_contacts) ─

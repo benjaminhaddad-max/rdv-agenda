@@ -11,7 +11,7 @@
  *      Temps de réponse : < 1 s au lieu de 5-10 s.
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -38,10 +38,17 @@ const HS_FORMATION_MAP: Record<string, string> = {
   'APES0': 'APES0', 'LAS 2 UPEC': 'LAS 2 UPEC', 'LAS 3 UPEC': 'LAS 3 UPEC',
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+
+  // Scope filtering : si un closer veut voir uniquement ses orphelins,
+  // on filtre sur crm_contacts.closer_du_contact_owner_id
+  const { searchParams } = req.nextUrl
+  const scope = searchParams.get('scope')
+  const hubspotOwnerId = searchParams.get('hubspot_owner_id')
+  const isCloserScope = scope === 'closer' && hubspotOwnerId
 
   // 1. Récupérer les contacts avec recent_conversion_date récente
   //    Paginer pour éviter les limites Supabase
@@ -51,14 +58,20 @@ export async function GET() {
   let offset = 0
 
   while (true) {
-    const { data: batch } = await db
+    let q = db
       .from('crm_contacts')
-      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id')
       .not('recent_conversion_date', 'is', null)
       .gte('recent_conversion_date', thirtyDaysAgo)
       .not('contact_createdate', 'is', null)
       .order('recent_conversion_date', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
+
+    if (isCloserScope) {
+      q = q.eq('closer_du_contact_owner_id', hubspotOwnerId)
+    }
+
+    const { data: batch } = await q
 
     if (!batch || batch.length === 0) break
     allContacts.push(...batch)
