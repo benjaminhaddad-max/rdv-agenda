@@ -62,10 +62,11 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         if (hubspotOwnerId) params.set('hubspot_owner_id', hubspotOwnerId)
       }
 
-      // Orphans (contacts repops sans deal) : on passe scope=closer + owner_id
-      // pour qu'un closer ne voie que les contacts dont il est "Closer du contact"
-      const orphansUrl = scope === 'closer' && hubspotOwnerId
-        ? `/api/repop/orphans?scope=closer&hubspot_owner_id=${encodeURIComponent(hubspotOwnerId)}`
+      // Orphans (contacts repops sans deal) : on passe scope + owner_id
+      //   - closer  → filtre sur closer_du_contact_owner_id
+      //   - telepro → filtre sur teleprospecteur (sur le contact)
+      const orphansUrl = (scope === 'closer' || scope === 'telepro') && hubspotOwnerId
+        ? `/api/repop/orphans?scope=${scope}&hubspot_owner_id=${encodeURIComponent(hubspotOwnerId)}`
         : '/api/repop/orphans'
 
       const [repopRes, orphansRes, dismissedRes] = await Promise.all([

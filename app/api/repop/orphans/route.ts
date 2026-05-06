@@ -43,12 +43,14 @@ export async function GET(req: NextRequest) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
-  // Scope filtering : si un closer veut voir uniquement ses orphelins,
-  // on filtre sur crm_contacts.closer_du_contact_owner_id
+  // Scope filtering :
+  //   scope=closer  → filtre sur crm_contacts.closer_du_contact_owner_id
+  //   scope=telepro → filtre sur crm_contacts.teleprospecteur
   const { searchParams } = req.nextUrl
   const scope = searchParams.get('scope')
   const hubspotOwnerId = searchParams.get('hubspot_owner_id')
-  const isCloserScope = scope === 'closer' && hubspotOwnerId
+  const isCloserScope  = scope === 'closer'  && hubspotOwnerId
+  const isTeleproScope = scope === 'telepro' && hubspotOwnerId
 
   // 1. Récupérer les contacts avec recent_conversion_date récente
   //    Paginer pour éviter les limites Supabase
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     let q = db
       .from('crm_contacts')
-      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id, teleprospecteur')
       .not('recent_conversion_date', 'is', null)
       .gte('recent_conversion_date', thirtyDaysAgo)
       .not('contact_createdate', 'is', null)
@@ -69,6 +71,8 @@ export async function GET(req: NextRequest) {
 
     if (isCloserScope) {
       q = q.eq('closer_du_contact_owner_id', hubspotOwnerId)
+    } else if (isTeleproScope) {
+      q = q.eq('teleprospecteur', hubspotOwnerId)
     }
 
     const { data: batch } = await q

@@ -50,30 +50,36 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let deals: any[] | null = null
 
-  if (!isAdmin && hubspotOwnerId && ownerType === 'closer') {
-    // 1a. Récupérer les contact IDs où ce user est "Closer du contact"
-    const closerContactIds: string[] = []
+  if (!isAdmin && hubspotOwnerId && (ownerType === 'closer' || ownerType === 'telepro')) {
+    // 1a. Récupérer les contact IDs selon le rôle :
+    //   - closer  : crm_contacts.closer_du_contact_owner_id = ownerId
+    //   - telepro : crm_contacts.teleprospecteur          = ownerId
+    const filterColumn = ownerType === 'closer'
+      ? 'closer_du_contact_owner_id'
+      : 'teleprospecteur'
+
+    const matchedContactIds: string[] = []
     let from = 0
     const PAGE = 1000
     while (true) {
       const { data: cs } = await db
         .from('crm_contacts')
         .select('hubspot_contact_id')
-        .eq('closer_du_contact_owner_id', hubspotOwnerId)
+        .eq(filterColumn, hubspotOwnerId)
         .range(from, from + PAGE - 1)
       if (!cs || cs.length === 0) break
-      closerContactIds.push(...cs.map(c => c.hubspot_contact_id).filter(Boolean))
+      matchedContactIds.push(...cs.map(c => c.hubspot_contact_id).filter(Boolean))
       if (cs.length < PAGE) break
       from += PAGE
     }
-    if (closerContactIds.length === 0) return NextResponse.json([])
+    if (matchedContactIds.length === 0) return NextResponse.json([])
 
     // 1b. Charger les deals correspondants par chunks (.in() limité à ~300)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const collected: any[] = []
     const CHUNK = 300
-    for (let i = 0; i < closerContactIds.length; i += CHUNK) {
-      const chunk = closerContactIds.slice(i, i + CHUNK)
+    for (let i = 0; i < matchedContactIds.length; i += CHUNK) {
+      const chunk = matchedContactIds.slice(i, i + CHUNK)
       const { data: batch } = await db
         .from('crm_deals')
         .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, hubspot_owner_id, teleprospecteur, formation, closedate, createdate')
@@ -84,15 +90,13 @@ export async function GET(req: NextRequest) {
     }
     deals = collected
   } else {
-    let dealQuery = db
+    // Mode admin (ou paramètres incomplets) : on charge tous les deals dans
+    // les stages cibles, sans filtre par owner.
+    const dealQuery = db
       .from('crm_deals')
       .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, pipeline, hubspot_owner_id, teleprospecteur, formation, closedate, createdate')
       .eq('pipeline', PIPELINE_2026_2027)
       .in('dealstage', targetStages)
-
-    if (!isAdmin && hubspotOwnerId && ownerType === 'telepro') {
-      dealQuery = dealQuery.eq('teleprospecteur', hubspotOwnerId)
-    }
 
     const { data } = await dealQuery
     deals = data
