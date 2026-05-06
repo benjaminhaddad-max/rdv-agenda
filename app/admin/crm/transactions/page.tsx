@@ -12,6 +12,7 @@ import TransactionBoard from '@/components/TransactionBoard'
 import type { UndoAction } from '@/components/TransactionBoard'
 import TransactionDetailPanel from '@/components/TransactionDetailPanel'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
+import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -512,6 +513,14 @@ export default function TransactionsPage() {
     // Don't move to same stage
     if (fromStage === newStage) return
 
+    // Lock : les stages aval (Pre-inscription, Finalisation, Inscription Confirmee,
+    // Ferme Perdu) sont pilotes par la plateforme Diploma. Seule exception :
+    // amont -> Ferme Perdu autorise.
+    if (!isAllowedManualTransition(fromStage, newStage)) {
+      alert(MANUAL_LOCK_MESSAGE)
+      return
+    }
+
     // Save undo action
     setUndoAction({
       type: 'stage_change',
@@ -564,6 +573,15 @@ export default function TransactionsPage() {
 
     // Don't move to same stage
     if (fromStages.size === 1 && fromStage === newStage) return
+
+    // Lock : on verifie chaque source. Si une seule transition est interdite, on refuse tout
+    // le batch (plus simple et sur). User peut deselectionner les deals concernes.
+    for (const fs of fromStages) {
+      if (!isAllowedManualTransition(fs, newStage)) {
+        alert(MANUAL_LOCK_MESSAGE)
+        return
+      }
+    }
 
     // Save undo action
     setUndoAction({

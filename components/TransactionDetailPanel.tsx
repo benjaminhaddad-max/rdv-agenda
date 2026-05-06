@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, ExternalLink, Phone, Mail, MapPin, BookOpen, GraduationCap, Calendar, Users } from 'lucide-react'
 import InlineEditField from './InlineEditField'
+import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,12 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
 
   // Save helpers
   async function saveDeal(field: string, value: string) {
+    // Lock dealstage : la plateforme Diploma pilote les stages aval. Seules les
+    // transitions amont -> amont, et amont -> Ferme Perdu sont autorisees.
+    if (field === 'dealstage' && !isAllowedManualTransition(deal.dealstage, value)) {
+      alert(MANUAL_LOCK_MESSAGE)
+      return
+    }
     await fetch(`/api/crm/deals/${deal.hubspot_deal_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -211,7 +218,9 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
               value={deal.dealstage}
               onSave={v => saveDeal('dealstage', v)}
               type="select"
-              options={STAGE_OPTIONS}
+              options={STAGE_OPTIONS.filter(opt =>
+                opt.value === deal.dealstage || isAllowedManualTransition(deal.dealstage, opt.value)
+              )}
               color={STAGE_MAP[deal.dealstage ?? '']?.color ?? '#516f90'}
               fontWeight={700}
             />
