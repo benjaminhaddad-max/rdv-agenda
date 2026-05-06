@@ -275,7 +275,7 @@ function DropFilter({
           background: isActive ? 'rgba(204,172,113,0.08)' : '#f5f8fa',
           border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#cbd6e2'}`,
           borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-          color: isActive ? '#ccac71' : '#6b7a90', fontSize: 12, fontFamily: 'inherit',
+          color: isActive ? '#ccac71' : '#64748b', fontSize: 12, fontFamily: 'inherit',
           fontWeight: isActive ? 600 : 400,
           display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
           transition: 'all 0.15s',
@@ -326,7 +326,7 @@ function SortHeader({
       style={{
         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         display: 'inline-flex', alignItems: 'center', gap: 4,
-        color: isActive ? '#ccac71' : '#3a5070', fontFamily: 'inherit',
+        color: isActive ? '#ccac71' : '#475569', fontFamily: 'inherit',
         fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
       }}
     >
@@ -1034,7 +1034,7 @@ export default function TransactionsPage() {
               ) : (
                 <span style={{
                   fontSize: 12, fontWeight: isActive ? 700 : 400,
-                  color: isActive ? '#ccac71' : '#6b7a90',
+                  color: isActive ? '#ccac71' : '#64748b',
                 }}>
                   {view.name}
                 </span>
@@ -1044,7 +1044,7 @@ export default function TransactionsPage() {
               {stageRule && displayStats?.stages[stageRule.value] != null ? (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#ccac71' : '#3a5070',
+                  color: isActive ? '#ccac71' : '#475569',
                   background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
@@ -1053,7 +1053,7 @@ export default function TransactionsPage() {
               ) : view.rules.length > 0 && !stageRule ? (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#ccac71' : '#3a5070',
+                  color: isActive ? '#ccac71' : '#475569',
                   background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
@@ -1087,7 +1087,7 @@ export default function TransactionsPage() {
           style={{
             padding: '7px 12px', background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
             border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-            borderRadius: 6, color: filterRules.length > 0 ? '#ccac71' : '#6b7a90',
+            borderRadius: 6, color: filterRules.length > 0 ? '#ccac71' : '#64748b',
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 12, fontFamily: 'inherit', fontWeight: filterRules.length > 0 ? 600 : 400,
             whiteSpace: 'nowrap', flexShrink: 0,
@@ -1158,13 +1158,13 @@ export default function TransactionsPage() {
             onClick={() => setCreatingView(true)}
             style={{
               padding: '8px 12px', background: 'none', border: 'none',
-              color: '#3a5070', cursor: 'pointer', display: 'flex',
+              color: '#475569', cursor: 'pointer', display: 'flex',
               alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
               whiteSpace: 'nowrap', flexShrink: 0,
               transition: 'color 0.15s',
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#ccac71')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#3a5070')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
           >
             <Plus size={12} /> Vue
           </button>
@@ -1227,7 +1227,7 @@ export default function TransactionsPage() {
                 }}>
                   {/* AND label */}
                   <span style={{
-                    fontSize: 10, fontWeight: 700, color: '#3a5070',
+                    fontSize: 10, fontWeight: 700, color: '#475569',
                     width: 24, textAlign: 'center', flexShrink: 0,
                   }}>
                     {idx === 0 ? 'OÙ' : 'ET'}
@@ -1307,7 +1307,7 @@ export default function TransactionsPage() {
                     title="Dupliquer"
                     style={{
                       background: 'none', border: 'none', padding: 3,
-                      color: '#3a5070', cursor: 'pointer', display: 'flex', flexShrink: 0,
+                      color: '#475569', cursor: 'pointer', display: 'flex', flexShrink: 0,
                     }}
                   >
                     <Copy size={12} />
@@ -1405,7 +1405,7 @@ export default function TransactionsPage() {
                         key={i}
                         style={{
                           padding: '10px 12px', textAlign: 'left', whiteSpace: 'nowrap',
-                          background: '#0d1624', position: 'sticky', top: 0, zIndex: 10,
+                          background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10,
                           width: h.width,
                         }}
                       >
@@ -1430,12 +1430,12 @@ export default function TransactionsPage() {
                         <tr
                           onClick={() => handleSelectDeal(tx as unknown as TransactionDetail)}
                           style={{
-                            background: isExpanded ? 'rgba(45,74,107,0.3)' : 'transparent',
-                            borderBottom: `1px solid ${isExpanded ? 'transparent' : '#16273a'}`,
+                            background: isExpanded ? 'rgba(241,245,249,0.6)' : 'transparent',
+                            borderBottom: `1px solid ${isExpanded ? 'transparent' : '#e2e8f0'}`,
                             cursor: 'pointer',
                             transition: 'background 0.12s',
                           }}
-                          onMouseEnter={e => { if (!isExpanded) (e.currentTarget.style.background = 'rgba(29,47,75,0.6)') }}
+                          onMouseEnter={e => { if (!isExpanded) (e.currentTarget.style.background = 'rgba(248,250,252,1)') }}
                           onMouseLeave={e => { if (!isExpanded) (e.currentTarget.style.background = 'transparent') }}
                         >
                           {/* Transaction name + contact */}
@@ -1571,7 +1571,7 @@ export default function TransactionsPage() {
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
       `}</style>
     </div>
   )
