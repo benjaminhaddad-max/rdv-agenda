@@ -185,10 +185,8 @@ export async function GET(req: NextRequest) {
 
     // 3. Build upsert + dealstage update lists, with dedup par (contact, saison)
     const dedupMap = new Map<string, ReturnType<typeof buildRow>>()
-    const dealUpdates = new Map<string, string>() // hubspot_deal_id -> stage
     let skipNoEmail = 0
     let skipNoContact = 0
-    let dealSkipNoDealId = 0
 
     function buildRow(ins: DiplomaInscription, contactId: string) {
       return {
@@ -220,38 +218,34 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Pre-fetch tous les deals du pipeline 26-27 indexes par contact_id.
-    // On match par contact (pas par hubspot_deal_id cote Diploma, souvent absent).
-    // -> tous les deals d'un contact dans le pipeline 26-27 prennent le stage cible.
+    // Strategie "1 deal par inscription Diploma" :
+    // - Pour chaque inscription cible -> upsert un deal `dpl_<inscription_id>` au stage cible
+    // - Tous les deals NON-dpl_* en stage aval (Pre-insc/Finali/Insc.Conf/Ferme Perdu) du
+    //   pipeline 26-27 sont deplaces vers Delai Reflexion (stage neutre amont).
+    //   Resultat : les 4 stages aval refletent EXACTEMENT le compte plateforme Diploma.
     const PIPELINE_2627 = '2313043166'
-    const dealsByContact = new Map<string, string[]>()
-    {
-      let off = 0
-      const PAGE = 1000
-      while (true) {
-        const { data } = await db
-          .from('crm_deals')
-          .select('hubspot_deal_id,hubspot_contact_id')
-          .eq('pipeline', PIPELINE_2627)
-          .range(off, off + PAGE - 1)
-        const rows = (data || []) as Array<{ hubspot_deal_id: string; hubspot_contact_id: string | null }>
-        if (rows.length === 0) break
-        for (const d of rows) {
-          if (!d.hubspot_contact_id) continue
-          const arr = dealsByContact.get(d.hubspot_contact_id) || []
-          arr.push(String(d.hubspot_deal_id))
-          dealsByContact.set(d.hubspot_contact_id, arr)
-        }
-        if (rows.length < PAGE) break
-        off += PAGE
-      }
-    }
+    const STAGE_DELAI_REFLEXION = '3165428981'
+    const AVAL_STAGES = ['3165428982', '3165428983', '3165428984', '3165428985']
+    const dealsToCreate: Array<Record<string, unknown>> = []
 
     for (const ins of targets) {
       if (!ins.email) { skipNoEmail++; continue }
       const norm = normalizeEmail(ins.email)
-      const contactId = normToContactId.get(norm)
-      if (!contactId) { skipNoContact++; continue }
+      let contactId = normToContactId.get(norm)
+      // Si pas de contact en base, on cree un stub (sera affine au prochain crm-sync)
+      if (!contactId) {
+        contactId = `dpl_c_${ins.id}`
+        await db.from('crm_contacts').upsert([{
+          hubspot_contact_id: contactId,
+          email: String(ins.email).toLowerCase(),
+          firstname: (ins as DiplomaInscription & { first_name?: string }).first_name ?? null,
+          lastname:  (ins as DiplomaInscription & { last_name?: string  }).last_name  ?? null,
+          phone:     (ins as DiplomaInscription & { phone?: string      }).phone      ?? null,
+          synced_at: new Date().toISOString(),
+        }], { onConflict: 'hubspot_contact_id' })
+        normToContactId.set(norm, contactId)
+        skipNoContact++ // on l'incremente comme indicateur d'anomalie plateforme
+      }
 
       const row = buildRow(ins, contactId)
       const key = `${contactId}|${SAISON}`
@@ -269,18 +263,60 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Match-by-contact : tous les deals 26-27 du contact prennent le stage cible
+      // Upsert 1 deal "dpl_<id>" par inscription cible
       const stage = stageFor(ins)
       if (stage) {
-        const dealsForContact = dealsByContact.get(contactId) || []
-        if (dealsForContact.length === 0) {
-          dealSkipNoDealId++
-        } else {
-          for (const dealId of dealsForContact) {
-            dealUpdates.set(dealId, stage)
-          }
-        }
+        const insAny = ins as DiplomaInscription & { first_name?: string; last_name?: string; phone?: string }
+        const dealName = ins.selected_formule_name
+          ? `${(insAny.last_name || '').toUpperCase()} ${insAny.first_name || ''} - ${ins.selected_formule_name}`.trim()
+          : `Inscription ${ins.id.slice(0, 8)}`
+        dealsToCreate.push({
+          hubspot_deal_id:    `dpl_${ins.id}`,
+          hubspot_contact_id: contactId,
+          dealname:           dealName,
+          dealstage:          stage,
+          pipeline:           PIPELINE_2627,
+          amount:             ins.selected_formule_price ? Math.round(ins.selected_formule_price / 100) : null,
+          formation:          ins.selected_formule_name || null,
+          createdate:         ins.created_at || new Date().toISOString(),
+          synced_at:          new Date().toISOString(),
+        })
       }
+    }
+
+    // Deplacer tous les deals NON-dpl_* en stage aval -> Delai Reflexion
+    {
+      const idsToMove: string[] = []
+      let off = 0
+      const PAGE = 1000
+      while (true) {
+        const { data } = await db
+          .from('crm_deals')
+          .select('hubspot_deal_id')
+          .eq('pipeline', PIPELINE_2627)
+          .in('dealstage', AVAL_STAGES)
+          .range(off, off + PAGE - 1)
+        const rows = (data || []) as Array<{ hubspot_deal_id: string }>
+        if (rows.length === 0) break
+        for (const r of rows) {
+          if (!String(r.hubspot_deal_id).startsWith('dpl_')) idsToMove.push(r.hubspot_deal_id)
+        }
+        if (rows.length < PAGE) break
+        off += PAGE
+      }
+      const nowIso = new Date().toISOString()
+      for (let k = 0; k < idsToMove.length; k += 200) {
+        const chunk = idsToMove.slice(k, k + 200)
+        await db.from('crm_deals').update({ dealstage: STAGE_DELAI_REFLEXION, synced_at: nowIso }).in('hubspot_deal_id', chunk)
+      }
+    }
+
+    // Upsert les deals dpl_* (1 par inscription Diploma cible)
+    let dealsUpserted = 0
+    for (let k = 0; k < dealsToCreate.length; k += 100) {
+      const chunk = dealsToCreate.slice(k, k + 100)
+      await db.from('crm_deals').upsert(chunk, { onConflict: 'hubspot_deal_id' })
+      dealsUpserted += chunk.length
     }
 
     const rowsToUpsert = [...dedupMap.values()]
@@ -297,28 +333,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 5. Update crm_deals.dealstage par groupe de stage
-    let dealsUpdated = 0
-    if (dealUpdates.size > 0) {
-      const byStage = new Map<string, string[]>()
-      for (const [dealId, stage] of dealUpdates) {
-        if (!byStage.has(stage)) byStage.set(stage, [])
-        byStage.get(stage)!.push(dealId)
-      }
-      const nowIso = new Date().toISOString()
-      for (const [stage, ids] of byStage) {
-        for (let k = 0; k < ids.length; k += 100) {
-          const chunk = ids.slice(k, k + 100)
-          const { error } = await db
-            .from('crm_deals')
-            .update({ dealstage: stage, synced_at: nowIso })
-            .in('hubspot_deal_id', chunk)
-          if (error) throw new Error(`update deals: ${error.message}`)
-          dealsUpdated += chunk.length
-        }
-      }
-    }
-
+    const dealsUpdated = dealsUpserted
     const durationMs = Date.now() - startMs
 
     // 6. Log dans crm_sync_log (best-effort, on ne fait pas echouer le cron si log echoue)
@@ -340,7 +355,7 @@ export async function GET(req: NextRequest) {
       pre_inscriptions_upserted: rowsToUpsert.length,
       pre_inscriptions_dedup_dropped: targets.length - rowsToUpsert.length - skipNoEmail - skipNoContact,
       deals_updated: dealsUpdated,
-      deals_skip_no_deal_id: dealSkipNoDealId,
+      deals_skip_no_deal_id: 0,
       skip_no_email: skipNoEmail,
       skip_no_contact_match: skipNoContact,
     })
