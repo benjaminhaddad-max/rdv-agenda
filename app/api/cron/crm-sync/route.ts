@@ -193,6 +193,23 @@ export async function GET(req: NextRequest) {
         if (row && appt.hubspot_deal_id) row.supabase_appt_id = appt.id
       }
 
+      // Supabase autoritaire pour `dealstage` : pour les deals deja en base,
+      // on conserve la valeur Supabase (le diploma-sync la met a jour selon
+      // la plateforme de pre-inscription, et HubSpot ne doit plus l'ecraser).
+      // Pour les nouveaux deals (premiere fois vus), on prend bien le dealstage HubSpot.
+      const { data: existingStages } = await db
+        .from('crm_deals')
+        .select('hubspot_deal_id, dealstage')
+        .in('hubspot_deal_id', chunkIds)
+      const stageMap = new Map<string, string | null>(
+        (existingStages ?? []).map(d => [d.hubspot_deal_id as string, d.dealstage as string | null])
+      )
+      for (const row of chunk) {
+        if (stageMap.has(row.hubspot_deal_id)) {
+          row.dealstage = stageMap.get(row.hubspot_deal_id) ?? null
+        }
+      }
+
       await db.from('crm_deals').upsert(chunk, { onConflict: 'hubspot_deal_id' })
       dealsUpserted += chunk.length
     }
