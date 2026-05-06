@@ -657,14 +657,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             const paidAt = ext.paid_at as string | undefined
             const acompteCents = Number(ext.amount_paid_cents ?? 0)
             const acompteEuros = acompteCents / 100
+            // "Lien rempli" cote plateforme = etape 1 du formulaire de finalisation soumise
+            // (les champs fin_echeances / selected_formule / fin_remise_cheques apparaissent
+            // ensemble dans finalisation_data des que l'eleve valide la 1ere etape).
+            const finData = (ext.finalisation_data as Record<string, unknown> | null | undefined) ?? null
+            const formStarted = !!finData?.fin_echeances
 
             const status = (() => {
               const s = pi.paiement_status
               if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-300' }
-              if (s === 'en_cours' && finalisationStep > 0) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
+              if (s === 'en_cours' && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
               if (s === 'en_cours')   return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
               // payee + finalisation_step>0 = onglet "En finalisation" cote plateforme
-              if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
+              if (s === 'payee' && finalisationStep > 0 && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
+              if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
               if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
               if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
               if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
