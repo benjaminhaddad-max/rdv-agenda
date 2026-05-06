@@ -7,6 +7,7 @@
     { "path": "/api/cron/auto-replanifier", "schedule": "0 2 * * *"    },
     { "path": "/api/cron/crm-sync",         "schedule": "*/15 * * * *" },
     { "path": "/api/cron/crm-sync?full=1", "schedule": "0 3 * * *"    },
+    { "path": "/api/cron/diploma-sync",    "schedule": "*/15 * * * *" },
     { "path": "/api/cron/hubspot-sync",    "schedule": "*/5 * * * *"  },
     { "path": "/api/cron/campaigns-process-pending", "schedule": "* * * * *" },
     { "path": "/api/cron/workflow-engine",            "schedule": "* * * * *" },
