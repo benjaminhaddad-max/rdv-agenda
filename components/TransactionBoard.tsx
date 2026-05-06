@@ -113,8 +113,24 @@ function DealCard({
       </div>
 
       {contactName && (
-        <div style={{ fontSize: 11, color: '#6b7a90', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 11, color: '#6b7a90', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {contactName}
+        </div>
+      )}
+
+      {/* Classe actuelle + telephone (visibles surtout pour les stages amont) */}
+      {(deal.contact?.classe_actuelle || deal.contact?.phone) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+          {deal.contact?.classe_actuelle && (
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#3a5070', background: '#eef3f8', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+              {deal.contact.classe_actuelle}
+            </span>
+          )}
+          {deal.contact?.phone && (
+            <span style={{ fontSize: 10, color: '#516f90', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+              {deal.contact.phone}
+            </span>
+          )}
         </div>
       )}
 
