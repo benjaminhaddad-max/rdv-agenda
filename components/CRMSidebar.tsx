@@ -27,6 +27,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'CRM',
     items: [
       { key: 'crm-dashboard', label: 'Dashboard',    href: '/admin/crm/dashboard',    icon: LayoutDashboard },
+      { key: 'agenda',        label: 'Agenda',       href: '/admin/crm/agenda',       icon: Calendar },
       { key: 'contacts',      label: 'Contacts',     href: '/admin/crm',              icon: Users },
       { key: 'transactions',  label: 'Transactions', href: '/admin/crm/transactions', icon: Briefcase },
       { key: 'tasks',         label: 'Mes tâches',   href: '/admin/crm/tasks',        icon: CheckSquare },
@@ -60,7 +61,6 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Gestion',
     items: [
       { key: 'dashboard', label: 'Dashboard',    href: '/admin',           icon: LayoutDashboard },
-      { key: 'agenda',    label: 'Mon agenda',   href: '/closer',          icon: Calendar },
       { key: 'errors',    label: 'Erreurs',      href: '/admin/errors',    icon: AlertTriangle, badgeKey: 'errors' },
       { key: 'migration', label: 'Migration',    href: '/admin/migration', icon: Rocket },
     ],
