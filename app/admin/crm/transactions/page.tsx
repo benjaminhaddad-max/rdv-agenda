@@ -405,8 +405,12 @@ export default function TransactionsPage() {
   const LIMIT = 50
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Restore view mode from localStorage
+  // Restore view mode from localStorage (sauf en mode embed où on force board)
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1'
+      if (isEmbed) { setViewMode('board'); return }
+    }
     const saved = localStorage.getItem('tx-view-mode')
     if (saved === 'list' || saved === 'board') setViewMode(saved)
   }, [])
@@ -458,6 +462,14 @@ export default function TransactionsPage() {
     if (stage)     params.set('stage', stage)
     if (formation) params.set('formation', formation)
     if (classe)    params.set('classe', classe)
+    // Filtre embed: telepro=<hs_id> ou contact_owner=<hs_id>
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search)
+      const urlTelepro = sp.get('telepro')
+      if (urlTelepro) params.set('telepro_hs_id', urlTelepro)
+      const urlContactOwner = sp.get('contact_owner')
+      if (urlContactOwner) params.set('contact_owner_hs_id', urlContactOwner)
+    }
 
     try {
       const res = await fetch(`/api/crm/transactions?${params}`)
