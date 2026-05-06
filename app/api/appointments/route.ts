@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { createDeal, updateContact, getContact } from '@/lib/hubspot'
+import { assignCloserForSlot } from '@/lib/closer-assignment'
 
 // GET /api/appointments?commercial_id=xxx&week=2024-W10&unassigned=true&telepro_id=xxx
 export async function GET(req: NextRequest) {
@@ -72,19 +73,44 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient()
 
+  // ── Auto-attribution closer (si télépro et pas de closer pré-assigné) ─────
+  // Règles :
+  //   - Pascal Tawfik dispo → Pascal
+  //   - Pascal absent + 1 closer dispo → ce closer
+  //   - Sinon → file d'attente (commercial_id = null)
+  let assignedCommercialId: string | null = commercial_id || null
+  let assignedOwnerId: string | null = null
+  if (!assignedCommercialId && source === 'telepro') {
+    try {
+      const closer = await assignCloserForSlot(db, start_at, end_at)
+      if (closer) {
+        assignedCommercialId = closer.id
+        assignedOwnerId = closer.hubspot_owner_id
+      }
+    } catch (e) {
+      console.error('[appointments POST] Auto-assign closer failed:', e)
+    }
+  }
+
   // Vérifier disponibilité si commercial assigné
-  if (commercial_id) {
+  if (assignedCommercialId) {
     const { data: conflict } = await db
       .from('rdv_appointments')
       .select('id')
-      .eq('commercial_id', commercial_id)
+      .eq('commercial_id', assignedCommercialId)
       .neq('status', 'annule')
       .lt('start_at', end_at)
       .gt('end_at', start_at)
       .limit(1)
 
     if (conflict && conflict.length > 0) {
-      return NextResponse.json({ error: 'Ce créneau n\'est plus disponible' }, { status: 409 })
+      // Si conflit sur l'auto-assigné, on bascule en file d'attente plutôt que d'échouer
+      if (!commercial_id) {
+        assignedCommercialId = null
+        assignedOwnerId = null
+      } else {
+        return NextResponse.json({ error: 'Ce créneau n\'est plus disponible' }, { status: 409 })
+      }
     }
   }
 
@@ -92,14 +118,14 @@ export async function POST(req: NextRequest) {
   const { data: appointment, error } = await db
     .from('rdv_appointments')
     .insert({
-      commercial_id: commercial_id || null,
+      commercial_id: assignedCommercialId,
       prospect_name,
       prospect_email,
       prospect_phone: prospect_phone || null,
       email_parent: email_parent || null,
       start_at,
       end_at,
-      status: commercial_id ? 'confirme' : 'non_assigne',
+      status: assignedCommercialId ? 'confirme' : 'non_assigne',
       source,
       formation_type: formation_type || null,
       hubspot_contact_id: hubspot_contact_id || null,
@@ -114,6 +140,22 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Mettre à jour la propriété closer_du_contact_owner_id (Supabase) ──────
+  // Si on a auto-assigné un closer, on met à jour le contact côté Supabase.
+  if (hubspot_contact_id && assignedOwnerId) {
+    try {
+      await db
+        .from('crm_contacts')
+        .update({
+          closer_du_contact_owner_id: assignedOwnerId,
+          synced_at: new Date().toISOString(),
+        })
+        .eq('hubspot_contact_id', hubspot_contact_id)
+    } catch (e) {
+      console.error('[appointments POST] Update closer_du_contact failed:', e)
+    }
+  }
 
   // ── Mettre à jour les propriétés HubSpot du contact (si ID connu) ─────────
   if (hubspot_contact_id) {
@@ -135,17 +177,17 @@ export async function POST(req: NextRequest) {
 
   // ── Créer le deal HubSpot (même sans commercial assigné) ─────────────────
   {
-    let ownerId: string | null = null
+    let ownerId: string | null = assignedOwnerId
 
-    if (commercial_id) {
-      // Closer assigné → utiliser son owner HubSpot
+    if (!ownerId && assignedCommercialId) {
+      // Closer assigné (manuel ou auto) → utiliser son owner HubSpot
       const { data: commercial } = await db
         .from('rdv_users')
         .select('hubspot_owner_id, name')
-        .eq('id', commercial_id)
+        .eq('id', assignedCommercialId)
         .single()
       ownerId = commercial?.hubspot_owner_id || null
-    } else if (source === 'telepro' && hubspot_contact_id) {
+    } else if (!ownerId && source === 'telepro' && hubspot_contact_id) {
       // RDV télépro → recopier le propriétaire (télépro) du contact HubSpot
       try {
         const hsContact = await getContact(hubspot_contact_id)
