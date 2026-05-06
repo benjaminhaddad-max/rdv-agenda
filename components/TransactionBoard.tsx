@@ -118,8 +118,10 @@ function DealCard({
         </div>
       )}
 
-      {/* Classe actuelle + telephone (visibles surtout pour les stages amont) */}
-      {(deal.contact?.classe_actuelle || deal.contact?.phone) && (
+      {/* Classe actuelle + telephone : uniquement pour les stages amont
+          (A Replanifier, RDV Pris, Delai Reflexion). Inutile sur les stages aval. */}
+      {['3165428979','3165428980','3165428981'].includes(deal.dealstage ?? '') &&
+        (deal.contact?.classe_actuelle || deal.contact?.phone) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
           {deal.contact?.classe_actuelle && (
             <span style={{ fontSize: 10, fontWeight: 600, color: '#3a5070', background: '#eef3f8', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
