@@ -82,6 +82,37 @@ interface EmailStats {
   events?: Array<{ type: string; at: string; data?: Any }>
 }
 
+interface SMSLinkClick {
+  clicked_at: string
+  ip?: string | null
+  user_agent?: string | null
+}
+
+interface SMSLink {
+  placeholder: string
+  label?: string | null
+  original_url: string
+  click_count: number
+  first_clicked_at?: string | null
+  last_clicked_at?: string | null
+  clicks: SMSLinkClick[]
+}
+
+interface SMSMessage {
+  id: string
+  campaign_id: string
+  phone: string | null
+  sent_at: string | null
+  created_at: string
+  status: string
+  rendered_message: string | null
+  error_message?: string | null
+  segments_count?: number | null
+  campaign: { id: string; name: string | null; sender: string | null; campaign_type: string | null } | null
+  links: SMSLink[]
+  total_clicks: number
+}
+
 interface ContactDetails {
   contact: Record<string, Any>
   deals: Array<Record<string, Any>>
@@ -95,6 +126,7 @@ interface ContactDetails {
   tasks: CRMTask[]
   emailStatsByMessageId?: Record<string, EmailStats>
   preInscriptions?: PreInscription[]
+  smsMessages?: SMSMessage[]
 }
 
 interface PreInscription {
@@ -109,7 +141,7 @@ interface PreInscription {
   updated_at: string
 }
 
-type TimelineTab = 'all' | 'note' | 'email' | 'call' | 'task' | 'meeting'
+type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting'
 
 const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'firstname',             label: 'Prénom' },
@@ -209,7 +241,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [] } = data
+  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [] } = data
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -296,7 +328,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // ── Timeline ──────────────────────────────────────────────────────────
   type TimelineItem = {
     id: string
-    type: 'note' | 'call' | 'email' | 'meeting' | 'form' | 'rdv' | 'task'
+    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task'
     timestamp: number
     title: string
     body?: string
@@ -304,6 +336,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     ownerId?: string
     emailStats?: EmailStats
     sendStatus?: string
+    sms?: SMSMessage
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -354,6 +387,22 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       ownerId: t.owner_id,
     })
   }
+  for (const sms of smsMessages) {
+    const ts = sms.sent_at ? new Date(sms.sent_at).getTime() : new Date(sms.created_at).getTime()
+    const campaignName = sms.campaign?.name || 'Campagne SMS'
+    const sender = sms.campaign?.sender ? ` · ${sms.campaign.sender}` : ''
+    const segs = sms.segments_count ? ` · ${sms.segments_count} segment${sms.segments_count > 1 ? 's' : ''}` : ''
+    timeline.push({
+      id: `sms-${sms.id}`,
+      type: 'sms',
+      timestamp: ts,
+      title: campaignName,
+      subtitle: `SMS${sender}${segs}${sms.status !== 'sent' ? ` · ${sms.status}` : ''}`,
+      body: sms.rendered_message ?? undefined,
+      sms,
+      sendStatus: sms.status,
+    })
+  }
   timeline.sort((a, b) => b.timestamp - a.timestamp)
 
   const timelineFiltered = timeline.filter(t => {
@@ -377,6 +426,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     all: timeline.length,
     note: timeline.filter(t => t.type === 'note').length,
     email: timeline.filter(t => t.type === 'email').length,
+    sms: timeline.filter(t => t.type === 'sms').length,
     call: timeline.filter(t => t.type === 'call').length,
     task: timeline.filter(t => t.type === 'task').length,
     meeting: timeline.filter(t => t.type === 'meeting' || t.type === 'rdv').length,
@@ -541,6 +591,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes" count={counts.all} />
               <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
               <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
+              <TimelineTabBtn active={timelineTab === 'sms'}     onClick={() => setTimelineTab('sms')}     label="SMS"       count={counts.sms} />
               <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"    count={counts.call} />
               <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
               <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
@@ -578,6 +629,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   <TypeBadge type={t.type} />
                                   <div className="text-sm font-semibold">{t.title}</div>
                                   {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}
+                                  {t.type === 'sms' && <SMSStatusBadges status={t.sendStatus} totalClicks={t.sms?.total_clicks} />}
                                 </div>
                                 <div className="text-xs text-slate-400 whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
@@ -594,6 +646,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-slate-50 p-2 rounded"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
+                              )}
+                              {t.type === 'sms' && t.sms?.error_message && (
+                                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
+                                  Erreur : {t.sms.error_message}
+                                </div>
+                              )}
+                              {t.type === 'sms' && t.sms?.links && t.sms.links.length > 0 && (
+                                <SMSLinksSection links={t.sms.links} />
                               )}
                             </div>
                           </li>
@@ -937,6 +997,7 @@ function TypeDot({ type }: { type: string }) {
   const map: Record<string, string> = {
     note: 'bg-amber-400',
     email: 'bg-blue-500',
+    sms: 'bg-violet-500',
     call: 'bg-green-500',
     task: 'bg-slate-400',
     meeting: 'bg-purple-500',
@@ -950,6 +1011,7 @@ function TypeBadge({ type }: { type: string }) {
   const map: Record<string, { icon: React.ReactNode; bg: string }> = {
     note:    { icon: <StickyNote size={11} />, bg: 'bg-amber-100 text-amber-700' },
     email:   { icon: <Mail size={11} />,       bg: 'bg-blue-100 text-blue-700' },
+    sms:     { icon: <Phone size={11} />,      bg: 'bg-violet-100 text-violet-700' },
     call:    { icon: <Phone size={11} />,      bg: 'bg-green-100 text-green-700' },
     task:    { icon: <CheckSquare size={11} />, bg: 'bg-slate-100 text-slate-700' },
     meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
@@ -962,6 +1024,104 @@ function TypeBadge({ type }: { type: string }) {
       {m.icon}
       {labelForType(type)}
     </span>
+  )
+}
+
+function SMSStatusBadges({ status, totalClicks }: { status?: string; totalClicks?: number }) {
+  const items: Array<{ label: string; bg: string; title?: string }> = []
+  const statusMap: Record<string, { label: string; bg: string }> = {
+    sent:    { label: 'Envoyé',    bg: 'bg-green-100 text-green-700 border border-green-200' },
+    failed:  { label: 'Échec',     bg: 'bg-red-100 text-red-700 border border-red-200' },
+    skipped: { label: 'Ignoré',    bg: 'bg-amber-100 text-amber-700 border border-amber-200' },
+    pending: { label: 'En attente', bg: 'bg-slate-100 text-slate-600 border border-slate-200' },
+  }
+  if (status && statusMap[status]) items.push(statusMap[status])
+  if ((totalClicks ?? 0) > 0) {
+    items.push({
+      label: `${totalClicks} clic${(totalClicks ?? 0) > 1 ? 's' : ''}`,
+      bg: 'bg-violet-100 text-violet-700 border border-violet-200',
+      title: 'Clics sur les liens trackés',
+    })
+  }
+  if (items.length === 0) return null
+  return (
+    <span className="flex items-center gap-1 flex-wrap">
+      {items.map((b, i) => (
+        <span key={i} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${b.bg}`} title={b.title}>
+          {b.label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function SMSLinksSection({ links }: { links: SMSLink[] }) {
+  const [expandedToken, setExpandedToken] = useState<string | null>(null)
+  return (
+    <div className="mt-2 space-y-1.5">
+      {links.map((link, idx) => {
+        const key = link.placeholder + idx
+        const isExpanded = expandedToken === key
+        const hasClicks = (link.click_count ?? 0) > 0
+        return (
+          <div key={key} className="text-xs border rounded-md bg-slate-50 px-2 py-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <code className="text-violet-700 font-semibold bg-white px-1.5 py-0.5 rounded text-[10px]">
+                {link.placeholder}
+              </code>
+              <a
+                href={link.original_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-700 underline-offset-2 hover:underline truncate max-w-[260px]"
+                title={link.original_url}
+              >
+                {link.original_url}
+              </a>
+              {link.label && <span className="text-slate-400 italic">({link.label})</span>}
+              <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold ${hasClicks ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+                {link.click_count ?? 0} clic{(link.click_count ?? 0) > 1 ? 's' : ''}
+              </span>
+              {hasClicks && link.clicks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedToken(isExpanded ? null : key)}
+                  className="text-[10px] text-violet-600 hover:underline"
+                >
+                  {isExpanded ? 'Masquer' : 'Détails'}
+                </button>
+              )}
+            </div>
+            {hasClicks && link.last_clicked_at && (
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Dernier clic : {(() => {
+                  try { return formatDistanceToNow(new Date(link.last_clicked_at), { addSuffix: true, locale: fr }) }
+                  catch { return link.last_clicked_at }
+                })()}
+              </div>
+            )}
+            {isExpanded && link.clicks.length > 0 && (
+              <ul className="mt-2 space-y-1 border-t pt-2">
+                {link.clicks.map((c, i) => (
+                  <li key={i} className="text-[10px] text-slate-600 flex items-center gap-2">
+                    <span className="text-slate-400">•</span>
+                    <span className="font-mono">
+                      {format(new Date(c.clicked_at), "d MMM 'à' HH:mm:ss", { locale: fr })}
+                    </span>
+                    {c.ip && <span className="text-slate-400">IP {c.ip}</span>}
+                    {c.user_agent && (
+                      <span className="text-slate-400 truncate max-w-[200px]" title={c.user_agent}>
+                        {c.user_agent.split(/[/\s]/)[0]}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1342,7 +1502,7 @@ function PropertiesModal({
 /* ═════════ Helpers ═════════ */
 
 function labelForType(t: string) {
-  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire' }
+  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire' }
   return labels[t] ?? t
 }
 

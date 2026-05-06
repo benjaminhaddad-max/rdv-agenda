@@ -90,6 +90,7 @@ export async function GET(
     tasks,
     emailEvents,
     preInscriptions,
+    smsRecipients,
   ] = await Promise.all([
     db.from('crm_deals').select('*')
       .eq('hubspot_contact_id', contactId)
@@ -125,9 +126,113 @@ export async function GET(
       .select('id, hubspot_contact_id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
       .in('hubspot_contact_id', linkedContactIds)
       .order('saison', { ascending: false })),
+
+    // SMS envoyes au contact (toutes campagnes confondues)
+    safeRows(db.from('sms_campaign_recipients')
+      .select('id, campaign_id, phone, rendered_message, status, sms_factor_ticket, error_message, segments_count, sent_at, created_at')
+      .eq('hubspot_contact_id', contactId)
+      .order('sent_at', { ascending: false, nullsFirst: false })
+      .limit(200)),
   ])
 
   const deals = dealsRes.data ?? []
+
+  // 2-bis. SMS history : pour chaque message envoye au contact, on rapatrie
+  // la campagne (nom, sender, type) + les liens trackes du destinataire avec
+  // leurs clics (compteur agrege + log brut).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const smsRecipientsArr = (smsRecipients ?? []) as Array<any>
+  const recipientIds = smsRecipientsArr.map(r => r.id).filter(Boolean) as string[]
+  const campaignIds = [...new Set(smsRecipientsArr.map(r => r.campaign_id).filter(Boolean) as string[])]
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let campaignsArr: any[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tokensArr: any[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let clicksArr: any[] = []
+
+  if (campaignIds.length > 0) {
+    const { data } = await db
+      .from('sms_campaigns')
+      .select('id, name, sender, campaign_type, message')
+      .in('id', campaignIds)
+    campaignsArr = data ?? []
+  }
+
+  if (recipientIds.length > 0) {
+    const { data } = await db
+      .from('sms_campaign_link_tokens')
+      .select('id, recipient_id, placeholder, label, original_url, click_count, first_clicked_at, last_clicked_at')
+      .in('recipient_id', recipientIds)
+    tokensArr = data ?? []
+    const tokenIds = tokensArr.map(t => t.id).filter(Boolean) as string[]
+    if (tokenIds.length > 0) {
+      const { data: clicksData } = await db
+        .from('sms_campaign_link_clicks')
+        .select('token_id, clicked_at, ip, user_agent')
+        .in('token_id', tokenIds)
+        .order('clicked_at', { ascending: false })
+        .limit(2000)
+      clicksArr = clicksData ?? []
+    }
+  }
+
+  const campaignById = new Map<string, { id: string; name: string | null; sender: string | null; campaign_type: string | null }>()
+  for (const c of campaignsArr) campaignById.set(c.id as string, c)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tokensByRecipient: Record<string, any[]> = {}
+  for (const t of tokensArr) {
+    const rid = t.recipient_id as string
+    if (!tokensByRecipient[rid]) tokensByRecipient[rid] = []
+    tokensByRecipient[rid].push(t)
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clicksByToken: Record<string, any[]> = {}
+  for (const c of clicksArr) {
+    const tid = c.token_id as string
+    if (!clicksByToken[tid]) clicksByToken[tid] = []
+    clicksByToken[tid].push(c)
+  }
+
+  const smsMessages = smsRecipientsArr.map(r => {
+    const camp = campaignById.get(r.campaign_id as string) ?? null
+    const tokens = tokensByRecipient[r.id as string] ?? []
+    const links = tokens.map(t => ({
+      placeholder: t.placeholder,
+      label: t.label,
+      original_url: t.original_url,
+      click_count: t.click_count ?? 0,
+      first_clicked_at: t.first_clicked_at,
+      last_clicked_at: t.last_clicked_at,
+      clicks: (clicksByToken[t.id as string] ?? []).map(c => ({
+        clicked_at: c.clicked_at,
+        ip: c.ip,
+        user_agent: c.user_agent,
+      })),
+    }))
+    const totalClicks = links.reduce((acc, l) => acc + (l.click_count ?? 0), 0)
+    return {
+      id: r.id,
+      campaign_id: r.campaign_id,
+      phone: r.phone,
+      sent_at: r.sent_at,
+      created_at: r.created_at,
+      status: r.status,
+      rendered_message: r.rendered_message,
+      error_message: r.error_message,
+      segments_count: r.segments_count,
+      campaign: camp ? {
+        id: camp.id,
+        name: camp.name,
+        sender: camp.sender,
+        campaign_type: camp.campaign_type,
+      } : null,
+      links,
+      total_clicks: totalClicks,
+    }
+  })
 
   // 3. Appointments — dépend de deals donc séquentiel après le Promise.all
   const apptIds = deals
@@ -206,5 +311,6 @@ export async function GET(
     emailStatsByMessageId,
     preInscriptions: dedupedPreInsc,
     duplicateContactIds: linkedContactIds.filter(id => id !== contactId),
+    smsMessages,
   })
 }
