@@ -174,5 +174,10 @@ export async function GET(req: NextRequest) {
   // Trier par date décroissante
   result.sort((a, b) => b.start_at.localeCompare(a.start_at))
 
-  return NextResponse.json(result)
+  // Compat : expose `users` en plus de `rdv_users` pour les composants
+  // (AppointmentModal, WeekCalendar) qui lisent `appt.users`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enriched = result.map((r: any) => ({ ...r, users: r.rdv_users ?? null }))
+
+  return NextResponse.json(enriched)
 }

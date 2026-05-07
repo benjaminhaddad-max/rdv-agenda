@@ -41,7 +41,12 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  // Compat : le front (WeekCalendar, AppointmentModal) lit `appt.users`
+  // alors que le query alias la jointure en `rdv_users`. On expose les deux
+  // pour ne pas casser TeleproClient qui utilise `rdv_users`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enriched = (data ?? []).map((r: any) => ({ ...r, users: r.rdv_users ?? null }))
+  return NextResponse.json(enriched)
 }
 
 // POST /api/appointments — Créer un RDV (assigné ou non)
