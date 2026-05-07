@@ -416,8 +416,14 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
       style={{
         position: 'fixed', inset: 0, zIndex: 1100,
         background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        // L'overlay entier scrolle si la modale depasse la viewport.
+        // Plus simple et plus robuste qu'un scroll interne (problemes de
+        // coupure, focus events qui interceptent le wheel, etc.).
+        overflowY: 'auto',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '32px 16px',
       }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
@@ -426,17 +432,18 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
         border: '1px solid #e2e8f0',
         borderRadius: 16,
         width: '100%', maxWidth: 640,
-        maxHeight: '90vh',
+        // Pas de maxHeight ici : la modale peut grandir, l'overlay scrolle.
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-        overflow: 'hidden',
       }}>
-        {/* Header */}
+        {/* Header sticky pour garder le bouton X accessible quand on scrolle */}
         <div style={{
           padding: '18px 24px',
           borderBottom: '1px solid #e2e8f0',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
+          position: 'sticky', top: 0, zIndex: 2,
+          background: '#ffffff',
+          borderTopLeftRadius: 16, borderTopRightRadius: 16,
         }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -460,8 +467,8 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
           </button>
         </div>
 
-        {/* List of closers */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* List of closers — l'overlay scrolle, on n'a pas besoin d'un scroll interne */}
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {!loaded && (
             <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
               Chargement…
