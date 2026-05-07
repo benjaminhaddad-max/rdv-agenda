@@ -80,5 +80,14 @@ export async function GET() {
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
 
-  return NextResponse.json({ leadStatuses, sources, formations, zones, departements })
+  // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
+  // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
+  return NextResponse.json(
+    { leadStatuses, sources, formations, zones, departements },
+    {
+      headers: {
+        'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
+      },
+    },
+  )
 }

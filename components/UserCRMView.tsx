@@ -183,9 +183,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       .catch(() => {})
   }, [])
 
-  // Fetch field options
+  // Fetch field options (force-cache : profite du Cache-Control s-maxage=3600 côté CDN Vercel)
   useEffect(() => {
-    fetch('/api/crm/field-options')
+    fetch('/api/crm/field-options', { cache: 'force-cache' })
       .then(r => r.json())
       .then(d => {
         if (d.leadStatuses?.length) setLeadStatusOpts(d.leadStatuses)
@@ -348,13 +348,11 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             </FilterSelect>
           )}
 
-          {/* Formation demandée — propriété du contact */}
-          {formationOpts.length > 0 && (
-            <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
-              <option value="">Toutes formations</option>
-              {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
-            </FilterSelect>
-          )}
+          {/* Formation demandée — toujours affiché ; options chargées à la volée */}
+          <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
+            <option value="">Toutes formations</option>
+            {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
+          </FilterSelect>
 
           {/* Période de création du contact (mode Mes Contacts) */}
           {isContactsView && (
