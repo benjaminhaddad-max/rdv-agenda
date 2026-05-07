@@ -36,6 +36,27 @@ export default function OrigineMatchesManager() {
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<string | null>(null)
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  async function syncPreinscrits() {
+    setSyncing(true); setSyncMsg(null)
+    try {
+      const res = await fetch('/api/admin/sync-preinscrits', { method: 'POST' })
+      const d = await res.json()
+      if (res.ok) {
+        setSyncMsg(`✓ ${d.totalUpserted} contacts re-synchronisés en ${(d.durationMs/1000).toFixed(1)}s.`)
+        // Re-charge automatiquement les matches après le sync
+        await load()
+      } else {
+        setSyncMsg(`Erreur : ${d.error || 'sync échouée'}`)
+      }
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Erreur réseau')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,19 +103,39 @@ export default function OrigineMatchesManager() {
             </div>
           )}
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          style={{
-            background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8,
-            padding: '6px 12px', color: '#5b6b7a', fontSize: 12, cursor: loading ? 'wait' : 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <RefreshCw size={11} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-          Actualiser
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={syncPreinscrits}
+            disabled={syncing}
+            title="Re-synchronise les contacts pré-inscrits 2026/2027 depuis HubSpot pour récupérer les responsables légaux"
+            style={{
+              background: '#c6aa7c', border: '1px solid #c6aa7c', borderRadius: 8,
+              padding: '6px 12px', color: '#0f2842', fontSize: 12, cursor: syncing ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700,
+            }}
+          >
+            <RefreshCw size={11} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
+            {syncing ? 'Sync HubSpot…' : 'Sync pré-inscrits'}
+          </button>
+          <button
+            onClick={load}
+            disabled={loading}
+            style={{
+              background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8,
+              padding: '6px 12px', color: '#5b6b7a', fontSize: 12, cursor: loading ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <RefreshCw size={11} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            Actualiser
+          </button>
+        </div>
       </div>
+      {syncMsg && (
+        <div style={{ marginBottom: 14, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, fontSize: 12, color: '#15803d' }}>
+          {syncMsg}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: '48px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
