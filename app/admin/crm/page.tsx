@@ -216,6 +216,9 @@ export default function CRMPage() {
   const [showNewContact, setShowNewContact] = useState(false)
   const [newContactSaving, setNewContactSaving] = useState(false)
   const [newContactError, setNewContactError] = useState<string | null>(null)
+  const [newContactExisting, setNewContactExisting] = useState<{
+    id: string; firstname: string; lastname: string; email: string;
+  } | null>(null)
   const [newContact, setNewContact] = useState({
     firstname: '', lastname: '', email: '', phone: '',
     departement: '', classe_actuelle: '', formation: '',
@@ -228,6 +231,7 @@ export default function CRMPage() {
     }
     setNewContactSaving(true)
     setNewContactError(null)
+    setNewContactExisting(null)
     try {
       const res = await fetch('/api/crm/contacts', {
         method: 'POST',
@@ -239,9 +243,21 @@ export default function CRMPage() {
         setNewContactError(data.error || 'Erreur lors de la création')
         return
       }
+
+      // Email déjà présent en base → afficher l'alerte (pas de redirection auto)
+      if (data.existed) {
+        setNewContactExisting({
+          id: data.id,
+          firstname: data.properties?.firstname || '',
+          lastname: data.properties?.lastname || '',
+          email: data.properties?.email || newContact.email,
+        })
+        return
+      }
+
+      // Nouveau contact créé → on ferme + redirige
       setShowNewContact(false)
       setNewContact({ firstname: '', lastname: '', email: '', phone: '', departement: '', classe_actuelle: '', formation: '' })
-      // Rediriger vers la fiche du contact créé (ou existant)
       window.location.href = `/admin/crm/contacts/${data.id}`
     } catch (e) {
       setNewContactError(e instanceof Error ? e.message : 'Erreur inconnue')
@@ -1988,7 +2004,7 @@ export default function CRMPage() {
       {showNewContact && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget && !newContactSaving) setShowNewContact(false) }}
+          onClick={e => { if (e.target === e.currentTarget && !newContactSaving) { setShowNewContact(false); setNewContactExisting(null) } }}
         >
           <style>{`
             .crm-newcontact-input { color: #12314d !important; background: #ffffff !important; }
@@ -1997,7 +2013,7 @@ export default function CRMPage() {
           `}</style>
           <div style={{ background: '#ffffff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
             <button
-              onClick={() => !newContactSaving && setShowNewContact(false)}
+              onClick={() => { if (!newContactSaving) { setShowNewContact(false); setNewContactExisting(null) } }}
               style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', padding: 4 }}
             >
               <X size={18} />
@@ -2058,6 +2074,35 @@ export default function CRMPage() {
             {newContactError && (
               <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
                 {newContactError}
+              </div>
+            )}
+
+            {newContactExisting && (
+              <div style={{ background: '#fff8e6', border: '1px solid #f0d28a', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <AlertTriangle size={16} color="#a4844c" />
+                  <div style={{ fontWeight: 700, color: '#8a6e3a', fontSize: 13 }}>Ce contact existe déjà</div>
+                </div>
+                <div style={{ fontSize: 13, color: '#6b5630', lineHeight: 1.5, marginBottom: 10 }}>
+                  Un contact avec l'email <strong>{newContactExisting.email}</strong> est déjà présent dans le CRM
+                  {newContactExisting.firstname || newContactExisting.lastname
+                    ? <> au nom de <strong>{[newContactExisting.firstname, newContactExisting.lastname].filter(Boolean).join(' ')}</strong></>
+                    : null}.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { window.location.href = `/admin/crm/contacts/${newContactExisting.id}` }}
+                    style={{ padding: '8px 14px', background: '#c6aa7c', border: 'none', borderRadius: 6, color: '#0f2842', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                  >
+                    Voir la fiche existante →
+                  </button>
+                  <button
+                    onClick={() => setNewContactExisting(null)}
+                    style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #e0d0a8', borderRadius: 6, color: '#8a6e3a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Modifier l'email
+                  </button>
+                </div>
               </div>
             )}
 
