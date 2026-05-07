@@ -61,7 +61,7 @@ export default function OrigineMatchesManager() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/crm/origine-matches?limit=100')
+      const res = await fetch('/api/crm/origine-matches?limit=1000')
       const d = await res.json()
       setData(d)
     } finally {

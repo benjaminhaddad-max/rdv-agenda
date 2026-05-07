@@ -24,7 +24,9 @@ import { updateContact } from '@/lib/hubspot'
  *   }
  */
 export async function GET(req: NextRequest) {
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50'), 200)
+  // Limit haute par défaut pour analyser TOUS les unknowns en un seul appel
+  // (cap à 2000 pour la sécurité Supabase / timeout serverless).
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '1000'), 2000)
   // Filtre par défaut : on cible les pré-inscrits 2026/2027 sans origine
   // (les seuls qui comptent pour les stats fournisseur de leads).
   const leadStatus = req.nextUrl.searchParams.get('lead_status') ?? 'Pré-inscrit 2026/2027'
@@ -149,8 +151,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 4) Match responsable_legal_1 — SQL ciblées (parallélisées par batch de 10)
-  const BATCH_SIZE = 10
+  // 4) Match responsable_legal_1 — SQL ciblées (parallélisées par batch de 25)
+  const BATCH_SIZE = 25
   for (let i = 0; i < needRlMatch.length; i += BATCH_SIZE) {
     const batch = needRlMatch.slice(i, i + BATCH_SIZE)
     await Promise.all(batch.map(async ({ u, fname, lname }) => {
