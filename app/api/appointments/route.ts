@@ -2,6 +2,54 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { createDeal, updateContact, getContact } from '@/lib/hubspot'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
+import { sendBrevoEmail } from '@/lib/brevo'
+
+const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
+
+/** Notifie Pascal qu'un nouveau RDV est en file d'attente (best-effort). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function notifyQueueAlert(appointment: any, source: string): Promise<void> {
+  try {
+    const startAt = new Date(appointment.start_at as string)
+    const dateStr = startAt.toLocaleString('fr-FR', {
+      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
+    })
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+    const queueLink = `${baseUrl.replace(/\/$/, '')}/admin/crm/agenda`
+
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;color:#1e293b;line-height:1.5">
+        <h2 style="margin:0 0 12px">Nouveau RDV en file d'attente</h2>
+        <p>Un RDV vient d'arriver dans la file d'attente — il faut l'assigner manuellement à un closer.</p>
+        <table style="border-collapse:collapse;margin:14px 0">
+          <tr><td style="padding:4px 12px 4px 0;color:#64748b">Prospect</td><td><strong>${appointment.prospect_name ?? ''}</strong></td></tr>
+          <tr><td style="padding:4px 12px 4px 0;color:#64748b">Email</td><td>${appointment.prospect_email ?? ''}</td></tr>
+          ${appointment.prospect_phone ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Téléphone</td><td>${appointment.prospect_phone}</td></tr>` : ''}
+          <tr><td style="padding:4px 12px 4px 0;color:#64748b">Créneau</td><td><strong>${dateStr}</strong></td></tr>
+          ${appointment.formation_type ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Formation</td><td>${appointment.formation_type}</td></tr>` : ''}
+          ${appointment.classe_actuelle ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Classe</td><td>${appointment.classe_actuelle}</td></tr>` : ''}
+          <tr><td style="padding:4px 12px 4px 0;color:#64748b">Source</td><td>${source}</td></tr>
+        </table>
+        <p style="margin:14px 0">
+          <a href="${queueLink}" style="display:inline-block;padding:10px 18px;background:#0038f0;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Ouvrir la file d'attente</a>
+        </p>
+        <p style="font-size:12px;color:#94a3b8">Cet email est envoyé automatiquement à chaque nouveau RDV non assigné.</p>
+      </div>
+    `
+    await sendBrevoEmail({
+      to: [{ email: QUEUE_ALERT_EMAIL }],
+      subject: `🔔 Nouveau RDV en file d'attente — ${appointment.prospect_name ?? 'Prospect'} (${dateStr})`,
+      htmlContent: html,
+      tags: ['queue-alert', 'rdv-unassigned'],
+    })
+  } catch (e) {
+    console.error('[appointments POST] notifyQueueAlert failed:', e)
+  }
+}
 
 // GET /api/appointments?commercial_id=xxx&week=2024-W10&unassigned=true&telepro_id=xxx
 export async function GET(req: NextRequest) {
@@ -145,6 +193,12 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Alerte file d'attente : si aucun closer assigné → email à Pascal ──────
+  // Best-effort, asynchrone, n'impacte pas la réponse API.
+  if (!assignedCommercialId) {
+    void notifyQueueAlert(appointment, source)
+  }
 
   // ── Mettre à jour la propriété closer_du_contact_owner_id (Supabase) ──────
   // Si on a auto-assigné un closer, on met à jour le contact côté Supabase.
