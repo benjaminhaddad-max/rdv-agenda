@@ -391,11 +391,24 @@ function CloserAvailabilityCard({ closer }: { closer: CloserUser }) {
 // ─── Composant principal ────────────────────────────────────────────────
 export default function AdminAvailability({ onClose }: { onClose: () => void }) {
   const [closers, setClosers] = useState<CloserUser[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     fetch('/api/users')
       .then(r => r.json())
-      .then((users: CloserUser[]) => setClosers(users.filter(u => u.role === 'commercial')))
+      .then((users: CloserUser[]) => {
+        // Toutes les conventions de role utilisees dans le codebase pour
+        // "closer" : 'closer' (assign-modal), 'commercial' (week-calendar /
+        // check-rdv) + 'admin' (Pascal Tawfik). On les inclut tous pour ne
+        // rien rater.
+        if (Array.isArray(users)) {
+          setClosers(users.filter(u =>
+            u.role === 'closer' || u.role === 'commercial' || u.role === 'admin'
+          ))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
   }, [])
 
   return (
@@ -449,9 +462,14 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
 
         {/* List of closers */}
         <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {closers.length === 0 && (
+          {!loaded && (
             <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
               Chargement…
+            </div>
+          )}
+          {loaded && closers.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
+              Aucun closer trouvé. Va dans Utilisateurs pour en créer / activer.
             </div>
           )}
           {closers.map(closer => (
