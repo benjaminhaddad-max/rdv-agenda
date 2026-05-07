@@ -506,31 +506,6 @@ export default function TeleproClient({
   // Sert aussi à signaler un doublon télépro à arbitrer par Pascal.
   const [existingTeleproId, setExistingTeleproId] = useState<string | null>(null)
   const [existingTeleproName, setExistingTeleproName] = useState<string | null>(null)
-  const [usersById, setUsersById] = useState<Record<string, string>>({})
-
-  // Charge la liste des users une fois pour résoudre telepro_user_id → nom.
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/users')
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled) return
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const list: any[] = data?.data ?? (Array.isArray(data) ? data : [])
-        const map: Record<string, string> = {}
-        for (const u of list) if (u?.id && u?.name) map[u.id] = u.name
-        setUsersById(map)
-      })
-      .catch(() => { /* non bloquant */ })
-    return () => { cancelled = true }
-  }, [])
-
-  // Re-résout le nom du télépro quand soit l'id soit la map des users change.
-  // Évite l'effet "Télépro inconnu" quand le contact est chargé avant la map.
-  useEffect(() => {
-    if (!existingTeleproId) { setExistingTeleproName(null); return }
-    setExistingTeleproName(usersById[existingTeleproId] || null)
-  }, [existingTeleproId, usersById])
 
   // ── Champs prospect ───────────────────────────────────────────────────
   const [email, setEmail] = useState('')
@@ -915,9 +890,17 @@ export default function TeleproClient({
     if (c.departement) setDepartement(String(c.departement))
     if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
     if (c.formation_demandee) setFormation(c.formation_demandee)
-    // Récupère le télépro déjà assigné au contact (affichage en lecture seule).
-    // Le nom est résolu par useEffect (réagit aux changements de usersById).
-    setExistingTeleproId(c.telepro_user_id || null)
+    // Récupère le télépro déjà assigné au contact.
+    // L'API joint déjà l'objet rdv_users sous c.telepro ({ id, name, ... }).
+    // c.telepro_user_id est en réalité le hubspot_user_id (number) — pas l'UUID Supabase.
+    // On utilise donc c.telepro.id (UUID) pour comparer avec teleproUser.id.
+    if (c.telepro?.id) {
+      setExistingTeleproId(c.telepro.id)
+      setExistingTeleproName(c.telepro.name || null)
+    } else {
+      setExistingTeleproId(null)
+      setExistingTeleproName(null)
+    }
   }
 
   // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
