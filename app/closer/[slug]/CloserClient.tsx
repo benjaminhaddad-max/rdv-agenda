@@ -274,19 +274,46 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     setActiveTab('rdv')
   }
 
-  // ── Availability rules ──
+  // ── Availability rules (par semaine) ──
+  // Helper local pour calculer le lundi ISO d'une date
+  const mondayISO = (d: Date): string => {
+    const x = new Date(d.getTime())
+    const dow = x.getDay()
+    const diff = dow === 0 ? -6 : 1 - dow
+    x.setDate(x.getDate() + diff)
+    x.setHours(0, 0, 0, 0)
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  }
+  const addWeeksISOLocal = (iso: string, n: number): string => {
+    const d = new Date(iso + 'T00:00:00')
+    d.setDate(d.getDate() + n * 7)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const weekLabelLocal = (iso: string): string => {
+    const start = new Date(iso + 'T00:00:00')
+    const end = new Date(start.getTime())
+    end.setDate(end.getDate() + 6)
+    const sameMonth = start.getMonth() === end.getMonth()
+    if (sameMonth) {
+      return `${format(start, 'd', { locale: fr })} – ${format(end, 'd MMM yyyy', { locale: fr })}`
+    }
+    return `${format(start, 'd MMM', { locale: fr })} – ${format(end, 'd MMM yyyy', { locale: fr })}`
+  }
+
+  const [dispoWeekStart, setDispoWeekStart] = useState<string>(() => mondayISO(new Date()))
   const [rules, setRules] = useState<AvailabilityRule[]>(
     DAYS.map(d => ({
       user_id: user.id,
       day_of_week: d.value,
       start_time: '09:00',
       end_time: '18:00',
-      is_active: d.value <= 5,
+      is_active: false,
     }))
   )
   const [rulesSaving, setRulesSaving] = useState(false)
   const [rulesSaved, setRulesSaved] = useState(false)
   const [rulesError, setRulesError] = useState<string | null>(null)
+  const [rulesMigrationNeeded, setRulesMigrationNeeded] = useState(false)
 
   // ── Blocked dates ──
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
@@ -342,30 +369,30 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // ── Load data ──
-  // Mode hebdomadaire : on charge les regles de la semaine courante. Les
-  // closers qui veulent gerer plusieurs semaines passent par l'admin.
+  // Mode par semaine : charge les regles de la semaine selectionnee.
   const loadRules = useCallback(async () => {
-    const res = await fetch(`/api/availability?mode=rules&user_id=${user.id}`)
+    const res = await fetch(`/api/availability?mode=rules&user_id=${user.id}&week_start=${dispoWeekStart}`)
+    if (res.status === 503) {
+      setRulesMigrationNeeded(true)
+      return
+    }
+    setRulesMigrationNeeded(false)
     if (!res.ok) return
     const json = await res.json()
-    // Nouvelle reponse : { rules: [...], week_start }. On lit rules,
-    // fallback array direct pour retro-compat eventuelle.
     const data: AvailabilityRule[] = Array.isArray(json) ? json : (json.rules ?? [])
-    if (data.length > 0) {
-      setRules(
-        DAYS.map(d => {
-          const existing = data.find(r => r.day_of_week === d.value)
-          return existing || {
-            user_id: user.id,
-            day_of_week: d.value,
-            start_time: '09:00',
-            end_time: '18:00',
-            is_active: false,
-          }
-        })
-      )
-    }
-  }, [user.id])
+    setRules(
+      DAYS.map(d => {
+        const existing = data.find(r => r.day_of_week === d.value)
+        return existing || {
+          user_id: user.id,
+          day_of_week: d.value,
+          start_time: '09:00',
+          end_time: '18:00',
+          is_active: false,
+        }
+      })
+    )
+  }, [user.id, dispoWeekStart])
 
   const loadBlockedDates = useCallback(async () => {
     const res = await fetch(`/api/blocked-dates?user_id=${user.id}`)
@@ -383,21 +410,12 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     setRulesError(null)
     setRulesSaved(false)
     try {
-      // Sauvegarde sur la semaine COURANTE (lundi local)
-      const today = new Date()
-      const dow = today.getDay()
-      const diff = dow === 0 ? -6 : 1 - dow
-      const monday = new Date(today)
-      monday.setDate(today.getDate() + diff)
-      monday.setHours(0, 0, 0, 0)
-      const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
-
       const res = await fetch('/api/availability', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
-          week_start: weekStart,
+          week_start: dispoWeekStart,
           rules: rules.map(r => ({
             day_of_week: r.day_of_week,
             start_time: r.start_time,
@@ -406,6 +424,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           })),
         }),
       })
+      if (res.status === 503) {
+        setRulesMigrationNeeded(true)
+        setRulesError('Migration v26 manquante')
+        return
+      }
       if (res.ok) {
         setRulesSaved(true)
         setTimeout(() => setRulesSaved(false), 3000)
@@ -974,11 +997,65 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
 
-            {/* Section 1 : Planning hebdomadaire */}
+            {/* Section 1 : Planning par semaine */}
             <div style={{ background: '#ffffff', border: '1px solid #2d4a6b', borderRadius: 14, padding: '20px 24px', marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={16} style={{ color: '#b89450' }} />
-                Planning hebdomadaire récurrent
+                Planning de la semaine
+              </div>
+
+              {rulesMigrationNeeded && (
+                <div style={{
+                  background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 10,
+                  padding: 12, marginBottom: 14, fontSize: 13, color: '#92400e',
+                }}>
+                  <strong>Mode hebdomadaire pas encore activé.</strong>
+                  <br />Demande à l&apos;admin d&apos;appliquer la migration v26 (modale Disponibilités → bouton &quot;Activer le mode hebdomadaire&quot;).
+                </div>
+              )}
+
+              {/* Selecteur de semaine */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <button onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, -1))}
+                  style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#1e293b', fontWeight: 600 }}>
+                  <ChevronLeft size={12} /> Sem. précédente
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{weekLabelLocal(dispoWeekStart)}</div>
+                  {dispoWeekStart !== mondayISO(new Date()) && (
+                    <button onClick={() => setDispoWeekStart(mondayISO(new Date()))}
+                      style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#b89450', cursor: 'pointer' }}>
+                      Aujourd&apos;hui
+                    </button>
+                  )}
+                </div>
+                <button onClick={() => setDispoWeekStart(addWeeksISOLocal(dispoWeekStart, 1))}
+                  style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#1e293b', fontWeight: 600 }}>
+                  Sem. suivante <ChevronRight size={12} />
+                </button>
+              </div>
+
+              {/* Bouton copier la semaine precedente */}
+              <div style={{ marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    const previousWeek = addWeeksISOLocal(dispoWeekStart, -1)
+                    const res = await fetch('/api/availability?action=copy', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        user_id: user.id,
+                        from_week_start: previousWeek,
+                        to_week_start: dispoWeekStart,
+                      }),
+                    })
+                    if (res.ok) loadRules()
+                    else if (res.status === 503) setRulesMigrationNeeded(true)
+                  }}
+                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#1e293b', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  📋 Copier la semaine précédente
+                </button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
