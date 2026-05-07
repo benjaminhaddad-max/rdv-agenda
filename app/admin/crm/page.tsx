@@ -56,6 +56,47 @@ interface SyncLog {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+// Validation email pragmatique : format + TLD dans une liste + détection
+// des typos courantes (gmail.fldk → suggérer gmail.com).
+const VALID_TLDS = new Set([
+  'com','fr','net','org','eu','be','ch','ca','uk','de','es','it','pt','nl','lu',
+  'edu','gov','io','co','me','app','info','biz','dev','tv','fm','pro','xyz','tech',
+  'online','site','store','club','studio','agency','design','shop','blog','live',
+  'ai','art','cloud','digital','email','expert','group','health','media','news',
+  'paris','school','solutions','support','team','training','world','academy',
+  'ovh','re','tn','ma','dz','sn','ci','lb','sg','jp','cn','kr','au','nz','br','mx','ar',
+  'ru','ua','pl','cz','at','dk','se','no','fi','ie','gr','tr','il','in','ae','sante',
+])
+const KNOWN_PROVIDERS: Record<string, string> = {
+  gmail: 'gmail.com',
+  googlemail: 'googlemail.com',
+  hotmail: 'hotmail.com',
+  outlook: 'outlook.com',
+  yahoo: 'yahoo.com',
+  icloud: 'icloud.com',
+  protonmail: 'protonmail.com',
+  proton: 'proton.me',
+  laposte: 'laposte.net',
+  free: 'free.fr',
+  orange: 'orange.fr',
+  wanadoo: 'wanadoo.fr',
+  sfr: 'sfr.fr',
+}
+function validateEmailDomain(email: string): string | null {
+  const e = email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return "Format d'email invalide"
+  const domain = e.split('@')[1]
+  const parts = domain.split('.')
+  const provider = parts[0]
+  const tld = parts[parts.length - 1]
+  if (!tld || tld.length < 2 || !/^[a-z]+$/.test(tld)) return 'Domaine invalide'
+  if (!VALID_TLDS.has(tld)) return `Le domaine ".${tld}" n'existe pas`
+  if (KNOWN_PROVIDERS[provider] && domain !== KNOWN_PROVIDERS[provider]) {
+    return `Vouliez-vous dire ${e.split('@')[0]}@${KNOWN_PROVIDERS[provider]} ?`
+  }
+  return null
+}
+
 function isPeriodMatch(contact: CRMContact, period: string): boolean {
   if (!period) return true
   const dateStr = contact.deal?.createdate
@@ -236,8 +277,9 @@ export default function CRMPage() {
       setNewContactEmailChecking(false)
       return
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setNewContactEmailFormatError("Format d'email invalide")
+    const formatErr = validateEmailDomain(email)
+    if (formatErr) {
+      setNewContactEmailFormatError(formatErr)
       setNewContactEmailChecking(false)
       return
     }
@@ -2136,13 +2178,6 @@ export default function CRMPage() {
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
             </div>
-            <input
-              type="text" placeholder="Formation demandée" value={newContact.formation}
-              onChange={e => setNewContact(c => ({ ...c, formation: e.target.value }))}
-              className="crm-newcontact-input"
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14, boxSizing: 'border-box' }}
-            />
-
             {newContactError && (
               <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
                 {newContactError}
@@ -2178,22 +2213,46 @@ export default function CRMPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-              <button
-                onClick={() => setShowNewContact(false)}
-                disabled={newContactSaving}
-                style={{ padding: '10px 18px', background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8, color: '#5b6b7a', fontSize: 13, fontWeight: 600, cursor: newContactSaving ? 'not-allowed' : 'pointer' }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleCreateContact}
-                disabled={newContactSaving}
-                style={{ padding: '10px 22px', background: '#12314d', border: 'none', borderRadius: 8, color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: newContactSaving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {newContactSaving ? 'Création…' : <><Plus size={14} /> Créer le contact</>}
-              </button>
-            </div>
+            {(() => {
+              const allFilled =
+                newContact.firstname.trim() && newContact.lastname.trim() &&
+                newContact.email.trim() && newContact.phone.trim() &&
+                newContact.departement.trim() && newContact.classe_actuelle.trim()
+              const canCreate =
+                allFilled &&
+                !newContactEmailFormatError &&
+                !newContactExisting &&
+                !newContactEmailChecking &&
+                !newContactSaving
+              return (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                  <button
+                    onClick={() => { setShowNewContact(false); setNewContactExisting(null) }}
+                    disabled={newContactSaving}
+                    style={{ padding: '10px 18px', background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8, color: '#5b6b7a', fontSize: 13, fontWeight: 600, cursor: newContactSaving ? 'not-allowed' : 'pointer' }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleCreateContact}
+                    disabled={!canCreate}
+                    style={{
+                      padding: '10px 22px',
+                      background: canCreate ? '#12314d' : '#cbd6e2',
+                      border: 'none', borderRadius: 8,
+                      color: canCreate ? '#ffffff' : '#94a3b8',
+                      fontSize: 13, fontWeight: 700,
+                      cursor: !canCreate ? 'not-allowed' : (newContactSaving ? 'wait' : 'pointer'),
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      opacity: canCreate ? 1 : 0.85,
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    {newContactSaving ? 'Création…' : <><Plus size={14} /> Créer le contact</>}
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
