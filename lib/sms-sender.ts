@@ -60,7 +60,9 @@ export interface RunResult {
 }
 
 function makeToken(): string {
-  return randomBytes(8).toString('base64url').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 10)
+  // 6 chars base64url ≈ 64^6 = 68 milliards de combinaisons. Suffisant pour
+  // ~10^9 envois sans collision. Plus court = meilleure UX dans le SMS.
+  return randomBytes(6).toString('base64url').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 6)
 }
 
 function renderMessage(template: string, vars: Record<string, string>): string {
@@ -258,13 +260,15 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
 
     // 5. Envoi sequentiel (~10 SMS/sec)
     const pushtype: 'alert' | 'marketing' = campaign.campaign_type === 'marketing' ? 'marketing' : 'alert'
-    // IMPORTANT : si la campagne contient au moins un lien tracke, on force
-    // l'utilisation du URL Shortener SMS Factor pour que l'URL longue
-    // /r/<token> soit transformee en `https://smsf.st/<5chars>` (URL bien
-    // plus courte = moins de segments factures + meilleur rendu pour
-    // l'utilisateur). L'option shorten_links de la campagne reste respectee
-    // pour les autres URLs presentes dans le message.
-    const shortenLinks = !!campaign.shorten_links || hasAnyTrackedLink
+    // ATTENTION : ne PAS forcer shortenLinks pour les liens trackes. L'API
+    // POST de SMS Factor ("send-shortened") renvoie "Erreur de donnees" sur
+    // notre payload — le format des champs (value vs to, links vs short_link)
+    // ne matche pas leurs specs. Tant que ce n'est pas debug, on envoie les
+    // URLs /r/<token> telles quelles via GET /send (qui marche). Le user a
+    // ~36 chars d'URL au lieu de ~17, c'est acceptable. Variable hasAnyTrackedLink
+    // gardee pour l'instant si on veut re-activer plus tard apres fix.
+    void hasAnyTrackedLink
+    const shortenLinks = !!campaign.shorten_links
 
     let sentCount = 0
     let failedCount = 0
