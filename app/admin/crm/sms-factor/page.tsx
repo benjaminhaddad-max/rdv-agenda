@@ -393,18 +393,30 @@ function NewCampaignModal({ onClose, onCreated }: {
 
   function insertTextAtCursor(text: string) {
     const ta = messageRef.current
-    if (!ta) {
-      setMessage(prev => prev + text)
-      return
-    }
-    const start = ta.selectionStart ?? message.length
-    const end = ta.selectionEnd ?? message.length
-    const next = message.slice(0, start) + text + message.slice(end)
-    setMessage(next)
+    setMessage(prev => {
+      // On utilise la position du curseur UNIQUEMENT si le textarea est
+      // actuellement focus — sinon selectionStart=0 par defaut et on
+      // inserait au mauvais endroit. Quand l'utilisateur ouvre le formulaire
+      // "Inserer un lien" et clique Inserer, le textarea n'est pas focus :
+      // on append a la fin proprement.
+      const isFocused = typeof document !== 'undefined' && document.activeElement === ta
+      if (ta && isFocused) {
+        const start = ta.selectionStart ?? prev.length
+        const end = ta.selectionEnd ?? prev.length
+        return prev.slice(0, start) + text + prev.slice(end)
+      }
+      // Append a la fin avec separateur si besoin
+      const sep = prev.length === 0 || /\s$/.test(prev) ? '' : ' '
+      return prev + sep + text
+    })
+    // Focus le textarea apres insertion pour que l'utilisateur voie le tag
     setTimeout(() => {
       if (!ta) return
       ta.focus()
-      ta.setSelectionRange(start + text.length, start + text.length)
+      const len = ta.value.length
+      ta.setSelectionRange(len, len)
+      // Petit scroll pour montrer le bas du textarea
+      ta.scrollTop = ta.scrollHeight
     }, 0)
   }
 
@@ -514,20 +526,28 @@ function NewCampaignModal({ onClose, onCreated }: {
 
     setSubmitting(true)
     try {
-      // Ne garde que les liens dont le placeholder est encore present dans
-      // le message (l'utilisateur peut avoir supprime manuellement le tag).
-      const usedTrackedLinks = trackedLinks.filter(l => message.includes(l.placeholder))
+      // Tous les liens trackes sont envoyes. Si l'utilisateur a oublie
+      // d'inserer le placeholder dans le message (ou l'a supprime), on
+      // l'ajoute automatiquement a la fin pour que le SMS contienne bien le
+      // lien — sinon le lien serait silencieusement perdu.
+      let finalMessage = message
+      const missingPlaceholders = trackedLinks
+        .filter(l => !finalMessage.includes(l.placeholder))
+        .map(l => l.placeholder)
+      if (missingPlaceholders.length > 0) {
+        finalMessage = (finalMessage.trim() + ' ' + missingPlaceholders.join(' ')).trim()
+      }
 
       const res = await fetch('/api/sms-campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          message,
+          message: finalMessage,
           sender,
           campaign_type: campaignType,
           shorten_links: shortenLinks,
-          tracked_links: usedTrackedLinks,
+          tracked_links: trackedLinks,
           filter_groups: mode === 'phones' ? [] : filterGroups,
           preset_flags: mode === 'phones' ? null : presetFlags,
           manual_phones: mode === 'phones' ? phonesParsed.valid : [],
