@@ -821,7 +821,10 @@ export default function TeleproClient({
     if (!lookupInput.trim()) return
     setLookupLoading(true); setLookupError(null); setSearchResults([])
     try {
-      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10`)
+      // all_classes=1 + show_external=1 pour ne PAS filtrer le lookup sur les
+      // classes prioritaires / l'equipe externe — un telepro doit pouvoir
+      // retrouver n'importe quel contact (admin, equipe, etc.).
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10&all_classes=1&show_external=1`)
       const data = await res.json()
       if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
       const results = data.data ?? []

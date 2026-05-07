@@ -453,7 +453,9 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     if (!lookupInput.trim()) return
     setLookupLoading(true); setLookupError(null); setSearchResults([])
     try {
-      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10`)
+      // all_classes=1 + show_external=1 : pas de filtre sur classes prioritaires
+      // ni equipe externe pour retrouver tout contact existant dans le CRM.
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10&all_classes=1&show_external=1`)
       const data = await res.json()
       if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
       const results = data.data ?? []
