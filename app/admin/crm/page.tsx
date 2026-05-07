@@ -219,19 +219,76 @@ export default function CRMPage() {
   const [newContactExisting, setNewContactExisting] = useState<{
     id: string; firstname: string; lastname: string; email: string;
   } | null>(null)
+  const [newContactEmailFormatError, setNewContactEmailFormatError] = useState<string | null>(null)
+  const [newContactEmailChecking, setNewContactEmailChecking] = useState(false)
   const [newContact, setNewContact] = useState({
     firstname: '', lastname: '', email: '', phone: '',
     departement: '', classe_actuelle: '', formation: '',
   })
 
+  // Vérification live de l'email : format + existence en base (debounced)
+  useEffect(() => {
+    if (!showNewContact) return
+    const email = newContact.email.trim()
+    setNewContactExisting(null)
+    if (!email) {
+      setNewContactEmailFormatError(null)
+      setNewContactEmailChecking(false)
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNewContactEmailFormatError("Format d'email invalide")
+      setNewContactEmailChecking(false)
+      return
+    }
+    setNewContactEmailFormatError(null)
+    setNewContactEmailChecking(true)
+    const ctrl = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/crm/contacts/check?email=${encodeURIComponent(email)}`, { signal: ctrl.signal })
+        const data = await res.json()
+        if (data.exists && data.contact) setNewContactExisting(data.contact)
+        else setNewContactExisting(null)
+      } catch {
+        // ignore
+      } finally {
+        setNewContactEmailChecking(false)
+      }
+    }, 400)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [newContact.email, showNewContact])
+
   async function handleCreateContact() {
-    if (!newContact.firstname.trim() || !newContact.lastname.trim() || !newContact.email.trim()) {
-      setNewContactError('Prénom, nom et email sont requis.')
+    const required = {
+      firstname: newContact.firstname.trim(),
+      lastname:  newContact.lastname.trim(),
+      email:     newContact.email.trim(),
+      phone:     newContact.phone.trim(),
+      departement: newContact.departement.trim(),
+      classe_actuelle: newContact.classe_actuelle.trim(),
+    }
+    const missing: string[] = []
+    if (!required.firstname)       missing.push('prénom')
+    if (!required.lastname)        missing.push('nom')
+    if (!required.email)           missing.push('email')
+    if (!required.phone)           missing.push('téléphone')
+    if (!required.departement)     missing.push('département')
+    if (!required.classe_actuelle) missing.push('classe actuelle')
+    if (missing.length) {
+      setNewContactError(`Champs requis manquants : ${missing.join(', ')}.`)
+      return
+    }
+    if (newContactEmailFormatError) {
+      setNewContactError(newContactEmailFormatError)
+      return
+    }
+    if (newContactExisting) {
+      setNewContactError('Cet email est déjà associé à un contact existant.')
       return
     }
     setNewContactSaving(true)
     setNewContactError(null)
-    setNewContactExisting(null)
     try {
       const res = await fetch('/api/crm/contacts', {
         method: 'POST',
@@ -243,19 +300,15 @@ export default function CRMPage() {
         setNewContactError(data.error || 'Erreur lors de la création')
         return
       }
-
-      // Email déjà présent en base → afficher l'alerte (pas de redirection auto)
       if (data.existed) {
         setNewContactExisting({
           id: data.id,
           firstname: data.properties?.firstname || '',
-          lastname: data.properties?.lastname || '',
-          email: data.properties?.email || newContact.email,
+          lastname:  data.properties?.lastname  || '',
+          email:     data.properties?.email     || newContact.email,
         })
         return
       }
-
-      // Nouveau contact créé → on ferme + redirige
       setShowNewContact(false)
       setNewContact({ firstname: '', lastname: '', email: '', phone: '', departement: '', classe_actuelle: '', formation: '' })
       window.location.href = `/admin/crm/contacts/${data.id}`
@@ -2024,6 +2077,31 @@ export default function CRMPage() {
               <div style={{ fontSize: 18, fontWeight: 700, color: '#12314d' }}>Créer un contact dans le CRM</div>
             </div>
 
+            {/* Email en premier — avec validation live */}
+            <div style={{ position: 'relative', marginBottom: newContactEmailFormatError ? 6 : 10 }}>
+              <input
+                type="email" placeholder="Email *" value={newContact.email}
+                onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
+                className="crm-newcontact-input"
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  border: `1px solid ${newContactEmailFormatError ? '#ef4444' : newContactExisting ? '#f0d28a' : '#cbd6e2'}`,
+                  borderRadius: 8, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box',
+                }}
+                autoFocus
+              />
+              {newContactEmailChecking && (
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>
+                  vérification…
+                </span>
+              )}
+            </div>
+            {newContactEmailFormatError && (
+              <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 10, paddingLeft: 2 }}>
+                {newContactEmailFormatError}
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <input
                 type="text" placeholder="Prénom *" value={newContact.firstname}
@@ -2039,26 +2117,20 @@ export default function CRMPage() {
               />
             </div>
             <input
-              type="email" placeholder="Email *" value={newContact.email}
-              onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
-              className="crm-newcontact-input"
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
-            />
-            <input
-              type="tel" placeholder="Téléphone" value={newContact.phone}
+              type="tel" placeholder="Téléphone *" value={newContact.phone}
               onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
               className="crm-newcontact-input"
               style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <input
-                type="text" placeholder="Département" value={newContact.departement}
+                type="text" placeholder="Département *" value={newContact.departement}
                 onChange={e => setNewContact(c => ({ ...c, departement: e.target.value }))}
                 className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
               <input
-                type="text" placeholder="Classe actuelle" value={newContact.classe_actuelle}
+                type="text" placeholder="Classe actuelle *" value={newContact.classe_actuelle}
                 onChange={e => setNewContact(c => ({ ...c, classe_actuelle: e.target.value }))}
                 className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
