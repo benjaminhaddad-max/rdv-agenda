@@ -63,9 +63,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ matches: [], total_unknown: 0, processed: 0 })
   }
 
-  // ─── Optimisation : 1 seule query pour TOUS les candidats avec origine ───
-  // On charge en mémoire et on indexe par (téléphone, prénom+nom, responsable_legal).
-  // Beaucoup plus rapide que N+1 sous-requêtes (300+ queries → 2).
+  // ─── Stratégie hybride pour rester rapide ─────────────────────────────────
+  // 1) On charge TOUS les candidats avec origine — SANS hubspot_raw (juste les
+  //    colonnes nécessaires pour matcher par téléphone et nom). Pagination 1k.
+  // 2) On indexe en mémoire byPhone et byName.
+  // 3) Pour le matching responsable_legal_1, on fait des SQL ciblées sur
+  //    hubspot_raw->>'...' uniquement pour les unknowns qui n'ont pas trouvé
+  //    de match phone/name (max ~100 sous-requêtes).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getResponsableLegal = (raw: any): { prenom: string | null; nom: string | null } => {
     if (!raw || typeof raw !== 'object') return { prenom: null, nom: null }
@@ -74,16 +78,14 @@ export async function GET(req: NextRequest) {
     return { prenom, nom }
   }
 
-  // On charge TOUS les candidats avec une origine renseignée (sans filtre date,
-  // pour ne rater aucun match historique). Limite haute pour cover toute la base.
-  // Pagination par batchs de 1000 si jamais le pool dépasse 50k (sécurité Supabase).
+  // 1) Charge candidats LIGHT (sans hubspot_raw) — rapide même sur 30k contacts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const candidatesPool: any[] = []
   const PAGE_SIZE = 1000
   for (let offset = 0; offset < 100000; offset += PAGE_SIZE) {
     const { data: batch, error: errC } = await db
       .from('crm_contacts')
-      .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate')
       .not('origine', 'is', null)
       .not('origine', 'in', '(,Autre,Inconnu)')
       .range(offset, offset + PAGE_SIZE - 1)
@@ -93,45 +95,32 @@ export async function GET(req: NextRequest) {
     if (batch.length < PAGE_SIZE) break
   }
 
-  // Index en mémoire
+  // 2) Index en mémoire (uniquement phone et name — pas de responsable_legal ici)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byPhone = new Map<string, any[]>()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byName  = new Map<string, any[]>()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byResponsableLegal = new Map<string, any[]>()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stripRaw = (c: any) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { hubspot_raw, ...rest } = c
-    return rest
-  }
 
   for (const c of candidatesPool ?? []) {
     const cp = cleanPhone(c.phone)
     if (cp) {
       if (!byPhone.has(cp)) byPhone.set(cp, [])
-      byPhone.get(cp)!.push(stripRaw(c))
+      byPhone.get(cp)!.push(c)
     }
     const cf = c.firstname?.trim().toLowerCase()
     const cl = c.lastname?.trim().toLowerCase()
     if (cf && cl && cf.length > 1 && cl.length > 1) {
       const k = `${cf}|${cl}`
       if (!byName.has(k)) byName.set(k, [])
-      byName.get(k)!.push(stripRaw(c))
-    }
-    const rl = getResponsableLegal(c.hubspot_raw)
-    if (rl.prenom && rl.nom) {
-      const k = `${rl.prenom.trim().toLowerCase()}|${rl.nom.trim().toLowerCase()}`
-      if (!byResponsableLegal.has(k)) byResponsableLegal.set(k, [])
-      byResponsableLegal.get(k)!.push({ ...stripRaw(c), responsable_legal: rl })
+      byName.get(k)!.push(c)
     }
   }
 
-  // Itère sur les "unknowns" et fait le lookup en mémoire (instantané)
+  // 3) Itère sur les unknowns + collecte ceux qui ont besoin du match responsable_legal
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matches: any[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const needRlMatch: any[] = []
   for (const u of unknowns) {
     const cleanedPhone = cleanPhone(u.phone)
     const fname = u.firstname?.trim().toLowerCase()
@@ -139,15 +128,12 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const candidates: any[] = []
 
-    // a) Téléphone (exclut soi-même)
     if (cleanedPhone) {
       const list = byPhone.get(cleanedPhone) ?? []
       for (const c of list) if (c.hubspot_contact_id !== u.hubspot_contact_id) {
         candidates.push({ ...c, match_type: 'phone' })
       }
     }
-
-    // b) Prénom + nom direct
     if (candidates.length === 0 && fname && lname && fname.length > 1 && lname.length > 1) {
       const list = byName.get(`${fname}|${lname}`) ?? []
       for (const c of list) if (c.hubspot_contact_id !== u.hubspot_contact_id) {
@@ -155,15 +141,43 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // c) Responsable légal 1
-    if (candidates.length === 0 && fname && lname && fname.length > 1 && lname.length > 1) {
-      const list = byResponsableLegal.get(`${fname}|${lname}`) ?? []
-      for (const c of list) if (c.hubspot_contact_id !== u.hubspot_contact_id) {
-        candidates.push({ ...c, match_type: 'responsable_legal' })
-      }
+    if (candidates.length > 0) {
+      matches.push({ contact: u, candidates })
+    } else if (fname && lname && fname.length > 1 && lname.length > 1) {
+      // Pas de match phone/name → on tentera responsable_legal en SQL ciblé
+      needRlMatch.push({ u, fname, lname })
     }
+  }
 
-    if (candidates.length > 0) matches.push({ contact: u, candidates })
+  // 4) Match responsable_legal_1 — SQL ciblées (parallélisées par batch de 10)
+  const BATCH_SIZE = 10
+  for (let i = 0; i < needRlMatch.length; i += BATCH_SIZE) {
+    const batch = needRlMatch.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(async ({ u, fname, lname }) => {
+      const { data: rlMatches } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
+        .neq('hubspot_contact_id', u.hubspot_contact_id)
+        .not('origine', 'is', null)
+        .not('origine', 'in', '(,Autre,Inconnu)')
+        .or([
+          `hubspot_raw->>prenom_du_responsable_legal_1.ilike.${fname}`,
+          `hubspot_raw->>prenom_responsable_legal_1.ilike.${fname}`,
+          `hubspot_raw->>prenom_parent.ilike.${fname}`,
+        ].join(','))
+        .limit(10)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const candidates: any[] = []
+      for (const p of rlMatches ?? []) {
+        const rl = getResponsableLegal(p.hubspot_raw)
+        if (rl.prenom?.trim().toLowerCase() === fname && rl.nom?.trim().toLowerCase() === lname) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { hubspot_raw, ...rest } = p
+          candidates.push({ ...rest, match_type: 'responsable_legal', responsable_legal: rl })
+        }
+      }
+      if (candidates.length > 0) matches.push({ contact: u, candidates })
+    }))
   }
 
   return NextResponse.json({
