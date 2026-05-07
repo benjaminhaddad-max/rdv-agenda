@@ -102,6 +102,12 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   const [filterStage, setFilterStage]         = useState('')
   const [filterLeadStatus, setFilterLeadStatus] = useState('')
   const [filterFormation, setFilterFormation]   = useState('')
+  // Filtres spécifiques contacts (mode télépro : "Mes Contacts")
+  const [filterClasse, setFilterClasse]         = useState('')
+  const [filterPeriod, setFilterPeriod]         = useState('')
+
+  // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
+  const isContactsView = mode === 'telepro'
 
   // ─ Sort
   const [sortBy, setSortBy]   = useState('synced_at')
@@ -145,9 +151,11 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         all_classes: '1',   // afficher tous les leads, pas seulement les classes prioritaires
       })
       if (debouncedSearch)    params.set('search',      debouncedSearch)
-      if (filterStage)        params.set('stage',       filterStage)
+      if (!isContactsView && filterStage) params.set('stage', filterStage)
       if (filterLeadStatus)   params.set('lead_status', filterLeadStatus)
       if (filterFormation)    params.set('formation',   filterFormation)
+      if (filterClasse)       params.set('classe',      filterClasse)
+      if (filterPeriod)       params.set('period',      filterPeriod)
 
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (res.ok) {
@@ -160,7 +168,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, onTotalChange])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterClasse, filterPeriod, isContactsView, onTotalChange])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -198,12 +206,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     setFilterStage('')
     setFilterLeadStatus('')
     setFilterFormation('')
+    setFilterClasse('')
+    setFilterPeriod('')
     setSearch('')
     setDebouncedSearch('')
     setPage(0)
   }
 
-  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || debouncedSearch)
+  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterClasse || filterPeriod || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
@@ -309,15 +319,19 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             )}
           </div>
 
-          {/* Stage */}
-          <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
-            <option value="">Toutes les étapes</option>
-            {Object.entries(STAGE_MAP).map(([id, s]) => (
-              <option key={id} value={id}>{s.label}</option>
-            ))}
-          </FilterSelect>
+          {/* ── Filtres TRANSACTION (mode closer uniquement) ── */}
+          {!isContactsView && (
+            <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
+              <option value="">Toutes les étapes</option>
+              {Object.entries(STAGE_MAP).map(([id, s]) => (
+                <option key={id} value={id}>{s.label}</option>
+              ))}
+            </FilterSelect>
+          )}
 
-          {/* Statut lead */}
+          {/* ── Filtres CONTACT (toujours, mais surtout en mode télépro) ── */}
+
+          {/* Statut lead — propriété du contact */}
           {leadStatusOpts.length > 0 && (
             <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
               <option value="">Tous les statuts</option>
@@ -325,11 +339,32 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             </FilterSelect>
           )}
 
-          {/* Formation */}
+          {/* Classe actuelle — propriété du contact (mode télépro / Mes Contacts) */}
+          {isContactsView && (
+            <FilterSelect value={filterClasse} onChange={v => { setFilterClasse(v); setPage(0) }}>
+              <option value="">Toutes les classes</option>
+              {['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre'].map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </FilterSelect>
+          )}
+
+          {/* Formation demandée — propriété du contact */}
           {formationOpts.length > 0 && (
             <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
               <option value="">Toutes formations</option>
               {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
+            </FilterSelect>
+          )}
+
+          {/* Période de création du contact (mode Mes Contacts) */}
+          {isContactsView && (
+            <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
+              <option value="">Toutes les dates</option>
+              <option value="7d">7 derniers jours</option>
+              <option value="30d">30 derniers jours</option>
+              <option value="90d">3 derniers mois</option>
+              <option value="365d">12 derniers mois</option>
             </FilterSelect>
           )}
 
