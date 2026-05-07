@@ -342,10 +342,15 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // ── Load data ──
+  // Mode hebdomadaire : on charge les regles de la semaine courante. Les
+  // closers qui veulent gerer plusieurs semaines passent par l'admin.
   const loadRules = useCallback(async () => {
     const res = await fetch(`/api/availability?mode=rules&user_id=${user.id}`)
     if (!res.ok) return
-    const data: AvailabilityRule[] = await res.json()
+    const json = await res.json()
+    // Nouvelle reponse : { rules: [...], week_start }. On lit rules,
+    // fallback array direct pour retro-compat eventuelle.
+    const data: AvailabilityRule[] = Array.isArray(json) ? json : (json.rules ?? [])
     if (data.length > 0) {
       setRules(
         DAYS.map(d => {
@@ -378,11 +383,21 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     setRulesError(null)
     setRulesSaved(false)
     try {
+      // Sauvegarde sur la semaine COURANTE (lundi local)
+      const today = new Date()
+      const dow = today.getDay()
+      const diff = dow === 0 ? -6 : 1 - dow
+      const monday = new Date(today)
+      monday.setDate(today.getDate() + diff)
+      monday.setHours(0, 0, 0, 0)
+      const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+
       const res = await fetch('/api/availability', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
+          week_start: weekStart,
           rules: rules.map(r => ({
             day_of_week: r.day_of_week,
             start_time: r.start_time,

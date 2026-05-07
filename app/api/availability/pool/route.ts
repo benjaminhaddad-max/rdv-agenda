@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { weekStartISO } from '@/lib/week'
 
 // GET /api/availability/pool?date=2025-03-10
 // Returns aggregated available 30-min slots across ALL closers for a given date.
@@ -42,14 +43,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([])
   }
 
-  // 3. Get availability rules for this day of week for available closers
-  const { data: rules } = await db
-    .from('rdv_availability')
+  // 3. Get availability rules for this day & week for available closers
+  //    (table hebdomadaire). Fallback sur l'ancienne table recurrente si
+  //    la migration v26 n'est pas appliquee.
+  const weekStart = weekStartISO(targetDate)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rules: any[] | null = null
+  const weeklyRes = await db
+    .from('rdv_availability_weekly')
     .select('*')
+    .eq('week_start', weekStart)
     .eq('day_of_week', dayOfWeek)
     .eq('is_active', true)
     .in('user_id', availableCloserIds)
-
+  if (weeklyRes.error) {
+    const msg = (weeklyRes.error.message || '').toLowerCase()
+    if (msg.includes('does not exist') || msg.includes('relation')) {
+      const fb = await db
+        .from('rdv_availability')
+        .select('*')
+        .eq('day_of_week', dayOfWeek)
+        .eq('is_active', true)
+        .in('user_id', availableCloserIds)
+      rules = fb.data ?? []
+    } else {
+      rules = []
+    }
+  } else {
+    rules = weeklyRes.data ?? []
+  }
   if (!rules || rules.length === 0) {
     return NextResponse.json([])
   }

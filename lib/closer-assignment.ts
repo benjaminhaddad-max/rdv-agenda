@@ -12,6 +12,7 @@
 //           ET moins de 3 RDV simultanés au créneau
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { weekStartISO } from '@/lib/week'
 
 export const PASCAL_OWNER_ID = '76299546'
 
@@ -63,13 +64,34 @@ export async function assignCloserForSlot(
 
   const blockedIds = new Set((blocked ?? []).map((b: { user_id: string }) => b.user_id))
 
-  // 3) Plages de dispo pour ce jour de la semaine
-  const { data: rules } = await db
-    .from('rdv_availability')
+  // 3) Plages de dispo pour ce jour de la semaine — sur la semaine du
+  //    creneau (rdv_availability_weekly). Si la migration v26 n'est pas
+  //    encore appliquee, on tombe en fallback sur l'ancienne table
+  //    rdv_availability (planning recurrent) pour ne rien casser.
+  const weekStart = weekStartISO(start)
+  type AvailRow = { user_id: string; start_time: string; end_time: string }
+  let rules: AvailRow[] = []
+  const weeklyRes = await db
+    .from('rdv_availability_weekly')
     .select('user_id, start_time, end_time')
+    .eq('week_start', weekStart)
     .eq('day_of_week', dayOfWeek)
     .eq('is_active', true)
     .in('user_id', candidateIds)
+  if (weeklyRes.error) {
+    const msg = (weeklyRes.error.message || '').toLowerCase()
+    if (msg.includes('does not exist') || msg.includes('relation')) {
+      const fallback = await db
+        .from('rdv_availability')
+        .select('user_id, start_time, end_time')
+        .eq('day_of_week', dayOfWeek)
+        .eq('is_active', true)
+        .in('user_id', candidateIds)
+      rules = (fallback.data ?? []) as AvailRow[]
+    }
+  } else {
+    rules = (weeklyRes.data ?? []) as AvailRow[]
+  }
 
   // 4) RDV existants sur la journée
   const dayStart = new Date(date + 'T00:00:00')
