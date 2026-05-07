@@ -260,15 +260,10 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
 
     // 5. Envoi sequentiel (~10 SMS/sec)
     const pushtype: 'alert' | 'marketing' = campaign.campaign_type === 'marketing' ? 'marketing' : 'alert'
-    // ATTENTION : ne PAS forcer shortenLinks pour les liens trackes. L'API
-    // POST de SMS Factor ("send-shortened") renvoie "Erreur de donnees" sur
-    // notre payload — le format des champs (value vs to, links vs short_link)
-    // ne matche pas leurs specs. Tant que ce n'est pas debug, on envoie les
-    // URLs /r/<token> telles quelles via GET /send (qui marche). Le user a
-    // ~36 chars d'URL au lieu de ~17, c'est acceptable. Variable hasAnyTrackedLink
-    // gardee pour l'instant si on veut re-activer plus tard apres fix.
-    void hasAnyTrackedLink
-    const shortenLinks = !!campaign.shorten_links
+    // Si la campagne contient au moins un lien tracke, on force le shortener
+    // SMS Factor pour que l'URL longue /r/<token> devienne smsf.st/<5chars>.
+    // Le format POST nested a ete corrige dans lib/smsfactor.ts.
+    const shortenLinks = !!campaign.shorten_links || hasAnyTrackedLink
 
     let sentCount = 0
     let failedCount = 0

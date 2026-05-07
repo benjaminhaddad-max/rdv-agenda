@@ -229,15 +229,28 @@ export async function sendSms(
   // Sanitize sender : max 11 chars alphanumériques
   const cleanSender = (opts.sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER
 
-  // Branche raccourcissement de liens → POST /send (doc : send/short-url)
+  // Branche raccourcissement de liens → POST /send avec format NESTED.
+  // Doc : https://dev.smsfactor.com/en/api/sms/send/short-url
+  // Format obligatoire :
+  //   { sms: { message: { text, pushtype, sender, links }, recipients: { gsm: [...] } } }
+  // Le placeholder "<-short->" dans text est remplace par les URLs shortened
+  // de SMS Factor (ex: smsf.st/abc12) dans l'ordre du tableau `links`.
   if (opts.shortenLinks && opts.shortenLinks.urls.length > 0) {
     try {
       const body = {
-        text,
-        value: formatted,
-        sender: cleanSender,
-        pushtype,
-        links: opts.shortenLinks.urls,
+        sms: {
+          message: {
+            text,
+            pushtype,
+            sender: cleanSender,
+            links: opts.shortenLinks.urls,
+          },
+          recipients: {
+            gsm: [
+              { gsmsmsid: '1', value: formatted },
+            ],
+          },
+        },
       }
       const res = await fetch('https://api.smsfactor.com/send', {
         method: 'POST',
@@ -249,13 +262,19 @@ export async function sendSms(
         body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok || data?.status !== 1) {
-        const errMsg = data?.message ?? JSON.stringify(data)
+      // La reponse peut etre flat (status, ticket) ou nested. On tolere les
+      // deux formats pour robustesse.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const status = (data?.status ?? data?.details?.status) as any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ticket = (data?.ticket ?? data?.details?.ticket ?? data?.details?.results?.[0]?.ticket) as any
+      if (!res.ok || (status !== 1 && status !== '1')) {
+        const errMsg = data?.message ?? data?.details?.message ?? JSON.stringify(data)
         console.error(`[smsfactor] Erreur envoi SMS (short) à ${formatted} : ${errMsg}`)
         return { ok: false, error: errMsg }
       }
-      console.log(`[smsfactor] SMS (short) envoyé à ${formatted} (ticket: ${data?.ticket})`)
-      return { ok: true, ticket: String(data?.ticket ?? '') }
+      console.log(`[smsfactor] SMS (short) envoyé à ${formatted} (ticket: ${ticket})`)
+      return { ok: true, ticket: String(ticket ?? '') }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[smsfactor] Exception (short) : ${message}`)
