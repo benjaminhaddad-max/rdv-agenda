@@ -331,13 +331,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
 
           {/* ── Filtres CONTACT (toujours, mais surtout en mode télépro) ── */}
 
-          {/* Statut lead — propriété du contact */}
-          {leadStatusOpts.length > 0 && (
-            <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
-              <option value="">Tous les statuts</option>
-              {leadStatusOpts.map(v => <option key={v} value={v}>{v}</option>)}
-            </FilterSelect>
-          )}
+          {/* Statut du lead — propriété du contact (toujours affiché, avec fallback si options vides) */}
+          <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
+            <option value="">Statut du lead</option>
+            {(leadStatusOpts.length > 0
+              ? leadStatusOpts
+              : ['NEW','OPEN','IN_PROGRESS','OPEN_DEAL','CONNECTED','BAD_TIMING','UNQUALIFIED','ATTEMPTED_TO_CONTACT','NOT_INTERESTED']
+            ).map(v => <option key={v} value={v}>{v}</option>)}
+          </FilterSelect>
 
           {/* Classe actuelle — propriété du contact (mode télépro / Mes Contacts) */}
           {isContactsView && (
