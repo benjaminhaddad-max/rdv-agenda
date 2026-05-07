@@ -17,6 +17,7 @@ const ExternalDoublonsManager = dynamic(() => import('@/components/ExternalDoubl
 const DealsDoublonsManager = dynamic(() => import('@/components/DealsDoublonsManager'), { ssr: false })
 const CheckRdvCloserPanel = dynamic(() => import('@/components/CheckRdvCloserPanel'), { ssr: false })
 const RepopJournal = dynamic(() => import('@/components/RepopJournal'), { ssr: false })
+const TeleproConflictsManager = dynamic(() => import('@/components/TeleproConflictsManager'), { ssr: false })
 import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
@@ -212,6 +213,7 @@ export default function CRMPage() {
   const [showExtDoublons,   setShowExtDoublons]   = useState(false)
   const [showDealsDoublons, setShowDealsDoublons] = useState(false)
   const [showRepop,         setShowRepop]         = useState(false)
+  const [showTeleproConflicts, setShowTeleproConflicts] = useState(false)
 
   // ─── Modal "Nouveau contact" ─────────────────────────────────────────────
   const [showNewContact, setShowNewContact] = useState(false)
@@ -1063,6 +1065,7 @@ export default function CRMPage() {
           <CRMToolBtn icon={<GitMerge size={11} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
           <CRMToolBtn icon={<Users size={11} />}         label="Doublons externe"  onClick={() => setShowExtDoublons(true)} color="gold" />
           <CRMToolBtn icon={<RefreshCw size={11} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
+          <CRMToolBtn icon={<Users size={11} />}         label="Doublon télépro"   onClick={() => setShowTeleproConflicts(true)} color="gold" />
           <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
         </div>
 
@@ -2213,6 +2216,23 @@ export default function CRMPage() {
                 </div>
               )
             })()}
+          </div>
+        </div>
+      )}
+
+      {showTeleproConflicts && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowTeleproConflicts(false) }}
+        >
+          <div style={{ background: '#ffffff', borderRadius: 14, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)', maxHeight: '85vh', overflow: 'auto' }}>
+            <button
+              onClick={() => setShowTeleproConflicts(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', padding: 4, zIndex: 1 }}
+            >
+              <X size={18} />
+            </button>
+            <TeleproConflictsManager />
           </div>
         </div>
       )}

@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
     meeting_type,           // 'visio' | 'telephone' | 'presentiel'
     meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
+    existing_telepro_user_id, // si fourni → contact déjà attribué à un autre télépro → doublon à arbitrer
   } = body
 
   if (!prospect_name || !prospect_email || !start_at || !end_at) {
@@ -196,6 +197,24 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Doublon télépro : créer un conflict à arbitrer par Pascal ────────────
+  // Si le contact était déjà attribué à un AUTRE télépro avant la prise du RDV,
+  // on enregistre le conflict (le RDV se fait quand même par le télépro courant ;
+  // c'est juste l'attribution du *contact* que Pascal arbitrera).
+  if (existing_telepro_user_id && telepro_id && existing_telepro_user_id !== telepro_id && hubspot_contact_id) {
+    try {
+      await db.from('crm_telepro_conflicts').insert({
+        hubspot_contact_id,
+        appointment_id: appointment.id,
+        existing_telepro_id: existing_telepro_user_id,
+        new_telepro_id: telepro_id,
+        status: 'pending',
+      })
+    } catch (e) {
+      console.error('[appointments POST] Telepro conflict insert failed:', e)
+    }
+  }
 
   // ── SMS de confirmation immédiat au prospect (best-effort) ───────────────
   if (prospect_phone) {

@@ -501,6 +501,30 @@ export default function TeleproClient({
     return () => { clearTimeout(timer); ctrl.abort() }
   }, [newEmail])
 
+  // ── Télépro actuellement assigné au contact (read-only display) ───────
+  // Affiché en grisé sur le form UNIQUEMENT si différent du télépro courant.
+  // Sert aussi à signaler un doublon télépro à arbitrer par Pascal.
+  const [existingTeleproId, setExistingTeleproId] = useState<string | null>(null)
+  const [existingTeleproName, setExistingTeleproName] = useState<string | null>(null)
+  const [usersById, setUsersById] = useState<Record<string, string>>({})
+
+  // Charge la liste des users une fois pour résoudre telepro_user_id → nom.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/users')
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const list: any[] = data?.data ?? (Array.isArray(data) ? data : [])
+        const map: Record<string, string> = {}
+        for (const u of list) if (u?.id && u?.name) map[u.id] = u.name
+        setUsersById(map)
+      })
+      .catch(() => { /* non bloquant */ })
+    return () => { cancelled = true }
+  }, [])
+
   // ── Champs prospect ───────────────────────────────────────────────────
   const [email, setEmail] = useState('')
   const [emailSynced, setEmailSynced] = useState(false)
@@ -884,6 +908,11 @@ export default function TeleproClient({
     if (c.departement) setDepartement(String(c.departement))
     if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
     if (c.formation_demandee) setFormation(c.formation_demandee)
+    // Récupère le télépro déjà assigné au contact (affichage en lecture seule).
+    // On le stocke dans tous les cas — l'UI ne l'affiche que s'il est ≠ du télépro courant.
+    const teleproId: string | null = c.telepro_user_id || null
+    setExistingTeleproId(teleproId)
+    setExistingTeleproName(teleproId ? (usersById[teleproId] || null) : null)
   }
 
   // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
@@ -918,6 +947,7 @@ export default function TeleproClient({
 
   function resetContact() {
     setContact(null); setLookupInput(''); setLookupError(null); setSearchResults([])
+    setExistingTeleproId(null); setExistingTeleproName(null)
     setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
     setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
     setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setLinkCopied(false)
@@ -984,6 +1014,9 @@ export default function TeleproClient({
           meeting_type: meetingType,
           meeting_link: meetingType === 'visio' ? meetingLink || null : null,
           telepro_id: teleproUser.id,
+          // Si le contact est déjà attribué à un AUTRE télépro, on transmet l'info
+          // pour que l'API crée un doublon télépro à arbitrer par Pascal.
+          existing_telepro_user_id: (existingTeleproId && existingTeleproId !== teleproUser.id) ? existingTeleproId : null,
           call_notes: [
             `📚 Formation demandée : ${formationLabel}`,
             `📍 Département : ${departement}`,
@@ -1857,6 +1890,27 @@ export default function TeleproClient({
                   <div style={labelStyle}><Phone size={12} style={{ color: '#ccac71' }} /> Téléphone *</div>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex : 0612345678" style={inputStyle} />
                 </div>
+                {/* Téléprospecteur déjà assigné — affiché en grisé UNIQUEMENT si ≠ télépro courant
+                    (signale qu'un doublon télépro sera créé pour arbitrage Pascal au moment du Valider) */}
+                {existingTeleproId && existingTeleproId !== teleproUser.id && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={labelStyle}>
+                      <User size={12} style={{ color: '#94a3b8' }} /> Téléprospecteur du contact
+                      <span style={{ fontSize: 10, color: '#a4844c', fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(doublon — Pascal arbitrera)</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={existingTeleproName || 'Télépro inconnu'}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        background: '#f1f5f9',
+                        color: '#64748b',
+                        cursor: 'not-allowed',
+                      }}
+                    />
+                  </div>
+                )}
                 <div style={{ marginBottom: 14 }}>
                   <div style={labelStyle}><MapPin size={12} style={{ color: '#ccac71' }} /> Département *</div>
                   <input type="text" value={departement} onChange={e => setDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Ex : 75" maxLength={3} style={inputStyle} />
