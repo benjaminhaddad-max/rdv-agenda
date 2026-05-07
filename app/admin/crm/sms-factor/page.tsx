@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   Send, Loader2, Trash2, MessageSquare, Plus, AlertCircle, CheckCircle2,
-  Users, Upload, Link as LinkIcon, FileText, Filter,
+  Users, Upload, Link as LinkIcon, FileText, Filter, RefreshCw,
 } from 'lucide-react'
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import { viewToParams } from '@/lib/crm-views'
@@ -155,6 +155,7 @@ export default function SMSFactorPage() {
 
 function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () => void }) {
   const [sending, setSending] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   async function handleSend() {
@@ -170,6 +171,22 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
       alert('Erreur : ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleRetry() {
+    if (!confirm(`Renvoyer la campagne "${campaign.name}" ? Les destinataires precedents et leurs liens trackes seront reset, et la campagne sera relancee immediatement.`)) return
+    setRetrying(true)
+    try {
+      const res = await fetch(`/api/sms-campaigns/${campaign.id}/retry`, { method: 'POST' })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      alert(`Renvoi terminé : ${j.sent}/${j.valid} envoyés, ${j.failed} échecs.`)
+      onChange()
+    } catch (e) {
+      alert('Erreur : ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -259,6 +276,12 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
             <button onClick={handleSend} disabled={sending} style={btn('primary')}>
               {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
               {sending ? 'Envoi…' : 'Envoyer'}
+            </button>
+          )}
+          {(campaign.status === 'sent' || campaign.status === 'failed') && (
+            <button onClick={handleRetry} disabled={retrying} style={btn('secondary')} title="Reset + renvoi immediat">
+              {retrying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {retrying ? 'Renvoi…' : 'Renvoyer'}
             </button>
           )}
           {campaign.status !== 'sending' && (
