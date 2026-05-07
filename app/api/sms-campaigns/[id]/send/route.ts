@@ -12,9 +12,14 @@ import { runSmsCampaign } from '@/lib/sms-sender'
 export const maxDuration = 300  // 5 min (plan Pro Vercel)
 
 function deriveBaseUrl(req: NextRequest): string {
-  // En prod : NEXT_PUBLIC_SITE_URL. Sinon : VERCEL_URL injecte par Vercel.
-  // Sinon : on deduit du host header de la requete.
+  // Ordre de priorite :
+  //  1. NEXT_PUBLIC_SITE_URL (user-set) — typiquement le domaine custom
+  //  2. VERCEL_PROJECT_PRODUCTION_URL — alias prod stable (ex: rdv-agenda.vercel.app)
+  //  3. VERCEL_URL — URL specifique du deploiement (LONGUE, ex:
+  //     rdv-agenda-lwd96ckr7-benjaminhaddad-maxs-projects.vercel.app)
+  //  4. host header de la requete
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   const host = req.headers.get('host')
   const proto = req.headers.get('x-forwarded-proto') ?? 'https'

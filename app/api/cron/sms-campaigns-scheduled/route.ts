@@ -36,7 +36,12 @@ function isWithinMarketingWindow(date: Date): boolean {
 }
 
 function deriveBaseUrl(req: NextRequest): string {
+  // 1. NEXT_PUBLIC_SITE_URL (user-set, prioritaire — domaine custom)
+  // 2. VERCEL_PROJECT_PRODUCTION_URL (alias prod stable, ex: rdv-agenda.vercel.app)
+  // 3. VERCEL_URL (URL longue specifique au deploiement)
+  // 4. host header de la requete
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   const host = req.headers.get('host')
   const proto = req.headers.get('x-forwarded-proto') ?? 'https'

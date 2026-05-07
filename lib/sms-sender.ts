@@ -284,6 +284,14 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
           }
         }
 
+        // Pour les SMS marketing, SMS Factor ajoute automatiquement la
+        // mention "STOP <code>" a la fin. Par defaut elle se colle a l'URL
+        // (separateur espace). On force un retour a la ligne avant pour
+        // un rendu plus lisible : "...URL\nSTOP 36035".
+        if (pushtype === 'marketing' && !textToSend.endsWith('\n')) {
+          textToSend = textToSend + '\n'
+        }
+
         let shortenLinksOpt: { urls: string[] } | undefined
         if (shortenLinks) {
           const urls = detectUrls(textToSend)
