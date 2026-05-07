@@ -259,10 +259,16 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     }
 
     // 5. Envoi sequentiel (~10 SMS/sec)
-    const pushtype: 'alert' | 'marketing' = campaign.campaign_type === 'marketing' ? 'marketing' : 'alert'
-    // Si la campagne contient au moins un lien tracke, on force le shortener
-    // SMS Factor pour que l'URL longue /r/<token> devienne smsf.st/<5chars>.
-    // Le format POST nested a ete corrige dans lib/smsfactor.ts.
+    // pushtype envoye a SMS Factor : pour les campagnes marketing on
+    // bascule en 'alert' au moment de l'envoi car on ajoute la mention
+    // STOP nous-memes en fin de texte (avec un \n force pour que ce
+    // soit a la ligne). Si on laissait pushtype='marketing', SMS Factor
+    // re-appendait son propre " STOP <code>" colle a notre URL —
+    // ingerable car ils trim les whitespace finaux.
+    // La fenetre legale marketing 8h-20h L-S reste respectee : c'est le
+    // cron sms-campaigns-scheduled qui la verifie sur campaign.campaign_type.
+    const isMarketing = campaign.campaign_type === 'marketing'
+    const pushtype: 'alert' | 'marketing' = 'alert'
     const shortenLinks = !!campaign.shorten_links || hasAnyTrackedLink
 
     let sentCount = 0
@@ -279,13 +285,13 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
           }
         }
 
-        // Pour les SMS marketing, SMS Factor ajoute automatiquement la
-        // mention "STOP <code>" a la fin. Par defaut elle se colle a l'URL.
-        // On force un retour a la ligne avec \n\n (double retour) car
-        // SMS Factor trim le trailing whitespace simple — un seul \n est
-        // perdu. Avec deux on en garde au moins un.
-        if (pushtype === 'marketing' && !textToSend.endsWith('\n\n')) {
-          textToSend = textToSend.replace(/\s+$/, '') + '\n\n'
+        // Marketing : on ajoute nous-memes "\nSTOP 36035" a la fin du
+        // message (apres un \n force). pushtype='alert' au moment de
+        // l'envoi pour que SMS Factor n'append PAS son propre STOP par
+        // dessus (sinon il se collait a l'URL — leur trim casse notre
+        // \n trailing). La mention legale reste presente.
+        if (isMarketing) {
+          textToSend = textToSend.replace(/\s+$/, '') + '\nSTOP 36035'
         }
 
         let shortenLinksOpt: { urls: string[] } | undefined
