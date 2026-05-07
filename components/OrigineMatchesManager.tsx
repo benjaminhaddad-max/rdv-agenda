@@ -32,7 +32,7 @@ const fullName = (c: ContactRow | Candidate) =>
   [c.firstname, c.lastname].filter(Boolean).join(' ') || c.email || c.hubspot_contact_id
 
 export default function OrigineMatchesManager() {
-  const [data, setData] = useState<{ matches: MatchRow[]; total_unknown: number; processed: number } | null>(null)
+  const [data, setData] = useState<{ matches: MatchRow[]; total_unknown: number; processed: number; candidates_pool_size?: number; rl_match_count?: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<string | null>(null)
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
@@ -95,11 +95,11 @@ export default function OrigineMatchesManager() {
             Récupération d'origine
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#12314d' }}>
-            Croisement par téléphone & nom
+            Croisement par téléphone, nom & responsable légal 1
           </div>
           {data && (
             <div style={{ fontSize: 12, color: '#5b6b7a', marginTop: 6 }}>
-              <strong>{data.total_unknown}</strong> contacts sans origine au total. {data.processed} analysés. <strong>{data.matches.length}</strong> correspondances trouvées.
+              <strong>{data.total_unknown}</strong> sans origine · {data.processed} analysés · pool {data.candidates_pool_size ?? '?'} candidats · <strong>{data.matches.length}</strong> correspondances ({data.rl_match_count ?? 0} via responsable légal)
             </div>
           )}
         </div>

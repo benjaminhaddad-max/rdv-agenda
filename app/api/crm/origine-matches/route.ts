@@ -118,11 +118,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 3) Itère sur les unknowns + collecte ceux qui ont besoin du match responsable_legal
+  // 3) Phase 1 : matching phone + name (in-memory) pour TOUS les unknowns
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const matches: any[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const needRlMatch: any[] = []
+  const matchesByContactId = new Map<string, { contact: any; candidates: any[] }>()
   for (const u of unknowns) {
     const cleanedPhone = cleanPhone(u.phone)
     const fname = u.firstname?.trim().toLowerCase()
@@ -131,30 +129,35 @@ export async function GET(req: NextRequest) {
     const candidates: any[] = []
 
     if (cleanedPhone) {
-      const list = byPhone.get(cleanedPhone) ?? []
-      for (const c of list) if (c.hubspot_contact_id !== u.hubspot_contact_id) {
-        candidates.push({ ...c, match_type: 'phone' })
+      for (const c of byPhone.get(cleanedPhone) ?? []) {
+        if (c.hubspot_contact_id !== u.hubspot_contact_id) candidates.push({ ...c, match_type: 'phone' })
       }
     }
-    if (candidates.length === 0 && fname && lname && fname.length > 1 && lname.length > 1) {
-      const list = byName.get(`${fname}|${lname}`) ?? []
-      for (const c of list) if (c.hubspot_contact_id !== u.hubspot_contact_id) {
-        candidates.push({ ...c, match_type: 'name' })
+    if (fname && lname && fname.length > 1 && lname.length > 1) {
+      for (const c of byName.get(`${fname}|${lname}`) ?? []) {
+        if (c.hubspot_contact_id !== u.hubspot_contact_id) candidates.push({ ...c, match_type: 'name' })
       }
     }
-
     if (candidates.length > 0) {
-      matches.push({ contact: u, candidates })
-    } else if (fname && lname && fname.length > 1 && lname.length > 1) {
-      // Pas de match phone/name → on tentera responsable_legal en SQL ciblé
-      needRlMatch.push({ u, fname, lname })
+      matchesByContactId.set(u.hubspot_contact_id, { contact: u, candidates })
     }
   }
 
-  // 4) Match responsable_legal_1 — SQL ciblées (parallélisées par batch de 25)
+  // 4) Phase 2 : matching responsable_legal_1 pour TOUS les unknowns (en parallèle)
+  // → ne suppose plus qu'il faut SKIP les unknowns ayant déjà un match phone/name
+  //    (un contact peut avoir 3 types de match en parallèle)
+  const allUnknownsForRl = unknowns
+    .map(u => ({
+      u,
+      fname: u.firstname?.trim().toLowerCase(),
+      lname: u.lastname?.trim().toLowerCase(),
+    }))
+    .filter(x => x.fname && x.lname && x.fname.length > 1 && x.lname.length > 1)
+
   const BATCH_SIZE = 25
-  for (let i = 0; i < needRlMatch.length; i += BATCH_SIZE) {
-    const batch = needRlMatch.slice(i, i + BATCH_SIZE)
+  let rlMatchCount = 0
+  for (let i = 0; i < allUnknownsForRl.length; i += BATCH_SIZE) {
+    const batch = allUnknownsForRl.slice(i, i + BATCH_SIZE)
     await Promise.all(batch.map(async ({ u, fname, lname }) => {
       const { data: rlMatches } = await db
         .from('crm_contacts')
@@ -168,24 +171,32 @@ export async function GET(req: NextRequest) {
           `hubspot_raw->>prenom_parent.ilike.${fname}`,
         ].join(','))
         .limit(10)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const candidates: any[] = []
       for (const p of rlMatches ?? []) {
         const rl = getResponsableLegal(p.hubspot_raw)
         if (rl.prenom?.trim().toLowerCase() === fname && rl.nom?.trim().toLowerCase() === lname) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { hubspot_raw, ...rest } = p
-          candidates.push({ ...rest, match_type: 'responsable_legal', responsable_legal: rl })
+          const cand = { ...rest, match_type: 'responsable_legal', responsable_legal: rl }
+          const existing = matchesByContactId.get(u.hubspot_contact_id)
+          if (existing) {
+            existing.candidates.push(cand)
+          } else {
+            matchesByContactId.set(u.hubspot_contact_id, { contact: u, candidates: [cand] })
+          }
+          rlMatchCount++
         }
       }
-      if (candidates.length > 0) matches.push({ contact: u, candidates })
     }))
   }
+
+  const matches = Array.from(matchesByContactId.values())
 
   return NextResponse.json({
     matches,
     total_unknown: totalUnknown ?? 0,
     processed: unknowns.length,
+    candidates_pool_size: candidatesPool.length,
+    rl_match_count: rlMatchCount,
   })
 }
 
