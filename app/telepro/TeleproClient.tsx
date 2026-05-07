@@ -16,6 +16,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import { validateEmailDomain } from '@/lib/email-validation'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -473,6 +474,32 @@ export default function TeleproClient({
   const [newClasse, setNewClasse] = useState('')
   const [newDepartement, setNewDepartement] = useState('')
   const [creating, setCreating] = useState(false)
+  // Validation live de l'email du nouveau contact
+  const [newEmailFormatError, setNewEmailFormatError] = useState<string | null>(null)
+  const [newEmailChecking, setNewEmailChecking] = useState(false)
+  const [newEmailExisting, setNewEmailExisting] = useState<{
+    id: string; firstname: string; lastname: string; email: string;
+  } | null>(null)
+
+  useEffect(() => {
+    const email = newEmail.trim()
+    setNewEmailExisting(null)
+    if (!email) { setNewEmailFormatError(null); setNewEmailChecking(false); return }
+    const err = validateEmailDomain(email)
+    if (err) { setNewEmailFormatError(err); setNewEmailChecking(false); return }
+    setNewEmailFormatError(null); setNewEmailChecking(true)
+    const ctrl = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/crm/contacts/check?email=${encodeURIComponent(email)}`, { signal: ctrl.signal })
+        const data = await res.json()
+        if (data.exists && data.contact) setNewEmailExisting(data.contact)
+        else setNewEmailExisting(null)
+      } catch { /* ignore */ }
+      finally { setNewEmailChecking(false) }
+    }, 400)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [newEmail])
 
   // ── Champs prospect ───────────────────────────────────────────────────
   const [email, setEmail] = useState('')
@@ -861,7 +888,11 @@ export default function TeleproClient({
 
   // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
   async function createNewContact() {
-    if (!newFirstname.trim() || !newLastname.trim() || !newEmail.trim()) return
+    if (
+      !newFirstname.trim() || !newLastname.trim() || !newEmail.trim() ||
+      !newPhone.trim() || !newDepartement.trim() || !newClasse.trim()
+    ) return
+    if (newEmailFormatError || newEmailExisting) return
     setCreating(true); setLookupError(null)
     try {
       const res = await fetch('/api/crm/contacts', {
@@ -1660,33 +1691,81 @@ export default function TeleproClient({
                     )}
                   </>
                 )}
-                {lookupMode === 'new' && (
+                {lookupMode === 'new' && (() => {
+                  const allFilled =
+                    newFirstname.trim() && newLastname.trim() && newEmail.trim() &&
+                    newPhone.trim() && newDepartement.trim() && newClasse.trim()
+                  const canCreate =
+                    !!allFilled && !newEmailFormatError && !newEmailExisting && !newEmailChecking && !creating
+                  return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* Email en premier */}
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="email" value={newEmail}
+                        onChange={e => setNewEmail(e.target.value)}
+                        placeholder="Email *"
+                        style={{
+                          ...inputStyle,
+                          borderColor: newEmailFormatError ? '#ef4444' : (newEmailExisting ? '#f0d28a' : (inputStyle as React.CSSProperties).borderColor),
+                        }}
+                        autoFocus
+                      />
+                      {newEmailChecking && (
+                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>
+                          vérification…
+                        </span>
+                      )}
+                    </div>
+                    {newEmailFormatError && (
+                      <div style={{ color: '#b91c1c', fontSize: 12, marginTop: -4 }}>{newEmailFormatError}</div>
+                    )}
+                    {newEmailExisting && (
+                      <div style={{ background: '#fff8e6', border: '1px solid #f0d28a', borderRadius: 10, padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: '#8a6e3a', fontSize: 13, marginBottom: 4 }}>⚠ Ce contact existe déjà</div>
+                        <div style={{ fontSize: 13, color: '#6b5630', lineHeight: 1.5, marginBottom: 8 }}>
+                          Un contact avec cet email est déjà dans le CRM
+                          {newEmailExisting.firstname || newEmailExisting.lastname
+                            ? <> au nom de <strong>{[newEmailExisting.firstname, newEmailExisting.lastname].filter(Boolean).join(' ')}</strong></>
+                            : null}.
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => { window.location.href = `/admin/crm/contacts/${newEmailExisting.id}` }}
+                            style={{ padding: '7px 12px', background: '#c6aa7c', border: 'none', borderRadius: 6, color: '#0f2842', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            Voir la fiche existante →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inputStyle} autoFocus />
+                      <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inputStyle} />
                       <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={inputStyle} />
                     </div>
+                    <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone *" style={inputStyle} />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email *" style={inputStyle} />
-                      <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone" style={inputStyle} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <select value={newFormation} onChange={e => setNewFormation(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                        <option value="">Formation souhaitée</option>
-                        {FORMATIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                      </select>
+                      <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département * (ex: 75)" maxLength={3} style={inputStyle} />
                       <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                        <option value="">Classe actuelle</option>
+                        <option value="">Classe actuelle *</option>
                         {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
-                    <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département (ex: 75)" maxLength={3} style={inputStyle} />
-                    <button onClick={createNewContact} disabled={creating || !newFirstname.trim() || !newLastname.trim() || !newEmail.trim()}
-                      style={{ background: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? '#22c55e' : '#f1f5f9', color: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'white' : '#64748b', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: (newFirstname.trim() && newLastname.trim() && newEmail.trim()) ? 'pointer' : 'default' }}>
+                    <button onClick={createNewContact} disabled={!canCreate}
+                      style={{
+                        background: canCreate ? '#22c55e' : '#cbd6e2',
+                        color: canCreate ? '#ffffff' : '#94a3b8',
+                        border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700,
+                        cursor: !canCreate ? 'not-allowed' : (creating ? 'wait' : 'pointer'),
+                        opacity: canCreate ? 1 : 0.85,
+                      }}>
                       {creating ? 'Création…' : 'Créer le contact'}
                     </button>
                   </div>
-                )}
+                  )
+                })()}
                 {lookupError && (
                   <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '9px 14px', color: '#ef4444', fontSize: 13, marginTop: 10 }}>
                     {lookupError}
