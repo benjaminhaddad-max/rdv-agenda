@@ -13,11 +13,23 @@ import { createServiceClient } from '@/lib/supabase'
  */
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const db = createServiceClient()
   const { id: contactId } = await params
+
+  // ?phase=core    → renvoie uniquement les donnees critiques pour le 1er
+  //                  paint (contact, deals, tasks, formSubmissions,
+  //                  preInscriptions). Skippe SMS / email_events / email
+  //                  campaigns / detection doublons gmail.
+  // ?phase=extended → renvoie uniquement les sections lentes (SMS history,
+  //                   email campaigns, emailStatsByMessageId). Le frontend
+  //                   les charge en arriere-plan apres le 1er paint.
+  // (pas de phase) → tout (legacy, retro-compat).
+  const phase = req.nextUrl.searchParams.get('phase') ?? ''
+  const wantCore = phase !== 'extended'
+  const wantExtended = phase !== 'core'
 
   // 1. Contact (séquentiel — il faut savoir s'il existe + récupérer l'email)
   const { data: contact, error: contactErr } = await db
@@ -50,18 +62,22 @@ export async function GET(
   }
   const normalized = normalizeEmail(contact.email as string | null)
   const linkedContactIds: string[] = [contactId]
-  if (normalized) {
-    // On rapatrie tous les contacts dont l'email NORMALISE matche.
-    // Optimisation : on recupere par tranches d'emails plausibles (suffixe domaine)
-    // mais simple : on filtre cote app via ilike domain.
+  // La detection de doublons gmail est uniquement utile pour agreger les
+  // pre_inscriptions cross-fiches. On la skippe en phase=core et en
+  // phase=extended pour gagner ~50-150ms ; elle ne tourne que quand on
+  // demande la reponse complete (pas de query param).
+  if (normalized && !phase) {
     const at = normalized.lastIndexOf('@')
     const domain = at >= 0 ? normalized.slice(at + 1) : ''
     if (domain) {
+      // Limite reduite a 500 candidats : pour 99% des emails non-gmail il
+      // n'y a quasiment pas de candidats. Pour gmail/yahoo on accepte de
+      // potentiellement rater quelques doublons rares au profit de la vitesse.
       const { data: candidates } = await db
         .from('crm_contacts')
         .select('hubspot_contact_id, email')
         .ilike('email', `%@${domain}`)
-        .limit(2000)
+        .limit(500)
       for (const c of candidates ?? []) {
         if (c.hubspot_contact_id === contactId) continue
         if (normalizeEmail(c.email as string | null) === normalized) {
@@ -83,6 +99,17 @@ export async function GET(
     }
   }
 
+  // CORE queries (1er paint) :
+  //   deals, activities (limit 100), formSubmissions, tasks, preInscriptions
+  // EXTENDED queries (charge en arriere-plan, plus lourd) :
+  //   email_events (limit 200), smsRecipients (200), emailRecipients (200)
+  // Limites reduites par rapport a v1 (200 -> 100 pour activities, 500 -> 200
+  // pour email_events) — les sections affichent les plus recents, le user
+  // peut paginer/scroller s'il en veut plus.
+  const emptyArr = Promise.resolve([] as Array<Record<string, unknown>>)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emptyDealRes: any = Promise.resolve({ data: [] })
+
   const [
     dealsRes,
     activities,
@@ -93,54 +120,68 @@ export async function GET(
     smsRecipients,
     emailRecipients,
   ] = await Promise.all([
-    db.from('crm_deals').select('*')
-      .eq('hubspot_contact_id', contactId)
-      .order('createdate', { ascending: false }),
+    wantCore
+      ? db.from('crm_deals').select('*')
+          .eq('hubspot_contact_id', contactId)
+          .order('createdate', { ascending: false })
+      : emptyDealRes,
 
-    safeRows(db.from('crm_activities')
-      .select('id, hubspot_engagement_id, activity_type, subject, body, direction, status, owner_id, metadata, occurred_at, hubspot_deal_id')
-      .eq('hubspot_contact_id', contactId)
-      .order('occurred_at', { ascending: false })
-      .limit(200)),
+    wantCore
+      ? safeRows(db.from('crm_activities')
+          .select('id, hubspot_engagement_id, activity_type, subject, body, direction, status, owner_id, metadata, occurred_at, hubspot_deal_id')
+          .eq('hubspot_contact_id', contactId)
+          .order('occurred_at', { ascending: false })
+          .limit(100))
+      : emptyArr,
 
-    safeRows(db.from('crm_form_submissions')
-      .select('id, form_id, form_title, form_type, page_url, values, submitted_at')
-      .eq('hubspot_contact_id', contactId)
-      .order('submitted_at', { ascending: false })),
+    wantCore
+      ? safeRows(db.from('crm_form_submissions')
+          .select('id, form_id, form_title, form_type, page_url, values, submitted_at')
+          .eq('hubspot_contact_id', contactId)
+          .order('submitted_at', { ascending: false }))
+      : emptyArr,
 
-    safeRows(db.from('crm_tasks')
-      .select('id, title, description, owner_id, status, priority, task_type, due_at, completed_at, created_at, hubspot_deal_id')
-      .eq('hubspot_contact_id', contactId)
-      .order('due_at', { ascending: true, nullsFirst: false })
-      .limit(100)),
+    wantCore
+      ? safeRows(db.from('crm_tasks')
+          .select('id, title, description, owner_id, status, priority, task_type, due_at, completed_at, created_at, hubspot_deal_id')
+          .eq('hubspot_contact_id', contactId)
+          .order('due_at', { ascending: true, nullsFirst: false })
+          .limit(100))
+      : emptyArr,
 
-    contact.email
+    (wantExtended && contact.email)
       ? safeRows(db.from('email_events')
           .select('event_type, occurred_at, event_data')
           .eq('email', contact.email)
           .order('occurred_at', { ascending: false })
-          .limit(500))
-      : Promise.resolve([] as Array<Record<string, unknown>>),
+          .limit(200))
+      : emptyArr,
 
-    // Agrege les pre_inscriptions de TOUS les contacts dupliques (meme email normalise)
-    safeRows(db.from('crm_pre_inscriptions')
-      .select('id, hubspot_contact_id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
-      .in('hubspot_contact_id', linkedContactIds)
-      .order('saison', { ascending: false })),
+    // Pre_inscriptions agregees de TOUS les contacts dupliques (meme email
+    // normalise). Quand !phase, linkedContactIds contient les doublons. Sinon
+    // juste le contact courant.
+    wantCore
+      ? safeRows(db.from('crm_pre_inscriptions')
+          .select('id, hubspot_contact_id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
+          .in('hubspot_contact_id', linkedContactIds)
+          .order('saison', { ascending: false }))
+      : emptyArr,
 
-    // SMS envoyes au contact (toutes campagnes confondues)
-    safeRows(db.from('sms_campaign_recipients')
-      .select('id, campaign_id, phone, rendered_message, status, sms_factor_ticket, error_message, segments_count, sent_at, created_at')
-      .eq('hubspot_contact_id', contactId)
-      .order('sent_at', { ascending: false, nullsFirst: false })
-      .limit(200)),
+    wantExtended
+      ? safeRows(db.from('sms_campaign_recipients')
+          .select('id, campaign_id, phone, rendered_message, status, sms_factor_ticket, error_message, segments_count, sent_at, created_at')
+          .eq('hubspot_contact_id', contactId)
+          .order('sent_at', { ascending: false, nullsFirst: false })
+          .limit(200))
+      : emptyArr,
 
-    // Emails de campagne envoyes au contact (Brevo) — tous les contacts dupliques
-    safeRows(db.from('email_campaign_recipients')
-      .select('id, campaign_id, contact_id, email, status, error_message, sent_at, delivered_at, first_open_at, last_open_at, open_count, first_click_at, last_click_at, click_count, brevo_message_id, created_at')
-      .in('contact_id', linkedContactIds)
-      .order('sent_at', { ascending: false, nullsFirst: false })
-      .limit(200)),
+    wantExtended
+      ? safeRows(db.from('email_campaign_recipients')
+          .select('id, campaign_id, contact_id, email, status, error_message, sent_at, delivered_at, first_open_at, last_open_at, open_count, first_click_at, last_click_at, click_count, brevo_message_id, created_at')
+          .in('contact_id', linkedContactIds)
+          .order('sent_at', { ascending: false, nullsFirst: false })
+          .limit(200))
+      : emptyArr,
   ])
 
   const deals = dealsRes.data ?? []
@@ -392,17 +433,33 @@ export async function GET(
     return [...bySaison.values()].sort((a, b) => (b.saison || '').localeCompare(a.saison || ''))
   })()
 
-  return NextResponse.json({
-    contact,
-    deals,
-    appointments,
-    activities,
-    formSubmissions,
-    tasks,
-    emailStatsByMessageId,
-    preInscriptions: dedupedPreInsc,
-    duplicateContactIds: linkedContactIds.filter(id => id !== contactId),
-    smsMessages,
-    emailCampaigns,
-  })
+  // Reponse selon la phase :
+  //  - core      : tout le critique (contact, deals, tasks, formSubmissions...)
+  //  - extended  : uniquement les sections lentes (sms / email campaigns +
+  //                emailStatsByMessageId)
+  //  - (pas phase) : tout, retro-compat
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload: Record<string, any> = { contact }
+  if (wantCore) {
+    payload.deals = deals
+    payload.appointments = appointments
+    payload.activities = activities
+    payload.formSubmissions = formSubmissions
+    payload.tasks = tasks
+    payload.preInscriptions = dedupedPreInsc
+    payload.duplicateContactIds = linkedContactIds.filter(id => id !== contactId)
+  }
+  if (wantExtended) {
+    payload.emailStatsByMessageId = emailStatsByMessageId
+    payload.smsMessages = smsMessages
+    payload.emailCampaigns = emailCampaigns
+  }
+  payload.phase = phase || 'all'
+
+  const response = NextResponse.json(payload)
+  // SWR : navigateur reutilise pendant 10s, et entre 10s et 30s sert le
+  // cache + revalide en arriere-plan. Couple au cache JS lib/client-cache,
+  // les retours rapides sur la fiche sont quasi instantanes.
+  response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
+  return response
 }

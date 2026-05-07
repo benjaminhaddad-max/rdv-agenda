@@ -8,8 +8,11 @@ import { prefetch, jsonFetcher } from '@/lib/client-cache'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
+// On ne prefetch QUE la phase=core (legere, ~100ms). L'extended (SMS, emails
+// de campagne, clics) sera chargee en arriere-plan apres l'ouverture.
 function prefetchContactDetail(id: string) {
-  prefetch(`/api/crm/contacts/${id}/details`, () => jsonFetcher(`/api/crm/contacts/${id}/details`), 60_000).catch(() => {})
+  const coreUrl = `/api/crm/contacts/${id}/details?phase=core`
+  prefetch(coreUrl, () => jsonFetcher(coreUrl), 30_000).catch(() => {})
   prefetch('/api/crm/metadata', () => jsonFetcher('/api/crm/metadata'), 5 * 60_000).catch(() => {})
 }
 

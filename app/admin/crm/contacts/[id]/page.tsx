@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -9,9 +10,12 @@ import {
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
   GraduationCap,
 } from 'lucide-react'
-import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
-import PropertyHistoryPanel from '@/components/crm/PropertyHistoryPanel'
+import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
+
+// Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
+const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
+const PropertyHistoryPanel = dynamic(() => import('@/components/crm/PropertyHistoryPanel'), { ssr: false })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -230,42 +234,64 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
-    const detailKey = `/api/crm/contacts/${id}/details`
-    const metaKey   = '/api/crm/metadata'
+    const coreKey = `/api/crm/contacts/${id}/details?phase=core`
+    const extKey  = `/api/crm/contacts/${id}/details?phase=extended`
+    const metaKey = '/api/crm/metadata'
 
-    // Si on force (ex: apres un save) → on invalide le cache details (la
-    // metadata change rarement, on garde le cache 5min).
-    if (force) invalidate(detailKey)
+    if (force) {
+      invalidate(coreKey)
+      invalidate(extKey)
+    }
 
     // Cache hit (typiquement issu du prefetch au hover) → render immediat,
     // puis revalidation silencieuse en arriere-plan.
     if (!force) {
-      const cachedDetails = getCached<Any>(detailKey)
-      const cachedMeta    = getCached<Any>(metaKey)
-      if (cachedDetails && cachedMeta) {
-        setData({ ...cachedDetails, ...cachedMeta })
+      const cachedCore = getCached<Any>(coreKey)
+      const cachedMeta = getCached<Any>(metaKey)
+      const cachedExt  = getCached<Any>(extKey)
+      if (cachedCore && cachedMeta) {
+        setData({ ...cachedCore, ...(cachedExt ?? {}), ...cachedMeta })
         setLoading(false)
-        // revalidate background — pas de await
+        // revalidate background (toutes les sections, sans await)
         Promise.all([
-          refetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000),
-          refetch<Any>(metaKey,   () => jsonFetcher(metaKey),   5 * 60_000),
-        ]).then(([d, m]) => setData({ ...d, ...m })).catch(() => {})
+          refetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000),
+          refetch<Any>(metaKey, () => jsonFetcher(metaKey), 5 * 60_000),
+        ]).then(([c, m]) => setData(prev => prev ? { ...prev, ...c, ...m } : { ...c, ...m })).catch(() => {})
+        // Extended : si pas de cache, fetch en background et merge
+        if (!cachedExt) {
+          void prefetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
+            .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+            .catch(() => {})
+        } else {
+          void refetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
+            .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+            .catch(() => {})
+        }
         return
       }
     }
 
     setLoading(true)
     try {
-      const [details, meta] = await Promise.all([
+      // Phase 1 : core + meta en parallele -> render rapidement
+      const [core, meta] = await Promise.all([
         force
-          ? refetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000)
-          : prefetch<Any>(detailKey, () => jsonFetcher(detailKey), 60_000),
+          ? refetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000)
+          : prefetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000),
         prefetch<Any>(metaKey, () => jsonFetcher(metaKey), 5 * 60_000),
       ])
-      setData({ ...details, ...meta })
+      setData({ ...core, ...meta })
+      setLoading(false)
+
+      // Phase 2 : sections lentes (SMS, emails de campagne, clics) en
+      // arriere-plan, merge dans le state une fois arrivees.
+      void (force
+        ? refetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
+        : prefetch<Any>(extKey, () => jsonFetcher(extKey), 60_000))
+        .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+        .catch(() => {})
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
-    } finally {
       setLoading(false)
     }
   }, [id])
