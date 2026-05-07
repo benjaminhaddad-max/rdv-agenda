@@ -38,6 +38,9 @@ export async function GET(req: NextRequest) {
   const stage            = searchParams.get('stage') ?? ''
   const closerHsId       = searchParams.get('closer_hs_id') ?? ''
   const teleproHsId      = searchParams.get('telepro_hs_id') ?? ''
+  // NEW : filtre télépro par HubSpot owner id (sur deals.teleprospecteur),
+  // pour matcher exactement ce qui est affiché dans la colonne TÉLÉPRO.
+  const teleproOwnerHsId = searchParams.get('telepro_owner_hs_id') ?? ''
   // Filtre direct sur crm_contacts.hubspot_owner_id (télépro = propriétaire du contact)
   const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const formation        = searchParams.get('formation') ?? ''
@@ -152,7 +155,7 @@ export async function GET(req: NextRequest) {
   // A) Filtres positifs deal
   // Note: teleproHsId, withTelepro, noTelepro, teleproNot ne passent plus par les deals
   // mais directement sur la colonne native crm_contacts.telepro_user_id (independance HubSpot).
-  const hasDealFilter = !!(stage || closerHsId || formation || pipeline || pipelineNot || priorPreinscription)
+  const hasDealFilter = !!(stage || closerHsId || teleproOwnerHsId || formation || pipeline || pipelineNot || priorPreinscription)
   let dealContactIds: string[] | null = null
 
   if (hasDealFilter) {
@@ -173,6 +176,10 @@ export async function GET(req: NextRequest) {
       if (closerHsId) {
         const closers = splitMulti(closerHsId)
         q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
+      }
+      if (teleproOwnerHsId) {
+        const tlp = splitMulti(teleproOwnerHsId)
+        q = tlp.length > 1 ? q.in('teleprospecteur', tlp) : q.eq('teleprospecteur', teleproOwnerHsId)
       }
       if (formation) {
         const formations = splitMulti(formation)

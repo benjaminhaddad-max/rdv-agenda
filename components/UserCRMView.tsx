@@ -35,7 +35,7 @@ interface RdvUser {
 }
 
 interface Props {
-  ownerParam: 'telepro_hs_id' | 'closer_hs_id' | 'contact_owner_hs_id'
+  ownerParam: 'telepro_hs_id' | 'telepro_owner_hs_id' | 'closer_hs_id' | 'contact_owner_hs_id'
   ownerId: string
   mode: 'closer' | 'telepro'
   onTotalChange?: (n: number) => void
@@ -236,7 +236,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : ownerParam === 'telepro_hs_id' ? '🏷️ Mes Transactions' : '👥 Mes Contacts'}
+              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : (ownerParam === 'telepro_hs_id' || ownerParam === 'telepro_owner_hs_id') ? '👥 Mes Contacts' : '👥 Mes Contacts'}
               {total > 0 && (
                 <span style={{
                   background: 'rgba(76,171,219,0.15)',
