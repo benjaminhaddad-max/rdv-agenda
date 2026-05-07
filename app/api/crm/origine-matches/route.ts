@@ -74,18 +74,24 @@ export async function GET(req: NextRequest) {
     return { prenom, nom }
   }
 
-  // Pour rester rapide on ne charge que les candidats susceptibles d'avoir un
-  // responsable légal (= les pré-inscrits / inscrits / RDV pris). On capte
-  // aussi tous ceux avec origine sur les 12 derniers mois.
-  const sinceIso = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: candidatesPool, error: errC } = await db
-    .from('crm_contacts')
-    .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
-    .not('origine', 'is', null)
-    .not('origine', 'in', '(,Autre,Inconnu)')
-    .gte('contact_createdate', sinceIso)
-    .limit(50000)
-  if (errC) return NextResponse.json({ error: errC.message }, { status: 500 })
+  // On charge TOUS les candidats avec une origine renseignée (sans filtre date,
+  // pour ne rater aucun match historique). Limite haute pour cover toute la base.
+  // Pagination par batchs de 1000 si jamais le pool dépasse 50k (sécurité Supabase).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const candidatesPool: any[] = []
+  const PAGE_SIZE = 1000
+  for (let offset = 0; offset < 100000; offset += PAGE_SIZE) {
+    const { data: batch, error: errC } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
+      .not('origine', 'is', null)
+      .not('origine', 'in', '(,Autre,Inconnu)')
+      .range(offset, offset + PAGE_SIZE - 1)
+    if (errC) return NextResponse.json({ error: errC.message }, { status: 500 })
+    if (!batch || batch.length === 0) break
+    candidatesPool.push(...batch)
+    if (batch.length < PAGE_SIZE) break
+  }
 
   // Index en mémoire
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
