@@ -25,6 +25,9 @@ import { updateContact } from '@/lib/hubspot'
  */
 export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50'), 200)
+  // Filtre par défaut : on cible les pré-inscrits 2026/2027 sans origine
+  // (les seuls qui comptent pour les stats fournisseur de leads).
+  const leadStatus = req.nextUrl.searchParams.get('lead_status') ?? 'Pré-inscrit 2026/2027'
   const db = createServiceClient()
 
   // Helper : nettoie un téléphone → uniquement les chiffres (10+ chars utiles)
@@ -37,23 +40,47 @@ export async function GET(req: NextRequest) {
     return null
   }
 
-  // 1. Total des contacts sans origine
-  const { count: totalUnknown } = await db
+  // 1. Total des contacts cibles (sans origine + bon statut lead)
+  let countQuery = db
     .from('crm_contacts')
     .select('hubspot_contact_id', { count: 'exact', head: true })
     .or('origine.is.null,origine.eq.,origine.eq.Autre,origine.eq.Inconnu')
+  if (leadStatus) countQuery = countQuery.eq('hs_lead_status', leadStatus)
+  const { count: totalUnknown } = await countQuery
 
-  // 2. Charge les contacts sans origine (limit pour rester perf)
-  const { data: unknowns, error: errU } = await db
+  // 2. Charge les contacts cibles (limit pour rester perf)
+  let unknownsQuery = db
     .from('crm_contacts')
-    .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate')
+    .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hs_lead_status')
     .or('origine.is.null,origine.eq.,origine.eq.Autre,origine.eq.Inconnu')
     .order('contact_createdate', { ascending: false, nullsFirst: false })
     .limit(limit)
+  if (leadStatus) unknownsQuery = unknownsQuery.eq('hs_lead_status', leadStatus)
+  const { data: unknowns, error: errU } = await unknownsQuery
 
   if (errU) return NextResponse.json({ error: errU.message }, { status: 500 })
   if (!unknowns || unknowns.length === 0) {
     return NextResponse.json({ matches: [], total_unknown: 0, processed: 0 })
+  }
+
+  // Helper : cherche dans hubspot_raw les noms de propriétés possibles pour
+  // le responsable légal 1 (HubSpot peut utiliser plusieurs naming conventions).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getResponsableLegal = (raw: any): { prenom: string | null; nom: string | null } => {
+    if (!raw || typeof raw !== 'object') return { prenom: null, nom: null }
+    const prenom =
+      raw.prenom_du_responsable_legal_1 ||
+      raw.prenom_responsable_legal_1 ||
+      raw.prenom_parent ||
+      raw.prenom_parent_1 ||
+      null
+    const nom =
+      raw.nom_du_responsable_legal_1 ||
+      raw.nom_responsable_legal_1 ||
+      raw.nom_parent ||
+      raw.nom_parent_1 ||
+      null
+    return { prenom, nom }
   }
 
   // 3. Pour chaque contact sans origine, cherche un candidat avec origine
@@ -69,27 +96,28 @@ export async function GET(req: NextRequest) {
 
     // a) Match par téléphone — le plus fiable
     if (cleanedPhone) {
-      // On cherche les contacts avec ce numéro (différents UUID, avec origine)
       const { data: phoneMatches } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
         .neq('hubspot_contact_id', u.hubspot_contact_id)
         .not('origine', 'is', null)
         .not('origine', 'in', '(,Autre,Inconnu)')
-        .ilike('phone', `%${cleanedPhone.slice(-9)}%`) // matching tolérant
+        .ilike('phone', `%${cleanedPhone.slice(-9)}%`)
         .limit(5)
       for (const p of phoneMatches ?? []) {
         if (cleanPhone(p.phone) === cleanedPhone) {
-          candidates.push({ ...p, match_type: 'phone' })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { hubspot_raw, ...rest } = p
+          candidates.push({ ...rest, match_type: 'phone' })
         }
       }
     }
 
-    // b) Match par prénom + nom (uniquement si on n'a pas déjà des matches téléphone)
+    // b) Match par prénom + nom direct (étudiant ↔ étudiant)
     if (candidates.length === 0 && fname && lname && fname.length > 1 && lname.length > 1) {
       const { data: nameMatches } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
         .neq('hubspot_contact_id', u.hubspot_contact_id)
         .not('origine', 'is', null)
         .not('origine', 'in', '(,Autre,Inconnu)')
@@ -97,7 +125,45 @@ export async function GET(req: NextRequest) {
         .ilike('lastname', lname)
         .limit(5)
       for (const p of nameMatches ?? []) {
-        candidates.push({ ...p, match_type: 'name' })
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { hubspot_raw, ...rest } = p
+        candidates.push({ ...rest, match_type: 'name' })
+      }
+    }
+
+    // c) Match via Responsable Légal 1 — le contact "sans origine" est peut-être
+    //    en réalité le PARENT d'un pré-inscrit qui a son origine renseignée.
+    //    On cherche les pré-inscrits dont le responsable_legal_1 = (firstname, lastname) du contact.
+    if (candidates.length === 0 && fname && lname && fname.length > 1 && lname.length > 1) {
+      // hubspot_raw est un JSONB — on filtre via ->> et ilike
+      // (perf : index GIN existe sur hubspot_raw)
+      const { data: rlMatches } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, origine, contact_createdate, hubspot_raw')
+        .neq('hubspot_contact_id', u.hubspot_contact_id)
+        .not('origine', 'is', null)
+        .not('origine', 'in', '(,Autre,Inconnu)')
+        // Construit un OR sur les variantes possibles de noms de propriétés
+        .or([
+          `hubspot_raw->>prenom_du_responsable_legal_1.ilike.${fname}`,
+          `hubspot_raw->>prenom_responsable_legal_1.ilike.${fname}`,
+          `hubspot_raw->>prenom_parent.ilike.${fname}`,
+        ].join(','))
+        .limit(10)
+      for (const p of rlMatches ?? []) {
+        const rl = getResponsableLegal(p.hubspot_raw)
+        if (
+          rl.prenom?.trim().toLowerCase() === fname &&
+          rl.nom?.trim().toLowerCase() === lname
+        ) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { hubspot_raw, ...rest } = p
+          candidates.push({
+            ...rest,
+            match_type: 'responsable_legal',
+            responsable_legal: rl,
+          })
+        }
       }
     }
 

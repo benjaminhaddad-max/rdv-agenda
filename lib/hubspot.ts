@@ -93,7 +93,7 @@ export const STAGES = {
 export const PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID || '2313043166'
 export const PIPELINE_2026_2027 = process.env.HUBSPOT_PIPELINE_2026_2027 || '2313043166'
 
-const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,createdate,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,origine,diploma_sante___formation_demandee,formation_souhaitee'
+const CONTACT_PROPS = 'email,firstname,lastname,phone,departement,classe_actuelle,hubspot_owner_id,createdate,recent_conversion_date,recent_conversion_event_name,zone___localite,hs_lead_status,origine,diploma_sante___formation_demandee,formation_souhaitee,prenom_du_responsable_legal_1,nom_du_responsable_legal_1,email_du_responsable_legal_1,telephone_du_responsable_legal_1,prenom_responsable_legal_1,nom_responsable_legal_1,email_parent,prenom_parent,nom_parent'
 
 // ─── Récupérer tous les noms de propriétés d'un objet HubSpot ─────────────
 // Utilisé par le sync CRM pour stocker l'intégralité des propriétés en JSONB

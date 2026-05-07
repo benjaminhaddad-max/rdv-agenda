@@ -14,7 +14,8 @@ interface ContactRow {
 }
 
 interface Candidate extends ContactRow {
-  match_type: 'phone' | 'name'
+  match_type: 'phone' | 'name' | 'responsable_legal'
+  responsable_legal?: { prenom: string | null; nom: string | null } | null
 }
 
 interface MatchRow {
@@ -142,13 +143,21 @@ export default function OrigineMatchesManager() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                             <span style={{
-                              background: cand.match_type === 'phone' ? '#dbeafe' : '#fce7f3',
-                              color: cand.match_type === 'phone' ? '#1e40af' : '#9d174d',
+                              background:
+                                cand.match_type === 'phone' ? '#dbeafe' :
+                                cand.match_type === 'responsable_legal' ? '#fef3c7' :
+                                '#fce7f3',
+                              color:
+                                cand.match_type === 'phone' ? '#1e40af' :
+                                cand.match_type === 'responsable_legal' ? '#92400e' :
+                                '#9d174d',
                               fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
                               padding: '2px 8px', borderRadius: 10,
                               display: 'inline-flex', alignItems: 'center', gap: 3,
                             }}>
-                              {cand.match_type === 'phone' ? <><Phone size={9} /> Téléphone</> : <><User size={9} /> Nom + Prénom</>}
+                              {cand.match_type === 'phone' ? <><Phone size={9} /> Téléphone</>
+                                : cand.match_type === 'responsable_legal' ? <><User size={9} /> Responsable légal</>
+                                : <><User size={9} /> Nom + Prénom</>}
                             </span>
                             <span style={{ fontWeight: 700, color: '#12314d', fontSize: 13 }}>{fullName(cand)}</span>
                           </div>
