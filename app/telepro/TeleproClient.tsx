@@ -1740,7 +1740,7 @@ export default function TeleproClient({
                                 const found = (data?.data ?? [])[0]
                                 if (found) {
                                   pickSearchResult(found)
-                                  setLookupMode('existing')
+                                  setLookupMode('search')
                                   setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
                                   setNewDepartement(''); setNewClasse(''); setNewFormation('')
                                   setNewEmailExisting(null); setNewEmailFormatError(null)
