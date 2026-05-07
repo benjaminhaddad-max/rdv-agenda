@@ -525,6 +525,13 @@ export default function TeleproClient({
     return () => { cancelled = true }
   }, [])
 
+  // Re-résout le nom du télépro quand soit l'id soit la map des users change.
+  // Évite l'effet "Télépro inconnu" quand le contact est chargé avant la map.
+  useEffect(() => {
+    if (!existingTeleproId) { setExistingTeleproName(null); return }
+    setExistingTeleproName(usersById[existingTeleproId] || null)
+  }, [existingTeleproId, usersById])
+
   // ── Champs prospect ───────────────────────────────────────────────────
   const [email, setEmail] = useState('')
   const [emailSynced, setEmailSynced] = useState(false)
@@ -909,10 +916,8 @@ export default function TeleproClient({
     if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
     if (c.formation_demandee) setFormation(c.formation_demandee)
     // Récupère le télépro déjà assigné au contact (affichage en lecture seule).
-    // On le stocke dans tous les cas — l'UI ne l'affiche que s'il est ≠ du télépro courant.
-    const teleproId: string | null = c.telepro_user_id || null
-    setExistingTeleproId(teleproId)
-    setExistingTeleproName(teleproId ? (usersById[teleproId] || null) : null)
+    // Le nom est résolu par useEffect (réagit aux changements de usersById).
+    setExistingTeleproId(c.telepro_user_id || null)
   }
 
   // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
