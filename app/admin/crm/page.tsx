@@ -1990,6 +1990,11 @@ export default function CRMPage() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget && !newContactSaving) setShowNewContact(false) }}
         >
+          <style>{`
+            .crm-newcontact-input { color: #12314d !important; background: #ffffff !important; }
+            .crm-newcontact-input::placeholder { color: #64748b !important; opacity: 1 !important; }
+            .crm-newcontact-input:focus { outline: none !important; border-color: #12314d !important; box-shadow: 0 0 0 3px rgba(18,49,77,0.12) !important; }
+          `}</style>
           <div style={{ background: '#ffffff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
             <button
               onClick={() => !newContactSaving && setShowNewContact(false)}
@@ -2007,39 +2012,46 @@ export default function CRMPage() {
               <input
                 type="text" placeholder="Prénom *" value={newContact.firstname}
                 onChange={e => setNewContact(c => ({ ...c, firstname: e.target.value }))}
+                className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
               <input
                 type="text" placeholder="Nom *" value={newContact.lastname}
                 onChange={e => setNewContact(c => ({ ...c, lastname: e.target.value }))}
+                className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
             </div>
             <input
               type="email" placeholder="Email *" value={newContact.email}
               onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
+              className="crm-newcontact-input"
               style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
             />
             <input
               type="tel" placeholder="Téléphone" value={newContact.phone}
               onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
+              className="crm-newcontact-input"
               style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <input
                 type="text" placeholder="Département" value={newContact.departement}
                 onChange={e => setNewContact(c => ({ ...c, departement: e.target.value }))}
+                className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
               <input
                 type="text" placeholder="Classe actuelle" value={newContact.classe_actuelle}
                 onChange={e => setNewContact(c => ({ ...c, classe_actuelle: e.target.value }))}
+                className="crm-newcontact-input"
                 style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
               />
             </div>
             <input
               type="text" placeholder="Formation demandée" value={newContact.formation}
               onChange={e => setNewContact(c => ({ ...c, formation: e.target.value }))}
+              className="crm-newcontact-input"
               style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14, boxSizing: 'border-box' }}
             />
 
