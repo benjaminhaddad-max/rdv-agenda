@@ -6,13 +6,14 @@ import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 
 // ── Constantes ──────────────────────────────────────────────────────────────
-const NAVY      = '#ffffff'
-const NAVY_BG   = '#1a2f4a'
-const NAVY_BDR  = '#cbd6e2'
-const GOLD      = '#ccac71'
-const BLUE      = '#4cabdb'
-const TEXT_DIM  = '#3a5070'
-const TEXT_MID  = '#516f90'
+// Charte Diploma Santé 2026
+const NAVY      = '#ffffff'      // bg page
+const NAVY_BG   = '#f6f9fc'      // bg champs (bleu pâle charte) — ne PAS utiliser le bleu nuit pour le fond des inputs
+const NAVY_BDR  = '#cbd6e2'      // bordures
+const GOLD      = '#c6aa7c'      // doré charte
+const BLUE      = '#4fabdb'      // bleu Diploma
+const TEXT_DIM  = '#5b6b7a'      // texte secondaire (sur fond clair)
+const TEXT_MID  = '#12314d'      // texte principal (bleu nuit charte) — pour la lisibilité
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444' },
@@ -258,17 +259,19 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             onClick={() => { setPage(0); fetchContacts() }}
             disabled={loading}
             style={{
-              background: NAVY_BG,
-              border: `1px solid ${NAVY_BDR}`,
+              background: '#12314d',
+              border: '1px solid #12314d',
               borderRadius: 8,
               padding: '7px 14px',
-              color: loading ? TEXT_DIM : TEXT_MID,
+              color: '#ffffff',
               cursor: loading ? 'default' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               fontSize: 12,
               fontFamily: 'inherit',
+              fontWeight: 600,
+              opacity: loading ? 0.7 : 1,
             }}
           >
             <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
