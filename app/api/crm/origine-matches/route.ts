@@ -143,10 +143,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 4) Phase 2 : matching responsable_legal_1 pour TOUS les unknowns (en parallèle)
-  // → ne suppose plus qu'il faut SKIP les unknowns ayant déjà un match phone/name
-  //    (un contact peut avoir 3 types de match en parallèle)
-  const allUnknownsForRl = unknowns
+  // 4) Phase 2 : matching responsable_legal_1 — UNIQUEMENT pour les unknowns
+  //    sans match phone/name (cascade). Sinon ça ferait 336 SQL JSONB = trop lent.
+  const needRl = unknowns
+    .filter(u => !matchesByContactId.has(u.hubspot_contact_id))
     .map(u => ({
       u,
       fname: u.firstname?.trim().toLowerCase(),
@@ -156,8 +156,8 @@ export async function GET(req: NextRequest) {
 
   const BATCH_SIZE = 25
   let rlMatchCount = 0
-  for (let i = 0; i < allUnknownsForRl.length; i += BATCH_SIZE) {
-    const batch = allUnknownsForRl.slice(i, i + BATCH_SIZE)
+  for (let i = 0; i < needRl.length; i += BATCH_SIZE) {
+    const batch = needRl.slice(i, i + BATCH_SIZE)
     await Promise.all(batch.map(async ({ u, fname, lname }) => {
       const { data: rlMatches } = await db
         .from('crm_contacts')
@@ -178,11 +178,8 @@ export async function GET(req: NextRequest) {
           const { hubspot_raw, ...rest } = p
           const cand = { ...rest, match_type: 'responsable_legal', responsable_legal: rl }
           const existing = matchesByContactId.get(u.hubspot_contact_id)
-          if (existing) {
-            existing.candidates.push(cand)
-          } else {
-            matchesByContactId.set(u.hubspot_contact_id, { contact: u, candidates: [cand] })
-          }
+          if (existing) existing.candidates.push(cand)
+          else matchesByContactId.set(u.hubspot_contact_id, { contact: u, candidates: [cand] })
           rlMatchCount++
         }
       }
