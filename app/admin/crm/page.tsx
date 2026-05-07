@@ -1,16 +1,21 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, GitMerge, AlertTriangle, BookOpen } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
-import CRMEditDrawer from '@/components/CRMEditDrawer'
 import LogoutButton from '@/components/LogoutButton'
-import DoublonsManager from '@/components/DoublonsManager'
-import ExternalDoublonsManager from '@/components/ExternalDoublonsManager'
-import DealsDoublonsManager from '@/components/DealsDoublonsManager'
-import CheckRdvCloserPanel from '@/components/CheckRdvCloserPanel'
-import RepopJournal from '@/components/RepopJournal'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
+
+// ── Lazy-loaded modals / panels ──────────────────────────────────────────────
+// Composants ouverts conditionnellement (drawers, modals d'outils). Charges a
+// la demande -> bundle initial bien plus leger, premier paint plus rapide.
+const CRMEditDrawer = dynamic(() => import('@/components/CRMEditDrawer'), { ssr: false })
+const DoublonsManager = dynamic(() => import('@/components/DoublonsManager'), { ssr: false })
+const ExternalDoublonsManager = dynamic(() => import('@/components/ExternalDoublonsManager'), { ssr: false })
+const DealsDoublonsManager = dynamic(() => import('@/components/DealsDoublonsManager'), { ssr: false })
+const CheckRdvCloserPanel = dynamic(() => import('@/components/CheckRdvCloserPanel'), { ssr: false })
+const RepopJournal = dynamic(() => import('@/components/RepopJournal'), { ssr: false })
 import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
@@ -25,7 +30,7 @@ import {
   persistViewCreate, persistViewUpdate, persistViewDelete,
 } from '@/lib/crm-views'
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect } from '@/components/crm/CRMSelects'
-import ExportCSVModal from '@/components/crm/CRMExportModal'
+const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
 

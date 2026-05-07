@@ -172,11 +172,13 @@ export async function GET(req: NextRequest) {
       columns[stageId].push(enrichDeal(d))
     }
 
-    return NextResponse.json({
+    const r = NextResponse.json({
       columns,
       total: rows.length,
       stats: { stages: stageStats, formations: formationStats },
     })
+    r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+    return r
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -207,11 +209,13 @@ export async function GET(req: NextRequest) {
   const offset = page * limit
   const paginatedRows = rows.slice(offset, offset + limit)
 
-  return NextResponse.json({
+  const r = NextResponse.json({
     data: paginatedRows.map(enrichDeal),
     total: totalFiltered,
     page,
     limit,
     stats: { stages: stageStats, formations: formationStats },
   })
+  r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+  return r
 }

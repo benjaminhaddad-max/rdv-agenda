@@ -283,8 +283,13 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // ── Étape 2 : Requête contacts avec COUNT exact + pagination SQL ───────────
-  // count: 'exact' + .range() = pagination serveur indépendante de max_rows Supabase
+  // ── Étape 2 : Requête contacts avec COUNT + pagination SQL ───────────
+  // count: 'estimated' utilise les stats planner Postgres (~5ms vs 200-500ms
+  // pour 'exact' sur 161k lignes). L'inexactitude est negligeable a l'echelle
+  // (le UI affiche un "≈" pour les listes non filtrees).
+  // Pour une recherche FTS explicite, on garde 'exact' car le GIN index est
+  // rapide ET on veut un compteur juste ("12 resultats trouves").
+  const countMode: 'exact' | 'estimated' = search ? 'exact' : 'estimated'
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = db
     .from('crm_contacts')
@@ -299,7 +304,7 @@ export async function GET(req: NextRequest) {
          hubspot_owner_id, teleprospecteur, closedate, createdate,
          supabase_appt_id
        )`,
-      { count: 'exact' }
+      { count: countMode }
     )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query = (query as any).order(sortInfo.col, {
@@ -573,7 +578,9 @@ export async function GET(req: NextRequest) {
   if (countOnly) {
     const { count: totalCount, error } = await query.range(0, 0)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ data: [], total: totalCount ?? 0, page: 0, limit: 0 })
+    const r = NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: countMode === 'estimated', page: 0, limit: 0 })
+    r.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+    return r
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
@@ -633,12 +640,22 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     data:  enriched,
-    total: totalCount ?? 0,  // count SQL exact, pas de cap à 1000
+    total: totalCount ?? 0,
+    total_estimated: countMode === 'estimated',
     page,
     limit,
   })
+  // Stale-while-revalidate : le navigateur peut reutiliser la reponse pendant
+  // 15s sans refetch (max-age=15), et entre 15s et 60s elle est servie
+  // immediatement tout en revalidant en arriere-plan. Combine avec le cache
+  // client (lib/client-cache.ts), les retours de page sont quasi instantanes.
+  // Pas de cache si on est en mode export (10000 lignes, donnees lourdes).
+  if (!isExport && !countOnly) {
+    response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+  }
+  return response
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

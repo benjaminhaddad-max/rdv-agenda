@@ -1745,7 +1745,12 @@ export default function CRMContactsTable({
                       borderBottom: `1px solid ${isExpanded ? 'transparent' : '#eaf0f6'}`,
                       cursor: 'pointer',
                       transition: 'background 0.1s',
-                    }}
+                      // Skip-rendering des rangs hors viewport : le navigateur
+                      // ne layout / paint que ceux visibles -> scroll fluide
+                      // et premier paint plus rapide sur grandes pages.
+                      contentVisibility: 'auto',
+                      containIntrinsicSize: '0 56px',
+                    } as React.CSSProperties}
                   >
                     {/* Checkbox */}
                     {onToggleSelect && (

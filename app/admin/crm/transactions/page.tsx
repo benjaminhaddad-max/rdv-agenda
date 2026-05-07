@@ -7,13 +7,16 @@ import {
   ArrowUpDown, GraduationCap, MapPin, BookOpen, Phone, Mail, RefreshCw,
   LayoutGrid, List, Plus, Save, Check, SlidersHorizontal, Trash2, Copy,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import LogoutButton from '@/components/LogoutButton'
 import TransactionBoard from '@/components/TransactionBoard'
 import type { UndoAction } from '@/components/TransactionBoard'
-import TransactionDetailPanel from '@/components/TransactionDetailPanel'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
 import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
+
+// Panel detail ouvert seulement quand on selectionne une transaction.
+const TransactionDetailPanel = dynamic(() => import('@/components/TransactionDetailPanel'), { ssr: false })
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
