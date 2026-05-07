@@ -1732,10 +1732,28 @@ export default function TeleproClient({
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button
                             type="button"
-                            onClick={() => { window.location.href = `/admin/crm/contacts/${newEmailExisting.id}` }}
+                            onClick={async () => {
+                              // Charge le contact existant DANS le flow télépro (pas de redirection vers le CRM admin)
+                              try {
+                                const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(newEmailExisting.email)}&limit=1&all_classes=1&show_external=1`)
+                                const data = await res.json()
+                                const found = (data?.data ?? [])[0]
+                                if (found) {
+                                  pickSearchResult(found)
+                                  setLookupMode('existing')
+                                  setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
+                                  setNewDepartement(''); setNewClasse(''); setNewFormation('')
+                                  setNewEmailExisting(null); setNewEmailFormatError(null)
+                                } else {
+                                  setLookupError('Contact introuvable.')
+                                }
+                              } catch {
+                                setLookupError('Erreur lors du chargement du contact.')
+                              }
+                            }}
                             style={{ padding: '7px 12px', background: '#c6aa7c', border: 'none', borderRadius: 6, color: '#0f2842', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                           >
-                            Voir la fiche existante →
+                            Utiliser ce contact pour le RDV →
                           </button>
                         </div>
                       </div>
