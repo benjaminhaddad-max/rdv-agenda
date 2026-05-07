@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -13,227 +13,278 @@ type Appointment = {
   status: string
 }
 
-type Step = 'loading' | 'confirm' | 'declined' | 'success' | 'error'
+type Step = 'loading' | 'success' | 'error'
 
 function getMeetingLabel(type: string | null) {
-  if (type === 'visio') return '📹 Visioconférence'
-  if (type === 'telephone') return '📞 Entretien téléphonique'
-  return '📍 En présentiel — Paris'
+  if (type === 'visio') return 'En visioconférence (lien envoyé le matin du RDV)'
+  if (type === 'telephone') return 'Par téléphone — notre équipe vous appelle au numéro communiqué'
+  return 'En présentiel — Paris'
 }
 
 export default function ConfirmPage() {
   const { token } = useParams<{ token: string }>()
   const [appt, setAppt] = useState<Appointment | null>(null)
   const [step, setStep] = useState<Step>('loading')
-  const [submitting, setSubmitting] = useState(false)
 
+  // Auto-confirm dès l'arrivée sur la page (un seul clic depuis l'email)
   useEffect(() => {
-    fetch(`/api/confirm/${token}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) { setStep('error'); return }
-        setAppt(data)
-        setStep('confirm')
-      })
-      .catch(() => setStep('error'))
-  }, [token])
+    let cancelled = false
+    async function run() {
+      try {
+        // 1. Charger les infos du RDV
+        const infoRes = await fetch(`/api/confirm/${token}`)
+        const info = await infoRes.json()
+        if (cancelled) return
+        if (!infoRes.ok || info.error) {
+          setStep('error')
+          return
+        }
+        setAppt(info)
 
-  async function handleConfirm() {
-    setSubmitting(true)
-    const res = await fetch(`/api/confirm/${token}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
-    })
-    setSubmitting(false)
-    if (res.ok) setStep('success')
-  }
+        // 2. Confirmer immédiatement (idempotent côté API)
+        const confirmRes = await fetch(`/api/confirm/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'confirm' }),
+        })
+        if (cancelled) return
+        if (!confirmRes.ok) {
+          setStep('error')
+          return
+        }
+        setStep('success')
+      } catch {
+        if (!cancelled) setStep('error')
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   const startDate = appt ? new Date(appt.start_at) : null
   const firstName = appt?.prospect_name.trim().split(/\s+/)[0] ?? ''
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0b1624',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px 16px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    }}>
-      {/* Logo / Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#ccac71', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0b1a2d 0%, #12314d 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 18px',
+        fontFamily:
+          "'Matter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      }}
+    >
+      {/* Eyebrow brand */}
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#c6aa7c',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            marginBottom: 4,
+          }}
+        >
           Diploma Santé
         </div>
-        <div style={{ fontSize: 11, color: '#555870' }}>Prépa médecine d&apos;excellence</div>
+        <div style={{ fontSize: 11, color: '#7e8ca0', fontStyle: 'italic' }}>la prépa médecine</div>
       </div>
 
-      <div style={{
-        background: '#152438',
-        border: '1px solid #2d4a6b',
-        borderRadius: 20,
-        padding: '32px 28px',
-        maxWidth: 420,
-        width: '100%',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
-      }}>
+      {/* Carte principale */}
+      <div
+        style={{
+          background: '#152840',
+          border: '1px solid #25405e',
+          borderRadius: 20,
+          padding: '36px 30px',
+          maxWidth: 460,
+          width: '100%',
+          boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Petite forme organique dorée en haut à droite — clin d'œil isotype */}
+        <svg
+          width="86"
+          height="26"
+          viewBox="0 0 86 26"
+          style={{ position: 'absolute', top: 18, right: 18, opacity: 0.45 }}
+        >
+          <path
+            d="M2 13 Q 12 3, 22 13 T 42 13 T 62 13 T 82 13"
+            stroke="#4fabdb"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            fill="none"
+          />
+        </svg>
 
         {/* LOADING */}
         {step === 'loading' && (
-          <div style={{ textAlign: 'center', color: '#555870', fontSize: 14, padding: '24px 0' }}>
-            Chargement…
+          <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                border: '3px solid #25405e',
+                borderTopColor: '#c6aa7c',
+                borderRadius: '50%',
+                margin: '0 auto 16px',
+                animation: 'spin 0.9s linear infinite',
+              }}
+            />
+            <div style={{ color: '#a8b6c8', fontSize: 14 }}>Confirmation de votre rendez-vous…</div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
         {/* ERROR */}
         {step === 'error' && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <div style={{ textAlign: 'center', padding: '6px 0' }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: '#3a1f24',
+                color: '#ef4444',
+                fontSize: 28,
+                fontWeight: 700,
+                lineHeight: '56px',
+                margin: '0 auto 18px',
+              }}
+            >
+              !
+            </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0', marginBottom: 8 }}>
               Lien invalide
             </div>
-            <div style={{ fontSize: 14, color: '#8b8fa8', lineHeight: 1.6 }}>
-              Ce lien de confirmation est invalide ou a expiré.<br />
-              Contactez-nous pour obtenir un nouveau lien.
+            <div style={{ fontSize: 14, color: '#8b97aa', lineHeight: 1.6 }}>
+              Ce lien de confirmation est invalide ou a expiré. Contactez-nous à
+              <br />
+              <a
+                href="mailto:rdv@diploma-sante.fr"
+                style={{ color: '#4fabdb', textDecoration: 'none' }}
+              >
+                rdv@diploma-sante.fr
+              </a>{' '}
+              pour obtenir un nouveau lien.
             </div>
-          </div>
-        )}
-
-        {/* CONFIRM — étape principale */}
-        {step === 'confirm' && appt && startDate && (
-          <>
-            <div style={{ textAlign: 'center', marginBottom: 28 }}>
-              <div style={{ fontSize: 15, color: '#8b8fa8', marginBottom: 4 }}>
-                Bonjour <strong style={{ color: '#e8eaf0' }}>{firstName}</strong> 👋
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0', marginBottom: 6 }}>
-                Confirmez votre rendez-vous
-              </div>
-            </div>
-
-            {/* Carte RDV */}
-            <div style={{
-              background: '#243d5c',
-              border: '1px solid #2d4a6b',
-              borderRadius: 14,
-              padding: '16px 20px',
-              marginBottom: 28,
-            }}>
-              <div style={{ fontSize: 13, color: '#ccac71', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-                Votre rendez-vous
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, color: '#e8eaf0', fontWeight: 600 }}>
-                  📅 {format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
-                </div>
-                <div style={{ fontSize: 13, color: '#8b8fa8' }}>
-                  {getMeetingLabel(appt.meeting_type)}
-                </div>
-              </div>
-            </div>
-
-            {/* Bouton OUI */}
-            <button
-              onClick={handleConfirm}
-              disabled={submitting}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                border: 'none',
-                borderRadius: 12,
-                padding: '16px',
-                color: 'white',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-                marginBottom: 12,
-                transition: 'opacity 0.15s',
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? 'Confirmation…' : '✅ Oui, je serai présent(e)'}
-            </button>
-
-            {/* Bouton NON */}
-            <button
-              onClick={() => setStep('declined')}
-              style={{
-                width: '100%',
-                background: 'transparent',
-                border: '1px solid #ef444440',
-                borderRadius: 12,
-                padding: '14px',
-                color: '#ef4444',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              ❌ Non, je ne pourrai pas venir
-            </button>
-          </>
-        )}
-
-        {/* DECLINED — proposition de report */}
-        {step === 'declined' && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 20 }}>📅</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0', marginBottom: 24 }}>
-              Reporter mon rendez-vous<br />en cliquant ici
-            </div>
-            <a
-              href={`/reschedule/${token}`}
-              style={{
-                display: 'block',
-                background: 'linear-gradient(135deg, #b89450, #ccac71)',
-                borderRadius: 12,
-                padding: '16px',
-                color: 'white',
-                fontSize: 16,
-                fontWeight: 700,
-                textDecoration: 'none',
-                transition: 'opacity 0.15s',
-              }}
-            >
-              Choisir un nouveau créneau →
-            </a>
           </div>
         )}
 
         {/* SUCCESS */}
         {step === 'success' && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#e8eaf0', marginBottom: 8 }}>
-              Rendez-vous confirmé !
+            {/* Check doré */}
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                background: '#c6aa7c',
+                margin: '0 auto 22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 30px rgba(198,170,124,0.35)',
+              }}
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M5 12.5l4.5 4.5L19 7"
+                  stroke="#0b1a2d"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
-            <div style={{ fontSize: 14, color: '#8b8fa8', lineHeight: 1.6 }}>
-              Merci {firstName}, nous avons bien enregistré votre confirmation.<br />
-              À très bientôt chez Diploma Santé !
-            </div>
+
+            <h1
+              style={{
+                margin: '0 0 6px',
+                fontSize: 22,
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: '-0.2px',
+              }}
+            >
+              Votre rendez-vous est confirmé&nbsp;!
+            </h1>
+
+            {firstName && (
+              <p style={{ margin: '0 0 24px', fontSize: 14, color: '#a8b6c8', lineHeight: 1.6 }}>
+                Merci <strong style={{ color: '#e8eaf0' }}>{firstName}</strong>, votre présence est bien
+                enregistrée dans notre agenda.
+                <br />À très bientôt chez Diploma Santé.
+              </p>
+            )}
+
+            {/* Récap RDV */}
             {startDate && (
-              <div style={{
-                marginTop: 20,
-                background: '#243d5c',
-                borderRadius: 10,
-                padding: '12px 16px',
-                fontSize: 14,
-                color: '#22c55e',
-                fontWeight: 600,
-              }}>
-                📅 {format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg,#1b324c 0%,#1f3a5b 100%)',
+                  borderLeft: '3px solid #c6aa7c',
+                  borderRadius: '0 12px 12px 0',
+                  padding: '16px 20px',
+                  textAlign: 'left',
+                  marginBottom: 22,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'inline-block',
+                    background: '#3b3024',
+                    color: '#c6aa7c',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    padding: '4px 10px',
+                    borderRadius: 3,
+                    marginBottom: 10,
+                  }}
+                >
+                  Votre rendez-vous
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+                  {format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
+                </div>
+                <div style={{ fontSize: 13, color: '#a8b6c8' }}>
+                  <span style={{ color: '#c6aa7c', fontWeight: 700, marginRight: 6 }}>→</span>
+                  {getMeetingLabel(appt?.meeting_type ?? null)}
+                </div>
               </div>
             )}
+
+            {/* Lien report discret */}
+            <a
+              href={`/reschedule/${token}`}
+              style={{
+                display: 'inline-block',
+                color: '#7e93ad',
+                fontSize: 12,
+                textDecoration: 'underline',
+              }}
+            >
+              Un empêchement ? Reporter mon rendez-vous
+            </a>
           </div>
         )}
       </div>
 
-      <div style={{ marginTop: 24, fontSize: 11, color: '#555870' }}>
-        © Diploma Santé — Prépa médecine d&apos;excellence
+      <div style={{ marginTop: 26, fontSize: 11, color: '#5e7088' }}>
+        © Diploma Santé — Prépa médecine
       </div>
     </div>
   )

@@ -45,6 +45,25 @@ export function formatPhoneForSms(phone: string): string | null {
   return null
 }
 
+// ─── SMS de prise de RDV (envoyé immédiatement à la création) ───────────────
+
+/**
+ * SMS d'accusé de réception envoyé dès qu'un prospect prend RDV.
+ * Court, sans lien (le mail de confirmation contient les détails).
+ */
+export function buildBookingSms(
+  firstName: string,
+  dateStr: string,
+  meetingType: string | null,
+): string {
+  const typeLabel =
+    meetingType === 'visio' ? 'en visio'
+    : meetingType === 'telephone' ? 'par téléphone'
+    : 'en présentiel'
+
+  return `Bonjour ${firstName}, votre rendez-vous d'orientation Diploma Santé est bien enregistré pour le ${dateStr} (${typeLabel}). À très vite ! Un mail de confirmation vous a également été envoyé.`
+}
+
 // ─── SMS 48h avant le RDV ────────────────────────────────────────────────────
 
 /**
@@ -83,16 +102,10 @@ export function build24hRelanceSms(
   token: string
 ): string {
   const link = `${SITE_URL}/confirm/${token}`
-
-  if (meetingType === 'visio') {
-    return `Bonjour ${firstName}, rappel : votre visioconférence avec Diploma Santé est demain ${dateStr}. Confirmez-vous votre présence ? ${link}`
-  }
-
-  if (meetingType === 'telephone') {
-    return `Bonjour ${firstName}, rappel : votre entretien téléphonique avec Diploma Santé est demain ${dateStr}. Confirmez-vous ? ${link}`
-  }
-
-  return `Bonjour ${firstName}, rappel : votre rendez-vous Diploma Santé est demain ${dateStr}. Confirmez-vous votre venue ? ${link}`
+  // Message uniforme pour rester en 1 segment SMS — le détail du type est dans le mail J-1.
+  void meetingType
+  void dateStr
+  return `${firstName}, rappel : votre RDV Diploma Santé est demain. Merci de confirmer votre présence en 1 clic : ${link}`
 }
 
 // ─── SMS matin du RDV (10h) ──────────────────────────────────────────────────
@@ -110,17 +123,16 @@ export function buildMorningSms(
   meetingLink?: string | null
 ): string {
   if (meetingType === 'visio') {
-    const linkPart = meetingLink ? ` Lien : ${meetingLink}` : ''
-    return `Bonjour ${firstName}, votre rendez-vous en visioconférence avec Diploma Santé est aujourd'hui à ${heureStr}.${linkPart}`
+    void meetingLink // le lien est envoyé séparément via build5minSms
+    return `Bonjour ${firstName}, votre RDV Diploma Santé est aujourd'hui à ${heureStr} en visio. Vous recevrez le lien de connexion 5 min avant. À tout à l'heure !`
   }
 
   if (meetingType === 'telephone') {
-    return `Bonjour ${firstName}, votre entretien téléphonique avec Diploma Santé est aujourd'hui à ${heureStr}. Notre équipe vous appellera à l'heure prévue.`
+    return `Bonjour ${firstName}, votre RDV Diploma Santé est aujourd'hui à ${heureStr}. Notre référent pédagogique vous appelle à l'heure prévue.`
   }
 
   // Présentiel
-  const codePart = PREPA_CODE ? ` Code d'entrée : ${PREPA_CODE}.` : ''
-  return `Bonjour ${firstName}, votre rendez-vous Diploma Santé est aujourd'hui à ${heureStr}. Lieu : ${PREPA_ADDRESS}.${codePart}`
+  return `Bonjour ${firstName}, votre RDV Diploma Santé est aujourd'hui à ${heureStr} au ${PREPA_ADDRESS}. À tout à l'heure !`
 }
 
 // ─── SMS 1h avant (visio/téléphone) ─────────────────────────────────────────
@@ -153,11 +165,11 @@ export function build5minSms(
   meetingLink?: string | null
 ): string {
   if (meetingType === 'visio') {
-    const linkPart = meetingLink ? ` Rejoignez-nous ici : ${meetingLink}` : ''
-    return `Bonjour ${firstName}, votre visioconférence Diploma Santé débute dans 5 minutes !${linkPart}`
+    const linkPart = meetingLink ? ` Connectez-vous dès maintenant : ${meetingLink}` : ''
+    return `${firstName}, votre RDV visio avec Diploma Santé commence dans 5 min.${linkPart}`
   }
 
-  return `Bonjour ${firstName}, votre entretien téléphonique Diploma Santé débute dans 5 minutes ! Tenez-vous prêt(e), nous allons vous appeler.`
+  return `${firstName}, votre entretien Diploma Santé commence dans 5 min. Tenez-vous prêt, on vous appelle.`
 }
 
 // ─── SMS replanification ─────────────────────────────────────────────────────

@@ -212,6 +212,44 @@ export default function CRMPage() {
   const [showDealsDoublons, setShowDealsDoublons] = useState(false)
   const [showRepop,         setShowRepop]         = useState(false)
 
+  // ─── Modal "Nouveau contact" ─────────────────────────────────────────────
+  const [showNewContact, setShowNewContact] = useState(false)
+  const [newContactSaving, setNewContactSaving] = useState(false)
+  const [newContactError, setNewContactError] = useState<string | null>(null)
+  const [newContact, setNewContact] = useState({
+    firstname: '', lastname: '', email: '', phone: '',
+    departement: '', classe_actuelle: '', formation: '',
+  })
+
+  async function handleCreateContact() {
+    if (!newContact.firstname.trim() || !newContact.lastname.trim() || !newContact.email.trim()) {
+      setNewContactError('Prénom, nom et email sont requis.')
+      return
+    }
+    setNewContactSaving(true)
+    setNewContactError(null)
+    try {
+      const res = await fetch('/api/crm/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newContact),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setNewContactError(data.error || 'Erreur lors de la création')
+        return
+      }
+      setShowNewContact(false)
+      setNewContact({ firstname: '', lastname: '', email: '', phone: '', departement: '', classe_actuelle: '', formation: '' })
+      // Rediriger vers la fiche du contact créé (ou existant)
+      window.location.href = `/admin/crm/contacts/${data.id}`
+    } catch (e) {
+      setNewContactError(e instanceof Error ? e.message : 'Erreur inconnue')
+    } finally {
+      setNewContactSaving(false)
+    }
+  }
+
   // Overrides des filtres par défaut
   // Plus de filtre auto "équipe externe" : on affiche tout par défaut.
   // State conservé pour compatibilité avec les vues sauvegardées et l'export.
@@ -1162,6 +1200,22 @@ export default function CRMPage() {
           <Download size={12} /> Exporter CSV
         </button>
 
+        {/* Nouveau contact */}
+        <button
+          onClick={() => setShowNewContact(true)}
+          style={{
+            padding: '7px 12px',
+            background: '#12314d',
+            border: '1px solid #12314d',
+            borderRadius: 8, color: '#ffffff',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <Plus size={12} /> Nouveau contact
+        </button>
+
         {/* Import CSV link */}
         <a
           href="/admin/crm/import"
@@ -1929,6 +1983,91 @@ export default function CRMPage() {
       {showDoublons      && <DoublonsManager      onClose={() => setShowDoublons(false)} />}
       {showExtDoublons   && <ExternalDoublonsManager onClose={() => setShowExtDoublons(false)} />}
       {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
+
+      {/* ── Modal "Nouveau contact" ────────────────────────────────────── */}
+      {showNewContact && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget && !newContactSaving) setShowNewContact(false) }}
+        >
+          <div style={{ background: '#ffffff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
+            <button
+              onClick={() => !newContactSaving && setShowNewContact(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', padding: 4 }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#c6aa7c', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>Nouveau contact</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#12314d' }}>Créer un contact dans le CRM</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <input
+                type="text" placeholder="Prénom *" value={newContact.firstname}
+                onChange={e => setNewContact(c => ({ ...c, firstname: e.target.value }))}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+              />
+              <input
+                type="text" placeholder="Nom *" value={newContact.lastname}
+                onChange={e => setNewContact(c => ({ ...c, lastname: e.target.value }))}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+              />
+            </div>
+            <input
+              type="email" placeholder="Email *" value={newContact.email}
+              onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
+            />
+            <input
+              type="tel" placeholder="Téléphone" value={newContact.phone}
+              onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <input
+                type="text" placeholder="Département" value={newContact.departement}
+                onChange={e => setNewContact(c => ({ ...c, departement: e.target.value }))}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+              />
+              <input
+                type="text" placeholder="Classe actuelle" value={newContact.classe_actuelle}
+                onChange={e => setNewContact(c => ({ ...c, classe_actuelle: e.target.value }))}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+              />
+            </div>
+            <input
+              type="text" placeholder="Formation demandée" value={newContact.formation}
+              onChange={e => setNewContact(c => ({ ...c, formation: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14, boxSizing: 'border-box' }}
+            />
+
+            {newContactError && (
+              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+                {newContactError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => setShowNewContact(false)}
+                disabled={newContactSaving}
+                style={{ padding: '10px 18px', background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8, color: '#5b6b7a', fontSize: 13, fontWeight: 600, cursor: newContactSaving ? 'not-allowed' : 'pointer' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleCreateContact}
+                disabled={newContactSaving}
+                style={{ padding: '10px 22px', background: '#12314d', border: 'none', borderRadius: 8, color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: newContactSaving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {newContactSaving ? 'Création…' : <><Plus size={14} /> Créer le contact</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showRepop && (
         <div

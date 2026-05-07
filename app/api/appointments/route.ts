@@ -3,6 +3,9 @@ import { createServiceClient } from '@/lib/supabase'
 import { createDeal, updateContact, getContact } from '@/lib/hubspot'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
+import { sendSms, buildBookingSms } from '@/lib/smsfactor'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -193,6 +196,27 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── SMS de confirmation immédiat au prospect (best-effort) ───────────────
+  if (prospect_phone) {
+    try {
+      const startDate = new Date(start_at as string)
+      const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
+      const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
+      const message = buildBookingSms(firstName, dateStr, meeting_type || null)
+      const smsResult = await sendSms(prospect_phone, message)
+      if (smsResult.ok) {
+        await db
+          .from('rdv_appointments')
+          .update({ sms_booking_sent_at: new Date().toISOString() })
+          .eq('id', appointment.id)
+      } else {
+        console.error('[appointments POST] Booking SMS failed:', smsResult.error)
+      }
+    } catch (e) {
+      console.error('[appointments POST] Booking SMS exception:', e)
+    }
+  }
 
   // ── Alerte file d'attente : si aucun closer assigné → email à Pascal ──────
   // Best-effort, asynchrone, n'impacte pas la réponse API.

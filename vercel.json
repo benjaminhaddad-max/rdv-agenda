@@ -1,6 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/sms-48h",         "schedule": "0 8,20 * * *" },
     { "path": "/api/cron/sms-24h-relance",  "schedule": "0 8,20 * * *" },
     { "path": "/api/cron/sms-morning",      "schedule": "0 8 * * *"    },
     { "path": "/api/cron/sms-intraday",     "schedule": "*/5 * * * *"  },
