@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: Params) {
   // Charge le form complet (inline dans le JS pour éviter un 2e round-trip)
   const { data: form } = await db
     .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, honeypot_enabled')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, honeypot_enabled')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
@@ -40,9 +40,8 @@ export async function GET(req: Request, { params }: Params) {
   return new NextResponse(js, {
     headers: {
       'content-type': 'application/javascript; charset=utf-8',
-      // Cache navigateur 5min + CDN Vercel 30min, revalide en arrière-plan 1h
-      // → 2e visiteur (et la même tab après refresh) sert depuis le cache
-      'cache-control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=3600',
+      // Cache court : les modifs faites dans l'admin se propagent en ~10s
+      'cache-control': 'public, max-age=10, s-maxage=10, stale-while-revalidate=60',
       'access-control-allow-origin': '*',
     },
   })
@@ -203,7 +202,13 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
     var textColor = form.text_color || '#1a2f4b';
     var inputBg = lighten(bgColor, 0.45);
 
-    injectStyles(SLUG, { bg: bgColor, primary: primaryColor, text: textColor, inputBg: inputBg });
+    injectStyles(SLUG, {
+      bg: bgColor, primary: primaryColor, text: textColor, inputBg: inputBg,
+      fieldBorderColor: form.field_border_color,
+      fieldBorderWidth: form.field_border_width,
+      fieldBorderRadius: form.field_border_radius,
+      fieldBg: form.field_bg_color,
+    });
 
     var card = document.createElement('div');
     card.className = 'diploma-form-' + SLUG + ' diploma-form';
@@ -444,8 +449,12 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
     s.id = id;
     var scope = '.diploma-form-' + slugId;
     var isTransparent = c.bg === 'transparent' || c.bg === '' || !c.bg;
-    // Inputs blancs par défaut (choix utilisateur, ressort bien sur fond doré)
-    var inputBg = '#ffffff';
+    // Style des champs : utilise les réglages de l'admin si présents, sinon fallback sur le look "pill blanc"
+    var inputBg = c.fieldBg || '#ffffff';
+    var fbc = c.fieldBorderColor || '';
+    var fbw = (c.fieldBorderWidth != null ? c.fieldBorderWidth : 0);
+    var fbr = (c.fieldBorderRadius != null ? c.fieldBorderRadius : 999);
+    var fieldBorderCss = fbw > 0 && fbc ? (fbw + 'px solid ' + fbc) : 'none';
     s.textContent = [
       // Wrapper : AUCUNE bordure ni ombre (s'intègre sans être vu)
       scope + '{' +
@@ -463,11 +472,11 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       scope + ' .diploma-form__field{display:flex;flex-direction:column;}',
       // Les labels sont TOTALEMENT cachés (placeholders seulement)
       scope + ' .diploma-form__label{display:none!important;}',
-      // Inputs pills SANS bordures visibles
-      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:14px 22px;border:none;border-radius:999px;font-family:inherit;font-size:15px;background:' + inputBg + ';color:' + c.text + ';outline:none;box-shadow:none;transition:box-shadow .15s;}',
+      // Inputs : bordure / arrondi / fond pilotés par les réglages admin
+      scope + ' .diploma-form__input{width:100%;box-sizing:border-box;padding:14px 22px;border:' + fieldBorderCss + ';border-radius:' + fbr + 'px;font-family:inherit;font-size:15px;background:' + inputBg + ';color:' + c.text + ';outline:none;box-shadow:none;transition:box-shadow .15s;}',
       scope + ' .diploma-form__input:focus{box-shadow:0 0 0 2px ' + c.primary + ';}',
       scope + ' .diploma-form__input::placeholder{color:' + c.text + ';opacity:0.55;}',
-      scope + ' textarea.diploma-form__input{border-radius:18px;resize:vertical;min-height:90px;}',
+      scope + ' textarea.diploma-form__input{resize:vertical;min-height:90px;}',
       scope + ' select.diploma-form__input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22none%22 stroke=%22%231a2f4b%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M1 1l5 5 5-5%22/></svg>");background-repeat:no-repeat;background-position:right 18px center;padding-right:44px;cursor:pointer;}',
       scope + ' .diploma-form__help{font-size:12px;opacity:0.7;padding:4px 16px 0;}',
       scope + ' .diploma-form__radios,' + scope + ' .diploma-form__checkboxes{display:flex;flex-direction:column;gap:6px;padding:8px 0;}',
