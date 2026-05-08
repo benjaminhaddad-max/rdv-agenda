@@ -570,9 +570,23 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
           </div>
         </Field>
         <Field label="Couleur de fond">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="color" value={form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }} />
-            <input value={form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={inputStyle} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="color" value={form.bg_color === 'transparent' ? '#ffffff' : form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }} />
+            <input value={form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={inputStyle} placeholder="#ffffff ou transparent" />
+            <button
+              type="button"
+              onClick={() => update({ bg_color: 'transparent' })}
+              title="Fond transparent (laisse passer la page hôte)"
+              style={{
+                background: form.bg_color === 'transparent' ? '#12314d' : '#ffffff',
+                color: form.bg_color === 'transparent' ? '#ffffff' : '#33475b',
+                border: '1px solid #cbd6e2', borderRadius: 8,
+                padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
+              }}
+            >
+              Transparent
+            </button>
           </div>
         </Field>
       </Card>
