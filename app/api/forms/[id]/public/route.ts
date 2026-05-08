@@ -49,14 +49,14 @@ export async function GET(_req: Request, { params }: Params) {
     }
   }, () => {})
 
-  // Cache navigateur 5min + CDN Vercel 10min (stale-while-revalidate 1h)
-  // → un visiteur qui ouvre 2 pages d'un site ne re-télécharge pas le schema
+  // Cache court (10s navigateur + 10s CDN, stale-while-revalidate 60s)
+  // → les modifs côté admin se voient quasi-immédiatement sur le site public
   return NextResponse.json(
     { ...form, fields: fields || [] },
     {
       headers: {
         ...CORS_HEADERS,
-        'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600',
+        'Cache-Control': 'public, max-age=10, s-maxage=10, stale-while-revalidate=60',
       },
     }
   )
