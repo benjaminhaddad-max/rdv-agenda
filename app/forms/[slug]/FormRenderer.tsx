@@ -25,6 +25,11 @@ interface PublicForm {
   primary_color: string
   bg_color: string
   text_color: string
+  // Style des champs de réponse (optionnel, fallback aux valeurs par défaut)
+  field_border_color?: string | null
+  field_border_width?: number | null
+  field_border_radius?: number | null
+  field_bg_color?: string | null
   honeypot_enabled: boolean
   fields: PublicField[]
 }
@@ -173,6 +178,12 @@ export default function FormRenderer({ slug, embed }: { slug: string; embed: boo
               text={text}
               primary={primary}
               hideLabel={embed}
+              fieldStyle={{
+                borderColor: form.field_border_color,
+                borderWidth: form.field_border_width,
+                borderRadius: form.field_border_radius,
+                bgColor: form.field_bg_color,
+              }}
             />
           ))}
 
@@ -234,7 +245,7 @@ function Wrapper({ children, embed, bg = '#ffffff' }: { children: React.ReactNod
 }
 
 // ─── Rendu d'un champ ────────────────────────────────────────────────────
-function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary, hideLabel }: {
+function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary, hideLabel, fieldStyle }: {
   field: PublicField
   value: string
   onChange: (v: string) => void
@@ -242,11 +253,23 @@ function FieldRenderer({ field, value, onChange, onCheckboxChange, text, primary
   text: string
   primary: string
   hideLabel?: boolean
+  fieldStyle?: {
+    borderColor?: string | null
+    borderWidth?: number | null
+    borderRadius?: number | null
+    bgColor?: string | null
+  }
 }) {
   const labelColor = text
+  const borderColor = fieldStyle?.borderColor || '#dddddd'
+  const borderWidth = fieldStyle?.borderWidth ?? 1
+  const borderRadius = fieldStyle?.borderRadius ?? 8
+  const fieldBg = fieldStyle?.bgColor || '#ffffff'
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8,
-    fontSize: 14, color: '#222', background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box',
+    width: '100%', padding: '10px 12px',
+    border: `${borderWidth}px solid ${borderColor}`,
+    borderRadius,
+    fontSize: 14, color: '#222', background: fieldBg, fontFamily: 'inherit', boxSizing: 'border-box',
     outline: 'none',
   }
 

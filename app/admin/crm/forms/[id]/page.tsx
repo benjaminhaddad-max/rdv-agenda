@@ -23,6 +23,11 @@ interface FormData {
   primary_color: string
   bg_color: string
   text_color: string
+  // Style des champs de réponse (optionnel)
+  field_border_color?: string | null
+  field_border_width?: number | null
+  field_border_radius?: number | null
+  field_bg_color?: string | null
   auto_create_contact: boolean
   honeypot_enabled: boolean
   notify_emails: string[]
@@ -335,6 +340,12 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
                   canMoveUp={idx > 0}
                   canMoveDown={idx < form.fields.length - 1}
                   textColor={form.text_color}
+                  fieldStyle={{
+                    borderColor: form.field_border_color,
+                    borderWidth: form.field_border_width,
+                    borderRadius: form.field_border_radius,
+                    bgColor: form.field_bg_color,
+                  }}
                 />
               ))}
             </div>
@@ -364,7 +375,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
   )
 }
 
-function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove, canMoveUp, canMoveDown, textColor }: {
+function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove, canMoveUp, canMoveDown, textColor, fieldStyle }: {
   field: FormField
   selected: boolean
   onSelect: () => void
@@ -375,6 +386,7 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
   canMoveUp: boolean
   canMoveDown: boolean
   textColor: string
+  fieldStyle?: { borderColor?: string | null; borderWidth?: number | null; borderRadius?: number | null; bgColor?: string | null }
 }) {
   const TypeIcon = FIELD_TYPES.find(ft => ft.type === field.field_type)?.icon || Type
 
@@ -396,7 +408,7 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
           {field.label} {field.required && <span style={{ color: '#ef4444' }}>*</span>}
         </label>
       </div>
-      <FieldPreview field={field} />
+      <FieldPreview field={field} fieldStyle={fieldStyle} />
       {field.help_text && <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{field.help_text}</div>}
 
       {/* Actions */}
@@ -413,8 +425,17 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
   )
 }
 
-function FieldPreview({ field }: { field: FormField }) {
-  const style: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, color: '#222', background: '#fafafa' }
+function FieldPreview({ field, fieldStyle }: { field: FormField; fieldStyle?: { borderColor?: string | null; borderWidth?: number | null; borderRadius?: number | null; bgColor?: string | null } }) {
+  const borderColor = fieldStyle?.borderColor || '#dddddd'
+  const borderWidth = fieldStyle?.borderWidth ?? 1
+  const borderRadius = fieldStyle?.borderRadius ?? 8
+  const bg = fieldStyle?.bgColor || '#ffffff'
+  const style: React.CSSProperties = {
+    width: '100%', padding: '8px 10px',
+    border: `${borderWidth}px solid ${borderColor}`,
+    borderRadius,
+    fontSize: 13, color: '#222', background: bg,
+  }
   switch (field.field_type) {
     case 'textarea':
       return <textarea disabled placeholder={field.placeholder || ''} rows={3} style={style} />
@@ -587,6 +608,81 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
             >
               Transparent
             </button>
+          </div>
+        </Field>
+      </Card>
+
+      <Card title="Style des champs de réponse">
+        <Field label="Couleur de bordure">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="color"
+              value={form.field_border_color || '#dddddd'}
+              onChange={e => update({ field_border_color: e.target.value })}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+            />
+            <input
+              value={form.field_border_color || '#dddddd'}
+              onChange={e => update({ field_border_color: e.target.value })}
+              style={inputStyle}
+              placeholder="#dddddd"
+            />
+          </div>
+        </Field>
+        <Field label="Couleur de fond des champs">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="color"
+              value={form.field_bg_color || '#ffffff'}
+              onChange={e => update({ field_bg_color: e.target.value })}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+            />
+            <input
+              value={form.field_bg_color || '#ffffff'}
+              onChange={e => update({ field_bg_color: e.target.value })}
+              style={inputStyle}
+              placeholder="#ffffff"
+            />
+          </div>
+        </Field>
+        <Field label={`Épaisseur de bordure : ${form.field_border_width ?? 1} px`}>
+          <input
+            type="range"
+            min={0}
+            max={4}
+            step={1}
+            value={form.field_border_width ?? 1}
+            onChange={e => update({ field_border_width: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+        </Field>
+        <Field label={`Arrondi des coins : ${form.field_border_radius ?? 8} px`}>
+          <input
+            type="range"
+            min={0}
+            max={32}
+            step={1}
+            value={form.field_border_radius ?? 8}
+            onChange={e => update({ field_border_radius: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {[0, 4, 8, 12, 16, 24].map(r => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => update({ field_border_radius: r })}
+                style={{
+                  flex: 1, fontSize: 11, padding: '4px 0',
+                  background: (form.field_border_radius ?? 8) === r ? '#12314d' : '#ffffff',
+                  color: (form.field_border_radius ?? 8) === r ? '#ffffff' : '#516f90',
+                  border: '1px solid #cbd6e2', borderRadius: 6,
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                }}
+              >
+                {r === 0 ? 'Carré' : `${r}px`}
+              </button>
+            ))}
           </div>
         </Field>
       </Card>

@@ -30,6 +30,7 @@ export async function PATCH(req: Request, { params }: Params) {
     'name', 'slug', 'description', 'status',
     'title', 'subtitle', 'submit_label', 'success_message', 'redirect_url',
     'primary_color', 'bg_color', 'text_color',
+    'field_border_color', 'field_border_width', 'field_border_radius', 'field_bg_color',
     'default_owner_id', 'default_tags', 'auto_create_contact', 'notify_emails',
     'honeypot_enabled', 'recaptcha_enabled',
   ] as const
