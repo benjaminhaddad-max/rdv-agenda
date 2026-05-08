@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: Params) {
   // Charge le form complet (inline dans le JS pour éviter un 2e round-trip)
   const { data: form } = await db
     .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, honeypot_enabled')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, honeypot_enabled')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
@@ -208,6 +208,11 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       fieldBorderWidth: form.field_border_width,
       fieldBorderRadius: form.field_border_radius,
       fieldBg: form.field_bg_color,
+      submitBg: form.submit_bg_color,
+      submitText: form.submit_text_color,
+      submitRadius: form.submit_border_radius,
+      submitSize: form.submit_size,
+      submitFull: form.submit_full_width,
     });
 
     var card = document.createElement('div');
@@ -455,6 +460,15 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
     var fbw = (c.fieldBorderWidth != null ? c.fieldBorderWidth : 0);
     var fbr = (c.fieldBorderRadius != null ? c.fieldBorderRadius : 999);
     var fieldBorderCss = fbw > 0 && fbc ? (fbw + 'px solid ' + fbc) : 'none';
+    // Submit button
+    var sbg = c.submitBg || c.primary;
+    var stxt = c.submitText || '#ffffff';
+    var srad = (c.submitRadius != null ? c.submitRadius : 999);
+    var ssize = c.submitSize || 'medium';
+    var sPad = ssize === 'small' ? '10px 24px' : ssize === 'large' ? '18px 56px' : '14px 40px';
+    var sFs = ssize === 'small' ? 13 : ssize === 'large' ? 17 : 15;
+    var sMinW = ssize === 'small' ? 140 : ssize === 'large' ? 220 : 180;
+    var sFull = !!c.submitFull;
     s.textContent = [
       // Wrapper : AUCUNE bordure ni ombre (s'intègre sans être vu)
       scope + '{' +
@@ -481,9 +495,9 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       scope + ' .diploma-form__help{font-size:12px;opacity:0.7;padding:4px 16px 0;}',
       scope + ' .diploma-form__radios,' + scope + ' .diploma-form__checkboxes{display:flex;flex-direction:column;gap:6px;padding:8px 0;}',
       scope + ' .diploma-form__radio,' + scope + ' .diploma-form__checkbox{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;color:' + c.text + ';}',
-      // Submit centré, pill, compact
-      scope + ' .diploma-form__actions{margin-top:12px;display:flex;justify-content:center;}',
-      scope + ' .diploma-form__submit{display:inline-block;padding:14px 40px;border:none;border-radius:999px;font-family:inherit;font-size:15px;font-weight:700;color:#fff;background:' + c.primary + ';cursor:pointer;transition:opacity .15s,transform .05s;min-width:180px;}',
+      // Submit : taille / couleur / arrondi pilotés par les réglages admin
+      scope + ' .diploma-form__actions{margin-top:12px;display:flex;justify-content:' + (sFull ? 'stretch' : 'center') + ';}',
+      scope + ' .diploma-form__submit{display:inline-block;padding:' + sPad + ';border:none;border-radius:' + srad + 'px;font-family:inherit;font-size:' + sFs + 'px;font-weight:700;color:' + stxt + ';background:' + sbg + ';cursor:pointer;transition:opacity .15s,transform .05s;min-width:' + sMinW + 'px;' + (sFull ? 'width:100%;' : '') + '}',
       scope + ' .diploma-form__submit:hover{opacity:0.92;}',
       scope + ' .diploma-form__submit:active{transform:translateY(1px);}',
       scope + ' .diploma-form__submit:disabled{opacity:0.6;cursor:default;}',

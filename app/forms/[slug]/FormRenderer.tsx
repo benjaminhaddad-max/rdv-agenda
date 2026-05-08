@@ -30,6 +30,12 @@ interface PublicForm {
   field_border_width?: number | null
   field_border_radius?: number | null
   field_bg_color?: string | null
+  // Style du bouton de soumission (optionnel)
+  submit_bg_color?: string | null
+  submit_text_color?: string | null
+  submit_border_radius?: number | null
+  submit_size?: 'small' | 'medium' | 'large' | null
+  submit_full_width?: boolean | null
   honeypot_enabled: boolean
   fields: PublicField[]
 }
@@ -208,13 +214,30 @@ export default function FormRenderer({ slug, embed }: { slug: string; embed: boo
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{ marginTop: 24, background: primary, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: submitting ? 'default' : 'pointer', width: '100%', opacity: submitting ? 0.6 : 1 }}
-        >
-          {submitting ? 'Envoi…' : (form.submit_label || 'Envoyer')}
-        </button>
+        {(() => {
+          const sz = form.submit_size || 'medium'
+          const sPad = sz === 'small' ? '10px 24px' : sz === 'large' ? '18px 56px' : '14px 40px'
+          const sFs = sz === 'small' ? 13 : sz === 'large' ? 17 : 15
+          const sBg = form.submit_bg_color || primary
+          const sText = form.submit_text_color || '#ffffff'
+          const sRad = form.submit_border_radius ?? 999
+          const sFull = form.submit_full_width ?? true
+          return (
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                marginTop: 24, background: sBg, color: sText, border: 'none',
+                borderRadius: sRad, padding: sPad, fontWeight: 700, fontSize: sFs,
+                cursor: submitting ? 'default' : 'pointer',
+                width: sFull ? '100%' : 'auto',
+                opacity: submitting ? 0.6 : 1,
+              }}
+            >
+              {submitting ? 'Envoi…' : (form.submit_label || 'Envoyer')}
+            </button>
+          )
+        })()}
 
         {!embed && (
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: text, opacity: 0.5 }}>

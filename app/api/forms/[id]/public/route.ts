@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { data: form, error } = await db
     .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, honeypot_enabled')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, honeypot_enabled')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()

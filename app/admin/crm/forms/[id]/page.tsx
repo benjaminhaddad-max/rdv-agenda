@@ -28,6 +28,12 @@ interface FormData {
   field_border_width?: number | null
   field_border_radius?: number | null
   field_bg_color?: string | null
+  // Style du bouton de soumission (optionnel)
+  submit_bg_color?: string | null
+  submit_text_color?: string | null
+  submit_border_radius?: number | null
+  submit_size?: 'small' | 'medium' | 'large' | null
+  submit_full_width?: boolean | null
   auto_create_contact: boolean
   honeypot_enabled: boolean
   notify_emails: string[]
@@ -188,6 +194,11 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             field_border_width: form.field_border_width,
             field_border_radius: form.field_border_radius,
             field_bg_color: form.field_bg_color,
+            submit_bg_color: form.submit_bg_color,
+            submit_text_color: form.submit_text_color,
+            submit_border_radius: form.submit_border_radius,
+            submit_size: form.submit_size,
+            submit_full_width: form.submit_full_width,
             auto_create_contact: form.auto_create_contact,
             honeypot_enabled: form.honeypot_enabled,
             notify_emails: form.notify_emails,
@@ -355,9 +366,28 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
             </div>
           )}
 
-          <button style={{ marginTop: 20, background: form.primary_color, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 24px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {form.submit_label || 'Envoyer'}
-          </button>
+          {(() => {
+            const sz = form.submit_size || 'medium'
+            const padding = sz === 'small' ? '10px 24px' : sz === 'large' ? '18px 56px' : '14px 40px'
+            const fontSize = sz === 'small' ? 13 : sz === 'large' ? 17 : 15
+            return (
+              <button style={{
+                marginTop: 20,
+                background: form.submit_bg_color || form.primary_color,
+                color: form.submit_text_color || '#ffffff',
+                border: 'none',
+                borderRadius: form.submit_border_radius ?? 999,
+                padding,
+                fontWeight: 700,
+                fontSize,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                width: form.submit_full_width ? '100%' : 'auto',
+              }}>
+                {form.submit_label || 'Envoyer'}
+              </button>
+            )
+          })()}
         </div>
       </div>
 
@@ -689,6 +719,118 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
             ))}
           </div>
         </Field>
+      </Card>
+
+      <Card title="Style du bouton (CTA)">
+        <Field label="Couleur de fond du bouton">
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="color"
+              value={form.submit_bg_color || form.primary_color}
+              onChange={e => update({ submit_bg_color: e.target.value })}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+            />
+            <input
+              value={form.submit_bg_color || ''}
+              onChange={e => update({ submit_bg_color: e.target.value || null })}
+              style={inputStyle}
+              placeholder="par défaut : couleur principale"
+            />
+            <button
+              type="button"
+              onClick={() => update({ submit_bg_color: null })}
+              title="Utiliser la couleur principale"
+              style={{
+                background: !form.submit_bg_color ? '#12314d' : '#ffffff',
+                color: !form.submit_bg_color ? '#ffffff' : '#33475b',
+                border: '1px solid #cbd6e2', borderRadius: 8,
+                padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
+              }}
+            >
+              Auto
+            </button>
+          </div>
+        </Field>
+        <Field label="Couleur du texte du bouton">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="color"
+              value={form.submit_text_color || '#ffffff'}
+              onChange={e => update({ submit_text_color: e.target.value })}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+            />
+            <input
+              value={form.submit_text_color || '#ffffff'}
+              onChange={e => update({ submit_text_color: e.target.value })}
+              style={inputStyle}
+              placeholder="#ffffff"
+            />
+          </div>
+        </Field>
+        <Field label={`Arrondi du bouton : ${form.submit_border_radius ?? 999} px`}>
+          <input
+            type="range"
+            min={0}
+            max={999}
+            step={1}
+            value={form.submit_border_radius ?? 999}
+            onChange={e => update({ submit_border_radius: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {[
+              { v: 0, label: 'Carré' },
+              { v: 4, label: '4px' },
+              { v: 8, label: '8px' },
+              { v: 12, label: '12px' },
+              { v: 24, label: '24px' },
+              { v: 999, label: 'Pill' },
+            ].map(p => (
+              <button
+                key={p.v}
+                type="button"
+                onClick={() => update({ submit_border_radius: p.v })}
+                style={{
+                  flex: 1, fontSize: 11, padding: '4px 0',
+                  background: (form.submit_border_radius ?? 999) === p.v ? '#12314d' : '#ffffff',
+                  color: (form.submit_border_radius ?? 999) === p.v ? '#ffffff' : '#516f90',
+                  border: '1px solid #cbd6e2', borderRadius: 6,
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Taille du bouton">
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['small', 'medium', 'large'] as const).map(sz => (
+              <button
+                key={sz}
+                type="button"
+                onClick={() => update({ submit_size: sz })}
+                style={{
+                  flex: 1, fontSize: 12, padding: '8px 0',
+                  background: (form.submit_size || 'medium') === sz ? '#12314d' : '#ffffff',
+                  color: (form.submit_size || 'medium') === sz ? '#ffffff' : '#516f90',
+                  border: '1px solid #cbd6e2', borderRadius: 6,
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                }}
+              >
+                {sz === 'small' ? 'Petit' : sz === 'medium' ? 'Moyen' : 'Grand'}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#33475b', marginTop: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!form.submit_full_width}
+            onChange={e => update({ submit_full_width: e.target.checked })}
+          /> Bouton sur toute la largeur
+        </label>
       </Card>
 
       <Card title="Après soumission">
