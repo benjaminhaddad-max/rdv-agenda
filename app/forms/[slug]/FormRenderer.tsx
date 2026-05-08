@@ -36,6 +36,9 @@ interface PublicForm {
   submit_border_radius?: number | null
   submit_size?: 'small' | 'medium' | 'large' | null
   submit_full_width?: boolean | null
+  submit_padding_y?: number | null
+  submit_padding_x?: number | null
+  submit_font_size?: number | null
   honeypot_enabled: boolean
   fields: PublicField[]
 }
@@ -216,8 +219,13 @@ export default function FormRenderer({ slug, embed }: { slug: string; embed: boo
 
         {(() => {
           const sz = form.submit_size || 'medium'
-          const sPad = sz === 'small' ? '10px 24px' : sz === 'large' ? '18px 56px' : '14px 40px'
-          const sFs = sz === 'small' ? 13 : sz === 'large' ? 17 : 15
+          const defPy = sz === 'small' ? 10 : sz === 'large' ? 18 : 14
+          const defPx = sz === 'small' ? 24 : sz === 'large' ? 56 : 40
+          const defFs = sz === 'small' ? 13 : sz === 'large' ? 17 : 15
+          const sPy = form.submit_padding_y ?? defPy
+          const sPx = form.submit_padding_x ?? defPx
+          const sFs = form.submit_font_size ?? defFs
+          const sPad = `${sPy}px ${sPx}px`
           const sBg = form.submit_bg_color || primary
           const sText = form.submit_text_color || '#ffffff'
           const sRad = form.submit_border_radius ?? 999

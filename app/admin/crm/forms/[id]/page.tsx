@@ -34,6 +34,9 @@ interface FormData {
   submit_border_radius?: number | null
   submit_size?: 'small' | 'medium' | 'large' | null
   submit_full_width?: boolean | null
+  submit_padding_y?: number | null
+  submit_padding_x?: number | null
+  submit_font_size?: number | null
   auto_create_contact: boolean
   honeypot_enabled: boolean
   notify_emails: string[]
@@ -199,6 +202,9 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             submit_border_radius: form.submit_border_radius,
             submit_size: form.submit_size,
             submit_full_width: form.submit_full_width,
+            submit_padding_y: form.submit_padding_y,
+            submit_padding_x: form.submit_padding_x,
+            submit_font_size: form.submit_font_size,
             auto_create_contact: form.auto_create_contact,
             honeypot_enabled: form.honeypot_enabled,
             notify_emails: form.notify_emails,
@@ -367,9 +373,9 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
           )}
 
           {(() => {
-            const sz = form.submit_size || 'medium'
-            const padding = sz === 'small' ? '10px 24px' : sz === 'large' ? '18px 56px' : '14px 40px'
-            const fontSize = sz === 'small' ? 13 : sz === 'large' ? 17 : 15
+            const py = form.submit_padding_y ?? 14
+            const px = form.submit_padding_x ?? 40
+            const fs = form.submit_font_size ?? 15
             return (
               <button style={{
                 marginTop: 20,
@@ -377,9 +383,9 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
                 color: form.submit_text_color || '#ffffff',
                 border: 'none',
                 borderRadius: form.submit_border_radius ?? 999,
-                padding,
+                padding: `${py}px ${px}px`,
                 fontWeight: 700,
-                fontSize,
+                fontSize: fs,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 width: form.submit_full_width ? '100%' : 'auto',
@@ -804,22 +810,59 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
             ))}
           </div>
         </Field>
-        <Field label="Taille du bouton">
-          <div style={{ display: 'flex', gap: 6 }}>
-            {(['small', 'medium', 'large'] as const).map(sz => (
+        <Field label={`Hauteur du bouton (padding vertical) : ${form.submit_padding_y ?? 14} px`}>
+          <input
+            type="range"
+            min={6}
+            max={32}
+            step={1}
+            value={form.submit_padding_y ?? 14}
+            onChange={e => update({ submit_padding_y: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+        </Field>
+        <Field label={`Largeur intérieure (padding horizontal) : ${form.submit_padding_x ?? 40} px`}>
+          <input
+            type="range"
+            min={8}
+            max={80}
+            step={1}
+            value={form.submit_padding_x ?? 40}
+            onChange={e => update({ submit_padding_x: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+        </Field>
+        <Field label={`Taille de la police : ${form.submit_font_size ?? 15} px`}>
+          <input
+            type="range"
+            min={11}
+            max={24}
+            step={1}
+            value={form.submit_font_size ?? 15}
+            onChange={e => update({ submit_font_size: parseInt(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {[
+              { v: 12, label: 'XS' },
+              { v: 13, label: 'S' },
+              { v: 15, label: 'M' },
+              { v: 17, label: 'L' },
+              { v: 20, label: 'XL' },
+            ].map(p => (
               <button
-                key={sz}
+                key={p.v}
                 type="button"
-                onClick={() => update({ submit_size: sz })}
+                onClick={() => update({ submit_font_size: p.v })}
                 style={{
-                  flex: 1, fontSize: 12, padding: '8px 0',
-                  background: (form.submit_size || 'medium') === sz ? '#12314d' : '#ffffff',
-                  color: (form.submit_size || 'medium') === sz ? '#ffffff' : '#516f90',
+                  flex: 1, fontSize: 11, padding: '4px 0',
+                  background: (form.submit_font_size ?? 15) === p.v ? '#12314d' : '#ffffff',
+                  color: (form.submit_font_size ?? 15) === p.v ? '#ffffff' : '#516f90',
                   border: '1px solid #cbd6e2', borderRadius: 6,
                   cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
                 }}
               >
-                {sz === 'small' ? 'Petit' : sz === 'medium' ? 'Moyen' : 'Grand'}
+                {p.label} ({p.v}px)
               </button>
             ))}
           </div>

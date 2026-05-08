@@ -32,6 +32,7 @@ export async function PATCH(req: Request, { params }: Params) {
     'primary_color', 'bg_color', 'text_color',
     'field_border_color', 'field_border_width', 'field_border_radius', 'field_bg_color',
     'submit_bg_color', 'submit_text_color', 'submit_border_radius', 'submit_size', 'submit_full_width',
+    'submit_padding_y', 'submit_padding_x', 'submit_font_size',
     'default_owner_id', 'default_tags', 'auto_create_contact', 'notify_emails',
     'honeypot_enabled', 'recaptcha_enabled',
   ] as const

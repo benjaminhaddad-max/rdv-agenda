@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: Params) {
   // Charge le form complet (inline dans le JS pour éviter un 2e round-trip)
   const { data: form } = await db
     .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, honeypot_enabled')
+    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
@@ -213,6 +213,9 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       submitRadius: form.submit_border_radius,
       submitSize: form.submit_size,
       submitFull: form.submit_full_width,
+      submitPaddingY: form.submit_padding_y,
+      submitPaddingX: form.submit_padding_x,
+      submitFontSize: form.submit_font_size,
     });
 
     var card = document.createElement('div');
@@ -464,9 +467,15 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
     var sbg = c.submitBg || c.primary;
     var stxt = c.submitText || '#ffffff';
     var srad = (c.submitRadius != null ? c.submitRadius : 999);
+    // Granulaire (sliders) en priorité, sinon fallback sur l'ancien preset submit_size
     var ssize = c.submitSize || 'medium';
-    var sPad = ssize === 'small' ? '10px 24px' : ssize === 'large' ? '18px 56px' : '14px 40px';
-    var sFs = ssize === 'small' ? 13 : ssize === 'large' ? 17 : 15;
+    var defPy = ssize === 'small' ? 10 : ssize === 'large' ? 18 : 14;
+    var defPx = ssize === 'small' ? 24 : ssize === 'large' ? 56 : 40;
+    var defFs = ssize === 'small' ? 13 : ssize === 'large' ? 17 : 15;
+    var sPy = (c.submitPaddingY != null ? c.submitPaddingY : defPy);
+    var sPx = (c.submitPaddingX != null ? c.submitPaddingX : defPx);
+    var sFs = (c.submitFontSize != null ? c.submitFontSize : defFs);
+    var sPad = sPy + 'px ' + sPx + 'px';
     var sMinW = ssize === 'small' ? 140 : ssize === 'large' ? 220 : 180;
     var sFull = !!c.submitFull;
     s.textContent = [
