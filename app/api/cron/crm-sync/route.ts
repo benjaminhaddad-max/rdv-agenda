@@ -140,27 +140,25 @@ export async function GET(req: NextRequest) {
     const dealPropsToFetch    = allDealProps.length > 0    ? allDealProps    : undefined
 
     // ── Phase 1 : Récupérer tous les deals de TOUS les pipelines ──────────
-    // Avant : un seul pipeline (PIPELINE_ID) → on perdait l'historique des
-    // saisons precedentes (Diploma 2024-25, 2025-26, etc.).
-    // Maintenant : tous les pipelines deals → l'historique multi-saisons est
-    // entierement visible dans le CRM.
+    // HubSpot Search est limité à 10 000 résultats par filtre. On itère
+    // par pipeline (chacun < 10K deals) pour rester sous le seuil.
     currentPhase = 1
     const allDealRows: ReturnType<typeof buildDealRow>[] = []
     const allDealIds: string[] = []
-    let dealCursor: string | undefined = undefined
 
     const allPipelineIds = await getAllDealPipelineIds()
 
-    do {
-      const { deals, nextCursor } = await getAllDealsForSync(dealCursor, dealPropsToFetch, allPipelineIds)
-
-      for (const d of deals) {
-        allDealIds.push(d.id)
-        allDealRows.push(buildDealRow(d))
-      }
-
-      dealCursor = nextCursor
-    } while (dealCursor)
+    for (const pid of allPipelineIds) {
+      let dealCursor: string | undefined = undefined
+      do {
+        const { deals, nextCursor } = await getAllDealsForSync(dealCursor, dealPropsToFetch, [pid])
+        for (const d of deals) {
+          allDealIds.push(d.id)
+          allDealRows.push(buildDealRow(d))
+        }
+        dealCursor = nextCursor
+      } while (dealCursor)
+    }
 
     // ── Phase 2 : Associations deals → contacts (batch v4) ───────────────
     currentPhase = 2
@@ -259,7 +257,8 @@ export async function GET(req: NextRequest) {
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
-        await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
+        const { error: upErr } = await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
+        if (upErr) throw new Error(`upsert contacts (Phase 4): ${upErr.message}`)
         contactsUpserted += rows.length
       }
     }
@@ -275,7 +274,8 @@ export async function GET(req: NextRequest) {
 
       if (contacts.length > 0) {
         const rows = contacts.map(c => buildContactRow(c, now))
-        await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
+        const { error: upErr } = await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
+        if (upErr) throw new Error(`upsert contacts (Phase 5): ${upErr.message}`)
         const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
         contactsUpserted += newOnes.length
       }
