@@ -247,18 +247,27 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Phase 4 : Batch-read des contacts liés aux deals ─────────────────
+    // HubSpot batch-read : 100 contacts/requête (limite API).
+    // Supabase upsert : on découpe en sous-chunks de 25 pour rester sous
+    // le statement_timeout Postgres (chaque contact a ~800 propriétés).
     currentPhase = 4
     const uniqueContactIds = [...new Set(Object.values(dealToContact))]
     const CONTACT_BATCH = 100
+    const UPSERT_CHUNK = 25
 
     for (let i = 0; i < uniqueContactIds.length; i += CONTACT_BATCH) {
       const chunk = uniqueContactIds.slice(i, i + CONTACT_BATCH)
       const contacts = await batchGetContacts(chunk, contactPropsToFetch)
 
       if (contacts.length > 0) {
-        const rows = contacts.map(c => buildContactRow(c, now))
-        const { error: upErr } = await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
-        if (upErr) throw new Error(`upsert contacts (Phase 4): ${upErr.message}`)
+        const rows = dedupContactRows(contacts.map(c => buildContactRow(c, now)))
+        for (let j = 0; j < rows.length; j += UPSERT_CHUNK) {
+          const sub = rows.slice(j, j + UPSERT_CHUNK)
+          const { error: upErr } = await db
+            .from('crm_contacts')
+            .upsert(sub, { onConflict: 'hubspot_contact_id' })
+          if (upErr) throw new Error(`upsert contacts (Phase 4): ${upErr.message}`)
+        }
         contactsUpserted += rows.length
       }
     }
@@ -273,9 +282,15 @@ export async function GET(req: NextRequest) {
       const { contacts, nextCursor } = await getContactsModifiedSince(contactSince, incrCursor, contactPropsToFetch)
 
       if (contacts.length > 0) {
-        const rows = contacts.map(c => buildContactRow(c, now))
-        const { error: upErr } = await db.from('crm_contacts').upsert(dedupContactRows(rows), { onConflict: 'hubspot_contact_id' })
-        if (upErr) throw new Error(`upsert contacts (Phase 5): ${upErr.message}`)
+        const rows = dedupContactRows(contacts.map(c => buildContactRow(c, now)))
+        const UPSERT_CHUNK_P5 = 25
+        for (let j = 0; j < rows.length; j += UPSERT_CHUNK_P5) {
+          const sub = rows.slice(j, j + UPSERT_CHUNK_P5)
+          const { error: upErr } = await db
+            .from('crm_contacts')
+            .upsert(sub, { onConflict: 'hubspot_contact_id' })
+          if (upErr) throw new Error(`upsert contacts (Phase 5): ${upErr.message}`)
+        }
         const newOnes = rows.filter(r => !uniqueContactIds.includes(r.hubspot_contact_id))
         contactsUpserted += newOnes.length
       }
