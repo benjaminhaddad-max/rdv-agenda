@@ -732,10 +732,24 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 }
 
 // ── Main Drawer Component ──────────────────────────────────────────────────
-export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwners = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
+export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwners: hubspotOwnersProp = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
+
+  // Le drawer fetch ses propres owners si la prop est vide ou pas fournie —
+  // sinon des fiches ouvertes avant que la page parent ait fini de charger
+  // hubspotOwners affichent "—" pour les sales HubSpot (ex. Elsa Chemouni).
+  const [fetchedOwners, setFetchedOwners] = useState<HubspotOwnerMeta[]>([])
+  useEffect(() => {
+    if (hubspotOwnersProp.length > 0) return
+    let alive = true
+    fetch('/api/crm/owners').then(r => r.json()).then((d: { owners?: HubspotOwnerMeta[] }) => {
+      if (alive && Array.isArray(d?.owners)) setFetchedOwners(d.owners)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [hubspotOwnersProp.length])
+  const hubspotOwners = hubspotOwnersProp.length > 0 ? hubspotOwnersProp : fetchedOwners
 
   // Options initialisées avec valeurs hardcodées → disponibles immédiatement, mises à jour par fetch
   const [leadStatusOpts, setLeadStatusOpts] = useState<{ id: string; label: string }[]>(LEAD_STATUS_LIST)
