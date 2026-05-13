@@ -49,6 +49,9 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const prefix = (body.prefix ?? 'NS') as string
   const dryRun = !!body.dryRun
+  // Dossier cible pour les forms importés (Diploma Santé, Edumove, Linova
+  // Education, AFEM, Prépa Médecine.fr). Diploma Santé par défaut.
+  const folder = (body.folder ?? 'Diploma Santé') as string
 
   try {
     // 1. Récupère tous les formulaires (paginé) + filtre à la volée par préfixe
@@ -146,6 +149,7 @@ export async function POST(req: Request) {
               title,
               submit_label: submitLabel,
               redirect_url: redirectUrl,
+              folder,
             })
             .eq('id', existing.id)
           if (error) throw new Error(error.message)
@@ -165,6 +169,7 @@ export async function POST(req: Request) {
               redirect_url: redirectUrl,
               status: 'draft', // importé en draft, à publier manuellement
               description: `Importé depuis HubSpot (${form.id})`,
+              folder,
             })
             .select()
             .single()

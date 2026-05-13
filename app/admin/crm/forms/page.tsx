@@ -269,6 +269,7 @@ export default function FormsPage() {
 // ─── Modal Import HubSpot ────────────────────────────────────────────────
 function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [prefix, setPrefix] = useState('NS')
+  const [folder, setFolder] = useState<Folder>(DEFAULT_FOLDER)
   const [step, setStep] = useState<'config' | 'preview' | 'importing' | 'done'>('config')
   const [preview, setPreview] = useState<Array<{ id: string; name: string; fieldsCount: number }>>([])
   const [results, setResults] = useState<Array<{ name: string; status: string; error?: string; fieldsCount?: number }>>([])
@@ -286,7 +287,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
       const res = await fetch('/api/admin/import-hubspot-forms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prefix, dryRun: true }),
+        body: JSON.stringify({ prefix, folder, dryRun: true }),
         signal: ctrl.signal,
       }).catch(e => {
         if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 90s). Trop de formulaires dans HubSpot.')
@@ -319,7 +320,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
       const res = await fetch('/api/admin/import-hubspot-forms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prefix, dryRun: false }),
+        body: JSON.stringify({ prefix, folder, dryRun: false }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -366,6 +367,15 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
               autoFocus
               style={{ width: '100%', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 12px', color: '#33475b', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
+
+            <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', margin: '14px 0 4px' }}>Dossier cible</div>
+            <select
+              value={folder}
+              onChange={e => setFolder(e.target.value as Folder)}
+              style={{ width: '100%', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 12px', color: '#33475b', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer' }}
+            >
+              {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
             <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>
               Exemple : <code style={{ color: '#ccac71' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
             </div>
