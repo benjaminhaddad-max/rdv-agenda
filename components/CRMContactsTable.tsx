@@ -1171,12 +1171,46 @@ export default function CRMContactsTable({
     'hubspot_owner_assigneddate',  // pas un owner mais reste géré comme date plus bas
   ]), [])
 
+  // Format date à la HubSpot : "Aujourd'hui à 16:07 GMT+2", "Hier à 15:16 GMT+2",
+  // "13 mai à 14:32" (même année), "13 mai 2024 à 14:32" (année différente).
+  function formatDateWithTime(raw: string | null | undefined): string {
+    if (!raw) return '—'
+    const d = new Date(raw)
+    if (isNaN(d.getTime())) return '—'
+    // Compare dates en heure Paris pour aujourd'hui/hier
+    const toParisYmd = (dt: Date) => new Intl.DateTimeFormat('fr-CA', {
+      timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(dt)
+    const ymdNow   = toParisYmd(new Date())
+    const ymdTgt   = toParisYmd(d)
+    const yest = new Date(); yest.setUTCDate(yest.getUTCDate() - 1)
+    const ymdYest  = toParisYmd(yest)
+    const time = new Intl.DateTimeFormat('fr-FR', {
+      timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit',
+    }).format(d)
+    // Offset Paris (+1 hiver / +2 été) pour suffixe GMT
+    const probe = new Date(d.toISOString().slice(0, 10) + 'T12:00:00Z')
+    const parisHour = Number(new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Paris', hour: '2-digit', hour12: false,
+    }).format(probe))
+    const off = parisHour - 12
+    const gmt = `GMT${off >= 0 ? '+' : '-'}${Math.abs(off)}`
+    if (ymdTgt === ymdNow)  return `Aujourd'hui à ${time} ${gmt}`
+    if (ymdTgt === ymdYest) return `Hier à ${time} ${gmt}`
+    const sameYear = ymdTgt.slice(0, 4) === ymdNow.slice(0, 4)
+    const dateFr = new Intl.DateTimeFormat('fr-FR', {
+      timeZone: 'Europe/Paris',
+      day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }),
+    }).format(d)
+    return `${dateFr} à ${time}`
+  }
+
   function formatDynamicValue(v: unknown, propName?: string): string {
     if (v === null || v === undefined || v === '') return '—'
     if (typeof v === 'string') {
-      // Si c'est une date ISO, on l'affiche jolie
+      // Si c'est une date ISO, on l'affiche au format HubSpot (Aujourd'hui, Hier…)
       if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
-        try { return new Date(v).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) }
+        try { return formatDateWithTime(v) }
         catch { return v }
       }
       // Résolution owner ID → nom pour les propriétés connues, OU si la valeur
@@ -1397,19 +1431,11 @@ export default function CRMContactsTable({
       }
 
       case 'createdat_contact': {
-        const rawDate  = contact.contact_createdate
-        const dateStr  = rawDate
-          ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-          : '—'
-        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{dateStr}</span>
+        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.contact_createdate)}</span>
       }
 
       case 'createdat_deal': {
-        const rawDate  = contact.deal?.createdate
-        const dateStr  = rawDate
-          ? new Date(rawDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-          : '—'
-        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{dateStr}</span>
+        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
       }
 
       case 'form_submission': {
