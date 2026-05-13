@@ -280,17 +280,29 @@ export async function GET(req: NextRequest) {
     // En mode incrémental : Phase 4 skippée, Phase 5 prend le relais.
 
     // ── Phase 5 : Sync incrémentale (contacts récents sans deal) ─────────
+    // Limites strictes pour rester sous le statement_timeout Postgres et le
+    // maxDuration Vercel (300s). Si on a beaucoup de retard, le sync rattrape
+    // sur plusieurs tours successifs (le contactSince avance à chaque run réussi).
     currentPhase = 5
-    const MAX_INCR = fullSync ? 50 : 20
+    const MAX_INCR = fullSync ? 30 : 5  // 5 pages × 100 contacts = 500 max/run incrémental
+    const PHASE5_TIME_BUDGET_MS = fullSync ? 240_000 : 120_000  // garde-fou temps
+    const phase5StartMs = Date.now()
     let incrCursor: string | undefined = undefined
     let incrRounds = 0
 
     do {
+      // Garde-fou temps : si on a déjà dépassé le budget, on arrête proprement.
+      // Le contactSince sera mis à jour via le sync log et on rattrapera au tour suivant.
+      if (Date.now() - phase5StartMs > PHASE5_TIME_BUDGET_MS) {
+        logger.info('crm-sync', `Phase 5 time budget exceeded, stopping at round ${incrRounds}`)
+        break
+      }
+
       const { contacts, nextCursor } = await getContactsModifiedSince(contactSince, incrCursor, contactPropsToFetch)
 
       if (contacts.length > 0) {
         const rows = dedupContactRows(contacts.map(c => buildContactRow(c, now)))
-        const UPSERT_CHUNK_P5 = 25
+        const UPSERT_CHUNK_P5 = 10  // upsert par 10 contacts (~800 props chacun)
         for (let j = 0; j < rows.length; j += UPSERT_CHUNK_P5) {
           const sub = rows.slice(j, j + UPSERT_CHUNK_P5)
           const { error: upErr } = await db
