@@ -612,12 +612,32 @@ export async function GET(req: NextRequest) {
     // Détecte si une valeur ressemble à une date YYYY-MM-DD, pour faire des
     // comparaisons "tout le jour" sur une colonne timestamptz (sinon eq sur
     // '2026-05-13' ne matche jamais : la colonne contient '2026-05-13 14:32:11').
+    // Bornes calculées en heure Paris (Europe/Paris) avec gestion DST CET/CEST,
+    // sinon les contacts créés entre 00:00 et 02:00 Paris (= UTC veille à 22:00)
+    // disparaissent du filtre "aujourd'hui" (~2 contacts en moins vs HubSpot).
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-    const dayStart = (d: string) => `${d}T00:00:00.000Z`
+    const parisOffsetIso = (dateStr: string) => {
+      // Probe à midi UTC du jour donné → l'heure Paris correspondante révèle
+      // l'offset (+01:00 hiver / +02:00 été).
+      const probe = new Date(`${dateStr}T12:00:00Z`)
+      const parisHour = Number(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Paris', hour: '2-digit', hour12: false,
+      }).format(probe))
+      const off = parisHour - 12
+      const sign = off >= 0 ? '+' : '-'
+      return `${sign}${String(Math.abs(off)).padStart(2, '0')}:00`
+    }
+    const dayStart = (d: string) => new Date(`${d}T00:00:00${parisOffsetIso(d)}`).toISOString()
     const dayEnd = (d: string) => {
-      const dt = new Date(d + 'T00:00:00Z')
-      dt.setUTCDate(dt.getUTCDate() + 1)
-      return dt.toISOString()
+      const startUtc = new Date(`${d}T00:00:00${parisOffsetIso(d)}`)
+      startUtc.setUTCDate(startUtc.getUTCDate() + 1)
+      // Re-calcule l'offset sur le jour J+1 (DST switch possible le dernier
+      // dimanche de mars / d'octobre).
+      const yyyy = startUtc.getUTCFullYear()
+      const mm   = String(startUtc.getUTCMonth() + 1).padStart(2, '0')
+      const dd   = String(startUtc.getUTCDate()).padStart(2, '0')
+      const nextStr = `${yyyy}-${mm}-${dd}`
+      return new Date(`${nextStr}T00:00:00${parisOffsetIso(nextStr)}`).toISOString()
     }
     for (const rule of customFilters) {
       const col = COL_MAP[rule.field] || rule.field
