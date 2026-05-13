@@ -609,6 +609,16 @@ export async function GET(req: NextRequest) {
       createdate: 'contact_createdate',
       lastmodifieddate: 'synced_at',
     }
+    // Détecte si une valeur ressemble à une date YYYY-MM-DD, pour faire des
+    // comparaisons "tout le jour" sur une colonne timestamptz (sinon eq sur
+    // '2026-05-13' ne matche jamais : la colonne contient '2026-05-13 14:32:11').
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    const dayStart = (d: string) => `${d}T00:00:00.000Z`
+    const dayEnd = (d: string) => {
+      const dt = new Date(d + 'T00:00:00Z')
+      dt.setUTCDate(dt.getUTCDate() + 1)
+      return dt.toISOString()
+    }
     for (const rule of customFilters) {
       const col = COL_MAP[rule.field] || rule.field
       const op = rule.operator
@@ -620,11 +630,35 @@ export async function GET(req: NextRequest) {
       // Range "between" — format "v1|v2"
       if (op === 'between') {
         const [v1, v2] = val.split('|')
-        if (v1) query = query.gte(col, v1)
-        if (v2) query = query.lte(col, v2)
+        if (v1) query = query.gte(col, DATE_RE.test(v1) ? dayStart(v1) : v1)
+        if (v2) query = query.lt(col, DATE_RE.test(v2) ? dayEnd(v2) : v2)
         continue
       }
-      // Opérateurs simples
+      // Comportement "tout le jour" pour eq / before / after / etc. quand la
+      // valeur est une date YYYY-MM-DD (typique d'un <input type="date">).
+      if (DATE_RE.test(val)) {
+        switch (op) {
+          case 'eq':
+          case 'is':
+            query = query.gte(col, dayStart(val)).lt(col, dayEnd(val))
+            continue
+          case 'neq':
+          case 'is_not':
+            query = query.or(`${col}.lt.${dayStart(val)},${col}.gte.${dayEnd(val)}`)
+            continue
+          case 'before':
+          case 'lt':
+            query = query.lt(col, dayStart(val)); continue
+          case 'after':
+          case 'gt':
+            query = query.gte(col, dayEnd(val)); continue
+          case 'lte':
+            query = query.lt(col, dayEnd(val)); continue
+          case 'gte':
+            query = query.gte(col, dayStart(val)); continue
+        }
+      }
+      // Opérateurs simples (texte, nombre, datetime explicite)
       switch (op) {
         case 'eq':       query = query.eq(col, val); break
         case 'is':       query = query.eq(col, val); break

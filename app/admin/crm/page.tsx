@@ -187,6 +187,7 @@ export default function CRMPage() {
   // Empty / not-empty filters (is_empty / is_not_empty)
   const [emptyFields, setEmptyFields]       = useState('')   // comma-separated field names
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
+  const [customFilterParam, setCustomFilterParam] = useState('') // JSON string of custom HubSpot filters
 
   // Tri des colonnes — par défaut : dernière soumission de formulaire desc.
   // Un contact qui re-soumet un form remonte automatiquement en haut.
@@ -530,6 +531,9 @@ export default function CRMPage() {
     // Colonnes dynamiques HubSpot (ajoutées via le menu Colonnes)
     if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
+    // Filtres custom (propriétés HubSpot : date, number, enum, …)
+    if (customFilterParam) params.set('cf', customFilterParam)
+
     const url = `/api/crm/contacts?${params.toString()}`
 
     // Cache hit (typiquement : retour sur la page apres avoir ouvert un
@@ -560,7 +564,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns])
+  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -596,6 +600,7 @@ export default function CRMPage() {
     setPriorPreinscription(false)
     // Reset empty/not-empty filters
     setEmptyFields(''); setNotEmptyFields('')
+    setCustomFilterParam('')
     setNoTelepro(flags?.noTelepro ?? false)
     setRecentFormMonths(flags?.recentFormMonths ?? 0)
     setRecentFormDays(flags?.recentFormDays ?? 0)
@@ -603,10 +608,20 @@ export default function CRMPage() {
 
     // Apply first group rules (AND) to the simple filter params
     const firstGroup = groups[0]
+    const customFilters: Array<{ field: string; operator: string; value: string }> = []
     if (firstGroup) {
       for (const rule of firstGroup.rules) {
         if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
         const val = rule.value
+        // Filtre custom (propriété HubSpot non-hardcodée) → JSON envoyé via ?cf=
+        if (typeof rule.field === 'string' && rule.field.startsWith('custom:')) {
+          customFilters.push({
+            field: rule.field.slice(7),
+            operator: rule.operator,
+            value: val,
+          })
+          continue
+        }
         // Positive filters: is, is_any, contains
         if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
           switch (rule.field) {
@@ -650,6 +665,8 @@ export default function CRMPage() {
         }
       }
     }
+    // Sérialise les filtres custom dans l'URL via ?cf=
+    setCustomFilterParam(customFilters.length > 0 ? JSON.stringify(customFilters) : '')
   }
 
   function applyCRMView(view: CRMSavedView) {
