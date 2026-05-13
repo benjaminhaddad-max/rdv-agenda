@@ -789,32 +789,46 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   ]
   const stageColorMap = Object.fromEntries(Object.entries(STAGE_MAP).map(([id, s]) => [id, s.color]))
 
-  const closerOptions = [
-    { id: '', label: '— Aucun closer —' },
-    ...closers.map(u => ({ id: u.hubspot_owner_id || u.id, label: u.name })),
-  ]
+  // Closer/Télépro options : on inclut TOUS les owners (closers + télépros)
+  // car en pratique le champ télépro stocke parfois un closer (ex. Judith
+  // Diploma) et inversement. La liste globale fait pareil (teleproSelectOptions
+  // = merge owners + users). Sans ça le select n'a pas l'option et affiche "—".
+  const closerOptions = (() => {
+    const seen = new Set<string>()
+    const arr: { id: string; label: string }[] = [{ id: '', label: '— Aucun closer —' }]
+    for (const u of [...closers, ...telepros]) {
+      const key = u.hubspot_owner_id || u.id
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      arr.push({ id: key, label: u.name })
+    }
+    return arr
+  })()
+  const teleproOptions = (() => {
+    const seen = new Set<string>()
+    const arr: { id: string; label: string }[] = [{ id: '', label: '— Aucun télépro —' }]
+    for (const u of [...telepros, ...closers]) {
+      const key = u.hubspot_user_id || u.hubspot_owner_id || u.id
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      arr.push({ id: key, label: u.name })
+    }
+    return arr
+  })()
 
-  const teleproOptions = [
-    { id: '', label: '— Aucun télépro —' },
-    ...telepros.map(u => ({ id: u.hubspot_user_id || u.id, label: u.name })),
-  ]
-
-  // Map qui résout n'importe quel format d'ID télépro (rdv_users.id,
-  // hubspot_user_id, hubspot_owner_id) vers la clé d'option utilisée dans
-  // teleproOptions — sinon le select n'arrive pas à matcher la valeur stockée
-  // sur le contact et affiche "— Aucun télépro —" alors que la liste affiche
-  // le nom correctement.
+  // Résout n'importe quel format d'ID (rdv_users.id, hubspot_user_id,
+  // hubspot_owner_id) vers la clé d'option utilisée dans le select.
   const teleproIdResolver = (raw: string | null | undefined): string => {
     if (!raw) return ''
-    const u = telepros.find(t =>
+    const u = [...telepros, ...closers].find(t =>
       t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
     )
     if (!u) return raw
-    return u.hubspot_user_id || u.id
+    return u.hubspot_user_id || u.hubspot_owner_id || u.id
   }
   const closerIdResolver = (raw: string | null | undefined): string => {
     if (!raw) return ''
-    const u = closers.find(t =>
+    const u = [...closers, ...telepros].find(t =>
       t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
     )
     if (!u) return raw
