@@ -94,6 +94,7 @@ interface CRMContact {
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
   telepro_user_id?: string | null
+  teleprospecteur?: string | null  // ancien champ HubSpot contact-level (fallback)
   closer_du_contact_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
@@ -1069,11 +1070,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             </div>
             <SelectField
               label="Téléprospecteur"
-              // Source de vérité = colonne native telepro_user_id, avec fallback
-              // sur l'ancien champ deal.teleprospecteur. On résout n'importe
-              // quel format d'ID stocké (user.id / hubspot_user_id / owner_id)
-              // vers la clé d'option pour que le select affiche bien la valeur.
-              value={teleproIdResolver(c.telepro_user_id || deal?.teleprospecteur)}
+              // Source de vérité = colonne native telepro_user_id, avec fallbacks
+              // successifs : contact.teleprospecteur (ancien champ HubSpot
+              // contact-level) puis deal.teleprospecteur (ancien deal-level).
+              // On résout n'importe quel format d'ID stocké (user.id /
+              // hubspot_user_id / hubspot_owner_id) vers la clé d'option pour
+              // que le select affiche bien la valeur.
+              value={teleproIdResolver(c.telepro_user_id || c.teleprospecteur || deal?.teleprospecteur)}
               options={teleproOptions}
               onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
             />
