@@ -22,7 +22,9 @@ import { createServiceClient } from '@/lib/supabase'
  * vides après ~10 min max.
  */
 
-export const maxDuration = 120
+// Vercel Pro autorise jusqu'à 300s. Indispensable pour les catch-ups
+// avec ?days=90 qui peuvent prendre 2-4 min.
+export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
@@ -55,7 +57,10 @@ export async function GET(req: NextRequest) {
   // On stocke dans crm_settings le timestamp du dernier event consommé. Il
   // n'avance que SI on a drainé toute la page (= pas de nextCursor à la fin).
   // Sinon on relance au même point la prochaine fois → rien n'est perdu.
-  const FALLBACK_DAYS = 90 // si pas de watermark → on regarde 90 jours en arrière
+  // Paramètre ?days=N pour overrider la fenêtre de fallback (ex. ?days=90
+  // pour rattraper 3 mois en plusieurs runs sans timeout Vercel).
+  const daysParam = Number(req.nextUrl.searchParams.get('days'))
+  const FALLBACK_DAYS = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 7
   let watermark: number | null = null
   try {
     const { data: setting } = await db
@@ -65,9 +70,13 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
     if (setting?.value) watermark = Number(setting.value)
   } catch { /* table peut ne pas exister — on retombe sur fallback */ }
-  const sinceMs = watermark && Number.isFinite(watermark)
-    ? watermark - 5 * 60 * 1000  // 5 min de chevauchement pour tolérer la latence d'indexation
-    : Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000
+  // Si ?days=N est fourni, on force la fenêtre même si on a un watermark.
+  // Utile pour les catch-ups manuels après une longue désync.
+  const sinceMs = (daysParam && daysParam > 0)
+    ? Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000
+    : (watermark && Number.isFinite(watermark)
+        ? watermark - 5 * 60 * 1000  // chevauchement pour latence d'indexation HubSpot
+        : Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000)
 
   let after: string | undefined
   let pageCount = 0
