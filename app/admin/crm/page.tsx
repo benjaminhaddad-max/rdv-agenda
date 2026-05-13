@@ -117,11 +117,6 @@ export default function CRMPage() {
   // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
   const [stage, setStage]             = useState('')
-  // Marque active (5 marques du groupe : Diploma Santé / Edumove / Linova / AFEM / Prépa Médecine.fr)
-  const [brandFilter, setBrandFilter] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'Diploma Santé'
-    return localStorage.getItem('crm-brand') || 'Diploma Santé'
-  })
   const [closerHsId, setCloserHsId]   = useState('')
   const [contactOwnerHsId, setContactOwnerHsId] = useState('') // = filtre direct sur crm_contacts.hubspot_owner_id
   const [teleproHsId, setTeleproHsId] = useState('')
@@ -535,9 +530,6 @@ export default function CRMPage() {
     // Colonnes dynamiques HubSpot (ajoutées via le menu Colonnes)
     if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
-    // Filtre par marque (5 marques du groupe)
-    if (brandFilter) params.set('brand', brandFilter)
-
     const url = `/api/crm/contacts?${params.toString()}`
 
     // Cache hit (typiquement : retour sur la page apres avoir ouvert un
@@ -568,7 +560,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, brandFilter])
+  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -1081,47 +1073,6 @@ export default function CRMPage() {
         </div>
 
       </div>
-
-      {/* ── Brand Tabs (5 marques du groupe) ─────────────────────────────── */}
-      {(() => {
-        const BRANDS: { name: string; color: string }[] = [
-          { name: 'Diploma Santé',     color: '#22c55e' },
-          { name: 'Edumove',           color: '#0ea5e9' },
-          { name: 'Linova Education',  color: '#a855f7' },
-          { name: 'AFEM',              color: '#f59e0b' },
-          { name: 'Prépa Médecine.fr', color: '#ef4444' },
-        ]
-        return (
-          <div style={{
-            padding: '0 20px', background: '#ffffff',
-            borderBottom: '1px solid #cbd6e2', flexShrink: 0,
-            display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto',
-          }}>
-            {BRANDS.map(b => {
-              const active = brandFilter === b.name
-              return (
-                <button
-                  key={b.name}
-                  onClick={() => {
-                    setBrandFilter(b.name)
-                    if (typeof window !== 'undefined') localStorage.setItem('crm-brand', b.name)
-                  }}
-                  style={{
-                    background: 'transparent', border: 'none',
-                    borderBottom: active ? `2px solid ${b.color}` : '2px solid transparent',
-                    marginBottom: -1, padding: '11px 14px',
-                    color: active ? b.color : '#516f90',
-                    fontSize: 13, fontWeight: active ? 700 : 600,
-                    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                  }}
-                >
-                  {b.name}
-                </button>
-              )
-            })}
-          </div>
-        )
-      })()}
 
       {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
       <div style={{
