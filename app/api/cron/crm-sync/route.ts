@@ -247,30 +247,37 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Phase 4 : Batch-read des contacts liés aux deals ─────────────────
-    // HubSpot batch-read : 100 contacts/requête (limite API).
-    // Supabase upsert : on découpe en sous-chunks de 25 pour rester sous
-    // le statement_timeout Postgres (chaque contact a ~800 propriétés).
+    // Optimisation : ce re-fetch massif n'est utile qu'en mode `full=1`
+    // (cron de 3h du matin). En mode incrémental (toutes les 15 min), la
+    // Phase 5 ci-dessous récupère déjà tous les contacts modifiés (création
+    // ou update) via lastmodifieddate, ce qui couvre 100% des cas — et
+    // évite de réécrire 5000+ contacts × 800 propriétés à chaque tour
+    // (timeout Postgres garanti sinon).
     currentPhase = 4
     const uniqueContactIds = [...new Set(Object.values(dealToContact))]
-    const CONTACT_BATCH = 100
-    const UPSERT_CHUNK = 25
 
-    for (let i = 0; i < uniqueContactIds.length; i += CONTACT_BATCH) {
-      const chunk = uniqueContactIds.slice(i, i + CONTACT_BATCH)
-      const contacts = await batchGetContacts(chunk, contactPropsToFetch)
+    if (fullSync) {
+      const CONTACT_BATCH = 100
+      const UPSERT_CHUNK = 25
 
-      if (contacts.length > 0) {
-        const rows = dedupContactRows(contacts.map(c => buildContactRow(c, now)))
-        for (let j = 0; j < rows.length; j += UPSERT_CHUNK) {
-          const sub = rows.slice(j, j + UPSERT_CHUNK)
-          const { error: upErr } = await db
-            .from('crm_contacts')
-            .upsert(sub, { onConflict: 'hubspot_contact_id' })
-          if (upErr) throw new Error(`upsert contacts (Phase 4): ${upErr.message}`)
+      for (let i = 0; i < uniqueContactIds.length; i += CONTACT_BATCH) {
+        const chunk = uniqueContactIds.slice(i, i + CONTACT_BATCH)
+        const contacts = await batchGetContacts(chunk, contactPropsToFetch)
+
+        if (contacts.length > 0) {
+          const rows = dedupContactRows(contacts.map(c => buildContactRow(c, now)))
+          for (let j = 0; j < rows.length; j += UPSERT_CHUNK) {
+            const sub = rows.slice(j, j + UPSERT_CHUNK)
+            const { error: upErr } = await db
+              .from('crm_contacts')
+              .upsert(sub, { onConflict: 'hubspot_contact_id' })
+            if (upErr) throw new Error(`upsert contacts (Phase 4): ${upErr.message}`)
+          }
+          contactsUpserted += rows.length
         }
-        contactsUpserted += rows.length
       }
     }
+    // En mode incrémental : Phase 4 skippée, Phase 5 prend le relais.
 
     // ── Phase 5 : Sync incrémentale (contacts récents sans deal) ─────────
     currentPhase = 5
