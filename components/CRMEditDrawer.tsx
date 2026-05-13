@@ -926,11 +926,38 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
                     {stageInfo.label}
                   </span>
                 )}
-                {deal!.closer && (
-                  <span style={{ fontSize: 11, color: '#516f90' }}>
-                    Closer : <span style={{ color: '#516f90', fontWeight: 600 }}>{deal!.closer.name}</span>
-                  </span>
-                )}
+                {/* Closer : on lit prioritairement closer_du_contact_owner_id
+                    (le vrai closer assigné côté contact) et on résout le nom
+                    via la liste des closers. On évite d'afficher "Closer: X"
+                    quand X est en fait un télépro (ex. Elsa Chemouni) — dans
+                    ce cas on bascule sur "Télépro: X" pour ne pas induire en
+                    erreur. */}
+                {(() => {
+                  const rawCloserId = c.closer_du_contact_owner_id || deal!.hubspot_owner_id || ''
+                  if (!rawCloserId) return null
+                  const closerUser = [...closers].find(u =>
+                    u.id === rawCloserId || u.hubspot_user_id === rawCloserId || u.hubspot_owner_id === rawCloserId
+                  )
+                  if (closerUser) {
+                    return (
+                      <span style={{ fontSize: 11, color: '#516f90' }}>
+                        Closer : <span style={{ color: '#516f90', fontWeight: 600 }}>{closerUser.name}</span>
+                      </span>
+                    )
+                  }
+                  // Pas un closer → c'est un télépro
+                  const teleproUser = [...telepros].find(u =>
+                    u.id === rawCloserId || u.hubspot_user_id === rawCloserId || u.hubspot_owner_id === rawCloserId
+                  )
+                  if (teleproUser) {
+                    return (
+                      <span style={{ fontSize: 11, color: '#516f90' }}>
+                        Télépro : <span style={{ color: '#516f90', fontWeight: 600 }}>{teleproUser.name}</span>
+                      </span>
+                    )
+                  }
+                  return null
+                })()}
                 {deal!.formation && (
                   <span style={{ fontSize: 11, color: GOLD, fontWeight: 600 }}>{deal!.formation}</span>
                 )}
