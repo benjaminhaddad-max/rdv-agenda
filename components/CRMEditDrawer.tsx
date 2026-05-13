@@ -799,6 +799,28 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
     ...telepros.map(u => ({ id: u.hubspot_user_id || u.id, label: u.name })),
   ]
 
+  // Map qui résout n'importe quel format d'ID télépro (rdv_users.id,
+  // hubspot_user_id, hubspot_owner_id) vers la clé d'option utilisée dans
+  // teleproOptions — sinon le select n'arrive pas à matcher la valeur stockée
+  // sur le contact et affiche "— Aucun télépro —" alors que la liste affiche
+  // le nom correctement.
+  const teleproIdResolver = (raw: string | null | undefined): string => {
+    if (!raw) return ''
+    const u = telepros.find(t =>
+      t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
+    )
+    if (!u) return raw
+    return u.hubspot_user_id || u.id
+  }
+  const closerIdResolver = (raw: string | null | undefined): string => {
+    if (!raw) return ''
+    const u = closers.find(t =>
+      t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
+    )
+    if (!u) return raw
+    return u.hubspot_owner_id || u.id
+  }
+
   const classeOptionList = CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))
   const zoneOptionList = ZONE_OPTIONS_LIST
 
@@ -1034,21 +1056,22 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             <SelectField
               label="Téléprospecteur"
               // Source de vérité = colonne native telepro_user_id, avec fallback
-              // sur l'ancien champ deal.teleprospecteur pour les contacts pas
-              // encore migrés.
-              value={c.telepro_user_id || deal?.teleprospecteur || ''}
+              // sur l'ancien champ deal.teleprospecteur. On résout n'importe
+              // quel format d'ID stocké (user.id / hubspot_user_id / owner_id)
+              // vers la clé d'option pour que le select affiche bien la valeur.
+              value={teleproIdResolver(c.telepro_user_id || deal?.teleprospecteur)}
               options={teleproOptions}
               onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
             />
             <SelectField
               label="Closer du contact"
-              value={c.closer_du_contact_owner_id || ''}
+              value={closerIdResolver(c.closer_du_contact_owner_id)}
               options={closerOptions}
               onSave={v => patchContact({ closer_du_contact_owner_id: v || null })}
             />
             <SelectField
               label="Propriétaire du contact"
-              value={c.hubspot_owner_id || ''}
+              value={closerIdResolver(c.hubspot_owner_id)}
               options={closerOptions}
               onSave={v => patchContact({ hubspot_owner_id: v || null })}
             />
