@@ -1082,15 +1082,14 @@ export default function CRMPage() {
 
       </div>
 
-      {/* ── Brand Tabs (Tous + 5 marques du groupe) ───────────────────────── */}
+      {/* ── Brand Tabs (5 marques du groupe) ─────────────────────────────── */}
       {(() => {
-        const BRANDS: { name: string; value: string; color: string }[] = [
-          { name: 'Tous',              value: '',                  color: '#0f172a' },
-          { name: 'Diploma Santé',     value: 'Diploma Santé',     color: '#22c55e' },
-          { name: 'Edumove',           value: 'Edumove',           color: '#0ea5e9' },
-          { name: 'Linova Education',  value: 'Linova Education',  color: '#a855f7' },
-          { name: 'AFEM',              value: 'AFEM',              color: '#f59e0b' },
-          { name: 'Prépa Médecine.fr', value: 'Prépa Médecine.fr', color: '#ef4444' },
+        const BRANDS: { name: string; color: string }[] = [
+          { name: 'Diploma Santé',     color: '#22c55e' },
+          { name: 'Edumove',           color: '#0ea5e9' },
+          { name: 'Linova Education',  color: '#a855f7' },
+          { name: 'AFEM',              color: '#f59e0b' },
+          { name: 'Prépa Médecine.fr', color: '#ef4444' },
         ]
         return (
           <div style={{
@@ -1099,13 +1098,13 @@ export default function CRMPage() {
             display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto',
           }}>
             {BRANDS.map(b => {
-              const active = brandFilter === b.value
+              const active = brandFilter === b.name
               return (
                 <button
                   key={b.name}
                   onClick={() => {
-                    setBrandFilter(b.value)
-                    if (typeof window !== 'undefined') localStorage.setItem('crm-brand', b.value)
+                    setBrandFilter(b.name)
+                    if (typeof window !== 'undefined') localStorage.setItem('crm-brand', b.name)
                   }}
                   style={{
                     background: 'transparent', border: 'none',
