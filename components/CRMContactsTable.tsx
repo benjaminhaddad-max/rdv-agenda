@@ -1843,9 +1843,33 @@ export default function CRMContactsTable({
                       </td>
                     ))}
 
-                    {/* Cellules dynamiques HubSpot (read-only) */}
+                    {/* Cellules dynamiques HubSpot */}
                     {dynamicCols.map(propName => {
                       const v = contact.extra_props?.[propName]
+                      // Détecte si la propriété est de type "owner" → rendu
+                      // inline-edit avec avatar (comme la colonne native closer).
+                      const isOwnerProp = OWNER_ID_PROPS.has(propName) || propName.endsWith('_owner_id')
+                      if (isOwnerProp) {
+                        const rawVal = v == null ? '' : String(v)
+                        // Choix de la liste d'options selon le type
+                        const isTeleproProp = propName === 'teleprospecteur'
+                        const opts = (isTeleproProp ? teleproSelectOptions : closerSelectOptions) ?? []
+                        // Champ DB cible quand on sauvegarde
+                        const dbField = propName === 'teleprospecteur' ? 'telepro_user_id' : propName
+                        const savingKey = `${contact.hubspot_contact_id}:${dbField}`
+                        return (
+                          <td key={`dyn-${propName}`} style={{ padding: '6px 8px' }} onClick={e => e.stopPropagation()}>
+                            <InlineCellSelect
+                              value={rawVal}
+                              options={opts}
+                              onSelect={(newVal) => handleContactFieldChange(contact.hubspot_contact_id, dbField, newVal)}
+                              saving={savingContactField === savingKey}
+                              renderValue={(val) => renderUserOption(val, opts)}
+                            />
+                          </td>
+                        )
+                      }
+                      // Autres types (texte, date, etc.) → lecture seule
                       const display = formatDynamicValue(v, propName)
                       return (
                         <td key={`dyn-${propName}`} style={{
