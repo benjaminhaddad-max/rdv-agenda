@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
   const source           = searchParams.get('source') ?? ''
   const zone             = searchParams.get('zone') ?? ''
   const departement      = searchParams.get('departement') ?? ''
+  // Filtre par marque (Diploma Santé / Edumove / Linova Education / AFEM / Prépa Médecine.fr)
+  const brandFilter      = searchParams.get('brand') ?? ''
 
   // Propriétés dynamiques additionnelles à inclure dans le SELECT
   // (ex: ?props=lifecyclestage,jobtitle,birthdate)
@@ -304,7 +306,7 @@ export async function GET(req: NextRequest) {
       `hubspot_contact_id, firstname, lastname, email, phone,
        departement, classe_actuelle, zone_localite,
        formation_demandee, formation_souhaitee, contact_createdate,
-       hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
+       hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event, brand,
        hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''},
        crm_deals (
          hubspot_deal_id, dealstage, pipeline, formation,
@@ -437,6 +439,11 @@ export async function GET(req: NextRequest) {
   // Filtre classe spécifique
   if (classeFilter) {
     query = query.eq('classe_actuelle', classeFilter)
+  }
+
+  // Filtre par marque (best-effort si la colonne `brand` existe)
+  if (brandFilter) {
+    query = query.eq('brand', brandFilter)
   }
 
   // Filtre période (sur deal.createdate — même logique que l'ancien filterClientSide)
@@ -621,6 +628,7 @@ export async function GET(req: NextRequest) {
       formation_souhaitee:     c.formation_souhaitee,
       contact_createdate:      c.contact_createdate,
       hubspot_owner_id:        c.hubspot_owner_id,
+      brand:                   c.brand ?? 'Diploma Santé',
       closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
       telepro_user_id:         c.telepro_user_id ?? null,
       extra_props:             extraProps.length > 0

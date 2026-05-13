@@ -421,19 +421,48 @@ export async function processMetaLead(
   let contactId: string | null = null
   let contactCreated = false
 
+  // Déterminer la marque à partir du nom de la page Facebook
+  // (Diploma Santé / Edumove / Linova Education / AFEM / Prépa Médecine.fr)
+  let brand = 'Diploma Santé'
+  try {
+    const { data: pageRow } = await db.from('meta_lead_pages')
+      .select('page_name').eq('page_id', pageId).maybeSingle()
+    const pn = (pageRow?.page_name ?? '').toLowerCase()
+    if      (pn.includes('diploma'))  brand = 'Diploma Santé'
+    else if (pn.includes('edumove'))  brand = 'Edumove'
+    else if (pn.includes('linova'))   brand = 'Linova Education'
+    else if (pn.includes('afem'))     brand = 'AFEM'
+    else if (pn.includes('prepamedecine') || pn.includes('prépa médecine')) brand = 'Prépa Médecine.fr'
+  } catch { /* fallback Diploma Santé */ }
+
   const conversionMeta = {
     recent_conversion_date: nowIso,
     recent_conversion_event: formMetadata?.origine_label || 'Meta Lead Ads',
     synced_at: nowIso,
+    brand,
+  }
+
+  // Helper : retire `brand` du payload si la colonne n'existe pas encore (compat)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stripBrandIfNeeded = (err: any, payload: Record<string, unknown>) => {
+    if (err && (err.message || '').toLowerCase().includes('brand')) {
+      delete payload.brand
+      return true
+    }
+    return false
   }
 
   if (existingId) {
-    // UPDATE — n'écrase pas les valeurs existantes (sauf conversion + synced_at)
+    // UPDATE — n'écrase pas les valeurs existantes (sauf conversion + synced_at + brand)
     const updateData: Record<string, unknown> = { ...conversionMeta }
     for (const [k, v] of Object.entries(contactData)) {
       if (v && String(v).trim() !== '') updateData[k] = v
     }
-    await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existingId)
+    let { error: uErr } = await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existingId)
+    if (stripBrandIfNeeded(uErr, updateData)) {
+      const r = await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existingId)
+      uErr = r.error
+    }
     contactId = existingId
   } else {
     // INSERT
@@ -446,12 +475,13 @@ export async function processMetaLead(
       origine: formMetadata?.origine_label || 'Meta Lead Ads',
       hubspot_owner_id: formMetadata?.default_owner_id || null,
     }
-    const { data, error } = await db.from('crm_contacts')
-      .insert(insertData)
-      .select('hubspot_contact_id')
-      .single()
-    if (error) {
-      return { contactId: null, contactCreated: false, workflowsTriggered: 0, error: error.message }
+    let { data, error } = await db.from('crm_contacts').insert(insertData).select('hubspot_contact_id').single()
+    if (stripBrandIfNeeded(error, insertData)) {
+      const r = await db.from('crm_contacts').insert(insertData).select('hubspot_contact_id').single()
+      data = r.data; error = r.error
+    }
+    if (error || !data) {
+      return { contactId: null, contactCreated: false, workflowsTriggered: 0, error: error?.message || 'Insert failed' }
     }
     contactId = data.hubspot_contact_id
     contactCreated = true

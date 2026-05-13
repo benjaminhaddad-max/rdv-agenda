@@ -147,10 +147,22 @@ export async function POST(req: Request, { params }: Params) {
 
     // Métadonnées de conversion à enregistrer / mettre à jour à chaque soumission
     const nowIso = new Date().toISOString()
+    const formBrand = form.folder || 'Diploma Santé'
     const conversionMeta = {
       recent_conversion_date:  nowIso,
       recent_conversion_event: form.name || 'Formulaire web',
       synced_at:               nowIso,
+      brand:                   formBrand,
+    }
+
+    // Helper : retire le champ `brand` du payload si la colonne n'existe pas (compat)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stripBrandIfNeeded = (err: any, payload: Record<string, unknown>) => {
+      if (err && (err.message || '').toLowerCase().includes('brand')) {
+        delete payload.brand
+        return true
+      }
+      return false
     }
 
     if (existing) {
@@ -161,7 +173,11 @@ export async function POST(req: Request, { params }: Params) {
           updateData[k] = v
         }
       }
-      await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
+      let { error: uErr } = await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
+      if (stripBrandIfNeeded(uErr, updateData)) {
+        const r = await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
+        uErr = r.error
+      }
       contactId = existing.hubspot_contact_id
     } else {
       // Crée le contact — génère un ID natif unique pour hubspot_contact_id (NOT NULL contrainte)
@@ -174,11 +190,15 @@ export async function POST(req: Request, { params }: Params) {
         hubspot_owner_id:   null,
         origine:            'Formulaire web',
       }
-      const { data: created, error: cErr } = await db
+      let { data: created, error: cErr } = await db
         .from('crm_contacts')
         .insert(insertData)
         .select('hubspot_contact_id')
         .single()
+      if (stripBrandIfNeeded(cErr, insertData)) {
+        const r = await db.from('crm_contacts').insert(insertData).select('hubspot_contact_id').single()
+        created = r.data; cErr = r.error
+      }
       if (!cErr && created) {
         contactId = created.hubspot_contact_id
         contactCreated = true
