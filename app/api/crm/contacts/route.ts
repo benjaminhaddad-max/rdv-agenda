@@ -627,17 +627,21 @@ export async function GET(req: NextRequest) {
       const sign = off >= 0 ? '+' : '-'
       return `${sign}${String(Math.abs(off)).padStart(2, '0')}:00`
     }
+    const addDayStr = (d: string) => {
+      // 'YYYY-MM-DD' → jour suivant (calendaire, indépendant TZ)
+      const [y, m, day] = d.split('-').map(Number)
+      const dt = new Date(Date.UTC(y, m - 1, day + 1))
+      const yy = dt.getUTCFullYear()
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+      const dd = String(dt.getUTCDate()).padStart(2, '0')
+      return `${yy}-${mm}-${dd}`
+    }
     const dayStart = (d: string) => new Date(`${d}T00:00:00${parisOffsetIso(d)}`).toISOString()
     const dayEnd = (d: string) => {
-      const startUtc = new Date(`${d}T00:00:00${parisOffsetIso(d)}`)
-      startUtc.setUTCDate(startUtc.getUTCDate() + 1)
-      // Re-calcule l'offset sur le jour J+1 (DST switch possible le dernier
-      // dimanche de mars / d'octobre).
-      const yyyy = startUtc.getUTCFullYear()
-      const mm   = String(startUtc.getUTCMonth() + 1).padStart(2, '0')
-      const dd   = String(startUtc.getUTCDate()).padStart(2, '0')
-      const nextStr = `${yyyy}-${mm}-${dd}`
-      return new Date(`${nextStr}T00:00:00${parisOffsetIso(nextStr)}`).toISOString()
+      // Minuit Paris du jour J+1 — on recalcule l'offset sur J+1 (DST switch
+      // possible le dernier dimanche de mars / d'octobre).
+      const next = addDayStr(d)
+      return new Date(`${next}T00:00:00${parisOffsetIso(next)}`).toISOString()
     }
     for (const rule of customFilters) {
       const col = COL_MAP[rule.field] || rule.field
