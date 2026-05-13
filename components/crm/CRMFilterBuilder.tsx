@@ -22,7 +22,7 @@ import { Plus, Trash2, Copy, X } from 'lucide-react'
 import {
   CRM_FILTER_FIELDS, STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CURRENT_PIPELINE_ID,
-  opsForField, opNeedsValue, opIsMulti,
+  opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type CRMFilterField, type CRMFilterOp, type CRMFilterGroup,
   type SelectOption,
 } from '@/lib/crm-constants'
@@ -226,11 +226,23 @@ export default function CRMFilterBuilder({
             </div>
 
             {group.rules.map((rule, ri) => {
-              const ops = opsForField(rule.field)
-              const showVal = opNeedsValue(rule.operator)
               const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
               const customName = isCustomField(rule.field)
               const customProp = customName ? allCrmProps.find(p => p.name === customName) : null
+
+              // Détermine le kind de la propriété (date, number, enum, bool, text)
+              let kind: ReturnType<typeof propertyKindOf> = 'text'
+              if (customProp) {
+                kind = propertyKindOf(customProp.type, customProp.field_type)
+              } else if (fieldDef?.type === 'select') {
+                kind = 'enum'
+              }
+
+              // Opérateurs disponibles selon le kind
+              const ops = customProp ? opsForKind(kind) : opsForField(rule.field)
+              const showVal = opNeedsValue(rule.operator)
+
+              // Options pour les enums (hardcodés ou venant des propriétés HubSpot)
               let valueOptions: SelectOption[] = []
               if (customProp && customProp.options && customProp.options.length > 0) {
                 valueOptions = customProp.options.map(o => ({ id: o.value, label: o.label }))
@@ -251,7 +263,70 @@ export default function CRMFilterBuilder({
                   case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                 }
               }
-              const showSelect = (fieldDef?.type === 'select' && valueOptions.length > 0) || (customProp && valueOptions.length > 0)
+
+              // Décompose la valeur "between" (format "v1|v2")
+              const isRange = opIsRange(rule.operator)
+              const [v1, v2] = isRange ? (rule.value || '').split('|') : [rule.value || '', '']
+
+              const renderValueInput = () => {
+                if (!showVal) return null
+                // ── DATE / DATETIME ─────────────────────────────────────────
+                if (kind === 'date' || kind === 'datetime') {
+                  const inputType = kind === 'datetime' ? 'datetime-local' : 'date'
+                  if (isRange) {
+                    return (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input type={inputType} value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                        <input type={inputType} value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                      </div>
+                    )
+                  }
+                  return <input type={inputType} value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+                }
+                // ── NUMBER ───────────────────────────────────────────────────
+                if (kind === 'number') {
+                  if (isRange) {
+                    return (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input type="number" value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} placeholder="Min" style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                        <input type="number" value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} placeholder="Max" style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                      </div>
+                    )
+                  }
+                  return <input type="number" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+                }
+                // ── BOOL ─────────────────────────────────────────────────────
+                if (kind === 'bool') {
+                  return (
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#ccac71' : '#7c98b6' }}>
+                      <option value="">Rechercher…</option>
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
+                    </select>
+                  )
+                }
+                // ── ENUM (avec options) ─────────────────────────────────────
+                if ((kind === 'enum' || (fieldDef?.type === 'select')) && valueOptions.length > 0) {
+                  if (opIsMulti(rule.operator)) {
+                    return (
+                      <MultiSelectDropdown
+                        options={valueOptions}
+                        value={rule.value}
+                        onChange={v => updateRule(group.id, rule.id, { value: v })}
+                      />
+                    )
+                  }
+                  return (
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#ccac71' : '#7c98b6' }}>
+                      <option value="">Rechercher…</option>
+                      {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                    </select>
+                  )
+                }
+                // ── TEXT (fallback) ──────────────────────────────────────────
+                return <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+              }
+
               return (
                 <div key={rule.id}>
                   {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
@@ -259,35 +334,23 @@ export default function CRMFilterBuilder({
                     <button type="button" onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
                     <CRMFieldPicker
                       value={rule.field}
-                      onChange={(field) => updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: 'is', value: '' })}
+                      onChange={(field) => {
+                        // Reset operator to a sensible default depending on the new property's kind
+                        const next = allCrmProps.find(p => 'custom:' + p.name === field)
+                        const k = next ? propertyKindOf(next.type, next.field_type) : 'text'
+                        let defaultOp: CRMFilterOp = 'is'
+                        if (k === 'date' || k === 'datetime') defaultOp = 'eq'
+                        else if (k === 'number') defaultOp = 'eq'
+                        else if (k === 'text' && !next) defaultOp = 'is'
+                        else if (k === 'text') defaultOp = 'contains'
+                        updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: defaultOp, value: '' })
+                      }}
                       crmProps={allCrmProps}
                     />
-                    {customName && (
-                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '0 4px' }}>
-                        Filtre custom — non encore appliqué côté API. Pour cibler par cette propriété, utilise <a href="/admin/crm/recherche-prop" target="_blank" rel="noopener" style={{ color: '#2ea3f2', textDecoration: 'underline' }}>Recherche propriété</a> pour récupérer les numéros, puis colle-les dans l&apos;onglet « Liste de numéros ».
-                      </div>
-                    )}
                     <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={selectStyle}>
                       {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                     </select>
-                    {showVal && (
-                      showSelect ? (
-                        opIsMulti(rule.operator) ? (
-                          <MultiSelectDropdown
-                            options={valueOptions}
-                            value={rule.value}
-                            onChange={v => updateRule(group.id, rule.id, { value: v })}
-                          />
-                        ) : (
-                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#ccac71' : '#7c98b6' }}>
-                            <option value="">Rechercher…</option>
-                            {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                          </select>
-                        )
-                      ) : (
-                        <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
-                      )
-                    )}
+                    {renderValueInput()}
                   </div>
                 </div>
               )

@@ -91,6 +91,27 @@ export async function GET(req: NextRequest) {
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
+  // ── Filtres custom (propriétés HubSpot) — JSON dans ?cf= ─────────────────
+  // Format : [{ field: 'createdate', operator: 'before', value: '2025-01-01' }, …]
+  type CustomFilterRule = { field: string; operator: string; value: string }
+  let customFilters: CustomFilterRule[] = []
+  try {
+    const raw = searchParams.get('cf')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        customFilters = parsed
+          .filter(r => r && typeof r.field === 'string' && /^[a-z0-9_]+$/i.test(r.field))
+          .map(r => ({
+            field: String(r.field),
+            operator: String(r.operator || ''),
+            value: String(r.value ?? ''),
+          }))
+          .slice(0, 20)
+      }
+    }
+  } catch { /* JSON invalide — on ignore */ }
+
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
   // de re-soumettre un formulaire remontent automatiquement en haut de la liste.
@@ -579,6 +600,56 @@ export async function GET(req: NextRequest) {
     query = vals.length > 1
       ? query.not('departement', 'in', `(${vals.join(',')})`)
       : query.neq('departement', deptNot)
+  }
+
+  // ── Filtres custom (propriétés HubSpot dynamiques) ──────────────────────
+  // Mapping : nom HubSpot → colonne crm_contacts (quand ils diffèrent)
+  if (customFilters.length > 0) {
+    const COL_MAP: Record<string, string> = {
+      createdate: 'contact_createdate',
+      lastmodifieddate: 'synced_at',
+    }
+    for (const rule of customFilters) {
+      const col = COL_MAP[rule.field] || rule.field
+      const op = rule.operator
+      const val = rule.value
+      // Opérateurs sans valeur
+      if (op === 'is_empty') { query = query.is(col, null); continue }
+      if (op === 'is_not_empty') { query = query.not(col, 'is', null); continue }
+      if (!val) continue
+      // Range "between" — format "v1|v2"
+      if (op === 'between') {
+        const [v1, v2] = val.split('|')
+        if (v1) query = query.gte(col, v1)
+        if (v2) query = query.lte(col, v2)
+        continue
+      }
+      // Opérateurs simples
+      switch (op) {
+        case 'eq':       query = query.eq(col, val); break
+        case 'is':       query = query.eq(col, val); break
+        case 'neq':      query = query.neq(col, val); break
+        case 'is_not':   query = query.neq(col, val); break
+        case 'gt':       query = query.gt(col, val); break
+        case 'gte':      query = query.gte(col, val); break
+        case 'lt':       query = query.lt(col, val); break
+        case 'lte':      query = query.lte(col, val); break
+        case 'before':   query = query.lt(col, val); break
+        case 'after':    query = query.gt(col, val); break
+        case 'contains': query = query.ilike(col, `%${val}%`); break
+        case 'not_contains': query = query.not(col, 'ilike', `%${val}%`); break
+        case 'is_any': {
+          const vals = val.split(',').filter(Boolean)
+          if (vals.length > 0) query = query.in(col, vals)
+          break
+        }
+        case 'is_none': {
+          const vals = val.split(',').filter(Boolean)
+          if (vals.length > 0) query = query.not(col, 'in', `(${vals.join(',')})`)
+          break
+        }
+      }
+    }
   }
 
   // Count-only mode — return just the total without data

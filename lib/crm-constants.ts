@@ -68,6 +68,11 @@ export type CRMFilterOp =
   | 'is' | 'is_not' | 'is_any' | 'is_none'
   | 'contains' | 'not_contains'
   | 'is_empty' | 'is_not_empty'
+  // Numeric / date operators
+  | 'eq' | 'neq'
+  | 'gt' | 'gte' | 'lt' | 'lte'
+  | 'between'
+  | 'before' | 'after'
 
 export interface CRMFilterRule {
   id: string
@@ -111,8 +116,64 @@ export const TEXT_OPS: { key: CRMFilterOp; label: string }[] = [
   { key: 'contains',     label: 'contient' },
   { key: 'not_contains', label: 'ne contient pas' },
   { key: 'is',           label: 'est exactement' },
+  { key: 'is_not',       label: "n'est pas" },
   { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
 ]
+
+export const DATE_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'eq',           label: 'est égal à' },
+  { key: 'before',       label: 'est avant' },
+  { key: 'after',        label: 'est après' },
+  { key: 'between',      label: 'se trouve entre' },
+  { key: 'gt',           label: 'est supérieur à' },
+  { key: 'lt',           label: 'est inférieur à' },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+export const NUMBER_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'eq',           label: 'est égal à' },
+  { key: 'neq',          label: "n'est pas égal à" },
+  { key: 'gt',           label: 'est supérieur à' },
+  { key: 'gte',          label: 'est supérieur ou égal à' },
+  { key: 'lt',           label: 'est inférieur à' },
+  { key: 'lte',          label: 'est inférieur ou égal à' },
+  { key: 'between',      label: 'est entre' },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+export const BOOL_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'is',           label: 'est' },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+export type PropertyKind = 'date' | 'datetime' | 'number' | 'enum' | 'bool' | 'text'
+
+/** Détermine le « kind » d'une propriété HubSpot pour choisir l'input + les opérateurs. */
+export function propertyKindOf(type?: string, fieldType?: string): PropertyKind {
+  const t = (type || '').toLowerCase()
+  const ft = (fieldType || '').toLowerCase()
+  if (t === 'date' || ft === 'date') return 'date'
+  if (t === 'datetime' || ft === 'datetime') return 'datetime'
+  if (t === 'number' || t === 'int' || t === 'long' || t === 'float' || ft === 'number') return 'number'
+  if (t === 'bool' || t === 'boolean' || ft === 'booleancheckbox' || ft === 'radio' && (t === 'bool')) return 'bool'
+  if (t === 'enumeration' || ft === 'select' || ft === 'radio' || ft === 'checkbox') return 'enum'
+  return 'text'
+}
+
+export function opsForKind(kind: PropertyKind) {
+  switch (kind) {
+    case 'date':
+    case 'datetime': return DATE_OPS
+    case 'number':   return NUMBER_OPS
+    case 'bool':     return BOOL_OPS
+    case 'enum':     return SELECT_OPS
+    default:         return TEXT_OPS
+  }
+}
 
 export function opsForField(field: CRMFilterField) {
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === field)
@@ -125,4 +186,8 @@ export function opNeedsValue(op: CRMFilterOp) {
 
 export function opIsMulti(op: CRMFilterOp) {
   return op === 'is_any' || op === 'is_none'
+}
+
+export function opIsRange(op: CRMFilterOp) {
+  return op === 'between'
 }

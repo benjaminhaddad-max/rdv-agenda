@@ -39,10 +39,20 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
   if (flags?.recentFormDays)    p.set('recent_form_days', String(flags.recentFormDays))
   if (flags?.createdBeforeDays) p.set('created_before_days', String(flags.createdBeforeDays))
   const firstGroup = view.groups[0]
+  const customFilters: Array<{ field: string; operator: string; value: string }> = []
   if (firstGroup) {
     for (const rule of firstGroup.rules) {
       if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
       const val = rule.value
+      // Filtre custom (propriété HubSpot non-hardcodée) → passé tel quel à l'API
+      if (typeof rule.field === 'string' && rule.field.startsWith('custom:')) {
+        customFilters.push({
+          field: rule.field.slice(7),
+          operator: rule.operator,
+          value: val,
+        })
+        continue
+      }
       if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
         switch (rule.field) {
           case 'stage':       p.set('stage', val); break
@@ -75,6 +85,9 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         }
       }
     }
+  }
+  if (customFilters.length > 0) {
+    p.set('cf', JSON.stringify(customFilters))
   }
   return p
 }
