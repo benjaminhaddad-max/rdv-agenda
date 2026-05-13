@@ -2139,6 +2139,7 @@ export default function CRMPage() {
           contact={drawerContact}
           closers={closers}
           telepros={telepros}
+          hubspotOwners={hubspotOwners}
           onClose={() => setDrawerContact(null)}
           onRefresh={() => fetchContacts()}
           preloadedLeadStatuses={leadStatusOptions.filter(o => o.id).map(o => o.id)}

@@ -115,10 +115,18 @@ interface CRMContact {
   } | null
 }
 
+interface HubspotOwnerMeta {
+  hubspot_owner_id: string
+  firstname?: string
+  lastname?: string
+  email?: string
+}
+
 interface Props {
   contact: CRMContact | null
   closers: RdvUser[]
   telepros: RdvUser[]
+  hubspotOwners?: HubspotOwnerMeta[]
   onClose: () => void
   onRefresh: () => void
   preloadedLeadStatuses?: string[]
@@ -723,7 +731,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 }
 
 // ── Main Drawer Component ──────────────────────────────────────────────────
-export default function CRMEditDrawer({ contact, closers, telepros, onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
+export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwners = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
@@ -790,10 +798,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
   ]
   const stageColorMap = Object.fromEntries(Object.entries(STAGE_MAP).map(([id, s]) => [id, s.color]))
 
-  // Closer/Télépro options : on inclut TOUS les owners (closers + télépros)
-  // car en pratique le champ télépro stocke parfois un closer (ex. Judith
-  // Diploma) et inversement. La liste globale fait pareil (teleproSelectOptions
-  // = merge owners + users). Sans ça le select n'a pas l'option et affiche "—".
+  // Closer/Télépro options : on inclut TOUS les owners (closers + télépros +
+  // tous les HubSpot owners de l'orga). C'est nécessaire car en pratique le
+  // champ télépro contient parfois quelqu'un qui n'est ni dans `closers` ni
+  // dans `telepros` (ex. un sales HubSpot qui n'est pas user du CRM natif —
+  // typiquement Elsa Chemouni). La liste globale du tableau fait pareil
+  // (teleproSelectOptions = merge owners + users) — sans cette fusion le
+  // <select> du drawer n'a pas l'option et affiche "—".
   const closerOptions = (() => {
     const seen = new Set<string>()
     const arr: { id: string; label: string }[] = [{ id: '', label: '— Aucun closer —' }]
@@ -802,6 +813,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
       if (!key || seen.has(key)) continue
       seen.add(key)
       arr.push({ id: key, label: u.name })
+    }
+    for (const o of hubspotOwners) {
+      if (!o.hubspot_owner_id || seen.has(o.hubspot_owner_id)) continue
+      seen.add(o.hubspot_owner_id)
+      const label = [o.firstname, o.lastname].filter(Boolean).join(' ').trim()
+        || o.email || o.hubspot_owner_id
+      arr.push({ id: o.hubspot_owner_id, label })
     }
     return arr
   })()
@@ -814,26 +832,39 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
       seen.add(key)
       arr.push({ id: key, label: u.name })
     }
+    for (const o of hubspotOwners) {
+      if (!o.hubspot_owner_id || seen.has(o.hubspot_owner_id)) continue
+      seen.add(o.hubspot_owner_id)
+      const label = [o.firstname, o.lastname].filter(Boolean).join(' ').trim()
+        || o.email || o.hubspot_owner_id
+      arr.push({ id: o.hubspot_owner_id, label })
+    }
     return arr
   })()
 
   // Résout n'importe quel format d'ID (rdv_users.id, hubspot_user_id,
-  // hubspot_owner_id) vers la clé d'option utilisée dans le select.
+  // hubspot_owner_id) vers la clé d'option utilisée dans le select. Cherche
+  // aussi dans hubspotOwners pour couvrir les sales qui ne sont pas users du
+  // CRM natif.
   const teleproIdResolver = (raw: string | null | undefined): string => {
     if (!raw) return ''
     const u = [...telepros, ...closers].find(t =>
       t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
     )
-    if (!u) return raw
-    return u.hubspot_user_id || u.hubspot_owner_id || u.id
+    if (u) return u.hubspot_user_id || u.hubspot_owner_id || u.id
+    const o = hubspotOwners.find(h => h.hubspot_owner_id === raw)
+    if (o) return o.hubspot_owner_id
+    return raw
   }
   const closerIdResolver = (raw: string | null | undefined): string => {
     if (!raw) return ''
     const u = [...closers, ...telepros].find(t =>
       t.id === raw || t.hubspot_user_id === raw || t.hubspot_owner_id === raw
     )
-    if (!u) return raw
-    return u.hubspot_owner_id || u.id
+    if (u) return u.hubspot_owner_id || u.id
+    const o = hubspotOwners.find(h => h.hubspot_owner_id === raw)
+    if (o) return o.hubspot_owner_id
+    return raw
   }
 
   const classeOptionList = CLASSE_OPTIONS.map(cl => ({ id: cl, label: cl || '—' }))
