@@ -1525,9 +1525,8 @@ export default function CRMContactsTable({
               Afficher les colonnes
             </div>
             {colOrder.map(key => {
-              // Cacher les options non pertinentes pour le mode courant
-              if (key === 'lead_status' && !leadStatusOptions?.length) return null
-              if (key === 'origine' && !sourceOptions?.length) return null
+              // Toutes les colonnes sont disponibles dans le menu, même si la
+              // liste d'options n'est pas chargée (les cellules afficheront —).
               const checked = !hiddenCols.has(key)
               return (
                 <label key={key} style={{
