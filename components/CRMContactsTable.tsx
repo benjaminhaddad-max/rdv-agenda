@@ -1151,7 +1151,26 @@ export default function CRMContactsTable({
     return allCrmProps?.find(p => p.name === propName)?.label ?? propName
   }
   // Format simple d'une valeur dynamique
-  function formatDynamicValue(v: unknown): string {
+  // Map ownerId → nom, construite à partir des selects closer/télépro reçus
+  // en props. Permet de résoudre les colonnes dynamiques type "Téléprospecteur"
+  // (HubSpot stocke un owner ID, on l'affiche en nom).
+  const ownerNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const opt of (closerSelectOptions ?? [])) if (opt.id) m.set(String(opt.id), opt.label)
+    for (const opt of (teleproSelectOptions ?? [])) if (opt.id) m.set(String(opt.id), opt.label)
+    return m
+  }, [closerSelectOptions, teleproSelectOptions])
+
+  // Propriétés HubSpot dont la valeur est un owner ID (à résoudre en nom).
+  const OWNER_ID_PROPS = useMemo(() => new Set([
+    'hubspot_owner_id',
+    'teleprospecteur',
+    'closer_hs_id',
+    'closer_du_contact_owner_id',
+    'hubspot_owner_assigneddate',  // pas un owner mais reste géré comme date plus bas
+  ]), [])
+
+  function formatDynamicValue(v: unknown, propName?: string): string {
     if (v === null || v === undefined || v === '') return '—'
     if (typeof v === 'string') {
       // Si c'est une date ISO, on l'affiche jolie
@@ -1159,9 +1178,25 @@ export default function CRMContactsTable({
         try { return new Date(v).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) }
         catch { return v }
       }
+      // Résolution owner ID → nom pour les propriétés connues, OU si la valeur
+      // numérique matche un owner dans notre map.
+      const looksLikeOwner = propName && (OWNER_ID_PROPS.has(propName) || propName.endsWith('_owner_id'))
+      if (looksLikeOwner) {
+        const name = ownerNameById.get(v)
+        if (name) return name
+      }
       return v
     }
-    if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+    if (typeof v === 'number') {
+      const s = String(v)
+      const looksLikeOwner = propName && (OWNER_ID_PROPS.has(propName) || propName.endsWith('_owner_id'))
+      if (looksLikeOwner) {
+        const name = ownerNameById.get(s)
+        if (name) return name
+      }
+      return s
+    }
+    if (typeof v === 'boolean') return v ? 'Oui' : 'Non'
     if (typeof v === 'object') {
       try { return JSON.stringify(v) } catch { return '—' }
     }
@@ -1781,6 +1816,7 @@ export default function CRMContactsTable({
                     {/* Cellules dynamiques HubSpot (read-only) */}
                     {dynamicCols.map(propName => {
                       const v = contact.extra_props?.[propName]
+                      const display = formatDynamicValue(v, propName)
                       return (
                         <td key={`dyn-${propName}`} style={{
                           padding: '10px 12px',
@@ -1789,8 +1825,8 @@ export default function CRMContactsTable({
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                        }} title={formatDynamicValue(v)}>
-                          {formatDynamicValue(v)}
+                        }} title={display}>
+                          {display}
                         </td>
                       )
                     })}
