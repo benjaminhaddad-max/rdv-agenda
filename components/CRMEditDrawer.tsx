@@ -93,6 +93,8 @@ interface CRMContact {
   formation_demandee?: string | null
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
+  telepro_user_id?: string | null
+  closer_du_contact_owner_id?: string | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
@@ -1031,12 +1033,21 @@ export default function CRMEditDrawer({ contact, closers, telepros, onClose, onR
             </div>
             <SelectField
               label="Téléprospecteur"
-              value={deal?.teleprospecteur || ''}
+              // Source de vérité = colonne native telepro_user_id, avec fallback
+              // sur l'ancien champ deal.teleprospecteur pour les contacts pas
+              // encore migrés.
+              value={c.telepro_user_id || deal?.teleprospecteur || ''}
               options={teleproOptions}
-              onSave={v => patchContact({ teleprospecteur: v || null })}
+              onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
             />
             <SelectField
-              label="Closer (propriétaire contact)"
+              label="Closer du contact"
+              value={c.closer_du_contact_owner_id || ''}
+              options={closerOptions}
+              onSave={v => patchContact({ closer_du_contact_owner_id: v || null })}
+            />
+            <SelectField
+              label="Propriétaire du contact"
               value={c.hubspot_owner_id || ''}
               options={closerOptions}
               onSave={v => patchContact({ hubspot_owner_id: v || null })}
