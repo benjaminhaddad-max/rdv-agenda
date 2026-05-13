@@ -23,17 +23,30 @@ export async function POST(req: Request) {
   const slug = body.slug || slugify(body.name) + '-' + Math.random().toString(36).slice(2, 6)
 
   const db = createServiceClient()
-  const { data: form, error } = await db
-    .from('forms')
-    .insert({
-      name: body.name,
-      slug,
-      title: body.title || body.name,
-      subtitle: body.subtitle || null,
-      description: body.description || null,
-    })
-    .select()
-    .single()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertPayload: any = {
+    name: body.name,
+    slug,
+    title: body.title || body.name,
+    subtitle: body.subtitle || null,
+    description: body.description || null,
+  }
+  // Si le client envoie un dossier, on l'attribue (sinon Diploma Santé par défaut)
+  if (body.folder) insertPayload.folder = body.folder
+  else insertPayload.folder = 'Diploma Santé'
+
+  // Premier essai avec folder. Si la colonne n'existe pas encore (migration
+  // non appliquée), on retombe sans folder pour ne pas casser la création.
+  let form, error
+  {
+    const r = await db.from('forms').insert(insertPayload).select().single()
+    form = r.data; error = r.error
+    if (error && (error.message || '').toLowerCase().includes('folder')) {
+      delete insertPayload.folder
+      const r2 = await db.from('forms').insert(insertPayload).select().single()
+      form = r2.data; error = r2.error
+    }
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

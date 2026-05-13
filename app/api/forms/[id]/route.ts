@@ -35,6 +35,7 @@ export async function PATCH(req: Request, { params }: Params) {
     'submit_padding_y', 'submit_padding_x', 'submit_font_size',
     'default_owner_id', 'default_tags', 'auto_create_contact', 'notify_emails',
     'honeypot_enabled', 'recaptcha_enabled',
+    'folder',
   ] as const
   const patch: Record<string, unknown> = {}
   for (const k of ALLOWED) {
@@ -45,12 +46,24 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const db = createServiceClient()
-  const { data, error } = await db
-    .from('forms')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .single()
+  // Si la colonne `folder` n'existe pas encore (migration non appliquée), on
+  // retire `folder` du patch et on retente — pas de crash.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any, error: any
+  {
+    const r = await db.from('forms').update(patch).eq('id', id).select().single()
+    data = r.data; error = r.error
+    if (error && (error.message || '').toLowerCase().includes('folder')) {
+      delete patch.folder
+      if (Object.keys(patch).length > 0) {
+        const r2 = await db.from('forms').update(patch).eq('id', id).select().single()
+        data = r2.data; error = r2.error
+      } else {
+        // Seul folder était demandé mais la colonne n'existe pas
+        return NextResponse.json({ error: 'La colonne `folder` n\'existe pas encore. Lance la migration SQL.' }, { status: 400 })
+      }
+    }
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }

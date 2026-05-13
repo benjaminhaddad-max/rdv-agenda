@@ -18,6 +18,7 @@ interface Form {
   submission_count: number
   created_at: string
   updated_at: string
+  folder?: string | null
 }
 
 const STATUS_META: Record<Form['status'], { label: string; color: string; bg: string; icon: typeof FileText }> = {
@@ -26,11 +27,31 @@ const STATUS_META: Record<Form['status'], { label: string; color: string; bg: st
   archived:  { label: 'Archivé',    color: '#516f90', bg: 'rgba(139,143,168,0.15)', icon: Archive },
 }
 
+// Dossiers de classement des formulaires (5 marques du groupe)
+const FOLDERS = ['Diploma Santé', 'Edumove', 'Linova Education', 'AFEM', 'Prépa Médecine.fr'] as const
+type Folder = typeof FOLDERS[number]
+const DEFAULT_FOLDER: Folder = 'Diploma Santé'
+
+// Couleur par dossier (déco)
+const FOLDER_COLOR: Record<Folder, string> = {
+  'Diploma Santé':     '#22c55e',
+  'Edumove':           '#0ea5e9',
+  'Linova Education':  '#a855f7',
+  'AFEM':              '#f59e0b',
+  'Prépa Médecine.fr': '#ef4444',
+}
+
+function getFolder(f: Form): Folder {
+  const x = (f.folder ?? '').trim()
+  return (FOLDERS as readonly string[]).includes(x) ? (x as Folder) : DEFAULT_FOLDER
+}
+
 export default function FormsPage() {
   const [forms, setForms] = useState<Form[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [folderFilter, setFolderFilter] = useState<Folder>(DEFAULT_FOLDER)
   const [showNewModal, setShowNewModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
 
@@ -48,6 +69,7 @@ export default function FormsPage() {
   useEffect(() => { load() }, [load])
 
   const filtered = forms.filter(f => {
+    if (getFolder(f) !== folderFilter) return false
     if (statusFilter && f.status !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -55,6 +77,28 @@ export default function FormsPage() {
     }
     return true
   })
+
+  // Compteurs par dossier (pour les tabs)
+  const folderCounts: Record<Folder, number> = {
+    'Diploma Santé': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0,
+  }
+  for (const f of forms) folderCounts[getFolder(f)]++
+
+  const moveToFolder = async (f: Form, target: Folder) => {
+    // Optimiste : maj locale
+    setForms(prev => prev.map(x => x.id === f.id ? { ...x, folder: target } : x))
+    const res = await fetch(`/api/forms/${f.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ folder: target }),
+    })
+    if (!res.ok) {
+      // Revert si erreur
+      setForms(prev => prev.map(x => x.id === f.id ? { ...x, folder: f.folder } : x))
+      const err = await res.json().catch(() => ({}))
+      alert(err.error || 'Impossible de changer le dossier')
+    }
+  }
 
   const remove = async (f: Form) => {
     if (!confirm(`Supprimer le formulaire "${f.name}" et toutes ses soumissions ?`)) return
@@ -103,6 +147,48 @@ export default function FormsPage() {
           <StatCard label="Publiés" value={stats.published} color="#22c55e" icon={CheckCircle2} />
           <StatCard label="Vues totales" value={stats.totalViews.toLocaleString('fr-FR')} color="#06b6d4" icon={Eye} />
           <StatCard label="Soumissions" value={stats.totalSubmissions.toLocaleString('fr-FR')} color="#a855f7" icon={Send} />
+        </div>
+      </div>
+
+      {/* Tabs dossiers */}
+      <div style={{ padding: '0 24px 12px', maxWidth: 1400, margin: '0 auto' }}>
+        <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #cbd6e2', overflowX: 'auto', flexWrap: 'wrap' }}>
+          {FOLDERS.map(f => {
+            const active = folderFilter === f
+            const count = folderCounts[f]
+            return (
+              <button
+                key={f}
+                onClick={() => setFolderFilter(f)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: active ? `2px solid ${FOLDER_COLOR[f]}` : '2px solid transparent',
+                  marginBottom: -1,
+                  padding: '10px 14px',
+                  color: active ? FOLDER_COLOR[f] : '#516f90',
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span>{f}</span>
+                <span style={{
+                  background: active ? `${FOLDER_COLOR[f]}20` : '#f1f5f9',
+                  color: active ? FOLDER_COLOR[f] : '#64748b',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                }}>{count}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -164,7 +250,7 @@ export default function FormsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filtered.map(f => (
-              <FormRow key={f.id} form={f} onDuplicate={() => duplicate(f)} onDelete={() => remove(f)} />
+              <FormRow key={f.id} form={f} onDuplicate={() => duplicate(f)} onDelete={() => remove(f)} onMove={(target) => moveToFolder(f, target)} />
             ))}
           </div>
         )}
@@ -418,10 +504,11 @@ function StatCard({ label, value, color, icon: Icon }: { label: string; value: n
   )
 }
 
-function FormRow({ form, onDuplicate, onDelete }: { form: Form; onDuplicate: () => void; onDelete: () => void }) {
+function FormRow({ form, onDuplicate, onDelete, onMove }: { form: Form; onDuplicate: () => void; onDelete: () => void; onMove: (target: Folder) => void }) {
   const meta = STATUS_META[form.status]
   const Icon = meta.icon
   const conversionRate = form.view_count > 0 ? Math.round((form.submission_count / form.view_count) * 100) : 0
+  const currentFolder = getFolder(form)
 
   return (
     <div
@@ -444,6 +531,31 @@ function FormRow({ form, onDuplicate, onDelete }: { form: Form; onDuplicate: () 
       <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
         {meta.label}
       </span>
+
+      {/* Sélecteur de dossier */}
+      <div onClick={e => e.stopPropagation()}>
+        <select
+          value={currentFolder}
+          onChange={(e) => {
+            const v = e.target.value as Folder
+            if (v !== currentFolder) onMove(v)
+          }}
+          style={{
+            background: `${FOLDER_COLOR[currentFolder]}12`,
+            border: `1px solid ${FOLDER_COLOR[currentFolder]}40`,
+            borderRadius: 8,
+            padding: '5px 8px',
+            color: FOLDER_COLOR[currentFolder],
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+          title="Déplacer dans un autre dossier"
+        >
+          {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
 
       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
         {form.status === 'published' && (
@@ -475,6 +587,7 @@ function IconBtn({ children, onClick, title, color = '#516f90' }: { children: Re
 
 function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState('')
+  const [folder, setFolder] = useState<Folder>(DEFAULT_FOLDER)
   const [loading, setLoading] = useState(false)
 
   const submit = async () => {
@@ -484,7 +597,7 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       const res = await fetch('/api/forms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, folder }),
       })
       if (res.ok) {
         const created = await res.json()
@@ -512,7 +625,17 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           autoFocus
           style={{ width: '100%', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 12px', color: '#33475b', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
-        <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>
+
+        <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', margin: '14px 0 4px' }}>Dossier *</div>
+        <select
+          value={folder}
+          onChange={e => setFolder(e.target.value as Folder)}
+          style={{ width: '100%', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 12px', color: '#33475b', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer' }}
+        >
+          {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+
+        <div style={{ fontSize: 11, color: '#516f90', marginTop: 8 }}>
           Les champs par défaut (prénom, nom, email, téléphone) seront ajoutés automatiquement.
         </div>
 
