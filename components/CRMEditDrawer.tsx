@@ -96,6 +96,7 @@ interface CRMContact {
   telepro_user_id?: string | null
   teleprospecteur?: string | null  // ancien champ HubSpot contact-level (fallback)
   closer_du_contact_owner_id?: string | null
+  extra_props?: Record<string, unknown> | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
@@ -1126,18 +1127,38 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
             <div style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, borderBottom: '1px solid rgba(34,197,94,0.2)', paddingBottom: 6 }}>
               Attribution
             </div>
-            <SelectField
-              label="Téléprospecteur"
-              // Source de vérité = colonne native telepro_user_id, avec fallbacks
-              // successifs : contact.teleprospecteur (ancien champ HubSpot
-              // contact-level) puis deal.teleprospecteur (ancien deal-level).
-              // On résout n'importe quel format d'ID stocké (user.id /
-              // hubspot_user_id / hubspot_owner_id) vers la clé d'option pour
-              // que le select affiche bien la valeur.
-              value={teleproIdResolver(c.telepro_user_id || c.teleprospecteur || deal?.teleprospecteur)}
-              options={teleproOptions}
-              onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
-            />
+            {(() => {
+              // Détermine la valeur courante du télépro en essayant TOUTES les
+              // sources possibles, puis injecte l'option dans la liste si elle
+              // manque (cas où Elsa Chemouni est uniquement dans hubspotOwners
+              // qui n'est pas encore chargé). Garantit que le nom s'affiche.
+              const extraTelepro = (c.extra_props?.teleprospecteur as string | undefined) ?? ''
+              const rawTelepro =
+                c.telepro_user_id
+                || c.teleprospecteur
+                || (deal?.telepro?.id ?? '')
+                || deal?.teleprospecteur
+                || extraTelepro
+                || ''
+              const teleproEnrichedName =
+                (deal?.telepro?.name)
+                || (c.contact_owner?.id === rawTelepro ? c.contact_owner?.name : null)
+                || null
+              const resolvedKey = teleproIdResolver(rawTelepro)
+              // Si la valeur a un nom connu mais pas dans les options → injecte
+              const effectiveOptions = teleproEnrichedName && resolvedKey
+                && !teleproOptions.some(o => o.id === resolvedKey)
+                ? [...teleproOptions, { id: resolvedKey, label: teleproEnrichedName }]
+                : teleproOptions
+              return (
+                <SelectField
+                  label="Téléprospecteur"
+                  value={resolvedKey}
+                  options={effectiveOptions}
+                  onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
+                />
+              )
+            })()}
             <SelectField
               label="Closer du contact"
               value={closerIdResolver(c.closer_du_contact_owner_id)}
