@@ -448,6 +448,7 @@ export interface CRMContact {
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
   closer_du_contact_owner_id?: string | null
+  telepro_user_id?: string | null
   extra_props?: Record<string, unknown> | null
   recent_conversion_date?: string | null
   recent_conversion_event?: string | null
@@ -1338,7 +1339,9 @@ export default function CRMContactsTable({
         )
 
       case 'closer': {
-        const cVal    = deal ? (deal.hubspot_owner_id || '') : (contact.hubspot_owner_id || '')
+        // Lit le propriétaire du CONTACT en priorité (source de vérité),
+        // fallback sur l'owner du deal pour rétro-compat.
+        const cVal    = (contact.hubspot_owner_id || deal?.hubspot_owner_id || '')
         const cSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:hubspot_owner_id`
           : savingContactField === `${contact.hubspot_contact_id}:hubspot_owner_id`
@@ -1373,7 +1376,9 @@ export default function CRMContactsTable({
       }
 
       case 'telepro': {
-        const tVal    = deal ? (deal.teleprospecteur || '') : (contact.teleprospecteur || '')
+        // Lit le télépro NATIF du CONTACT en priorité (telepro_user_id),
+        // fallback sur l'ancien champ deal.teleprospecteur / contact.teleprospecteur.
+        const tVal    = (contact.telepro_user_id || (deal ? deal.teleprospecteur : contact.teleprospecteur) || '')
         const tSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`
           : savingContactField === `${contact.hubspot_contact_id}:teleprospecteur`
