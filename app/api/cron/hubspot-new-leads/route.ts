@@ -51,20 +51,30 @@ export async function GET(req: NextRequest) {
   const startMs = Date.now()
   const idsToFetch = new Set<string>()
 
-  // ── 1) SEARCH : IDs modifiés depuis la dernière fenêtre ────────────────
-  const { data: latest } = await db
-    .from('crm_contacts')
-    .select('synced_at')
-    .order('synced_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle()
-  const sinceMs = latest?.synced_at
-    ? new Date(latest.synced_at).getTime() - 30 * 60 * 1000
-    : Date.now() - 60 * 60 * 1000
+  // ── Watermark persistant — ne perd plus rien même sur > 8000 modifs ─────
+  // On stocke dans crm_settings le timestamp du dernier event consommé. Il
+  // n'avance que SI on a drainé toute la page (= pas de nextCursor à la fin).
+  // Sinon on relance au même point la prochaine fois → rien n'est perdu.
+  const FALLBACK_DAYS = 90 // si pas de watermark → on regarde 90 jours en arrière
+  let watermark: number | null = null
+  try {
+    const { data: setting } = await db
+      .from('crm_settings')
+      .select('value')
+      .eq('key', 'hubspot_new_leads_watermark')
+      .maybeSingle()
+    if (setting?.value) watermark = Number(setting.value)
+  } catch { /* table peut ne pas exister — on retombe sur fallback */ }
+  const sinceMs = watermark && Number.isFinite(watermark)
+    ? watermark - 5 * 60 * 1000  // 5 min de chevauchement pour tolérer la latence d'indexation
+    : Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000
 
   let after: string | undefined
   let pageCount = 0
-  const MAX_PAGES = 20
+  // MAX_PAGES augmenté : 100 pages = 10 000 IDs scannés par run.
+  // À 5 min de fréquence cron, on peut absorber ~2 000 modifs/min sans gap.
+  const MAX_PAGES = 100
+  let maxLastModified = watermark ?? sinceMs
 
   while (pageCount < MAX_PAGES) {
     pageCount++
@@ -73,7 +83,8 @@ export async function GET(req: NextRequest) {
         filters: [{ propertyName: 'lastmodifieddate', operator: 'GTE', value: String(sinceMs) }],
       }],
       sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
-      properties: ['hs_object_id'],  // on veut juste les IDs
+      // On récupère aussi lastmodifieddate pour avancer le watermark précisément
+      properties: ['hs_object_id', 'lastmodifieddate'],
       limit: 100,
     }
     if (after) body.after = after
@@ -93,11 +104,16 @@ export async function GET(req: NextRequest) {
     }
     const data = await res.json()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const c of (data.results ?? []) as any[]) idsToFetch.add(c.id)
+    for (const c of (data.results ?? []) as any[]) {
+      idsToFetch.add(c.id)
+      const lmd = Number(c.properties?.lastmodifieddate)
+      if (Number.isFinite(lmd) && lmd > maxLastModified) maxLastModified = lmd
+    }
 
     after = data.paging?.next?.after
     if (!after) break
   }
+  const drainedCompletely = !after
 
   const idsFromSearch = idsToFetch.size
 
@@ -152,27 +168,31 @@ export async function GET(req: NextRequest) {
     // gros cron). Si le contact n'existe pas encore en base, on l'insère.
     for (const c of contacts) {
       const p = c.properties || {}
-      // Ne JAMAIS écraser avec NULL — on garde la valeur précédente si pas dispo
+      // On utilise `in p` pour propager les valeurs vides/null (désassignations
+      // dans HubSpot : owner mis à "Aucun", lead status effacé, etc.).
       const patch: Record<string, unknown> = {
         synced_at: new Date().toISOString(),
       }
-      if (p.firstname) patch.firstname = p.firstname
-      if (p.lastname)  patch.lastname  = p.lastname
-      if (p.email)     patch.email     = p.email
-      if (p.phone)     patch.phone     = p.phone
-      if (p.classe_actuelle) patch.classe_actuelle = p.classe_actuelle
-      if (p.departement)     patch.departement     = p.departement
-      if (p.zone___localite) patch.zone_localite   = p.zone___localite
-      if (p.formation_souhaitee) patch.formation_souhaitee = p.formation_souhaitee
-      if (p.diploma_sante___formation_demandee) patch.formation_demandee = p.diploma_sante___formation_demandee
-      if (p.hs_lead_status) patch.hs_lead_status = p.hs_lead_status
-      if (p.origine) patch.origine = p.origine
-      if (p.source) patch.source = p.source
-      if (p.hubspot_owner_id) patch.hubspot_owner_id = p.hubspot_owner_id
-      if (p.teleprospecteur)  patch.teleprospecteur  = p.teleprospecteur
-      if (p.createdate) patch.contact_createdate = p.createdate
-      if (p.recent_conversion_date) patch.recent_conversion_date = p.recent_conversion_date
-      if (p.recent_conversion_event_name) patch.recent_conversion_event = p.recent_conversion_event_name
+      // Identité — toujours propager (même si null, on garde au moins
+      // la valeur précédente via `in` check)
+      if ('firstname' in p) patch.firstname = p.firstname || null
+      if ('lastname' in p)  patch.lastname  = p.lastname  || null
+      if ('email' in p && p.email)    patch.email = p.email
+      if ('phone' in p && p.phone)    patch.phone = p.phone
+      // Champs qui DOIVENT pouvoir être effacés (désassignation HubSpot)
+      if ('classe_actuelle' in p)     patch.classe_actuelle = p.classe_actuelle || null
+      if ('departement' in p)         patch.departement     = p.departement || null
+      if ('zone___localite' in p)     patch.zone_localite   = p.zone___localite || null
+      if ('formation_souhaitee' in p) patch.formation_souhaitee = p.formation_souhaitee || null
+      if ('diploma_sante___formation_demandee' in p) patch.formation_demandee = p.diploma_sante___formation_demandee || null
+      if ('hs_lead_status' in p)      patch.hs_lead_status  = p.hs_lead_status  || null
+      if ('origine' in p)             patch.origine         = p.origine         || null
+      if ('source' in p)              patch.source          = p.source          || null
+      if ('hubspot_owner_id' in p)    patch.hubspot_owner_id = p.hubspot_owner_id || null
+      if ('teleprospecteur' in p)     patch.teleprospecteur  = p.teleprospecteur  || null
+      if ('createdate' in p && p.createdate) patch.contact_createdate = p.createdate
+      if ('recent_conversion_date' in p && p.recent_conversion_date) patch.recent_conversion_date = p.recent_conversion_date
+      if ('recent_conversion_event_name' in p) patch.recent_conversion_event = p.recent_conversion_event_name || null
 
       // Essai update d'abord ; si 0 row affectée → insert
       const { error: updErr, count: updCount } = await db
@@ -191,6 +211,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Persiste le watermark — uniquement si on a drainé toute la page de search
+  // (sinon on relance au même point la prochaine fois → 0 perte).
+  let watermarkSaved = false
+  if (drainedCompletely && maxLastModified > (watermark ?? 0)) {
+    try {
+      await db
+        .from('crm_settings')
+        .upsert(
+          { key: 'hubspot_new_leads_watermark', value: String(maxLastModified) },
+          { onConflict: 'key' },
+        )
+      watermarkSaved = true
+    } catch { /* table peut ne pas exister — pas grave */ }
+  }
+
   return NextResponse.json({
     ok: true,
     ids_from_search:  idsFromSearch,
@@ -198,6 +233,9 @@ export async function GET(req: NextRequest) {
     total_ids:        totalIds,
     upserted:         totalUpserted,
     since:            new Date(sinceMs).toISOString(),
+    watermark_prev:   watermark ? new Date(watermark).toISOString() : null,
+    watermark_next:   watermarkSaved ? new Date(maxLastModified).toISOString() : null,
+    drained:          drainedCompletely,
     duration_ms:      Date.now() - startMs,
   })
 }
