@@ -47,21 +47,25 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const startMs = Date.now()
 
-  // 1) Date du dernier run réussi (createdate du contact le plus récent en base)
+  // 1) Date du dernier run : on filtre par `lastmodifieddate` (pas `createdate`)
+  // pour rattraper aussi les contacts dont les propriétés sont arrivées
+  // APRÈS la création (HubSpot enrichit certains contacts en différé,
+  // ex: leads Facebook qui arrivent vides puis sont enrichis 30s plus tard).
+  // On prend le synced_at le plus récent (dernier moment où on a écrit).
   const { data: latest } = await db
     .from('crm_contacts')
-    .select('contact_createdate')
-    .order('contact_createdate', { ascending: false, nullsFirst: false })
+    .select('synced_at')
+    .order('synced_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle()
 
-  // Fenêtre glissante : 15 min avant le dernier contact (chevauchement de sécurité)
-  // ou les 30 dernières minutes si pas de contact (cas initial)
-  const sinceMs = latest?.contact_createdate
-    ? new Date(latest.contact_createdate).getTime() - 15 * 60 * 1000
-    : Date.now() - 30 * 60 * 1000
+  // Fenêtre glissante : 30 min avant le dernier sync (chevauchement de sécurité
+  // pour capter les contacts enrichis tardivement par HubSpot)
+  const sinceMs = latest?.synced_at
+    ? new Date(latest.synced_at).getTime() - 30 * 60 * 1000
+    : Date.now() - 60 * 60 * 1000
 
-  // 2) Récupère les contacts HubSpot créés depuis sinceMs
+  // 2) Récupère les contacts HubSpot modifiés depuis sinceMs
   let after: string | undefined
   let totalFetched = 0
   let totalUpserted = 0
@@ -72,9 +76,9 @@ export async function GET(req: NextRequest) {
     pageCount++
     const body: Record<string, unknown> = {
       filterGroups: [{
-        filters: [{ propertyName: 'createdate', operator: 'GTE', value: String(sinceMs) }],
+        filters: [{ propertyName: 'lastmodifieddate', operator: 'GTE', value: String(sinceMs) }],
       }],
-      sorts: [{ propertyName: 'createdate', direction: 'ASCENDING' }],
+      sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
       properties: PROPS,
       limit: 100,
     }
