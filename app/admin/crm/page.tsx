@@ -118,6 +118,8 @@ export default function CRMPage() {
   const [search, setSearch]           = useState('')
   const [stage, setStage]             = useState('')
   const [closerHsId, setCloserHsId]   = useState('')
+  const [closerContactHsId, setCloserContactHsId] = useState('') // = filtre direct sur crm_contacts.closer_du_contact_owner_id
+  const [closerContactNot, setCloserContactNot]   = useState('')
   const [contactOwnerHsId, setContactOwnerHsId] = useState('') // = filtre direct sur crm_contacts.hubspot_owner_id
   const [teleproHsId, setTeleproHsId] = useState('')
   const [noTelepro, setNoTelepro]     = useState(false)
@@ -487,6 +489,8 @@ export default function CRMPage() {
     if (search)               params.set('search', search)
     if (stage)                params.set('stage', stage)
     if (closerHsId)           params.set('closer_hs_id', closerHsId)
+    if (closerContactHsId)    params.set('closer_contact_hs_id', closerContactHsId)
+    if (closerContactNot)     params.set('closer_contact_not', closerContactNot)
     if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
     if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
     if (noTelepro)            params.set('no_telepro', '1')
@@ -564,7 +568,7 @@ export default function CRMPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam])
+  }, [search, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -590,12 +594,12 @@ export default function CRMPage() {
 
   function applyGroupsToFilters(groups: CRMFilterGroup[], flags?: CRMSavedView['presetFlags']) {
     // Reset all positive filters
-    setSearch(''); setStage(''); setCloserHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
+    setSearch(''); setStage(''); setCloserHsId(''); setCloserContactHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource('')
     setZoneFilter(''); setDeptFilter('')
     // Reset all exclusion filters
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
-    setCloserNot(''); setContactOwnerNot(''); setTeleproNot(''); setFormationNot('')
+    setCloserNot(''); setCloserContactNot(''); setContactOwnerNot(''); setTeleproNot(''); setFormationNot('')
     setPipeline(''); setPipelineNot('')
     setPriorPreinscription(false)
     // Reset empty/not-empty filters
@@ -629,6 +633,7 @@ export default function CRMPage() {
             case 'formation':   setFormation(val); break
             case 'classe':      setClasse(val); break
             case 'closer':        setCloserHsId(val); break
+            case 'closer_contact': setCloserContactHsId(val); break
             case 'contact_owner': setContactOwnerHsId(val); break
             case 'telepro':       setTeleproHsId(val); break
             case 'lead_status': setLeadStatus(val); break
@@ -647,6 +652,7 @@ export default function CRMPage() {
             case 'stage':         setStageNot(val); break
             case 'formation':     setFormationNot(val); break
             case 'closer':        setCloserNot(val); break
+            case 'closer_contact': setCloserContactNot(val); break
             case 'contact_owner': setContactOwnerNot(val); break
             case 'telepro':       setTeleproNot(val); break
             case 'lead_status':   setLeadStatusNot(val); break
@@ -877,7 +883,7 @@ export default function CRMPage() {
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || contactOwnerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter
+  const hasActiveFilters = search || stage || closerHsId || closerContactHsId || contactOwnerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
 
   // Check if current filters changed from active view
@@ -887,7 +893,7 @@ export default function CRMPage() {
   ) : false
 
   function resetAll() {
-    setSearch(''); setStage(''); setCloserHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
+    setSearch(''); setStage(''); setCloserHsId(''); setCloserContactHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
     setLeadStatus(''); setSource(''); setZoneFilter(''); setDeptFilter('')
@@ -1686,6 +1692,7 @@ export default function CRMPage() {
                         case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                         case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
                         case 'closer':        valueOptions = closerOptions.filter(o => o.id); break
+                        case 'closer_contact': valueOptions = closerOptions.filter(o => o.id); break
                         case 'contact_owner': valueOptions = closerOptions.filter(o => o.id); break
                         case 'telepro':       valueOptions = teleproOptions.filter(o => o.id); break
                         case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break

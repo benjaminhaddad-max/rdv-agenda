@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
   const search           = searchParams.get('search') ?? ''
   const stage            = searchParams.get('stage') ?? ''
   const closerHsId       = searchParams.get('closer_hs_id') ?? ''
+  // Filtre direct sur crm_contacts.closer_du_contact_owner_id (closer du contact)
+  const closerContactHsId = searchParams.get('closer_contact_hs_id') ?? ''
+  const closerContactNot  = searchParams.get('closer_contact_not') ?? ''
   const teleproHsId      = searchParams.get('telepro_hs_id') ?? ''
   // NEW : filtre télépro par HubSpot owner id (sur deals.teleprospecteur),
   // pour matcher exactement ce qui est affiché dans la colonne TÉLÉPRO.
@@ -707,6 +710,24 @@ export async function GET(req: NextRequest) {
           break
         }
       }
+    }
+  }
+
+  // ── Filtre "Closer du contact" (closer_du_contact_owner_id) ─────────────
+  if (closerContactHsId) {
+    const vals = splitMulti(closerContactHsId)
+    query = vals.length > 1
+      ? query.in('closer_du_contact_owner_id', vals)
+      : query.eq('closer_du_contact_owner_id', closerContactHsId)
+  }
+  // Exclusion "Closer du contact" — inclut les contacts sans closer (NULL),
+  // comme HubSpot.
+  if (closerContactNot) {
+    const vals = splitMulti(closerContactNot)
+    if (vals.length > 1) {
+      query = query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.not.in.(${vals.join(',')})`)
+    } else {
+      query = query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.neq.${closerContactNot}`)
     }
   }
 
