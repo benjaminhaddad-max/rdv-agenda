@@ -150,9 +150,14 @@ const labelStyle: React.CSSProperties = {
 }
 
 function generateJitsiLink() {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  const rand = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `https://meet.ffmuc.net/DiplomaSanteRDV${rand}`
+  // Nom historique — génère désormais une URL LiveKit sur notre domaine.
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+  for (let i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
+  const base = (typeof window !== 'undefined' && window.location?.origin)
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_APP_URL || 'https://rdv-agenda.vercel.app')
+  return `${base}/visio/rdv-${id}`
 }
 
 // ─── Composant principal ────────────────────────────────────────────────

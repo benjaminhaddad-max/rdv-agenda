@@ -138,10 +138,15 @@ interface Props {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function generateJitsiLink() {
+  // Nom historique conservé pour éviter une refacto massive — génère
+  // désormais une URL LiveKit (self-hosted ou Cloud) pointant sur /visio/{room}.
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
   let id = ''
   for (let i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-  return `https://meet.jit.si/rdv-${id}`
+  const base = (typeof window !== 'undefined' && window.location?.origin)
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_APP_URL || 'https://rdv-agenda.vercel.app')
+  return `${base}/visio/rdv-${id}`
 }
 
 function getWeekDays(weekOffset: number): Date[] {
