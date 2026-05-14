@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
   // de re-soumettre un formulaire remontent automatiquement en haut de la liste.
-  const sortBy  = searchParams.get('sort_by')  ?? 'createdat_contact'
+  const sortBy  = searchParams.get('sort_by')  ?? 'form_submission'
   const sortDir = searchParams.get('sort_dir') ?? 'desc'
   const sortAsc = sortDir === 'asc'
   const SORT_MAP: Record<string, { col: string; foreignTable?: string }> = {
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
     form_submission:     { col: 'recent_conversion_date' },
     synced_at:           { col: 'synced_at' },
   }
-  const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['createdat_contact']
+  const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['form_submission']
 
   // ── Charger rdv_users ──────────────────────────────────────────────────────
   const { data: users } = await db

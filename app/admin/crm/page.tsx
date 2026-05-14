@@ -191,9 +191,10 @@ export default function CRMPage() {
   const [notEmptyFields, setNotEmptyFields] = useState('')   // comma-separated field names
   const [customFilterParam, setCustomFilterParam] = useState('') // JSON string of custom HubSpot filters
 
-  // Tri des colonnes — par défaut : date de création du contact desc.
-  // Les nouveaux leads (créés le plus récemment) apparaissent en premier.
-  const [sortBy,  setSortBy]  = useState<string>('createdat_contact')
+  // Tri des colonnes — par défaut : dernière soumission de formulaire desc
+  // (utilise recent_conversion_date qui a un index, donc rapide). Une fois
+  // un index ajouté sur contact_createdate côté DB, on pourra basculer.
+  const [sortBy,  setSortBy]  = useState<string>('form_submission')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // Colonnes dynamiques (propriétés HubSpot ajoutées par l'utilisateur via le menu Colonnes)
