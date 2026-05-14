@@ -1,9 +1,10 @@
 /**
- * GET /api/admin/hubspot-workflows
+ * GET /api/admin/hubspot-workflows[?active7d=1]
  *
- * Liste tous les workflows actifs configurés dans HubSpot (legacy v3 + flows v4).
- * Sert à analyser ce qui tourne actuellement avant de couper HubSpot, pour
- * identifier les workflows critiques à re-créer nativement dans /admin/crm/workflows.
+ * Liste les workflows HubSpot.
+ *   - défaut : tous les workflows (legacy v3 + flows v4)
+ *   - ?active7d=1 : ne renvoie QUE les workflows enabled=true qui ont eu au
+ *     moins un enrollment de contact dans les 7 derniers jours.
  *
  * Pas de paramètre requis. Utilise HUBSPOT_ACCESS_TOKEN.
  */
@@ -97,6 +98,58 @@ export async function GET(_req: NextRequest) {
     }
   } catch (e) {
     results.errors.push(`flows v4 fetch error: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  // ── Mode "active7d" : filtre les workflows enabled avec enrollment récent
+  const active7d = req.nextUrl.searchParams.get('active7d') === '1'
+  if (active7d) {
+    const SINCE = Date.now() - 7 * 24 * 60 * 60 * 1000
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const enabled = (results.legacy_workflows as any[]).filter(w => w.enabled)
+    const withActivity: unknown[] = []
+    // Concurrence limitée : 5 requêtes en parallèle pour respecter le rate limit
+    const CONCURRENCY = 5
+    for (let i = 0; i < enabled.length; i += CONCURRENCY) {
+      const chunk = enabled.slice(i, i + CONCURRENCY)
+      const checks = await Promise.all(chunk.map(async (w) => {
+        try {
+          // current/recent enrollments — count=20 pour avoir les + récents
+          const r = await fetch(
+            `https://api.hubapi.com/automation/v3/workflows/${w.id}/enrollments/contacts?count=20`,
+            { headers },
+          )
+          if (!r.ok) return null
+          const d = await r.json()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const enrollments: any[] = d.enrollments || d.contacts || []
+          // Cherche le timestamp d'enrollment le plus récent (champ varie selon API)
+          let latestMs = 0
+          for (const e of enrollments) {
+            const ts = e.startTime || e.enrolledAt || e.activeAt || e.timestamp || 0
+            if (typeof ts === 'number' && ts > latestMs) latestMs = ts
+          }
+          if (latestMs >= SINCE) {
+            return {
+              id: w.id,
+              name: w.name,
+              enabled: w.enabled,
+              recent_enrollments_in_sample: enrollments.length,
+              latest_enrollment_at: new Date(latestMs).toISOString(),
+            }
+          }
+          return null
+        } catch { return null }
+      }))
+      for (const c of checks) if (c) withActivity.push(c)
+    }
+    return NextResponse.json({
+      filter: 'active7d',
+      since: new Date(SINCE).toISOString(),
+      total_active: withActivity.length,
+      workflows: withActivity,
+      summary: results.summary,
+      errors: results.errors,
+    }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
   return NextResponse.json(results, {
