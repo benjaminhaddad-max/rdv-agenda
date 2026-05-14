@@ -16,7 +16,7 @@ export const maxDuration = 60
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   if (!HUBSPOT_TOKEN) {
     return NextResponse.json({ error: 'HUBSPOT_ACCESS_TOKEN missing' }, { status: 500 })
   }
