@@ -100,52 +100,76 @@ export async function GET(req: NextRequest) {
     results.errors.push(`flows v4 fetch error: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // ── Mode "active7d" : filtre les workflows enabled avec enrollment récent
+  // ── Mode "active7d" : filtre les workflows enabled qui ont eu des
+  // contacts enrôlés dans les 7 derniers jours. Approche :
+  //   - Chaque workflow HubSpot a une "enrolled list" auto-générée
+  //   - L'API Lists v1 expose `metaData.lastSizeChangeAt` (= dernière fois
+  //     qu'un contact a été ajouté/retiré de la list)
+  //   - Si cette date < 7 jours → workflow actif
   const active7d = req.nextUrl.searchParams.get('active7d') === '1'
   if (active7d) {
     const SINCE = Date.now() - 7 * 24 * 60 * 60 * 1000
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enabled = (results.legacy_workflows as any[]).filter(w => w.enabled)
     const withActivity: unknown[] = []
-    // Concurrence limitée : 5 requêtes en parallèle pour respecter le rate limit
+    const skipped: unknown[] = []
     const CONCURRENCY = 5
     for (let i = 0; i < enabled.length; i += CONCURRENCY) {
       const chunk = enabled.slice(i, i + CONCURRENCY)
       const checks = await Promise.all(chunk.map(async (w) => {
-        try {
-          // current/recent enrollments — count=20 pour avoir les + récents
-          const r = await fetch(
-            `https://api.hubapi.com/automation/v3/workflows/${w.id}/enrollments/contacts?count=20`,
-            { headers },
-          )
-          if (!r.ok) return null
-          const d = await r.json()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const enrollments: any[] = d.enrollments || d.contacts || []
-          // Cherche le timestamp d'enrollment le plus récent (champ varie selon API)
-          let latestMs = 0
-          for (const e of enrollments) {
-            const ts = e.startTime || e.enrolledAt || e.activeAt || e.timestamp || 0
-            if (typeof ts === 'number' && ts > latestMs) latestMs = ts
-          }
-          if (latestMs >= SINCE) {
-            return {
-              id: w.id,
-              name: w.name,
-              enabled: w.enabled,
-              recent_enrollments_in_sample: enrollments.length,
-              latest_enrollment_at: new Date(latestMs).toISOString(),
+        const enrolledListId = w?.contact_list_ids?.enrolled
+        const activeListId   = w?.contact_list_ids?.active
+        const succeededListId = w?.contact_list_ids?.succeeded
+        // On essaye d'abord enrolled (le + actif), puis active, puis succeeded
+        const candidates = [enrolledListId, activeListId, succeededListId].filter(Boolean)
+        let latestMs = 0
+        let listSize = 0
+        let probedListId: number | null = null
+        for (const listId of candidates) {
+          try {
+            const r = await fetch(`https://api.hubapi.com/contacts/v1/lists/${listId}`, { headers })
+            if (!r.ok) continue
+            const d = await r.json()
+            const ts = Number(d?.metaData?.lastSizeChangeAt || d?.updatedAt || 0)
+            const size = Number(d?.metaData?.size || 0)
+            if (ts > latestMs) {
+              latestMs = ts
+              listSize = size
+              probedListId = listId
             }
+          } catch { /* ignore */ }
+        }
+        if (latestMs === 0) {
+          return { skipped: true, id: w.id, name: w.name, reason: 'no list accessible' }
+        }
+        if (latestMs >= SINCE) {
+          return {
+            active: true,
+            id: w.id,
+            name: w.name,
+            list_id: probedListId,
+            list_size: listSize,
+            last_change_at: new Date(latestMs).toISOString(),
           }
-          return null
-        } catch { return null }
+        }
+        return null
       }))
-      for (const c of checks) if (c) withActivity.push(c)
+      for (const c of checks) {
+        if (!c) continue
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((c as any).skipped) skipped.push(c)
+        else withActivity.push(c)
+      }
     }
+    // Trie par date desc
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    withActivity.sort((a: any, b: any) => (b.last_change_at || '').localeCompare(a.last_change_at || ''))
     return NextResponse.json({
       filter: 'active7d',
       since: new Date(SINCE).toISOString(),
       total_active: withActivity.length,
+      total_enabled: enabled.length,
+      total_skipped_no_list: skipped.length,
       workflows: withActivity,
       summary: results.summary,
       errors: results.errors,
