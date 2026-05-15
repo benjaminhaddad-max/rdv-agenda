@@ -139,6 +139,42 @@ export async function GET(req: NextRequest) {
   for (const c of emptyRecent ?? []) idsToFetch.add(c.hubspot_contact_id)
 
   const idsFromSafety = idsToFetch.size - idsFromSearch
+
+  // ── 2-bis) FILET ULTRA-FRAIS : list API (pas search) — bypass la latence
+  // d'indexation HubSpot search (30s-5min). On récupère les 200 derniers
+  // contacts créés selon createdate desc, qui sont garantis frais.
+  let idsFromFresh = 0
+  try {
+    let freshAfter: string | undefined
+    let freshPages = 0
+    while (freshPages < 2) {
+      const params = new URLSearchParams({
+        limit: '100',
+        properties: 'hs_object_id,createdate,lastmodifieddate',
+        sorts: '-createdate',  // les + récents en premier
+      })
+      if (freshAfter) params.set('after', freshAfter)
+      const r = await fetch(
+        `https://api.hubapi.com/crm/v3/objects/contacts?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } },
+      )
+      if (!r.ok) break
+      const d = await r.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const arr: any[] = d.results ?? []
+      const sizeBefore = idsToFetch.size
+      for (const c of arr) {
+        idsToFetch.add(c.id)
+        const lmd = Number(c.properties?.lastmodifieddate)
+        if (Number.isFinite(lmd) && lmd > maxLastModified) maxLastModified = lmd
+      }
+      idsFromFresh += idsToFetch.size - sizeBefore
+      freshAfter = d.paging?.next?.after
+      freshPages++
+      if (!freshAfter) break
+    }
+  } catch { /* best-effort */ }
+
   const totalIds = idsToFetch.size
 
   if (totalIds === 0) {
@@ -239,6 +275,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     ids_from_search:  idsFromSearch,
     ids_from_safety:  idsFromSafety,
+    ids_from_fresh:   idsFromFresh,
     total_ids:        totalIds,
     upserted:         totalUpserted,
     since:            new Date(sinceMs).toISOString(),
