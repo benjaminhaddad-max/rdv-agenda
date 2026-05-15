@@ -85,6 +85,22 @@ export async function GET(req: NextRequest) {
   const MAX_PAGES = 100
   let maxLastModified = watermark ?? sinceMs
 
+  // Helper : fetch HubSpot avec retry exponentiel sur 429 (rate limit).
+  // HubSpot Private App = 100 req/10s. On respecte ~5 req/sec max.
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+  async function hubspotFetchWithRetry(url: string, init: RequestInit, maxRetries = 4): Promise<Response> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const res = await fetch(url, init)
+      if (res.status !== 429) return res
+      // Rate limit → backoff exponentiel 1s, 2s, 4s, 8s
+      const wait = 1000 * Math.pow(2, attempt)
+      await sleep(wait)
+    }
+    // Dernier essai sans retry
+    return await fetch(url, init)
+  }
+
+  let searchError: string | null = null
   while (pageCount < MAX_PAGES) {
     pageCount++
     const body: Record<string, unknown> = {
@@ -92,24 +108,21 @@ export async function GET(req: NextRequest) {
         filters: [{ propertyName: 'lastmodifieddate', operator: 'GTE', value: String(sinceMs) }],
       }],
       sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
-      // On récupère aussi lastmodifieddate pour avancer le watermark précisément
       properties: ['hs_object_id', 'lastmodifieddate'],
       limit: 100,
     }
     if (after) body.after = after
 
-    const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
+    const res = await hubspotFetchWithRetry('https://api.hubapi.com/crm/v3/objects/contacts/search', {
       method: 'POST',
       headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
     if (!res.ok) {
+      // On NE BAIL PAS — on garde les IDs déjà collectés + filet de sécurité.
       const errText = await res.text()
-      return NextResponse.json({
-        error: `HubSpot search ${res.status}: ${errText.slice(0, 200)}`,
-        upserted: 0,
-        duration_ms: Date.now() - startMs,
-      }, { status: 500 })
+      searchError = `HubSpot search ${res.status}: ${errText.slice(0, 150)}`
+      break
     }
     const data = await res.json()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,8 +134,10 @@ export async function GET(req: NextRequest) {
 
     after = data.paging?.next?.after
     if (!after) break
+    // Throttle léger entre pages pour rester sous 5 req/s
+    await sleep(150)
   }
-  const drainedCompletely = !after
+  const drainedCompletely = !after && !searchError
 
   const idsFromSearch = idsToFetch.size
 
@@ -154,7 +169,7 @@ export async function GET(req: NextRequest) {
         sorts: '-createdate',  // les + récents en premier
       })
       if (freshAfter) params.set('after', freshAfter)
-      const r = await fetch(
+      const r = await hubspotFetchWithRetry(
         `https://api.hubapi.com/crm/v3/objects/contacts?${params.toString()}`,
         { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } },
       )
@@ -172,6 +187,7 @@ export async function GET(req: NextRequest) {
       freshAfter = d.paging?.next?.after
       freshPages++
       if (!freshAfter) break
+      await sleep(200)
     }
   } catch { /* best-effort */ }
 
@@ -194,7 +210,7 @@ export async function GET(req: NextRequest) {
 
   for (let i = 0; i < idList.length; i += BATCH) {
     const chunk = idList.slice(i, i + BATCH)
-    const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/batch/read', {
+    const res = await hubspotFetchWithRetry('https://api.hubapi.com/crm/v3/objects/contacts/batch/read', {
       method: 'POST',
       headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -202,7 +218,8 @@ export async function GET(req: NextRequest) {
         properties: PROPS,
       }),
     })
-    if (!res.ok) continue  // best-effort : si batch échoue, on passe au suivant
+    if (!res.ok) { await sleep(300); continue }
+    await sleep(150)  // throttle entre batches
 
     const data = await res.json()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -282,6 +299,7 @@ export async function GET(req: NextRequest) {
     watermark_prev:   watermark ? new Date(watermark).toISOString() : null,
     watermark_next:   watermarkSaved ? new Date(maxLastModified).toISOString() : null,
     drained:          drainedCompletely,
+    search_error:     searchError,
     duration_ms:      Date.now() - startMs,
   })
 }
