@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon, Check } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon, Check, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
@@ -519,102 +519,209 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
 const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 
+type HistoryEvent = {
+  id: number
+  property_name: string
+  value: string | null
+  changed_at: string
+  source_type: string | null
+  source_label: string | null
+}
+
 function OrphanCard({ entry, onDismiss, isDismissing }: {
   entry: OrphanRepopEntry; onDismiss: () => void; isDismissing: boolean
 }) {
-  // Carte compacte : une seule ligne d'info + actions à droite.
-  // Suppression du badge "Sans transaction" (trompeur en mode télépro
-  // où la liste contient AUSSI des leads avec deal) et de la timeline
-  // "1er → nouveau formulaire" (first_form_name n'est jamais rempli côté
-  // sync Supabase). On affiche directement la dernière soumission.
+  const [expanded, setExpanded] = useState(false)
+  const [history, setHistory] = useState<HistoryEvent[] | null>(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Lazy-load de l'historique quand l'utilisateur déplie la carte
+  const toggleExpand = async () => {
+    const next = !expanded
+    setExpanded(next)
+    if (next && history === null && !loadingHistory) {
+      setLoadingHistory(true)
+      try {
+        const res = await fetch(`/api/crm/contacts/${entry.contact_id}/property-history`)
+        if (res.ok) {
+          const data = await res.json()
+          setHistory(data.timeline ?? [])
+        }
+      } catch { /* ignore */ } finally {
+        setLoadingHistory(false)
+      }
+    }
+  }
+
+  // Filtre des événements utiles pour le télépro :
+  //   - soumissions de formulaire (recent_conversion_event*)
+  //   - changements d'étape lead (hs_lead_status, lifecyclestage)
+  //   - changements de propriétaire / télépro
+  //   - création / modification majeure
+  const filterRelevant = (e: HistoryEvent) => {
+    const p = e.property_name
+    return (
+      /conversion|form|engagement/.test(p) ||
+      p === 'hs_lead_status' ||
+      p === 'lifecyclestage' ||
+      p === 'hubspot_owner_id' ||
+      p === 'teleprospecteur' ||
+      p === 'classe_actuelle' ||
+      p === 'createdate'
+    )
+  }
+
+  const relevantHistory = (history ?? []).filter(filterRelevant)
+
   return (
     <div style={{
       background: '#ffffff',
-      border: '1px solid #e2e8f0',
+      border: '1px solid #cbd6e2',
       borderLeft: '3px solid #a855f7',
       borderRadius: 10,
-      padding: '10px 14px',
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
-      gap: 10,
-      alignItems: 'center',
+      overflow: 'hidden',
     }}>
-      {/* Colonne 1 : info lead */}
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {/* Ligne nom + tags */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: 14, fontWeight: 700, color: '#33475b',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
-          }}>
-            {entry.prospect_name}
-          </span>
-          {entry.classe && (
-            <span style={tagStyle}>{entry.classe}</span>
-          )}
-          {entry.zone_localite && (
-            <span style={tagStyle}>{entry.zone_localite}</span>
-          )}
-          {entry.formation && (
-            <span style={tagStyle}>{entry.formation}</span>
-          )}
+      {/* Header cliquable */}
+      <div
+        onClick={toggleExpand}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto',
+          gap: 10,
+          alignItems: 'center',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        {/* Chevron */}
+        <div style={{ color: '#7c98b6', display: 'flex', alignItems: 'center' }}>
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
 
-        {/* Ligne contact + dernière soumission */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#516f90' }}>
-          {entry.prospect_phone && (
-            <a href={`tel:${entry.prospect_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ccac71', textDecoration: 'none', fontWeight: 600 }}>
-              <Phone size={12} />{entry.prospect_phone}
-            </a>
-          )}
-          {entry.prospect_email && (
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
-              {entry.prospect_email}
+        {/* Colonne 1 : info lead */}
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Ligne nom + tags */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 14, fontWeight: 700, color: '#33475b',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
+            }}>
+              {entry.prospect_name}
             </span>
-          )}
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a855f7', fontWeight: 600 }}>
-            <FileText size={12} />
-            <strong>{entry.repop_form_date_label}</strong>
-            <span style={{ color: '#7c98b6', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-              {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
+            {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
+            {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
+            {entry.formation && <span style={tagStyle}>{entry.formation}</span>}
+          </div>
+
+          {/* Ligne contact + dernière soumission */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#516f90' }}>
+            {entry.prospect_phone && (
+              <a
+                href={`tel:${entry.prospect_phone}`}
+                onClick={e => e.stopPropagation()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ccac71', textDecoration: 'none', fontWeight: 600 }}
+              >
+                <Phone size={12} />{entry.prospect_phone}
+              </a>
+            )}
+            {entry.prospect_email && (
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                {entry.prospect_email}
+              </span>
+            )}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a855f7', fontWeight: 600 }}>
+              <FileText size={12} />
+              <strong>{entry.repop_form_date_label}</strong>
+              <span style={{ color: '#7c98b6', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
+              </span>
             </span>
-          </span>
+          </div>
+        </div>
+
+        {/* Colonne 3 : actions (HubSpot + dismiss) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+          <a
+            href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Ouvrir dans HubSpot"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
+              borderRadius: 6, padding: '5px 9px', color: '#ccac71',
+              fontSize: 11, fontWeight: 600, textDecoration: 'none',
+            }}
+          >
+            <ExternalLink size={11} /> HubSpot
+          </a>
+          <button
+            onClick={onDismiss}
+            disabled={isDismissing}
+            title="Marquer comme traité"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
+              border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
+              borderRadius: 6, padding: '5px 10px',
+              color: isDismissing ? '#22c55e' : '#a855f7',
+              fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+              opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
+            }}
+          >
+            <Check size={12} /> {isDismissing ? '...' : 'Traité'}
+          </button>
         </div>
       </div>
 
-      {/* Colonne 2 : actions (HubSpot + dismiss) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <a
-          href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Ouvrir dans HubSpot"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-            borderRadius: 6, padding: '5px 9px', color: '#ccac71',
-            fontSize: 11, fontWeight: 600, textDecoration: 'none',
-          }}
-        >
-          <ExternalLink size={11} /> HubSpot
-        </a>
-        <button
-          onClick={onDismiss}
-          disabled={isDismissing}
-          title="Marquer comme traité"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
-            border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
-            borderRadius: 6, padding: '5px 10px',
-            color: isDismissing ? '#22c55e' : '#a855f7',
-            fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
-            opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
-          }}
-        >
-          <Check size={12} /> {isDismissing ? '...' : 'Traité'}
-        </button>
-      </div>
+      {/* Panneau historique (déplié) */}
+      {expanded && (
+        <div style={{
+          borderTop: '1px solid #e2e8f0',
+          background: '#f8fafc',
+          padding: '12px 16px 14px 40px',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#7c98b6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            Historique
+          </div>
+
+          {loadingHistory && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#7c98b6' }}>
+              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              Chargement…
+            </div>
+          )}
+
+          {!loadingHistory && history !== null && relevantHistory.length === 0 && (
+            <div style={{ fontSize: 12, color: '#7c98b6', fontStyle: 'italic' }}>
+              Aucun historique disponible pour ce contact.
+            </div>
+          )}
+
+          {!loadingHistory && relevantHistory.length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {relevantHistory.slice(0, 20).map(ev => (
+                <li key={ev.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#516f90' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', marginTop: 6, flexShrink: 0 }} />
+                  <span style={{ color: '#7c98b6', minWidth: 130, flexShrink: 0 }}>
+                    {formatHistoryDate(ev.changed_at)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ color: '#33475b' }}>{labelProperty(ev.property_name)}</strong>
+                    {ev.value ? <span style={{ color: '#516f90' }}> → {truncate(ev.value, 80)}</span> : null}
+                  </span>
+                </li>
+              ))}
+              {relevantHistory.length > 20 && (
+                <li style={{ fontSize: 11, color: '#7c98b6', fontStyle: 'italic', paddingLeft: 14 }}>
+                  + {relevantHistory.length - 20} évènements plus anciens
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -623,6 +730,39 @@ const tagStyle: React.CSSProperties = {
   background: 'rgba(204,172,113,0.12)',
   border: '1px solid rgba(204,172,113,0.3)',
   borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#ccac71',
+}
+
+function formatHistoryDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' }) +
+      ' à ' +
+      d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+function truncate(s: string, n: number): string {
+  if (s.length <= n) return s
+  return s.slice(0, n - 1) + '…'
+}
+
+function labelProperty(name: string): string {
+  const map: Record<string, string> = {
+    recent_conversion_event: 'Formulaire soumis',
+    recent_conversion_date: 'Date soumission',
+    first_conversion_event_name: '1er formulaire',
+    first_conversion_date: 'Date 1er formulaire',
+    hs_lead_status: 'Statut lead',
+    lifecyclestage: 'Étape cycle',
+    hubspot_owner_id: 'Propriétaire',
+    teleprospecteur: 'Téléprospecteur',
+    classe_actuelle: 'Classe',
+    createdate: 'Création',
+    num_conversion_events: 'Nb soumissions',
+  }
+  return map[name] || name
 }
 
 const subFilterSelectStyle: React.CSSProperties = {
