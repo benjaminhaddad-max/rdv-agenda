@@ -131,26 +131,30 @@ export async function POST(req: NextRequest) {
   const db = createServiceClient()
 
   // ── Auto-attribution closer (si télépro et pas de closer pré-assigné) ─────
-  // Règles :
-  //   - Pascal Tawfik dispo → Pascal
-  //   - Pascal absent + 1 closer dispo → ce closer
-  //   - Sinon → file d'attente (commercial_id = null)
+  // Règle actuelle (cf. lib/closer-assignment.ts) :
+  //   → tous les RDV télépro sont assignés par défaut à Pascal Tawfik,
+  //     qui redispatche ensuite manuellement aux closers.
   let assignedCommercialId: string | null = commercial_id || null
   let assignedOwnerId: string | null = null
+  let autoAssignedToPascal = false
   if (!assignedCommercialId && source === 'telepro') {
     try {
       const closer = await assignCloserForSlot(db, start_at, end_at)
       if (closer) {
         assignedCommercialId = closer.id
         assignedOwnerId = closer.hubspot_owner_id
+        autoAssignedToPascal = closer.isPascal
       }
     } catch (e) {
       console.error('[appointments POST] Auto-assign closer failed:', e)
     }
   }
 
-  // Vérifier disponibilité si commercial assigné
-  if (assignedCommercialId) {
+  // Vérifier disponibilité si commercial assigné MANUELLEMENT
+  // (Si auto-assigné à Pascal pour redispatch, on skip le check :
+  //  Pascal peut avoir plusieurs RDV en parallèle dans la file car
+  //  il ne les prend pas réellement, il les redispatche.)
+  if (assignedCommercialId && !autoAssignedToPascal) {
     const { data: conflict } = await db
       .from('rdv_appointments')
       .select('id')
@@ -161,13 +165,8 @@ export async function POST(req: NextRequest) {
       .limit(1)
 
     if (conflict && conflict.length > 0) {
-      // Si conflit sur l'auto-assigné, on bascule en file d'attente plutôt que d'échouer
-      if (!commercial_id) {
-        assignedCommercialId = null
-        assignedOwnerId = null
-      } else {
-        return NextResponse.json({ error: 'Ce créneau n\'est plus disponible' }, { status: 409 })
-      }
+      // Si conflit sur un commercial choisi manuellement, on refuse.
+      return NextResponse.json({ error: 'Ce créneau n\'est plus disponible' }, { status: 409 })
     }
   }
 

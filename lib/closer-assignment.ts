@@ -1,15 +1,18 @@
 // Auto-attribution closer à la prise de RDV télépro
 //
-// Règles métier (validées par Aaron) :
-//   1. Si Pascal Tawfik (owner_id 76299546) est dispo sur le créneau → Pascal gagne
-//      (peu importe combien d'autres closers sont dispos)
-//   2. Si Pascal absent + 1 seul closer dispo (role='closer') → ce closer
-//   3. Si Pascal absent + 2+ closers dispos → file d'attente (commercial_id = null)
-//   4. Si 0 closer dispo → file d'attente
+// Règle métier actuelle (simplifiée — validée par Aaron, mai 2026) :
+//   → TOUS les RDV pris par un télépro sont assignés par défaut à
+//     Pascal Tawfik (owner_id 76299546). Pascal redispatche ensuite
+//     manuellement aux closers une fois le RDV pris. Plus aucun
+//     check de disponibilité / blocage / quota à la prise — Pascal
+//     fait le routage à la main.
 //
-// "Dispo" = a une plage de dispo (rdv_availability) qui couvre le créneau
-//           ET pas bloqué ce jour-là (rdv_blocked_dates)
-//           ET moins de 3 RDV simultanés au créneau
+// Si Pascal n'existe pas dans rdv_users (cas exceptionnel) → file
+// d'attente (commercial_id = null) et alerte email.
+//
+// L'ancienne logique "intelligente" (Pascal dispo → Pascal, sinon
+// 1 closer dispo → ce closer, sinon file d'attente) est conservée
+// sous le nom assignCloserForSlotLegacy() au cas où on veut y revenir.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { weekStartISO } from '@/lib/week'
@@ -25,15 +28,40 @@ export interface AssignedCloser {
 }
 
 /**
- * Trouve le closer à attribuer pour un créneau donné, ou null si "file d'attente".
+ * Retourne Pascal Tawfik (par défaut) pour tous les RDV.
+ * Pascal redispatche ensuite manuellement aux closers.
  *
- * @param db        Supabase service client
- * @param start_at  ISO date string du début du créneau
- * @param end_at    ISO date string de fin du créneau
- * @returns         AssignedCloser ou null (file d'attente)
+ * @returns         Pascal en tant qu'AssignedCloser, ou null si Pascal
+ *                  n'existe pas dans rdv_users.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function assignCloserForSlot(
+  db: SupabaseClient,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _start_at: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _end_at: string,
+): Promise<AssignedCloser | null> {
+  const { data: pascal } = await db
+    .from('rdv_users')
+    .select('id, name, hubspot_owner_id, role')
+    .eq('hubspot_owner_id', PASCAL_OWNER_ID)
+    .maybeSingle()
+  if (!pascal) return null
+  return {
+    id: pascal.id as string,
+    name: pascal.name as string | null,
+    hubspot_owner_id: pascal.hubspot_owner_id as string | null,
+    role: pascal.role as string,
+    isPascal: true,
+  }
+}
+
+/**
+ * Version legacy avec check dispo + blocage + quota. Conservée au cas
+ * où on veut revenir à une attribution intelligente plus tard.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function assignCloserForSlotLegacy(
   db: SupabaseClient,
   start_at: string,
   end_at: string,
