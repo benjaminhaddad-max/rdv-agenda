@@ -316,11 +316,24 @@ export async function GET(req: NextRequest) {
 
   // ── Étape 2 : Requête contacts avec COUNT + pagination SQL ───────────
   // count: 'estimated' utilise les stats planner Postgres (~5ms vs 200-500ms
-  // pour 'exact' sur 161k lignes). L'inexactitude est negligeable a l'echelle
-  // (le UI affiche un "≈" pour les listes non filtrees).
-  // Pour une recherche FTS explicite, on garde 'exact' car le GIN index est
-  // rapide ET on veut un compteur juste ("12 resultats trouves").
-  const countMode: 'exact' | 'estimated' = search ? 'exact' : 'estimated'
+  // pour 'exact' sur 161k lignes). Acceptable pour la vue admin globale.
+  // MAIS le planner est très imprécis sur les filtres sélectifs (ex. un seul
+  // télépro) : il a déjà retourné 855 alors que le vrai count était 2362.
+  // → Dès qu'un filtre "qui réduit fortement le scope" est actif, on bascule
+  //   en 'exact' (la query est de toute façon rapide sur un index ciblé).
+  const hasSelectiveFilter = !!(
+    search || teleproHsId || teleproOwnerHsId || teleproNot ||
+    closerHsId || closerContactHsId || closerContactNot ||
+    contactOwnerHsId || stage || stageNot ||
+    formation || formationNot || classeFilter || periodFilter ||
+    leadStatus || leadStatusNot || source || sourceNot ||
+    zone || zoneNot || departement || deptNot ||
+    pipeline || pipelineNot || priorPreinscription ||
+    noTelepro || withTelepro ||
+    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
+  )
+  const countMode: 'exact' | 'estimated' = hasSelectiveFilter ? 'exact' : 'estimated'
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = db
     .from('crm_contacts')
