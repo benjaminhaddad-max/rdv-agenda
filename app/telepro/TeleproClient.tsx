@@ -2192,12 +2192,13 @@ export default function TeleproClient({
         </div>
       )}
 
-      {/* ── Onglet Mes Contacts (filtré par TÉLÉPRO HubSpot — colonne deal.teleprospecteur,
-            la même que celle affichée dans la colonne TÉLÉPRO du tableau) ──── */}
+      {/* ── Onglet Mes Contacts (filtré par TÉLÉPRO au niveau CONTACT —
+            crm_contacts.telepro_user_id, aligné sur la vue admin "Télépro est Elsa".
+            Inclut tous les contacts dont Elsa est le télépro, même sans deal associé). ──── */}
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UserCRMView
-            ownerParam="telepro_owner_hs_id"
+            ownerParam="telepro_hs_id"
             ownerId={teleproUser.hubspot_owner_id || ''}
             mode="telepro"
             onTotalChange={setCrmTotal}
