@@ -2199,7 +2199,13 @@ export default function TeleproClient({
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UserCRMView
             ownerParam="telepro_hs_id"
-            ownerId={teleproUser.hubspot_owner_id || ''}
+            // Fallback hubspot_user_id : certains nouveaux télépros (Maeva,
+            // SACHA, Eliora…) n'ont pas encore de hubspot_owner_id renseigné
+            // dans rdv_users. Sans fallback, ownerId est vide → UserCRMView
+            // early-return et la vue reste figée à 0 contact. Avec fallback
+            // sur user_id, l'API est appelée correctement (et retourne le
+            // bon count dès que le user a des contacts assignés).
+            ownerId={teleproUser.hubspot_owner_id || teleproUser.hubspot_user_id || ''}
             mode="telepro"
             onTotalChange={setCrmTotal}
           />
