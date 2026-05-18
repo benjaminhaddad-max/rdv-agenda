@@ -522,146 +522,107 @@ const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 function OrphanCard({ entry, onDismiss, isDismissing }: {
   entry: OrphanRepopEntry; onDismiss: () => void; isDismissing: boolean
 }) {
+  // Carte compacte : une seule ligne d'info + actions à droite.
+  // Suppression du badge "Sans transaction" (trompeur en mode télépro
+  // où la liste contient AUSSI des leads avec deal) et de la timeline
+  // "1er → nouveau formulaire" (first_form_name n'est jamais rempli côté
+  // sync Supabase). On affiche directement la dernière soumission.
   return (
     <div style={{
       background: '#ffffff',
-      border: '1px solid rgba(168,85,247,0.2)',
+      border: '1px solid #e2e8f0',
       borderLeft: '3px solid #a855f7',
-      borderRadius: 12,
-      padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 10,
+      borderRadius: 10,
+      padding: '10px 14px',
+      display: 'grid',
+      gridTemplateColumns: '1fr auto',
+      gap: 10,
+      alignItems: 'center',
     }}>
-
-      {/* Ligne 1 : badge + nom + classe/formation + lien HubSpot */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Colonne 1 : info lead */}
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Ligne nom + tags */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{
-            background: 'rgba(168,85,247,0.15)',
-            border: '1px solid rgba(168,85,247,0.4)',
-            borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: '#a855f7',
+            fontSize: 14, fontWeight: 700, color: '#33475b',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
           }}>
-            👻 Sans transaction
-          </span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#33475b' }}>
             {entry.prospect_name}
           </span>
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {entry.classe && (
-            <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
-            }}>
-              {entry.classe}
-            </span>
-          )}
-          {entry.formation && (
-            <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
-            }}>
-              {entry.formation}
-            </span>
+            <span style={tagStyle}>{entry.classe}</span>
           )}
           {entry.zone_localite && (
-            <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#ccac71',
-            }}>
-              {entry.zone_localite}
+            <span style={tagStyle}>{entry.zone_localite}</span>
+          )}
+          {entry.formation && (
+            <span style={tagStyle}>{entry.formation}</span>
+          )}
+        </div>
+
+        {/* Ligne contact + dernière soumission */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#516f90' }}>
+          {entry.prospect_phone && (
+            <a href={`tel:${entry.prospect_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ccac71', textDecoration: 'none', fontWeight: 600 }}>
+              <Phone size={12} />{entry.prospect_phone}
+            </a>
+          )}
+          {entry.prospect_email && (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+              {entry.prospect_email}
             </span>
           )}
-          <a
-            href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#ccac71',
-              fontSize: 11, fontWeight: 600, textDecoration: 'none',
-            }}
-          >
-            <ExternalLink size={10} /> HubSpot
-          </a>
-        </div>
-      </div>
-
-      {/* Bouton Marquer traité — pleine largeur */}
-      <button
-        onClick={onDismiss}
-        disabled={isDismissing}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          width: '100%',
-          background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
-          border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
-          borderRadius: 8, padding: '8px 16px',
-          color: isDismissing ? '#22c55e' : '#a855f7',
-          fontSize: 13, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
-          opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        <Check size={14} /> {isDismissing ? 'En cours…' : 'Marquer comme traité'}
-      </button>
-
-      {/* Ligne 2 : téléphone + email */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        {entry.prospect_phone && (
-          <a
-            href={`tel:${entry.prospect_phone}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ccac71', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
-          >
-            <Phone size={13} />
-            {entry.prospect_phone}
-          </a>
-        )}
-        {entry.prospect_email && (
-          <span style={{ fontSize: 12, color: '#516f90' }}>
-            {entry.prospect_email}
-          </span>
-        )}
-      </div>
-
-      {/* Ligne 3 : timeline 1er formulaire → nouveau formulaire */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 6,
-        background: '#151823', borderRadius: 8, padding: '10px 12px',
-      }}>
-        {/* 1er formulaire */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#7c98b6', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#516f90' }}>
-            <strong style={{ color: '#c8cadb' }}>{entry.first_form_date_label}</strong>
-            {' — '}
-            {entry.first_form_name || 'Formulaire soumis'}
-          </span>
-        </div>
-
-        {/* Flèche */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#cbd6e2', marginLeft: 0 }} />
-          <ArrowRight size={10} style={{ color: '#7c98b6' }} />
-        </div>
-
-        {/* Nouveau formulaire */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#a855f7', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#a855f7', fontWeight: 600 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a855f7', fontWeight: 600 }}>
+            <FileText size={12} />
             <strong>{entry.repop_form_date_label}</strong>
-            {' — '}
-            {entry.repop_form_name || 'Nouveau formulaire soumis'}
+            <span style={{ color: '#7c98b6', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+              {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
+            </span>
           </span>
         </div>
+      </div>
+
+      {/* Colonne 2 : actions (HubSpot + dismiss) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <a
+          href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Ouvrir dans HubSpot"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
+            borderRadius: 6, padding: '5px 9px', color: '#ccac71',
+            fontSize: 11, fontWeight: 600, textDecoration: 'none',
+          }}
+        >
+          <ExternalLink size={11} /> HubSpot
+        </a>
+        <button
+          onClick={onDismiss}
+          disabled={isDismissing}
+          title="Marquer comme traité"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
+            border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
+            borderRadius: 6, padding: '5px 10px',
+            color: isDismissing ? '#22c55e' : '#a855f7',
+            fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+            opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
+          }}
+        >
+          <Check size={12} /> {isDismissing ? '...' : 'Traité'}
+        </button>
       </div>
     </div>
   )
+}
+
+const tagStyle: React.CSSProperties = {
+  background: 'rgba(204,172,113,0.12)',
+  border: '1px solid rgba(204,172,113,0.3)',
+  borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#ccac71',
 }
 
 const subFilterSelectStyle: React.CSSProperties = {
