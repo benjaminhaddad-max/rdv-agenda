@@ -110,7 +110,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   const isContactsView = mode === 'telepro'
 
   // ─ Sort
-  const [sortBy, setSortBy]   = useState('synced_at')
+  // Tri par defaut : date de creation du contact (du plus recent au plus ancien)
+  // → les nouveaux leads remontent automatiquement en haut de la liste.
+  const [sortBy, setSortBy]   = useState('createdat_contact')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // ─ Drawer
@@ -223,9 +225,19 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     { id: '', label: '— Aucun —' },
     ...closers.map(u => ({ id: u.hubspot_owner_id || u.id, label: u.name })),
   ]
+  // Le champ crm_contacts.telepro_user_id peut contenir soit le hubspot_user_id,
+  // soit le hubspot_owner_id (selon la source : sync vs assignation manuelle vs
+  // deal.teleprospecteur). On ajoute donc les 2 IDs comme entrées séparées
+  // (même label) pour que le lookup par ID fonctionne dans tous les cas.
   const teleproSelectOptions = [
     { id: '', label: '— Aucun —' },
-    ...telepros.map(u => ({ id: u.hubspot_user_id || u.id, label: u.name })),
+    ...telepros.flatMap(u => {
+      const opts: { id: string; label: string }[] = []
+      if (u.hubspot_owner_id) opts.push({ id: u.hubspot_owner_id, label: u.name })
+      if (u.hubspot_user_id && u.hubspot_user_id !== u.hubspot_owner_id) opts.push({ id: u.hubspot_user_id, label: u.name })
+      if (opts.length === 0) opts.push({ id: u.id, label: u.name })
+      return opts
+    }),
   ]
 
   return (
