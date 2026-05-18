@@ -170,7 +170,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   }
 
   return (
-    <div style={{ padding: '0 0 32px' }}>
+    <div style={{ padding: '0 24px 32px', maxWidth: 1280, margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -318,7 +318,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       )}
 
       {/* Liste deals repop */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filtered.map(entry => (
           <RepopCard
             key={entry.hubspot_deal_id}
@@ -343,7 +343,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             </div>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {filteredOrphans.map(entry => (
               <OrphanCard
                 key={entry.contact_id}
@@ -580,6 +580,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
       borderLeft: '3px solid #a855f7',
       borderRadius: 10,
       overflow: 'hidden',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
     }}>
       {/* Header cliquable */}
       <div
