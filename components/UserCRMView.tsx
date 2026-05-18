@@ -150,7 +150,12 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         page: String(page),
         sort_by: sortBy,
         sort_dir: sortDir,
-        all_classes: '1',   // afficher tous les leads, pas seulement les classes prioritaires
+        all_classes: '1',     // afficher tous les leads, pas seulement les classes prioritaires
+        show_external: '1',   // vue personnelle "Mes Contacts/Transactions" : on
+                              // ne masque pas les contacts de l'équipe externe
+                              // si le user en est le télépro/closer. L'exclusion
+                              // équipe externe sert pour la vue admin globale,
+                              // pas pour la vue personnelle d'un commercial.
       })
       if (debouncedSearch)    params.set('search',      debouncedSearch)
       if (!isContactsView && filterStage) params.set('stage', filterStage)
