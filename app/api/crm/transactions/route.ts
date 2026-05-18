@@ -29,6 +29,17 @@ export async function GET(req: NextRequest) {
   const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
   // Pipeline (saison). Defaut: 2026-2027. 'all' = toutes saisons.
   const pipelineParam = searchParams.get('pipeline') ?? '2313043166'
+  // Cache les deals "zombies" : ceux qui croupissent depuis 90+ jours dans
+  // un stage passif (À Replanifier, Délai Réflexion). Aligne le kanban
+  // sur HubSpot (qui filtre déjà ce genre de deals dans sa vue par défaut).
+  // Désactivable via ?hide_stale=0 si on veut tout voir.
+  const hideStale = searchParams.get('hide_stale') !== '0'
+  const STALE_PASSIVE_STAGES = new Set([
+    '3165428979', // A Replanifier
+    '3165428981', // Delai Reflexion
+  ])
+  const STALE_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000  // 90 jours
+  const staleCutoff = Date.now() - STALE_THRESHOLD_MS
 
   // ── Charger rdv_users pour enrichissement ─────────────────────────────────
   const { data: users } = await db
@@ -111,6 +122,17 @@ export async function GET(req: NextRequest) {
     if (teleproHsId && d.teleprospecteur !== teleproHsId)      return false
     if (contactOwnerHsId && contact?.hubspot_owner_id !== contactOwnerHsId) return false
     if (classe     && contact?.classe_actuelle !== classe)     return false
+
+    // Filtre "zombie" : deal en stage passif (À Replanifier / Délai Réflexion)
+    // créé il y a plus de 90 jours → caché par défaut. Désactivable via
+    // hide_stale=0 dans l'URL pour audit / nettoyage.
+    if (hideStale && d.dealstage && STALE_PASSIVE_STAGES.has(d.dealstage)) {
+      const ref = d.createdate || d.closedate
+      if (ref) {
+        const refMs = new Date(ref).getTime()
+        if (!isNaN(refMs) && refMs < staleCutoff) return false
+      }
+    }
 
     return true
   })
