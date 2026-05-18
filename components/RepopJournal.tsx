@@ -193,7 +193,9 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
             )}
           </div>
           <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 3 }}>
-            Prospects ayant resoumis un formulaire après la date de leur RDV ou sans transaction
+            {scope === 'telepro'
+              ? 'Tous tes leads ayant soumis un formulaire, du plus récent au plus ancien'
+              : 'Prospects ayant resoumis un formulaire après la date de leur RDV ou sans transaction'}
           </div>
         </div>
         <button
@@ -207,15 +209,21 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
         </button>
       </div>
 
-      {/* Filtres par stage */}
+      {/* Filtres par stage — en mode télépro on cache les onglets stage/orphans
+          car le feed est un flux unique trié par date (cf. /api/repop/orphans). */}
       {totalCount > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {([
-            { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#33475b' },
-            { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
-            { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
-            { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
-          ]).map(f => {
+          {(scope === 'telepro'
+            ? [
+              { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#33475b' },
+            ]
+            : [
+              { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#516f90', activeColor: '#33475b' },
+              { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
+              { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
+              { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
+            ]
+          ).map(f => {
             const isActive = activeFilter === f.key
             return (
               <button
