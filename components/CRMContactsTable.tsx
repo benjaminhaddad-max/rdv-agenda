@@ -511,9 +511,15 @@ function formatPhone(raw: string): string {
   return raw
 }
 
-// Helper pour afficher un user (avatar + nom) dans InlineCellSelect
-function renderUserOption(v: string, opts?: { id: string; label: string }[]) {
-  const opt = (opts ?? []).find(o => o.id === v)
+// Helper pour afficher un user (avatar + nom) dans InlineCellSelect.
+// Normalise v + opts.id en string : crm_contacts.telepro_user_id est BIGINT
+// côté Postgres → JS renvoie un number (ex. 78337826), alors que
+// rdv_users.hubspot_user_id / hubspot_owner_id sont TEXT (string "78337826").
+// Sans cast, 78337826 !== "78337826" et la colonne TÉLÉPRO affichait "—".
+function renderUserOption(v: string | number | null | undefined, opts?: { id: string; label: string }[]) {
+  const sv = v == null ? '' : String(v)
+  if (!sv) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
+  const opt = (opts ?? []).find(o => String(o.id) === sv)
   if (!opt) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
