@@ -548,8 +548,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Exclusion équipe externe (owner du contact)
+  // ATTENTION : SQL `NOT (NULL IN (x))` évalue à NULL → filtré comme false.
+  // Du coup `.not('col','in',(x))` exclut aussi les contacts dont l'owner est
+  // NULL, ce qui fait disparaître 800+ contacts d'un télépro qui n'ont pas
+  // d'owner assigné. On ajoute donc explicitement `OR is null` pour les
+  // garder, comme on le fait déjà pour telepro_user_id (ligne ~400).
   if (!showExternal && excludedOwnerIds.length > 0) {
-    query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
+    query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.(${excludedOwnerIds.join(',')})`)
   }
 
   // Exclure un owner manuellement
