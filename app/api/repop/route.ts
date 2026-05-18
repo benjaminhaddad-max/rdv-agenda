@@ -40,6 +40,14 @@ export async function GET(req: NextRequest) {
   const isAdmin = scope === 'admin'
   const ownerType = searchParams.has('telepro_id') ? 'telepro' : 'closer'
 
+  // Pour le télépro : on ne retourne PAS les deals filtrés par stage.
+  // Le journal des repop télépro affiche TOUS les leads avec form submission
+  // via /api/repop/orphans (qui en mode télépro retourne le feed complet).
+  // Sans ça, on aurait des doublons entre les 2 endpoints.
+  if (ownerType === 'telepro' && !isAdmin) {
+    return NextResponse.json([])
+  }
+
   const targetStages = [STAGES.aReplanifier, STAGES.delaiReflexion]
 
   const db = createServiceClient()

@@ -1,11 +1,14 @@
 /**
  * GET /api/repop/orphans
  *
- * Retourne les contacts qui :
- *  1. N'ont aucun deal associé dans crm_deals
- *  2. Ont une recent_conversion_date récente (< 30 jours)
- *  3. Leur recent_conversion_date est au moins 7 jours après contact_createdate
- *     (indique une re-soumission de formulaire)
+ * Comportement selon scope :
+ *  - scope=telepro : retourne TOUS les leads dont le télépro est X et qui ont
+ *    au moins une soumission de formulaire (recent_conversion_date NOT NULL),
+ *    triés du plus récent au plus ancien. Pas de filtre "sans deal", pas de
+ *    fenêtre 30j, pas de gap 7j — c'est le feed complet des repops du télépro.
+ *  - scope=closer ou admin : comportement historique → contacts SANS deal,
+ *    recent_conversion_date < 30j ET >= 7j après contact_createdate
+ *    (= signal "re-soumission de formulaire").
  *
  * V2 : 100% Supabase (crm_contacts LEFT JOIN crm_deals) — plus aucun appel HubSpot.
  *      Temps de réponse : < 1 s au lieu de 5-10 s.
@@ -40,7 +43,6 @@ const HS_FORMATION_MAP: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const db = createServiceClient()
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   // Scope filtering :
@@ -52,7 +54,13 @@ export async function GET(req: NextRequest) {
   const isCloserScope  = scope === 'closer'  && hubspotOwnerId
   const isTeleproScope = scope === 'telepro' && hubspotOwnerId
 
-  // 1. Récupérer les contacts avec recent_conversion_date récente
+  // Pour le télépro, on retire les restrictions temporelles : on veut TOUS
+  // ses leads ayant resoumis un formulaire, peu importe la date.
+  const thirtyDaysAgo = isTeleproScope
+    ? '1970-01-01T00:00:00.000Z'
+    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // 1. Récupérer les contacts avec recent_conversion_date NOT NULL
   //    Paginer pour éviter les limites Supabase
   const PAGE_SIZE = 1000
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,33 +94,39 @@ export async function GET(req: NextRequest) {
 
   if (allContacts.length === 0) return NextResponse.json([])
 
-  // 2. Récupérer tous les hubspot_contact_id qui ont au moins un deal
+  // 2. Pour scope télépro : on garde TOUS les contacts (avec ou sans deal).
+  //    Pour closer/admin : on récupère les contacts qui ont déjà un deal pour
+  //    ne garder ensuite que ceux SANS deal (= vrais orphans).
   const contactIds = allContacts.map(c => c.hubspot_contact_id)
   const contactsWithDeals = new Set<string>()
 
-  const CHUNK = 300
-  for (let i = 0; i < contactIds.length; i += CHUNK) {
-    const chunk = contactIds.slice(i, i + CHUNK)
-    const { data: deals } = await db
-      .from('crm_deals')
-      .select('hubspot_contact_id')
-      .in('hubspot_contact_id', chunk)
+  if (!isTeleproScope) {
+    const CHUNK = 300
+    for (let i = 0; i < contactIds.length; i += CHUNK) {
+      const chunk = contactIds.slice(i, i + CHUNK)
+      const { data: deals } = await db
+        .from('crm_deals')
+        .select('hubspot_contact_id')
+        .in('hubspot_contact_id', chunk)
 
-    for (const d of deals ?? []) {
-      if (d.hubspot_contact_id) contactsWithDeals.add(d.hubspot_contact_id)
+      for (const d of deals ?? []) {
+        if (d.hubspot_contact_id) contactsWithDeals.add(d.hubspot_contact_id)
+      }
     }
   }
 
-  // 3. Filtrer : garder les contacts SANS deal et avec repop >= 7 jours après création
+  // 3. Filtrer :
+  //    - Télépro : tous les leads avec form submission (pas de restriction)
+  //    - Closer/admin : contacts SANS deal et repop >= 7 jours après création
   const orphans = allContacts.filter(c => {
-    // Pas de deal associé
+    if (isTeleproScope) return true  // pas de filtre supplémentaire
+
     if (contactsWithDeals.has(c.hubspot_contact_id)) return false
 
     const createMs = new Date(c.contact_createdate).getTime()
     const recentMs = new Date(c.recent_conversion_date).getTime()
     if (isNaN(createMs) || isNaN(recentMs)) return false
 
-    // Au moins 7 jours entre la création et la dernière conversion
     return (recentMs - createMs) >= SEVEN_DAYS_MS
   })
 
