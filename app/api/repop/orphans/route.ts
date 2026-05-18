@@ -34,6 +34,7 @@ export type OrphanRepopEntry = {
   repop_form_date: string
   repop_form_date_label: string
   repop_form_name: string | null
+  lead_status: string | null
 }
 
 const HS_FORMATION_MAP: Record<string, string> = {
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     let q = db
       .from('crm_contacts')
-      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id, teleprospecteur')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id, teleprospecteur, hs_lead_status')
       .not('recent_conversion_date', 'is', null)
       .gte('recent_conversion_date', thirtyDaysAgo)
       .not('contact_createdate', 'is', null)
@@ -154,6 +155,7 @@ export async function GET(req: NextRequest) {
       repop_form_date: repopDate.toISOString(),
       repop_form_date_label: format(repopDate, "d MMM yyyy 'à' HH'h'mm", { locale: fr }),
       repop_form_name: c.recent_conversion_event ?? null,
+      lead_status: c.hs_lead_status ?? null,
     }
   })
 

@@ -553,25 +553,41 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
     }
   }
 
-  // Filtre des événements utiles pour le télépro :
-  //   - soumissions de formulaire (recent_conversion_event*)
-  //   - changements d'étape lead (hs_lead_status, lifecyclestage)
-  //   - changements de propriétaire / télépro
-  //   - création / modification majeure
-  const filterRelevant = (e: HistoryEvent) => {
-    const p = e.property_name
-    return (
-      /conversion|form|engagement/.test(p) ||
-      p === 'hs_lead_status' ||
-      p === 'lifecyclestage' ||
-      p === 'hubspot_owner_id' ||
-      p === 'teleprospecteur' ||
-      p === 'classe_actuelle' ||
-      p === 'createdate'
-    )
-  }
-
-  const relevantHistory = (history ?? []).filter(filterRelevant)
+  // Historique simplifié pour le télépro : UNIQUEMENT les soumissions
+  // de formulaires. Tout le reste (engagement score, owner, lifecycle,
+  // statut, etc.) est masqué — le télépro veut voir le parcours form
+  // du lead, point.
+  //
+  // Côté HubSpot, chaque soumission met à jour deux propriétés :
+  //   - recent_conversion_event_name → nom du formulaire
+  //   - recent_conversion_date       → date de la soumission
+  // On reconstruit donc des paires (date, nom) en zip-ant les deux flux.
+  const relevantHistory = (() => {
+    const all = history ?? []
+    const dates = all.filter(e => e.property_name === 'recent_conversion_date' && e.value)
+    const names = all.filter(e => e.property_name === 'recent_conversion_event_name' && e.value)
+    // Index des noms par timestamp arrondi à la seconde (le date et le name
+    // sont écrits dans la même transaction HubSpot, donc même changed_at).
+    const nameByMs = new Map<number, string>()
+    for (const n of names) {
+      const ms = Math.floor(new Date(n.changed_at).getTime() / 1000)
+      nameByMs.set(ms, n.value as string)
+    }
+    type FormSub = { id: number; date: string; form: string }
+    const subs: FormSub[] = []
+    const seenDates = new Set<string>()
+    for (const d of dates) {
+      const ms = Math.floor(new Date(d.changed_at).getTime() / 1000)
+      const form = nameByMs.get(ms) || (names.find(n => Math.abs(new Date(n.changed_at).getTime() - new Date(d.changed_at).getTime()) < 60_000)?.value as string) || '—'
+      const key = d.value as string
+      if (seenDates.has(key)) continue
+      seenDates.add(key)
+      subs.push({ id: d.id, date: key, form })
+    }
+    // Tri date desc
+    subs.sort((a, b) => b.date.localeCompare(a.date))
+    return subs
+  })()
 
   return (
     <div style={{
@@ -610,6 +626,9 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
             }}>
               {entry.prospect_name}
             </span>
+            {entry.lead_status && (
+              <span style={leadStatusBadgeStyle(entry.lead_status)}>{entry.lead_status}</span>
+            )}
             {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
             {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
             {entry.formation && <span style={tagStyle}>{entry.formation}</span>}
@@ -684,7 +703,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
           padding: '12px 16px 14px 40px',
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7c98b6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-            Historique
+            Formulaires soumis
           </div>
 
           {loadingHistory && (
@@ -696,27 +715,26 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
 
           {!loadingHistory && history !== null && relevantHistory.length === 0 && (
             <div style={{ fontSize: 12, color: '#7c98b6', fontStyle: 'italic' }}>
-              Aucun historique disponible pour ce contact.
+              Aucun formulaire soumis enregistré.
             </div>
           )}
 
           {!loadingHistory && relevantHistory.length > 0 && (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {relevantHistory.slice(0, 20).map(ev => (
-                <li key={ev.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#516f90' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', marginTop: 6, flexShrink: 0 }} />
-                  <span style={{ color: '#7c98b6', minWidth: 130, flexShrink: 0 }}>
-                    {formatHistoryDate(ev.changed_at)}
+              {relevantHistory.slice(0, 30).map(sub => (
+                <li key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#516f90' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', flexShrink: 0 }} />
+                  <span style={{ color: '#a855f7', fontWeight: 600, minWidth: 140, flexShrink: 0 }}>
+                    {formatHistoryDate(sub.date)}
                   </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ color: '#33475b' }}>{labelProperty(ev.property_name)}</strong>
-                    {ev.value ? <span style={{ color: '#516f90' }}> → {truncate(ev.value, 80)}</span> : null}
+                  <span style={{ flex: 1, minWidth: 0, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sub.form}
                   </span>
                 </li>
               ))}
-              {relevantHistory.length > 20 && (
-                <li style={{ fontSize: 11, color: '#7c98b6', fontStyle: 'italic', paddingLeft: 14 }}>
-                  + {relevantHistory.length - 20} évènements plus anciens
+              {relevantHistory.length > 30 && (
+                <li style={{ fontSize: 11, color: '#7c98b6', fontStyle: 'italic', paddingLeft: 16 }}>
+                  + {relevantHistory.length - 30} soumissions plus anciennes
                 </li>
               )}
             </ul>
@@ -731,6 +749,35 @@ const tagStyle: React.CSSProperties = {
   background: 'rgba(204,172,113,0.12)',
   border: '1px solid rgba(204,172,113,0.3)',
   borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#ccac71',
+}
+
+/** Couleur du badge selon le statut du lead (HubSpot hs_lead_status). */
+function leadStatusBadgeStyle(status: string): React.CSSProperties {
+  // Palette : succès = vert, négatif = rouge, à travailler = orange, neutre = bleu
+  const COLORS: Record<string, string> = {
+    'Nouveau':              '#3b82f6',   // bleu
+    'NRP1':                 '#f59e0b',   // orange
+    'NRP2':                 '#f97316',   // orange foncé
+    'NRP3':                 '#dc2626',   // rouge
+    'A relancer':           '#a855f7',   // violet
+    'À relancer':           '#a855f7',
+    'A replanifier':        '#06b6d4',   // cyan
+    'En cours':             '#22c55e',   // vert
+    'En attente / Réfléchit':'#eab308',  // jaune
+    'Mauvais numéro':       '#94a3b8',   // gris
+    'Disqualifié':          '#94a3b8',
+    'Pas intéressé':        '#64748b',
+    'Hors cible':           '#64748b',
+    'Préinscription':       '#16a34a',
+    'Inscrit':              '#15803d',
+  }
+  const color = COLORS[status] || '#516f90'
+  return {
+    background: `${color}1a`,           // 10% opacity
+    border: `1px solid ${color}66`,     // 40% opacity
+    color,
+    borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 700,
+  }
 }
 
 function formatHistoryDate(iso: string): string {
