@@ -1156,28 +1156,6 @@ export default function TeleproClient({
               }}>
                 🔁 Repop
               </button>
-              <button
-                onClick={() => setShowResources(true)}
-                style={{
-                  background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
-                  borderRadius: 8, padding: '6px 12px', color: '#a855f7',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                📦 Outils
-              </button>
-              <button
-                onClick={() => setShowGuide(true)}
-                style={{
-                  background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
-                  borderRadius: 8, padding: '6px 12px', color: '#a855f7',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                📖 Guide
-              </button>
             </>
           )}
           {isAdmin && !previewMode && (

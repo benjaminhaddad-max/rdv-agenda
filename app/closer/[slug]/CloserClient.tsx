@@ -707,28 +707,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => setShowResources(true)}
-            style={{
-              background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 8, padding: '6px 12px', color: '#6b87ff',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}
-          >
-            📦 Outils
-          </button>
-          <button
-            onClick={() => setShowGuide(true)}
-            style={{
-              background: 'rgba(107,135,255,0.1)', border: '1px solid rgba(107,135,255,0.3)',
-              borderRadius: 8, padding: '6px 12px', color: '#6b87ff',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}
-          >
-            📖 Guide
-          </button>
           <LogoutButton />
         </div>
       </div>
