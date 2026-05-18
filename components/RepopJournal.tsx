@@ -561,30 +561,49 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
   // Côté HubSpot, chaque soumission met à jour deux propriétés :
   //   - recent_conversion_event_name → nom du formulaire
   //   - recent_conversion_date       → date de la soumission
-  // On reconstruit donc des paires (date, nom) en zip-ant les deux flux.
+  // On reconstruit des paires (date, nom) en zip-ant les deux flux.
+  //
+  // IMPORTANT : crm_property_history ne contient pas toujours les events
+  // sur ces 2 propriétés (selon ce que le sync HubSpot capture). On ajoute
+  // donc TOUJOURS la soumission courante (entry.repop_form_date +
+  // entry.repop_form_name) en tête de liste — sinon un contact avec une
+  // seule submission affiche "aucun formulaire" alors qu'on la voit dans
+  // le header.
   const relevantHistory = (() => {
+    type FormSub = { id: string; date: string; form: string }
     const all = history ?? []
     const dates = all.filter(e => e.property_name === 'recent_conversion_date' && e.value)
     const names = all.filter(e => e.property_name === 'recent_conversion_event_name' && e.value)
-    // Index des noms par timestamp arrondi à la seconde (le date et le name
-    // sont écrits dans la même transaction HubSpot, donc même changed_at).
     const nameByMs = new Map<number, string>()
     for (const n of names) {
       const ms = Math.floor(new Date(n.changed_at).getTime() / 1000)
       nameByMs.set(ms, n.value as string)
     }
-    type FormSub = { id: number; date: string; form: string }
     const subs: FormSub[] = []
     const seenDates = new Set<string>()
+
+    // 1) Soumission courante (toujours connue via crm_contacts)
+    if (entry.repop_form_date) {
+      subs.push({
+        id: `current-${entry.contact_id}`,
+        date: entry.repop_form_date,
+        form: entry.repop_form_name || '—',
+      })
+      seenDates.add(entry.repop_form_date)
+    }
+
+    // 2) Soumissions plus anciennes depuis crm_property_history
     for (const d of dates) {
-      const ms = Math.floor(new Date(d.changed_at).getTime() / 1000)
-      const form = nameByMs.get(ms) || (names.find(n => Math.abs(new Date(n.changed_at).getTime() - new Date(d.changed_at).getTime()) < 60_000)?.value as string) || '—'
       const key = d.value as string
       if (seenDates.has(key)) continue
+      const ms = Math.floor(new Date(d.changed_at).getTime() / 1000)
+      const form = nameByMs.get(ms)
+        || (names.find(n => Math.abs(new Date(n.changed_at).getTime() - new Date(d.changed_at).getTime()) < 60_000)?.value as string)
+        || '—'
       seenDates.add(key)
-      subs.push({ id: d.id, date: key, form })
+      subs.push({ id: `hist-${d.id}`, date: key, form })
     }
-    // Tri date desc
+
     subs.sort((a, b) => b.date.localeCompare(a.date))
     return subs
   })()
