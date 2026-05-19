@@ -105,24 +105,38 @@ export async function GET(req: NextRequest) {
     _contact: d.hubspot_contact_id ? contactMap[d.hubspot_contact_id] ?? null : null,
   }))
 
-  // ── Dedup doublons natifs vs dpl_* ────────────────────────────────────────
-  // Quand un contact a un deal HubSpot natif (stade amont, e.g. Pre-inscription)
-  // ET un deal Diploma `dpl_*` (stade aval, e.g. Finalisation) pour le meme
-  // contact, on cache le natif : Diploma fait foi pour l'aval.
+  // ── Filtrage Diploma autoritaire pour les stages aval ─────────────────────
+  // Regle metier :
+  //   - Amont (A Replanifier / RDV Pris / Delai Reflexion) -> HubSpot fait foi
+  //   - Pre-inscription / Finalisation / Inscription Confirmee -> Diploma seul
+  //     (les natifs HubSpot dans ces stages sont caches, le compte reflete
+  //      strictement la plateforme Diploma)
+  //   - Ferme Perdu -> HubSpot + Diploma (les refus HubSpot natifs restent visibles)
+  //   - Si un contact a un `dpl_*`, on cache aussi son natif (dedup par contact)
   {
+    // Stages aval ou seul Diploma fait foi (les natifs HubSpot sont caches)
+    const DIPLOMA_ONLY_STAGES = new Set([
+      '3165428982', // Pre-inscription
+      '3165428983', // Finalisation
+      '3165428984', // Inscription Confirmee
+    ])
+
     const contactsWithDpl = new Set<string>()
     for (const d of rows) {
       if (String(d.hubspot_deal_id).startsWith('dpl_') && d.hubspot_contact_id) {
         contactsWithDpl.add(d.hubspot_contact_id)
       }
     }
-    if (contactsWithDpl.size > 0) {
-      rows = rows.filter(d => {
-        if (String(d.hubspot_deal_id).startsWith('dpl_')) return true
-        if (d.hubspot_contact_id && contactsWithDpl.has(d.hubspot_contact_id)) return false
-        return true
-      })
-    }
+
+    rows = rows.filter(d => {
+      const isDpl = String(d.hubspot_deal_id).startsWith('dpl_')
+      if (isDpl) return true
+      // Natif HubSpot dans un stage Diploma-only -> cache
+      if (d.dealstage && DIPLOMA_ONLY_STAGES.has(d.dealstage)) return false
+      // Natif HubSpot dont le contact a un dpl_* -> cache (le dpl_* le represente)
+      if (d.hubspot_contact_id && contactsWithDpl.has(d.hubspot_contact_id)) return false
+      return true
+    })
   }
 
   // ── Filtrage JS ───────────────────────────────────────────────────────────
