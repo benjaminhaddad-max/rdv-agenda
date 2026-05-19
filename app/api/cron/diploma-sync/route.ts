@@ -220,12 +220,11 @@ export async function GET(req: NextRequest) {
 
     // Strategie "1 deal par inscription Diploma" :
     // - Pour chaque inscription cible -> upsert un deal `dpl_<inscription_id>` au stage cible
-    // - Tous les deals NON-dpl_* en stage aval (Pre-insc/Finali/Insc.Conf/Ferme Perdu) du
-    //   pipeline 26-27 sont deplaces vers Delai Reflexion (stage neutre amont).
-    //   Resultat : les 4 stages aval refletent EXACTEMENT le compte plateforme Diploma.
+    // - Les deals HubSpot natifs ne sont PAS deplaces : HubSpot reste source de verite
+    //   pour les stages amont (A Replanifier / RDV Pris / Delai Reflexion / Pre-inscription).
+    //   Les eventuels doublons (1 deal HubSpot Pre-inscription + 1 deal dpl_* en Finalisation
+    //   pour le meme contact) sont filtres au niveau de la Kanban (cf route transactions).
     const PIPELINE_2627 = '2313043166'
-    const STAGE_DELAI_REFLEXION = '3165428981'
-    const AVAL_STAGES = ['3165428982', '3165428983', '3165428984', '3165428985']
     const dealsToCreate: Array<Record<string, unknown>> = []
 
     for (const ins of targets) {
@@ -281,33 +280,6 @@ export async function GET(req: NextRequest) {
           createdate:         ins.created_at || new Date().toISOString(),
           synced_at:          new Date().toISOString(),
         })
-      }
-    }
-
-    // Deplacer tous les deals NON-dpl_* en stage aval -> Delai Reflexion
-    {
-      const idsToMove: string[] = []
-      let off = 0
-      const PAGE = 1000
-      while (true) {
-        const { data } = await db
-          .from('crm_deals')
-          .select('hubspot_deal_id')
-          .eq('pipeline', PIPELINE_2627)
-          .in('dealstage', AVAL_STAGES)
-          .range(off, off + PAGE - 1)
-        const rows = (data || []) as Array<{ hubspot_deal_id: string }>
-        if (rows.length === 0) break
-        for (const r of rows) {
-          if (!String(r.hubspot_deal_id).startsWith('dpl_')) idsToMove.push(r.hubspot_deal_id)
-        }
-        if (rows.length < PAGE) break
-        off += PAGE
-      }
-      const nowIso = new Date().toISOString()
-      for (let k = 0; k < idsToMove.length; k += 200) {
-        const chunk = idsToMove.slice(k, k + 200)
-        await db.from('crm_deals').update({ dealstage: STAGE_DELAI_REFLEXION, synced_at: nowIso }).in('hubspot_deal_id', chunk)
       }
     }
 

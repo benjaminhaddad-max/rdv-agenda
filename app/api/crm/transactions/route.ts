@@ -105,6 +105,26 @@ export async function GET(req: NextRequest) {
     _contact: d.hubspot_contact_id ? contactMap[d.hubspot_contact_id] ?? null : null,
   }))
 
+  // ── Dedup doublons natifs vs dpl_* ────────────────────────────────────────
+  // Quand un contact a un deal HubSpot natif (stade amont, e.g. Pre-inscription)
+  // ET un deal Diploma `dpl_*` (stade aval, e.g. Finalisation) pour le meme
+  // contact, on cache le natif : Diploma fait foi pour l'aval.
+  {
+    const contactsWithDpl = new Set<string>()
+    for (const d of rows) {
+      if (String(d.hubspot_deal_id).startsWith('dpl_') && d.hubspot_contact_id) {
+        contactsWithDpl.add(d.hubspot_contact_id)
+      }
+    }
+    if (contactsWithDpl.size > 0) {
+      rows = rows.filter(d => {
+        if (String(d.hubspot_deal_id).startsWith('dpl_')) return true
+        if (d.hubspot_contact_id && contactsWithDpl.has(d.hubspot_contact_id)) return false
+        return true
+      })
+    }
+  }
+
   // ── Filtrage JS ───────────────────────────────────────────────────────────
   rows = rows.filter(d => {
     const contact = d._contact
