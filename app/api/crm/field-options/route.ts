@@ -33,25 +33,25 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 }
 
 /**
- * Fetch distinct form events. Trick: on filtre/ordonne par
- * `recent_conversion_date` (colonne indexee via idx_contacts_recent_conversion)
- * au lieu de `recent_conversion_event` (pas d'index, timeout Postgres garanti).
- * Les 2 colonnes sont peuplees ensemble par le sync HubSpot, donc filtrer par
- * date non-null garantit que recent_conversion_event est aussi rempli.
- * 5000 contacts les plus recents -> largement assez pour capter tous les noms
- * de formulaires distincts (qui se repetent enormement).
+ * Fetch distinct form events triés par "date de création du formulaire" desc.
+ *
+ * Proxy de la date de création : on prend la PREMIÈRE date de soumission
+ * trouvée parmi tous les contacts qui ont soumis ce formulaire. Le formulaire
+ * existait au moins depuis cette date.
+ *
+ * Le `not(col, 'is', null)` utilise l'index partiel
+ * idx_crm_contacts_recent_conversion_event (WHERE recent_conversion_event
+ * IS NOT NULL). Sans cet index, Postgres timeout sur 70k+ contacts.
  */
 async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
-  const allValues = new Set<string>()
+  // event_name -> min(recent_conversion_date) ≈ date de creation du formulaire
+  const firstSeenByEvent = new Map<string, string>()
   const PAGE = 1000
-  // Le `not(col, 'is', null)` utilise l'index partiel
-  // `idx_crm_contacts_recent_conversion_event` (WHERE recent_conversion_event
-  // IS NOT NULL). Sans cet index, Postgres timeout sur 70k+ contacts.
   for (let off = 0; off < 5; off++) {
     const { data: rows, error } = await db
       .from('crm_contacts')
-      .select('recent_conversion_event')
+      .select('recent_conversion_event, recent_conversion_date')
       .not('recent_conversion_event', 'is', null)
       .range(off * PAGE, (off + 1) * PAGE - 1)
     if (error) {
@@ -60,12 +60,21 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
     }
     if (!rows || rows.length === 0) break
     for (const r of rows) {
-      const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
-      if (v) allValues.add(v)
+      const rr = r as { recent_conversion_event: string | null; recent_conversion_date: string | null }
+      const ev = rr.recent_conversion_event
+      if (!ev) continue
+      const dt = rr.recent_conversion_date
+      if (!dt) continue
+      const prev = firstSeenByEvent.get(ev)
+      if (!prev || dt < prev) firstSeenByEvent.set(ev, dt)
     }
     if (rows.length < PAGE) break
   }
-  return [...allValues]
+  // Tri par date de premiere apparition desc (≈ creation du formulaire).
+  // Les formulaires sans date jamais vus -> en bas.
+  return [...firstSeenByEvent.entries()]
+    .sort((a, b) => b[1].localeCompare(a[1]))
+    .map(([ev]) => ev)
 }
 
 /**
@@ -118,7 +127,8 @@ export async function GET() {
   const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
-  const formEvents      = sbFormEvents.slice().sort()
+  // formEvents : deja trie par date desc (plus recent en haut), pas de .sort()
+  const formEvents      = sbFormEvents
 
   // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
   // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
