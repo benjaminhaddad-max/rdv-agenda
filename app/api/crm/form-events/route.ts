@@ -14,8 +14,8 @@ export async function GET() {
   const { data, error } = await db.rpc('crm_property_value_counts', {
     p_table: 'crm_contacts',
     p_column: 'recent_conversion_event',
-    p_limit: 5000,
-  }).range(0, 4999) // force max_rows > 1000
+    p_limit: 1000, // max Supabase max_rows
+  })
 
   if (error) {
     console.error('form-events RPC:', error.message)
