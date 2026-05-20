@@ -45,13 +45,12 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
  */
 async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
-  // event_name -> min(recent_conversion_date) ≈ date de creation du formulaire
-  const firstSeenByEvent = new Map<string, string>()
+  const allValues = new Set<string>()
   const PAGE = 1000
   for (let off = 0; off < 5; off++) {
     const { data: rows, error } = await db
       .from('crm_contacts')
-      .select('recent_conversion_event, recent_conversion_date')
+      .select('recent_conversion_event')
       .not('recent_conversion_event', 'is', null)
       .range(off * PAGE, (off + 1) * PAGE - 1)
     if (error) {
@@ -60,21 +59,12 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
     }
     if (!rows || rows.length === 0) break
     for (const r of rows) {
-      const rr = r as { recent_conversion_event: string | null; recent_conversion_date: string | null }
-      const ev = rr.recent_conversion_event
-      if (!ev) continue
-      const dt = rr.recent_conversion_date
-      if (!dt) continue
-      const prev = firstSeenByEvent.get(ev)
-      if (!prev || dt < prev) firstSeenByEvent.set(ev, dt)
+      const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
+      if (v) allValues.add(v)
     }
     if (rows.length < PAGE) break
   }
-  // Tri par date de premiere apparition desc (≈ creation du formulaire).
-  // Les formulaires sans date jamais vus -> en bas.
-  return [...firstSeenByEvent.entries()]
-    .sort((a, b) => b[1].localeCompare(a[1]))
-    .map(([ev]) => ev)
+  return [...allValues]
 }
 
 /**
@@ -127,8 +117,7 @@ export async function GET() {
   const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
-  // formEvents : deja trie par date desc (plus recent en haut), pas de .sort()
-  const formEvents      = sbFormEvents
+  const formEvents      = sbFormEvents.slice().sort()
 
   // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
   // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
