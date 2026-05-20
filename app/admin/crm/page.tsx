@@ -32,7 +32,7 @@ import {
   CRM_DEFAULT_VIEWS, loadCRMViews, viewToParams,
   persistViewCreate, persistViewUpdate, persistViewDelete,
 } from '@/lib/crm-views'
-import { MultiSelectDropdown, FilterSelect, FilterMultiSelect } from '@/components/crm/CRMSelects'
+import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
@@ -1762,6 +1762,16 @@ export default function CRMPage() {
                         if (opIsMulti(rule.operator)) {
                           return (
                             <MultiSelectDropdown
+                              options={valueOptions}
+                              value={rule.value}
+                              onChange={v => updateRule(group.id, rule.id, { value: v })}
+                            />
+                          )
+                        }
+                        // Single-select : SearchableSelect si > 20 options (sinon select natif)
+                        if (valueOptions.length > 20) {
+                          return (
+                            <SearchableSelect
                               options={valueOptions}
                               value={rule.value}
                               onChange={v => updateRule(group.id, rule.id, { value: v })}

@@ -21,6 +21,7 @@ export function MultiSelectDropdown({ options, value, onChange }: {
   onChange: (v: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const selected = value ? value.split(',').filter(Boolean) : []
 
@@ -40,6 +41,11 @@ export function MultiSelectDropdown({ options, value, onChange }: {
   const selectedLabels = selected
     .map(s => options.find(o => o.id === s)?.label ?? s)
     .slice(0, 2)
+
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? options.filter(o => o.label.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
+    : options
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -66,32 +72,139 @@ export function MultiSelectDropdown({ options, value, onChange }: {
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
           background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
-          marginTop: 2, maxHeight: 220, overflowY: 'auto',
+          marginTop: 2, maxHeight: 260, display: 'flex', flexDirection: 'column',
           boxShadow: '0 8px 24px rgba(0,0,0,.5)',
         }}>
-          {options.map(opt => (
-            <label
-              key={opt.id}
-              onClick={() => toggle(opt.id)}
+          <div style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Rechercher…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#516f90',
-                background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
+                width: '100%', border: '1px solid #cbd6e2', borderRadius: 4,
+                padding: '4px 8px', fontSize: 12, color: '#33475b', outline: 'none',
+                fontFamily: 'inherit',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
-              onMouseLeave={e => (e.currentTarget.style.background = selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
-            >
-              <span style={{
-                width: 16, height: 16, borderRadius: 3,
-                border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
-                background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                {selected.includes(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
-              </span>
-              {opt.label}
-            </label>
-          ))}
+            />
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '8px 10px', fontSize: 12, color: '#7c98b6' }}>Aucun résultat</div>
+            )}
+            {filtered.map(opt => (
+              <label
+                key={opt.id}
+                onClick={() => toggle(opt.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#516f90',
+                  background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
+              >
+                <span style={{
+                  width: 16, height: 16, borderRadius: 3,
+                  border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
+                  background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {selected.includes(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
+                </span>
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Single-select dropdown with search (pour listes > 20 entries) ─────────
+
+export function SearchableSelect({ options, value, onChange }: {
+  options: SelectOption[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selectedLabel = value ? (options.find(o => o.id === value)?.label ?? value) : ''
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? options.filter(o => o.label.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
+    : options
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
+          padding: '6px 8px', color: value ? '#ccac71' : '#7c98b6',
+          fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
+          textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {selectedLabel || 'Rechercher…'}
+        </span>
+        <ChevronDown size={12} style={{ flexShrink: 0, marginLeft: 4, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
+          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
+          marginTop: 2, maxHeight: 260, display: 'flex', flexDirection: 'column',
+          boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+        }}>
+          <div style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Rechercher…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{
+                width: '100%', border: '1px solid #cbd6e2', borderRadius: 4,
+                padding: '4px 8px', fontSize: 12, color: '#33475b', outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '8px 10px', fontSize: 12, color: '#7c98b6' }}>Aucun résultat</div>
+            )}
+            {filtered.map(opt => (
+              <div
+                key={opt.id}
+                onClick={() => { onChange(opt.id); setOpen(false); setQuery('') }}
+                style={{
+                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#516f90',
+                  background: value === opt.id ? 'rgba(204,172,113,0.08)' : 'transparent',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = value === opt.id ? 'rgba(204,172,113,0.08)' : 'transparent')}
+              >
+                {opt.label}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
