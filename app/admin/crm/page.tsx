@@ -482,6 +482,16 @@ export default function CRMPage() {
         ])
       }
     })
+
+    // Endpoint dedie aux form events (plus rapide, isole en cas de souci).
+    fetch(`/api/crm/form-events?t=${Date.now()}`).then(r => r.json()).then(d => {
+      if (Array.isArray(d.events) && d.events.length > 0) {
+        setFormEventOptions([
+          { id: '', label: 'Tous les formulaires' },
+          ...d.events.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+    }).catch(() => {})
   }, [])
 
   // ── Récupérer les contacts ───────────────────────────────────────────────────
