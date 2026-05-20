@@ -49,9 +49,8 @@ async function fetchDistinctFormEvents(): Promise<{ values: string[]; debug: Rec
   for (let off = 0; off < 5; off++) {
     const { data: rows, error } = await db
       .from('crm_contacts')
-      .select('recent_conversion_event')
-      .not('recent_conversion_date', 'is', null)
-      .order('recent_conversion_date', { ascending: false, nullsFirst: false })
+      .select('recent_conversion_event, recent_conversion_date')
+      .gte('recent_conversion_date', '2025-01-01')
       .range(off * PAGE, (off + 1) * PAGE - 1)
     if (error) {
       ;(debug.errors as unknown[]).push({ page: off, message: error.message, code: error.code })
