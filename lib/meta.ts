@@ -356,7 +356,7 @@ export interface ProcessLeadResult {
 export async function processMetaLead(
   lead: MetaLead,
   pageId: string,
-  formMetadata?: { origine_label?: string; default_owner_id?: string; workflow_id?: string; field_mappings?: MetaFieldMappings | null },
+  formMetadata?: { name?: string; origine_label?: string; default_owner_id?: string; workflow_id?: string; field_mappings?: MetaFieldMappings | null },
 ): Promise<ProcessLeadResult> {
   const db = createServiceClient()
   const nowIso = new Date().toISOString()
@@ -423,7 +423,10 @@ export async function processMetaLead(
 
   const conversionMeta = {
     recent_conversion_date: nowIso,
-    recent_conversion_event: formMetadata?.origine_label || 'Meta Lead Ads',
+    // recent_conversion_event = nom du form Meta (utilise par le filtre
+    // "Dernier formulaire soumis"). Fallback : origine_label ou 'Meta Lead Ads'.
+    recent_conversion_event:
+      formMetadata?.name || formMetadata?.origine_label || 'Meta Lead Ads',
     synced_at: nowIso,
   }
 
