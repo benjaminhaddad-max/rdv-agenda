@@ -644,6 +644,16 @@ export default function CRMPage() {
           })
           continue
         }
+        // form_event → route via le mecanisme `cf` (custom filters) sur la
+        // colonne `recent_conversion_event`. Supporte tous les operateurs.
+        if (rule.field === 'form_event') {
+          customFilters.push({
+            field: 'recent_conversion_event',
+            operator: rule.operator,
+            value: val,
+          })
+          continue
+        }
         // Positive filters: is, is_any, contains
         if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
           switch (rule.field) {
