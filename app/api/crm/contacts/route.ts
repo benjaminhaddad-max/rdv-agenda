@@ -55,6 +55,10 @@ export async function GET(req: NextRequest) {
   const recentFormMonths = parseInt(searchParams.get('recent_form_months') ?? '0', 10)
   const recentFormDays    = parseInt(searchParams.get('recent_form_days')   ?? '0', 10)
   const createdBeforeDays = parseInt(searchParams.get('created_before_days') ?? '0', 10)
+  // Filtre sur le NOM du dernier formulaire soumis (recent_conversion_event)
+  // Multi-value via virgules. `form_event_not` pour l'exclusion.
+  const formEvent         = searchParams.get('form_event') ?? ''
+  const formEventNot      = searchParams.get('form_event_not') ?? ''
   const showExternal     = searchParams.get('show_external') === '1'
   const allClasses       = searchParams.get('all_classes') === '1'
   const leadStatus       = searchParams.get('lead_status') ?? ''
@@ -331,6 +335,7 @@ export async function GET(req: NextRequest) {
     pipeline || pipelineNot || priorPreinscription ||
     noTelepro || withTelepro ||
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    formEvent || formEventNot ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
   const countMode: 'exact' | 'estimated' = hasSelectiveFilter ? 'exact' : 'estimated'
@@ -573,6 +578,20 @@ export async function GET(req: NextRequest) {
     const since = new Date(Date.now() - recentFormDays * 86_400_000)
     query = query.gte('recent_conversion_date', since.toISOString())
   }
+
+  // Nom du dernier formulaire soumis (recent_conversion_event)
+  // Match EXACT sur le nom. Multi-value via virgule (?form_event=JPO,Webinaire)
+  if (formEvent) {
+    const vals = splitMulti(formEvent)
+    query = vals.length > 1
+      ? query.in('recent_conversion_event', vals)
+      : query.eq('recent_conversion_event', formEvent)
+  }
+  if (formEventNot) {
+    const vals = splitMulti(formEventNot)
+    query = query.not('recent_conversion_event', 'in', `(${vals.join(',')})`)
+  }
+
   // Contact créé il y a PLUS de X jours (= leads anciens qui re-soumettent)
   if (createdBeforeDays > 0) {
     const before = new Date(Date.now() - createdBeforeDays * 86_400_000)

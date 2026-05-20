@@ -53,6 +53,18 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         })
         continue
       }
+      // form_event : route via le mecanisme `cf` (custom filters) pour supporter
+      // tous les operateurs (contains / is / is_any / is_empty / etc.) sur la
+      // colonne `recent_conversion_event`. Plus flexible que les dedicated params.
+      if (rule.field === 'form_event') {
+        customFilters.push({
+          field: 'recent_conversion_event',
+          operator: rule.operator,
+          value: val,
+        })
+        continue
+      }
+
       if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
         switch (rule.field) {
           case 'stage':       p.set('stage', val); break
