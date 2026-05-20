@@ -4,39 +4,31 @@ import { createServiceClient } from '@/lib/supabase'
 /**
  * GET /api/crm/form-events
  *
- * Endpoint dedie aux noms de formulaires distincts (recent_conversion_event)
- * pour le filtre "Dernier formulaire soumis". Pagine 25 pages de 2000 lignes
- * en parallele = ~50k contacts couverts. Index partiel garantit la rapidite.
+ * Endpoint dedie aux noms de formulaires distincts (recent_conversion_event).
+ * Utilise la fonction Postgres crm_property_value_counts qui fait un DISTINCT
+ * cote SQL — plus rapide et fiable que la pagination JS.
  */
 export async function GET() {
   const db = createServiceClient()
-  const allValues = new Set<string>()
-  const PAGE = 2000
 
-  const queries = []
-  for (let off = 0; off < 25; off++) {
-    queries.push(
-      db.from('crm_contacts')
-        .select('recent_conversion_event')
-        .not('recent_conversion_event', 'is', null)
-        .range(off * PAGE, (off + 1) * PAGE - 1)
-    )
+  const { data, error } = await db.rpc('crm_property_value_counts', {
+    p_table: 'crm_contacts',
+    p_column: 'recent_conversion_event',
+    p_limit: 5000,
+  })
+
+  if (error) {
+    console.error('form-events RPC:', error.message)
+    return NextResponse.json({ events: [], error: error.message }, { status: 500 })
   }
-  const results = await Promise.all(queries)
-  for (const { data: rows, error } of results) {
-    if (error) {
-      console.error('form-events:', error.message)
-      continue
-    }
-    if (!rows) continue
-    for (const r of rows) {
-      const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
-      if (v) allValues.add(v)
-    }
-  }
+
+  const events = ((data ?? []) as Array<{ value: string | null }>)
+    .map(r => r.value)
+    .filter((v): v is string => !!v)
+    .sort()
 
   return NextResponse.json(
-    { events: [...allValues].sort() },
+    { events },
     { headers: { 'Cache-Control': 's-maxage=600, stale-while-revalidate=3600' } },
   )
 }
