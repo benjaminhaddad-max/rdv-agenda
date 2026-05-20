@@ -46,26 +46,45 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
   const allValues = new Set<string>()
-  const PAGE = 1000
-  // Pagine jusqu'a 50 pages = 50k contacts max. Couvre les ~40k contacts
-  // ayant recent_conversion_event renseigne. Rapide grace a l'index partiel
-  // idx_crm_contacts_recent_conversion_event.
-  for (let off = 0; off < 50; off++) {
-    const { data: rows, error } = await db
-      .from('crm_contacts')
-      .select('recent_conversion_event')
-      .not('recent_conversion_event', 'is', null)
-      .range(off * PAGE, (off + 1) * PAGE - 1)
-    if (error) {
-      console.error(`fetchDistinctFormEvents page ${off}:`, error.message)
-      break
+  // 4 queries en parallele, chunks de 2000. Stop early si 2 batches sans
+  // nouveau formulaire. Plus rapide que sequentiel.
+  const PAGE = 2000
+  const MAX_PAGES = 25 // 50k contacts max
+  let stableStreak = 0
+
+  for (let batch = 0; batch < MAX_PAGES; batch += 4) {
+    const queries = []
+    for (let k = 0; k < 4 && batch + k < MAX_PAGES; k++) {
+      const off = batch + k
+      queries.push(
+        db.from('crm_contacts')
+          .select('recent_conversion_event')
+          .not('recent_conversion_event', 'is', null)
+          .range(off * PAGE, (off + 1) * PAGE - 1)
+      )
     }
-    if (!rows || rows.length === 0) break
-    for (const r of rows) {
-      const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
-      if (v) allValues.add(v)
+    const results = await Promise.all(queries)
+    let anyRows = false
+    const beforeSize = allValues.size
+    for (const { data: rows, error } of results) {
+      if (error) {
+        console.error('fetchDistinctFormEvents:', error.message)
+        return [...allValues]
+      }
+      if (!rows || rows.length === 0) continue
+      anyRows = true
+      for (const r of rows) {
+        const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
+        if (v) allValues.add(v)
+      }
     }
-    if (rows.length < PAGE) break
+    if (!anyRows) break
+    if (allValues.size === beforeSize) {
+      stableStreak++
+      if (stableStreak >= 2) break
+    } else {
+      stableStreak = 0
+    }
   }
   return [...allValues]
 }
