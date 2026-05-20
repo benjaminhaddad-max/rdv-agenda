@@ -450,7 +450,7 @@ export default function CRMPage() {
     }).catch(() => {})
     // Charger les valeurs réelles HubSpot pour statut lead + origine
     // ?v=2 bust le cache CDN apres ajout du champ formEvents
-    fetch('/api/crm/field-options?v=4').then(r => r.json()).then(d => {
+    fetch('/api/crm/field-options?v=5').then(r => r.json()).then(d => {
       if (d.leadStatuses?.length) {
         setLeadStatusOptions([
           { id: '', label: 'Tous les statuts du lead' },

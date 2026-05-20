@@ -33,31 +33,31 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 }
 
 /**
- * Variante pour colonnes SANS index dedie (ex: recent_conversion_event).
- * On evite le ORDER BY sur la colonne (timeout sur 70k+ contacts) en triant par
- * `hubspot_contact_id` (PK indexee). On limite a 10k contacts : largement
- * assez pour capter tous les noms de formulaires distincts (qui se repetent
- * enormement entre contacts).
+ * Fetch hardcode pour recent_conversion_event (pas d'index dedie sur cette
+ * colonne, donc on trie par PK hubspot_contact_id pour eviter le timeout
+ * Postgres). Pagine par 1000 (max_rows Supabase) jusqu'a 10k contacts non-null.
  */
-async function fetchDistinctValuesNoIndex(column: string): Promise<string[]> {
+async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
-  const MAX_ROWS = 10000
   const allValues = new Set<string>()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rows, error } = await (db
-    .from('crm_contacts')
-    .select(`hubspot_contact_id,${column}`) as any)
-    .not(column, 'is', null)
-    .order('hubspot_contact_id', { ascending: false })
-    .limit(MAX_ROWS)
-  if (error) {
-    console.error(`fetchDistinctValuesNoIndex(${column}):`, error.message)
-    return []
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const r of (rows ?? []) as any[]) {
-    const v = r[column]
-    if (v) allValues.add(v as string)
+  const PAGE = 1000
+  for (let off = 0; off < 10; off++) {
+    const { data: rows, error } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, recent_conversion_event')
+      .not('recent_conversion_event', 'is', null)
+      .order('hubspot_contact_id', { ascending: false })
+      .range(off * PAGE, (off + 1) * PAGE - 1)
+    if (error) {
+      console.error(`fetchDistinctFormEvents page ${off}:`, error.message)
+      break
+    }
+    if (!rows || rows.length === 0) break
+    for (const r of rows) {
+      const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
+      if (v) allValues.add(v)
+    }
+    if (rows.length < PAGE) break
   }
   return [...allValues]
 }
@@ -103,7 +103,7 @@ export async function GET() {
     fetchAllDistinctValues('formation_demandee'),
     fetchAllDistinctValues('zone_localite'),
     fetchAllDistinctValues('departement'),
-    fetchDistinctValuesNoIndex('recent_conversion_event'),
+    fetchDistinctFormEvents(),
   ])
 
   // Priorité HubSpot ; si vide, fallback Supabase
