@@ -15,7 +15,7 @@ export async function GET() {
     p_table: 'crm_contacts',
     p_column: 'recent_conversion_event',
     p_limit: 5000,
-  })
+  }).range(0, 4999) // force max_rows > 1000
 
   if (error) {
     console.error('form-events RPC:', error.message)
