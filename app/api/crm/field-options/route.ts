@@ -41,9 +41,10 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
  * 5000 contacts les plus recents -> largement assez pour capter tous les noms
  * de formulaires distincts (qui se repetent enormement).
  */
-async function fetchDistinctFormEvents(): Promise<string[]> {
+async function fetchDistinctFormEvents(): Promise<{ values: string[]; debug: Record<string, unknown> }> {
   const db = createServiceClient()
   const allValues = new Set<string>()
+  const debug: Record<string, unknown> = { pages: [], errors: [] }
   const PAGE = 1000
   for (let off = 0; off < 5; off++) {
     const { data: rows, error } = await db
@@ -53,9 +54,12 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
       .order('recent_conversion_date', { ascending: false, nullsFirst: false })
       .range(off * PAGE, (off + 1) * PAGE - 1)
     if (error) {
-      console.error(`fetchDistinctFormEvents page ${off}:`, error.message)
+      ;(debug.errors as unknown[]).push({ page: off, message: error.message, code: error.code })
       break
     }
+    const rowCount = rows?.length ?? 0
+    const nonNullEvents = (rows ?? []).filter(r => (r as { recent_conversion_event: string | null }).recent_conversion_event).length
+    ;(debug.pages as unknown[]).push({ page: off, rows: rowCount, nonNullEvents })
     if (!rows || rows.length === 0) break
     for (const r of rows) {
       const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
@@ -63,7 +67,8 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
     }
     if (rows.length < PAGE) break
   }
-  return [...allValues]
+  debug.distinctCount = allValues.size
+  return { values: [...allValues], debug }
 }
 
 /**
@@ -116,15 +121,16 @@ export async function GET() {
   const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
-  const formEvents      = sbFormEvents.slice().sort()
+  const formEvents      = sbFormEvents.values.slice().sort()
+  const formEventsDebug = sbFormEvents.debug
 
   // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
   // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
   return NextResponse.json(
-    { leadStatuses, sources, formations, zones, departements, formEvents },
+    { leadStatuses, sources, formations, zones, departements, formEvents, formEventsDebug },
     {
       headers: {
-        'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'no-store',
       },
     },
   )
