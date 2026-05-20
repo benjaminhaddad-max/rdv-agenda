@@ -265,6 +265,28 @@ export async function fetchLeadById(leadgenId: string, pageToken: string): Promi
   return res.json()
 }
 
+/**
+ * Backfill : récupère TOUS les leads d'un form depuis Meta Graph API.
+ * Pagine automatiquement jusqu'à `maxLeads` (safety).
+ */
+export async function fetchFormLeads(
+  formId: string,
+  pageToken: string,
+  maxLeads: number = 5000,
+): Promise<MetaLead[]> {
+  const out: MetaLead[] = []
+  let url: string | null =
+    `${GRAPH}/${formId}/leads?fields=id,created_time,field_data,ad_id,adset_id,campaign_id,form_id&limit=100&access_token=${pageToken}`
+  while (url && out.length < maxLeads) {
+    const res: Response = await fetch(url)
+    if (!res.ok) throw new Error(`Meta form leads: HTTP ${res.status} ${await res.text()}`)
+    const j = await res.json() as { data?: MetaLead[]; paging?: { next?: string } }
+    out.push(...(j.data ?? []))
+    url = j.paging?.next ?? null
+  }
+  return out
+}
+
 // ─── Lead → Contact CRM ─────────────────────────────────────────────────────
 
 /**
