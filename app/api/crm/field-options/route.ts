@@ -47,7 +47,10 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
   const allValues = new Set<string>()
   const PAGE = 1000
-  for (let off = 0; off < 5; off++) {
+  // Pagine jusqu'a 50 pages = 50k contacts max. Couvre les ~40k contacts
+  // ayant recent_conversion_event renseigne. Rapide grace a l'index partiel
+  // idx_crm_contacts_recent_conversion_event.
+  for (let off = 0; off < 50; off++) {
     const { data: rows, error } = await db
       .from('crm_contacts')
       .select('recent_conversion_event')
