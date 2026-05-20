@@ -35,8 +35,9 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 /**
  * Variante pour colonnes SANS index dedie (ex: recent_conversion_event).
  * On evite le ORDER BY sur la colonne (timeout sur 70k+ contacts) en triant par
- * `id` (PK indexee). On limite a 10k contacts : largement assez pour capter
- * tous les noms de formulaires distincts (qui se repetent enormement).
+ * `hubspot_contact_id` (PK indexee). On limite a 10k contacts : largement
+ * assez pour capter tous les noms de formulaires distincts (qui se repetent
+ * enormement entre contacts).
  */
 async function fetchDistinctValuesNoIndex(column: string): Promise<string[]> {
   const db = createServiceClient()
@@ -45,9 +46,9 @@ async function fetchDistinctValuesNoIndex(column: string): Promise<string[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rows, error } = await (db
     .from('crm_contacts')
-    .select(`id,${column}`) as any)
+    .select(`hubspot_contact_id,${column}`) as any)
     .not(column, 'is', null)
-    .order('id', { ascending: false })
+    .order('hubspot_contact_id', { ascending: false })
     .limit(MAX_ROWS)
   if (error) {
     console.error(`fetchDistinctValuesNoIndex(${column}):`, error.message)
