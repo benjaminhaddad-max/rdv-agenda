@@ -5,8 +5,8 @@ import { createServiceClient } from '@/lib/supabase'
  * GET /api/crm/form-events
  *
  * Endpoint dedie aux noms de formulaires distincts (recent_conversion_event)
- * pour le filtre "Dernier formulaire soumis". Pagine 10 pages de 2000 lignes
- * en parallele = ~20k contacts couverts. Index partiel garantit la rapidite.
+ * pour le filtre "Dernier formulaire soumis". Pagine 25 pages de 2000 lignes
+ * en parallele = ~50k contacts couverts. Index partiel garantit la rapidite.
  */
 export async function GET() {
   const db = createServiceClient()
@@ -14,7 +14,7 @@ export async function GET() {
   const PAGE = 2000
 
   const queries = []
-  for (let off = 0; off < 10; off++) {
+  for (let off = 0; off < 25; off++) {
     queries.push(
       db.from('crm_contacts')
         .select('recent_conversion_event')
