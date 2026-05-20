@@ -33,6 +33,35 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 }
 
 /**
+ * Variante pour colonnes SANS index dedie (ex: recent_conversion_event).
+ * On evite le ORDER BY sur la colonne (timeout sur 70k+ contacts) en triant par
+ * `id` (PK indexee). On limite a 10k contacts : largement assez pour capter
+ * tous les noms de formulaires distincts (qui se repetent enormement).
+ */
+async function fetchDistinctValuesNoIndex(column: string): Promise<string[]> {
+  const db = createServiceClient()
+  const MAX_ROWS = 10000
+  const allValues = new Set<string>()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rows, error } = await (db
+    .from('crm_contacts')
+    .select(`id,${column}`) as any)
+    .not(column, 'is', null)
+    .order('id', { ascending: false })
+    .limit(MAX_ROWS)
+  if (error) {
+    console.error(`fetchDistinctValuesNoIndex(${column}):`, error.message)
+    return []
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (rows ?? []) as any[]) {
+    const v = r[column]
+    if (v) allValues.add(v as string)
+  }
+  return [...allValues]
+}
+
+/**
  * Récupère les options d'une propriété HubSpot via l'API Properties v3.
  * Retourne un tableau de strings (valeur interne) ou [] si échec.
  */
@@ -73,7 +102,7 @@ export async function GET() {
     fetchAllDistinctValues('formation_demandee'),
     fetchAllDistinctValues('zone_localite'),
     fetchAllDistinctValues('departement'),
-    fetchAllDistinctValues('recent_conversion_event'),
+    fetchDistinctValuesNoIndex('recent_conversion_event'),
   ])
 
   // Priorité HubSpot ; si vide, fallback Supabase
