@@ -33,27 +33,29 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 }
 
 /**
- * Fetch hardcode pour recent_conversion_event. Retourne aussi des infos de
- * debug pour comprendre pourquoi la liste est vide en prod.
+ * Fetch distinct form events. Trick: on filtre/ordonne par
+ * `recent_conversion_date` (colonne indexee via idx_contacts_recent_conversion)
+ * au lieu de `recent_conversion_event` (pas d'index, timeout Postgres garanti).
+ * Les 2 colonnes sont peuplees ensemble par le sync HubSpot, donc filtrer par
+ * date non-null garantit que recent_conversion_event est aussi rempli.
+ * 5000 contacts les plus recents -> largement assez pour capter tous les noms
+ * de formulaires distincts (qui se repetent enormement).
  */
-async function fetchDistinctFormEvents(): Promise<{ values: string[]; debug: Record<string, unknown> }> {
+async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
   const allValues = new Set<string>()
-  const debug: Record<string, unknown> = { pages: [], errors: [] }
   const PAGE = 1000
-  for (let off = 0; off < 10; off++) {
+  for (let off = 0; off < 5; off++) {
     const { data: rows, error } = await db
       .from('crm_contacts')
-      .select('hubspot_contact_id, recent_conversion_event')
-      .not('recent_conversion_event', 'is', null)
-      .order('hubspot_contact_id', { ascending: false })
+      .select('recent_conversion_event')
+      .not('recent_conversion_date', 'is', null)
+      .order('recent_conversion_date', { ascending: false, nullsFirst: false })
       .range(off * PAGE, (off + 1) * PAGE - 1)
     if (error) {
-      ;(debug.errors as unknown[]).push({ page: off, message: error.message, code: error.code })
+      console.error(`fetchDistinctFormEvents page ${off}:`, error.message)
       break
     }
-    const rowCount = rows?.length ?? 0
-    ;(debug.pages as unknown[]).push({ page: off, rows: rowCount })
     if (!rows || rows.length === 0) break
     for (const r of rows) {
       const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
@@ -61,8 +63,7 @@ async function fetchDistinctFormEvents(): Promise<{ values: string[]; debug: Rec
     }
     if (rows.length < PAGE) break
   }
-  debug.distinctCount = allValues.size
-  return { values: [...allValues], debug }
+  return [...allValues]
 }
 
 /**
@@ -115,16 +116,15 @@ export async function GET() {
   const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
-  const formEvents      = sbFormEvents.values.slice().sort()
-  const formEventsDebug = sbFormEvents.debug
+  const formEvents      = sbFormEvents.slice().sort()
 
   // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
   // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
   return NextResponse.json(
-    { leadStatuses, sources, formations, zones, departements, formEvents, formEventsDebug },
+    { leadStatuses, sources, formations, zones, departements, formEvents },
     {
       headers: {
-        'Cache-Control': 'no-store',
+        'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
       },
     },
   )
