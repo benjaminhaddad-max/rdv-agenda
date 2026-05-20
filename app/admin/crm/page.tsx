@@ -1722,6 +1722,27 @@ export default function CRMPage() {
 
                     const renderValueInput = () => {
                       if (!showVal) return null
+                      // form_event : ALWAYS searchable dropdown (toutes les options
+                      // sont fetchees au mount, sans aucune condition de fallback).
+                      if (rule.field === 'form_event') {
+                        const evOpts = formEventOptions.filter(o => o.id)
+                        if (opIsMulti(rule.operator)) {
+                          return (
+                            <MultiSelectDropdown
+                              options={evOpts}
+                              value={rule.value}
+                              onChange={v => updateRule(group.id, rule.id, { value: v })}
+                            />
+                          )
+                        }
+                        return (
+                          <SearchableSelect
+                            options={evOpts}
+                            value={rule.value}
+                            onChange={v => updateRule(group.id, rule.id, { value: v })}
+                          />
+                        )
+                      }
                       // DATE / DATETIME
                       if (kind === 'date' || kind === 'datetime') {
                         const inputType = kind === 'datetime' ? 'datetime-local' : 'date'
