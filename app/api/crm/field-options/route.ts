@@ -60,7 +60,9 @@ async function fetchHubSpotPropertyOptions(propertyName: string): Promise<string
  */
 export async function GET() {
   // Appel HubSpot + Supabase en parallèle (Supabase = fallback paginé)
-  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, sbLeadStatuses, sbSources, sbFormations, sbZones, sbDepts] = await Promise.all([
+  // formEvents = nom du dernier formulaire soumis (`recent_conversion_event`).
+  // Pas d'API HubSpot Properties (champ libre), donc seul Supabase fait foi.
+  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, sbLeadStatuses, sbSources, sbFormations, sbZones, sbDepts, sbFormEvents] = await Promise.all([
     fetchHubSpotPropertyOptions('hs_lead_status'),
     fetchHubSpotPropertyOptions('origine'),
     fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
@@ -71,6 +73,7 @@ export async function GET() {
     fetchAllDistinctValues('formation_demandee'),
     fetchAllDistinctValues('zone_localite'),
     fetchAllDistinctValues('departement'),
+    fetchAllDistinctValues('recent_conversion_event'),
   ])
 
   // Priorité HubSpot ; si vide, fallback Supabase
@@ -79,11 +82,12 @@ export async function GET() {
   const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
   const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
   const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
+  const formEvents    = sbFormEvents.sort()
 
   // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
   // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
   return NextResponse.json(
-    { leadStatuses, sources, formations, zones, departements },
+    { leadStatuses, sources, formations, zones, departements, formEvents },
     {
       headers: {
         'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',

@@ -353,6 +353,7 @@ export default function CRMPage() {
 
   // Options dynamiques depuis HubSpot (valeurs réelles)
   const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts du lead' }])
+  const [formEventOptions, setFormEventOptions]     = useState<SelectOption[]>([{ id: '', label: 'Tous les formulaires' }])
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
   const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones / localités' }])
   const [deptOptions, setDeptOptions]               = useState<SelectOption[]>([{ id: '', label: 'Tous les départements' }])
@@ -471,6 +472,12 @@ export default function CRMPage() {
         setDeptOptions([
           { id: '', label: 'Tous les départements' },
           ...d.departements.map((v: string) => ({ id: v, label: v })),
+        ])
+      }
+      if (d.formEvents?.length) {
+        setFormEventOptions([
+          { id: '', label: 'Tous les formulaires' },
+          ...d.formEvents.map((v: string) => ({ id: v, label: v })),
         ])
       }
     })
@@ -1702,6 +1709,7 @@ export default function CRMPage() {
                         case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
                         case 'pipeline':    valueOptions = pipelineOptions; break
                         case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
+                        case 'form_event':  valueOptions = formEventOptions.filter(o => o.id); break
                       }
                     }
 

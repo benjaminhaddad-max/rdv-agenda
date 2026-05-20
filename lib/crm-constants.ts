@@ -101,7 +101,7 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'period',             label: 'Période',                       type: 'select' },
   { key: 'pipeline',           label: 'Pipeline (Année)',              type: 'select' },
   { key: 'prior_preinscription', label: 'Pré-inscrits années préc.', type: 'select' },
-  { key: 'form_event',         label: 'Dernier formulaire soumis',     type: 'text' },
+  { key: 'form_event',         label: 'Dernier formulaire soumis',     type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
