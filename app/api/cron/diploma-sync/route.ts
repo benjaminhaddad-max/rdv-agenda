@@ -311,7 +311,6 @@ export async function GET(req: NextRequest) {
     // 6. Log dans crm_sync_log (best-effort, on ne fait pas echouer le cron si log echoue)
     try {
       await db.from('crm_sync_log').insert({
-        job_name:          'diploma-sync',
         contacts_upserted: rowsToUpsert.length, // proxy : nb pre_inscriptions upsertes
         deals_upserted:    dealsUpdated,         // nb deals mis a jour
         duration_ms:       durationMs,
@@ -337,7 +336,6 @@ export async function GET(req: NextRequest) {
     logger.error('diploma-sync', err)
     try {
       await db.from('crm_sync_log').insert({
-        job_name:          'diploma-sync',
         contacts_upserted: 0,
         deals_upserted:    0,
         duration_ms:       Date.now() - startMs,

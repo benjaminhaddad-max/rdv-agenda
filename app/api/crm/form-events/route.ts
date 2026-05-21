@@ -4,21 +4,40 @@ import { createServiceClient } from '@/lib/supabase'
 /**
  * GET /api/crm/form-events
  *
- * Renvoie TOUS les noms distincts de formulaires (recent_conversion_event).
- * Utilise la fonction Postgres crm_distinct_form_events qui renvoie un JSON
- * array unique → bypass la limite max_rows=1000 de PostgREST.
+ * Renvoie les noms de formulaires distincts pour le filtre
+ * "Dernier formulaire soumis". Sources fiables (cleaned) :
+ *   1. forms.name           (formulaires creees dans le CRM)
+ *   2. meta_lead_forms.name (Meta Lead Ads)
+ *
+ * Query direct via PostgREST (pas de RPC, pas besoin de DDL).
  */
 export async function GET() {
   const db = createServiceClient()
+  const all = new Set<string>()
 
-  const { data, error } = await db.rpc('crm_distinct_form_events')
-
-  if (error) {
-    console.error('form-events RPC:', error.message)
-    return NextResponse.json({ events: [], error: error.message }, { status: 500 })
+  // 1. Forms créés dans le CRM
+  const { data: crmForms } = await db
+    .from('forms')
+    .select('name')
+    .not('name', 'is', null)
+    .limit(2000)
+  for (const r of (crmForms ?? [])) {
+    const n = (r as { name: string | null }).name
+    if (n && n.trim() !== '') all.add(n.trim())
   }
 
-  const events = Array.isArray(data) ? (data as string[]) : []
+  // 2. Forms Meta Lead Ads
+  const { data: metaForms } = await db
+    .from('meta_lead_forms')
+    .select('name')
+    .not('name', 'is', null)
+    .limit(2000)
+  for (const r of (metaForms ?? [])) {
+    const n = (r as { name: string | null }).name
+    if (n && n.trim() !== '') all.add(n.trim())
+  }
+
+  const events = [...all].sort()
 
   return NextResponse.json(
     { events },

@@ -75,7 +75,6 @@ export async function GET(req: NextRequest) {
     // Log uniquement si c'est le dernier chunk (pas de cursor suivant)
     if (!nextContactCursor) {
       await db.from('crm_sync_log').insert({
-        job_name:          'crm-sync',
         contacts_upserted: contactsUpserted,
         deals_upserted:    0,
         duration_ms:       durationMs,
@@ -99,11 +98,14 @@ export async function GET(req: NextRequest) {
 
   // Dernier sync réussi de CE job uniquement (crm-sync), pour ne pas se faire
   // skip à cause de diploma-sync qui partage la même table crm_sync_log.
+  // Strategie sans schema migration : crm-sync dure typiquement > 60s,
+  // diploma-sync < 60s. Filtre sur duration_ms >= 60000 pour identifier
+  // les runs crm-sync. (Fallback si pas de DDL en prod.)
   const { data: lastSync } = await db
     .from('crm_sync_log')
     .select('synced_at')
-    .eq('job_name', 'crm-sync')
     .is('error_message', null)
+    .gte('duration_ms', 60000)
     .order('synced_at', { ascending: false })
     .limit(1)
     .single()
@@ -509,7 +511,6 @@ export async function GET(req: NextRequest) {
   const durationMs = Date.now() - startMs
 
   await db.from('crm_sync_log').insert({
-    job_name:          'crm-sync',
     contacts_upserted: contactsUpserted,
     deals_upserted:    dealsUpserted,
     duration_ms:       durationMs,
