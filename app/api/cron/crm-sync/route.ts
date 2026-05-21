@@ -278,7 +278,7 @@ export async function GET(req: NextRequest) {
     // maxDuration Vercel (300s). Si on a beaucoup de retard, le sync rattrape
     // sur plusieurs tours successifs (le contactSince avance à chaque run réussi).
     currentPhase = 5
-    const MAX_INCR = fullSync ? 30 : 5  // 5 pages × 100 contacts = 500 max/run incrémental
+    const MAX_INCR = fullSync ? 30 : 20  // 20 pages × 100 contacts = 2000 max/run incrémental
     const PHASE5_TIME_BUDGET_MS = fullSync ? 240_000 : 120_000  // garde-fou temps
     const phase5StartMs = Date.now()
     let incrCursor: string | undefined = undefined

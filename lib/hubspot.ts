@@ -669,7 +669,11 @@ export async function getContactsModifiedSince(
       }],
     }],
     properties: properties && properties.length > 0 ? properties : CONTACT_PROPS.split(','),
-    sorts: [{ propertyName: 'lastmodifieddate', direction: 'ASCENDING' }],
+    // DESCENDING : on traite les contacts les PLUS RECENTS en premier.
+    // Indispensable avec un MAX_INCR limité car sinon le sync incremental
+    // bouffe son budget sur le backlog ancien et n'attrappe jamais les
+    // nouveaux leads du jour.
+    sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
     limit: 100,
   }
   if (after) body.after = after
