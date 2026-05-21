@@ -119,6 +119,132 @@ export async function GET(req: NextRequest) {
     }
   } catch { /* JSON invalide — on ignore */ }
 
+  // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
+  // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
+  // HubSpot ou meta_lead_forms.form_id) et on calcule la liste des contacts
+  // qui ont soumis CE form (historique complet, pas juste le dernier).
+  // Sources :
+  //   1. meta_lead_events.contact_id WHERE form_id matches
+  //   2. crm_contacts WHERE hubspot_raw->>hs_calculated_form_submissions
+  //      contient le form_uuid HubSpot
+  //   3. Fallback : recent_conversion_event = nom (last submission match)
+  // Les contact_ids resultants sont passes via .in() sur la requete principale.
+  let formEventContactIds: string[] | null = null
+  {
+    const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
+    // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
+    const formFilter = customFilters.find(
+      r => r.field === 'recent_conversion_event' &&
+        (r.operator === 'is' || r.operator === 'is_any')
+    )
+    if (formFilter && formFilter.value) {
+      const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
+      if (formNames.length > 0) {
+        // Charger les sources de mapping en parallèle
+        const db2 = createServiceClient()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const [metaFormsRes, hubspotFormsRes]: [any, Array<{ id: string; name: string }>] = await Promise.all([
+          db2.from('meta_lead_forms').select('form_id, name').in('name', formNames),
+          (async () => {
+            if (!HUBSPOT_TOKEN) return [] as Array<{ id: string; name: string }>
+            // Cherche dans HubSpot Forms API les forms qui matchent les noms.
+            // On fetch toutes les pages (cache CDN cote HubSpot).
+            const out: Array<{ id: string; name: string }> = []
+            let url: string | null = 'https://api.hubapi.com/marketing/v3/forms?limit=100'
+            let pages = 0
+            const targetSet = new Set(formNames.map(n => n.toLowerCase()))
+            while (url && pages < 50) {
+              try {
+                const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } })
+                if (!r.ok) break
+                const j = await r.json() as { results?: Array<{ id?: string; name?: string }>; paging?: { next?: { link?: string } } }
+                for (const f of (j.results ?? [])) {
+                  if (f.id && f.name && targetSet.has(f.name.toLowerCase())) {
+                    out.push({ id: f.id, name: f.name })
+                  }
+                }
+                url = j.paging?.next?.link ?? null
+                pages++
+              } catch { break }
+            }
+            return out
+          })(),
+        ])
+
+        const contactIdsSet = new Set<string>()
+
+        // 1. Meta Lead Ads : récupère les contact_id depuis meta_lead_events
+        const metaFormIds = ((metaFormsRes?.data ?? []) as Array<{ form_id: string }>).map(r => r.form_id)
+        if (metaFormIds.length > 0) {
+          // Pagine pour éviter les payloads massifs
+          let off = 0
+          const PAGE = 1000
+          while (true) {
+            const { data: ev } = await db2
+              .from('meta_lead_events')
+              .select('contact_id')
+              .in('form_id', metaFormIds)
+              .not('contact_id', 'is', null)
+              .range(off, off + PAGE - 1)
+            if (!ev || ev.length === 0) break
+            for (const r of ev) {
+              const cid = (r as { contact_id: string | null }).contact_id
+              if (cid) contactIdsSet.add(cid)
+            }
+            if (ev.length < PAGE) break
+            off += PAGE
+          }
+        }
+
+        // 2. HubSpot : pour chaque form_id resolu, scan hubspot_raw->>hs_calculated_form_submissions
+        for (const hsForm of hubspotFormsRes) {
+          let off = 0
+          const PAGE = 1000
+          while (true) {
+            const { data: rows } = await db2
+              .from('crm_contacts')
+              .select('hubspot_contact_id')
+              .ilike('hubspot_raw->>hs_calculated_form_submissions', `%${hsForm.id}%`)
+              .range(off, off + PAGE - 1)
+            if (!rows || rows.length === 0) break
+            for (const r of rows) {
+              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+              if (cid) contactIdsSet.add(cid)
+            }
+            if (rows.length < PAGE) break
+            off += PAGE
+          }
+        }
+
+        // 3. Fallback : exact match sur recent_conversion_event (last form only)
+        // Capture les contacts dont la sync n'a pas encore rempli hubspot_raw OU
+        // les variantes HubSpot des Meta Lead Ads (préfixe "Facebook Lead Ads:")
+        for (const name of formNames) {
+          let off = 0
+          const PAGE = 1000
+          while (true) {
+            const { data: rows } = await db2
+              .from('crm_contacts')
+              .select('hubspot_contact_id')
+              .eq('recent_conversion_event', name)
+              .range(off, off + PAGE - 1)
+            if (!rows || rows.length === 0) break
+            for (const r of rows) {
+              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+              if (cid) contactIdsSet.add(cid)
+            }
+            if (rows.length < PAGE) break
+            off += PAGE
+          }
+        }
+
+        formEventContactIds = [...contactIdsSet]
+        // Retire le filtre form_event des customFilters pour ne pas le double-appliquer
+        customFilters = customFilters.filter(r => r !== formFilter)
+      }
+    }
+  }
+
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
   // de re-soumettre un formulaire remontent automatiquement en haut de la liste.
@@ -596,6 +722,20 @@ export async function GET(req: NextRequest) {
   if (createdBeforeDays > 0) {
     const before = new Date(Date.now() - createdBeforeDays * 86_400_000)
     query = query.lt('contact_createdate', before.toISOString())
+  }
+
+  // Filtre form_event resolu en amont → liste de contact_ids
+  // (capture historique complet : Meta + HubSpot hs_calculated_form_submissions
+  // + fallback recent_conversion_event)
+  if (formEventContactIds !== null) {
+    if (formEventContactIds.length === 0) {
+      // Aucun contact ne matche → force resultat vide
+      query = query.eq('hubspot_contact_id', '__no_match__')
+    } else {
+      // .in() supporte ~2000 IDs avant que l'URL devienne trop longue.
+      // Pour les forms avec plus de leads, on tronque (limite practique).
+      query = query.in('hubspot_contact_id', formEventContactIds.slice(0, 2000))
+    }
   }
 
   // Statut du lead (multi-value support)
