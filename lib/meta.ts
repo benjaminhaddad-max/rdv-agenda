@@ -443,8 +443,13 @@ export async function processMetaLead(
   let contactId: string | null = null
   let contactCreated = false
 
+  // Date REELLE de soumission Meta (created_time). Fallback : nowIso si absent.
+  const leadCreatedIso = lead.created_time
+    ? new Date(lead.created_time).toISOString()
+    : nowIso
+
   const conversionMeta = {
-    recent_conversion_date: nowIso,
+    recent_conversion_date: leadCreatedIso,
     // recent_conversion_event = nom du form Meta (utilise par le filtre
     // "Dernier formulaire soumis"). Fallback : origine_label ou 'Meta Lead Ads'.
     recent_conversion_event:
@@ -466,7 +471,9 @@ export async function processMetaLead(
     const insertData: Record<string, unknown> = {
       ...contactData,
       ...conversionMeta,
-      contact_createdate: nowIso,
+      // Date de création = date REELLE de soumission Meta (pas now()) pour
+      // que les leads backfilles gardent leur date d'origine.
+      contact_createdate: leadCreatedIso,
       hubspot_contact_id: nativeId,
       origine: formMetadata?.origine_label || 'Meta Lead Ads',
       hubspot_owner_id: formMetadata?.default_owner_id || null,
