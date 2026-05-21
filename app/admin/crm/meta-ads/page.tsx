@@ -428,8 +428,8 @@ function MetaAdsPage() {
                             : '—'}
                         </td>
                         <td style={td}>
-                          {(e.field_data || []).slice(0, 4).map((f: { name: string; values: string[] }) => (
-                            <span key={f.name} style={{ marginRight: 8 }}>
+                          {(Array.isArray(e.field_data) ? e.field_data : []).slice(0, 4).map((f: { name: string; values: string[] }, i: number) => (
+                            <span key={`${f.name || 'f'}-${i}`} style={{ marginRight: 8 }}>
                               <strong>{f.name}</strong>: {f.values?.[0] || ''}
                             </span>
                           ))}

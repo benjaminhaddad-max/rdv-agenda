@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
           ad_id: v.ad_id || null,
           adset_id: v.adset_id || null,
           campaign_id: v.campaign_id || null,
-          field_data: {},
+          field_data: [],
           raw_payload: v,
           status: 'error',
           error: 'Page non connectée ou désactivée',
