@@ -20,11 +20,13 @@ import { logger } from '@/lib/logger'
 export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
   const token = auth.replace('Bearer ', '')
-  if (CRON_SECRET && token !== CRON_SECRET) {
+  const validTokens = [CRON_SECRET, SERVICE_KEY].filter(Boolean)
+  if (validTokens.length > 0 && !validTokens.includes(token)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
