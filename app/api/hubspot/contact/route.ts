@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getContact, searchContactByPhone, createHubSpotContact, updateContact } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 // Extrait l'ID contact depuis n'importe quel format d'URL HubSpot :
 // Ancien : https://app-eu1.hubspot.com/contacts/26711031/contact/78338004
@@ -31,6 +32,7 @@ function extractContactIdFromUrl(url: string): string | null {
 
 // POST /api/hubspot/contact — Créer un nouveau contact HubSpot
 export async function POST(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const body = await req.json()
     const { firstname, lastname, email, phone, departement, classe_actuelle, formation } = body
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/hubspot/contact — Mettre à jour les propriétés d'un contact HubSpot
 export async function PATCH(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const body = await req.json()
     const { contactId, properties } = body
@@ -80,6 +83,7 @@ export async function PATCH(req: NextRequest) {
 // GET /api/hubspot/contact?url=https://...  → chercher par lien HubSpot
 // GET /api/hubspot/contact?phone=0612345678 → chercher par téléphone
 export async function GET(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { searchParams } = new URL(req.url)
   const url = searchParams.get('url')
   const phone = searchParams.get('phone')

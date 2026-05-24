@@ -589,12 +589,15 @@ export default function TeleproClient({
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
 
   const fetchHsStats = useCallback(async () => {
-    if (!teleproUser.hubspot_owner_id) return
-    try {
-      const res = await fetch(`/api/hubspot/telepro-stats?hubspot_owner_id=${teleproUser.hubspot_owner_id}`)
-      if (res.ok) setHsStats(await res.json())
-    } catch (_e) { /* silencieux */ }
-  }, [teleproUser.hubspot_owner_id])
+    const now = new Date()
+    const thisMonth = myRdvs.filter(r => {
+      const d = new Date(r.start_at)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    }).length
+    const positifs = myRdvs.filter(r => r.status === 'positif' || r.status === 'preinscription').length
+    const aVenir = myRdvs.filter(r => new Date(r.start_at) > now).length
+    setHsStats({ total: myRdvs.length, thisMonth, positifs, aVenir })
+  }, [myRdvs])
 
   const fetchMyRdvs = useCallback(async () => {
     if (isAdmin) return
@@ -684,31 +687,21 @@ export default function TeleproClient({
 
   // ── Historique : fetch via HubSpot owner → Supabase hubspot_deal_id ──
   const fetchHistorique = useCallback(async () => {
-    if (!teleproUser.hubspot_owner_id) return
+    if (!teleproUser.id) return
     setHistLoading(true)
     try {
       const res = await fetch(
-        `/api/appointments/historique?hubspot_owner_id=${teleproUser.hubspot_owner_id}`
+        `/api/appointments/historique?telepro_id=${teleproUser.id}`
       )
       if (res.ok) setHistRdvs(await res.json())
     } finally {
       setHistLoading(false)
     }
-  }, [teleproUser.hubspot_owner_id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [teleproUser.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchEngagements = useCallback(async (rdv: HistRdv) => {
-    if (!rdv.hubspot_deal_id || engData[rdv.id]) return
-    setLoadingEng(p => ({ ...p, [rdv.id]: true }))
-    try {
-      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`)
-      if (res.ok) {
-        const data = await res.json()
-        setEngData(p => ({ ...p, [rdv.id]: { engagements: data.engagements ?? [], contact: data.contact ?? null } }))
-      }
-    } finally {
-      setLoadingEng(p => ({ ...p, [rdv.id]: false }))
-    }
-  }, [engData]) // eslint-disable-line react-hooks/exhaustive-deps
+  const fetchEngagements = useCallback(async (_rdv: HistRdv) => {
+    // HubSpot désactivé : on ne charge plus les engagements externes.
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeTab === 'historique') fetchHistorique()
@@ -716,13 +709,12 @@ export default function TeleproClient({
 
 
   const marquerPerdu = useCallback(async (rdv: HistRdv) => {
-    if (!rdv.hubspot_deal_id) return
     setClosingDeal(rdv.id)
     try {
-      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`, {
+      const res = await fetch(`/api/appointments/${rdv.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: 'fermePerdu' }),
+        body: JSON.stringify({ status: 'negatif' }),
       })
       if (res.ok) {
         setHistRdvs(prev => prev.map(r =>
@@ -953,9 +945,9 @@ export default function TeleproClient({
     if (!contact || !email.trim() || email.trim() === emailOriginalRef.current) return
     setEmailSynced(false)
     try {
-      const res = await fetch('/api/hubspot/contact', {
+      const res = await fetch(`/api/crm/contacts/${contact.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, properties: { email: email.trim() } }),
+        body: JSON.stringify({ email: email.trim() }),
       })
       if (res.ok) { emailOriginalRef.current = email.trim(); setEmailSynced(true); setTimeout(() => setEmailSynced(false), 2000) }
     } catch { /* silencieux */ }
@@ -967,16 +959,28 @@ export default function TeleproClient({
     if (rdv.hubspot_contact_id) {
       setRebookLoading(rdv.id)
       try {
-        const res = await fetch(`/api/hubspot/contact?url=${rdv.hubspot_contact_id}`)
+        const res = await fetch(`/api/crm/contacts/${rdv.hubspot_contact_id}/details?phase=core`)
         const data = await res.json()
-        if (res.ok && data.results?.length > 0) {
-          const c = data.results[0]; setContact(c)
-          const p = c.properties
-          const ev = p.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-          if (p.phone) setPhone(p.phone)
-          if (p.departement) setDepartement(String(p.departement))
-          if (p.classe_actuelle) setClasseActuelle(p.classe_actuelle)
-          if (p.diploma_sante___formation_demandee) setFormation(p.diploma_sante___formation_demandee)
+        if (res.ok && data.contact) {
+          const c = data.contact
+          const shaped: HubSpotContact = {
+            id: c.hubspot_contact_id,
+            properties: {
+              email: c.email ?? '',
+              firstname: c.firstname ?? '',
+              lastname: c.lastname ?? '',
+              phone: c.phone ?? '',
+              departement: c.departement != null ? String(c.departement) : '',
+              classe_actuelle: c.classe_actuelle ?? '',
+              diploma_sante___formation_demandee: c.formation_demandee ?? '',
+            },
+          }
+          setContact(shaped)
+          const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
+          if (c.phone) setPhone(c.phone)
+          if (c.departement) setDepartement(String(c.departement))
+          if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
+          if (c.formation_demandee) setFormation(c.formation_demandee)
         }
       } finally {
         setRebookLoading(null)

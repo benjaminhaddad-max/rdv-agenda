@@ -39,6 +39,38 @@ import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
 
 // Composants UI extraits dans @/components/crm/*
 
+const LINOVA_FORM_NAMES = [
+  'LINOVA - Form LGF - 21/05/2026',
+  'LINOVA - Form LGF - 18/05/2026',
+]
+
+function buildLinovaGroups(): CRMFilterGroup[] {
+  return [{
+    id: 'grp-linova-forms',
+    rules: [{
+      id: 'linova-form-event-is-any',
+      field: 'form_event',
+      operator: 'is_any',
+      value: LINOVA_FORM_NAMES.join(','),
+    }],
+  }]
+}
+
+function isLinovaGroups(groups: CRMFilterGroup[]): boolean {
+  const first = groups?.[0]
+  if (!first || !Array.isArray(first.rules)) return false
+  const rule = first.rules.find(r => r.field === 'form_event' && r.operator === 'is_any')
+  if (!rule?.value) return false
+  const vals = rule.value.split(',').map(v => v.trim()).filter(Boolean)
+  return LINOVA_FORM_NAMES.every(name => vals.includes(name))
+}
+
+function normalizeLegacyFieldName(field: string): string {
+  // Backward-compat: anciennes vues sauvegardées avec "origine".
+  if (field === 'origine') return 'source'
+  return field
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface RdvUser {
@@ -116,6 +148,7 @@ export default function CRMPage() {
 
   // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [stage, setStage]             = useState('')
   const [closerHsId, setCloserHsId]   = useState('')
   const [closerContactHsId, setCloserContactHsId] = useState('') // = filtre direct sur crm_contacts.closer_du_contact_owner_id
@@ -360,6 +393,7 @@ export default function CRMPage() {
 
   // Counts pré-chargés par vue
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
+  const [fieldOptionsLoaded, setFieldOptionsLoaded] = useState(false)
 
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -369,6 +403,7 @@ export default function CRMPage() {
 
   const [limit, setLimit] = useState(50)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasLoadedOnceRef = useRef(false)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
   useEffect(() => {
@@ -376,13 +411,29 @@ export default function CRMPage() {
       .then(r => r.json())
       .then((rows: Array<{ id: string; name: string; filter_groups: unknown; preset_flags: unknown; position: number }>) => {
         if (!Array.isArray(rows) || rows.length === 0) { setViewsLoaded(true); return }
-        const dbViews: CRMSavedView[] = rows.map(r => ({
-          id: r.id,
-          name: r.name,
-          groups: (r.filter_groups as CRMFilterGroup[]) ?? [],
-          presetFlags: r.preset_flags as CRMSavedView['presetFlags'] ?? undefined,
-          isDefault: false,
-        }))
+        const dbViews: CRMSavedView[] = rows.map(r => {
+          const rawGroups = (r.filter_groups as CRMFilterGroup[]) ?? []
+          // Vue LINOVA impose explicitement les 2 forms cibles.
+          const shouldForceLinova = (r.name || '').toLowerCase().includes('linova')
+          const groups = shouldForceLinova ? buildLinovaGroups() : rawGroups
+
+          // Persiste la correction en base pour eviter tout drift futur.
+          if (shouldForceLinova && !isLinovaGroups(rawGroups)) {
+            void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filter_groups: groups }),
+            }).catch(() => {})
+          }
+
+          return {
+            id: r.id,
+            name: r.name,
+            groups,
+            presetFlags: r.preset_flags as CRMSavedView['presetFlags'] ?? undefined,
+            isDefault: false,
+          }
+        })
         setCrmViews([...CRM_DEFAULT_VIEWS, ...dbViews])
         setViewsLoaded(true)
       })
@@ -403,22 +454,17 @@ export default function CRMPage() {
 
   // ── Pré-charger les counts de toutes les vues ─────────────────────────────
   useEffect(() => {
-    if (!viewsLoaded) return
-    Promise.all(
-      crmViews.map(async view => {
-        const p = viewToParams(view)
-        p.set('limit', '0')
-        try {
-          const res = await fetch(`/api/crm/contacts?${p.toString()}`)
-          if (!res.ok) return [view.id, 0] as [string, number]
-          const data = await res.json()
-          return [view.id, data.total ?? 0] as [string, number]
-        } catch {
-          return [view.id, 0] as [string, number]
-        }
-      })
-    ).then(results => setViewCounts(Object.fromEntries(results)))
-  }, [viewsLoaded, crmViews.length])
+    if (!viewsLoaded || loading) return
+    const t = setTimeout(() => {
+      fetch('/api/crm/views/counts', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d?.counts && typeof d.counts === 'object') setViewCounts(d.counts as Record<string, number>)
+        })
+        .catch(() => {})
+    }, 600)
+    return () => clearTimeout(t)
+  }, [viewsLoaded, crmViews.length, loading])
 
   // Mettre à jour le count de la vue active quand total change
   useEffect(() => {
@@ -444,67 +490,82 @@ export default function CRMPage() {
     fetch('/api/crm/owners').then(r => r.json()).then(d => {
       if (Array.isArray(d.owners)) setHubspotOwners(d.owners)
     }).catch(() => {})
-    // Charger les 829 propriétés contacts pour le picker des filtres avancés
+  }, [])
+
+  // Charger les options de filtres lourdes après le premier rendu utile,
+  // ou immédiatement si l'utilisateur ouvre le panneau de filtres.
+  useEffect(() => {
+    if (fieldOptionsLoaded) return
+    if (!filterPanelOpen && loading) return
+
+    const t = setTimeout(() => {
+      fetch('/api/crm/field-options').then(r => r.json()).then(d => {
+        if (d.leadStatuses?.length) {
+          setLeadStatusOptions([
+            { id: '', label: 'Tous les statuts du lead' },
+            ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
+          ])
+        }
+        if (d.sources?.length) {
+          setSourceOptions([
+            { id: '', label: 'Toutes les origines' },
+            ...d.sources.map((v: string) => ({ id: v, label: v })),
+          ])
+        }
+        if (d.zones?.length) {
+          setZoneOptions([
+            { id: '', label: 'Toutes les zones / localités' },
+            ...d.zones.map((v: string) => ({ id: v, label: v })),
+          ])
+        }
+        if (d.departements?.length) {
+          setDeptOptions([
+            { id: '', label: 'Tous les départements' },
+            ...d.departements.map((v: string) => ({ id: v, label: v })),
+          ])
+        }
+        if (d.formEvents?.length) {
+          setFormEventOptions([
+            { id: '', label: 'Tous les formulaires' },
+            ...d.formEvents.map((v: string) => ({ id: v, label: v })),
+          ])
+        }
+        setFieldOptionsLoaded(true)
+      }).catch(() => {})
+    }, filterPanelOpen ? 0 : 400)
+
+    return () => clearTimeout(t)
+  }, [filterPanelOpen, fieldOptionsLoaded, loading])
+
+  // Charge les propriétés CRM uniquement quand le panel de filtres est ouvert.
+  useEffect(() => {
+    if (!filterPanelOpen || allCrmProps.length > 0) return
     fetch('/api/crm/properties?object=contacts&limit=2000').then(r => r.json()).then(d => {
       if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
-    // Charger les valeurs réelles HubSpot pour statut lead + origine
-    // ?v=2 bust le cache CDN apres ajout du champ formEvents
-    fetch(`/api/crm/field-options?t=${Date.now()}`).then(r => r.json()).then(d => {
-      if (d.leadStatuses?.length) {
-        setLeadStatusOptions([
-          { id: '', label: 'Tous les statuts du lead' },
-          ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.sources?.length) {
-        setSourceOptions([
-          { id: '', label: 'Toutes les origines' },
-          ...d.sources.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.zones?.length) {
-        setZoneOptions([
-          { id: '', label: 'Toutes les zones / localités' },
-          ...d.zones.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.departements?.length) {
-        setDeptOptions([
-          { id: '', label: 'Tous les départements' },
-          ...d.departements.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-      if (d.formEvents?.length) {
-        setFormEventOptions([
-          { id: '', label: 'Tous les formulaires' },
-          ...d.formEvents.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-    })
+  }, [filterPanelOpen, allCrmProps.length])
 
-    // Endpoint dedie aux form events (plus rapide, isole en cas de souci).
-    fetch(`/api/crm/form-events?t=${Date.now()}`).then(r => r.json()).then(d => {
-      if (Array.isArray(d.events) && d.events.length > 0) {
-        setFormEventOptions([
-          { id: '', label: 'Tous les formulaires' },
-          ...d.events.map((v: string) => ({ id: v, label: v })),
-        ])
-      }
-    }).catch(() => {})
-  }, [])
+  // Debounce recherche pour éviter un fetch par frappe.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
 
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
     const currentPage = resetPage ? 0 : page
     if (resetPage) setPage(0)
+    const activeView = crmViews.find(v => v.id === activeViewId)
+    const activeViewName = (activeView?.name ?? '').toLowerCase()
+    const forceMetaAdsOnly = activeViewId === 'v_meta_ads_all' || activeViewName.includes('meta ads')
 
     const params = new URLSearchParams({
       limit: String(limit),
       page: String(currentPage),
     })
-    if (search)               params.set('search', search)
+    if (activeViewId) params.set('view_id', activeViewId)
+    if (debouncedSearch)      params.set('search', debouncedSearch)
     if (stage)                params.set('stage', stage)
     if (closerHsId)           params.set('closer_hs_id', closerHsId)
     if (closerContactHsId)    params.set('closer_contact_hs_id', closerContactHsId)
@@ -517,7 +578,7 @@ export default function CRMPage() {
     if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
     if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
     if (showExternal)         params.set('show_external', '1')
-    if (allClasses)           params.set('all_classes', '1')
+    if (allClasses || forceMetaAdsOnly) params.set('all_classes', '1')
     if (leadStatus)           params.set('lead_status', leadStatus)
     if (source)               params.set('source', source)
     if (zoneFilter)           params.set('zone', zoneFilter)
@@ -554,7 +615,8 @@ export default function CRMPage() {
     if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
     // Filtres custom (propriétés HubSpot : date, number, enum, …)
-    if (customFilterParam) params.set('cf', customFilterParam)
+    if (customFilterParam && !forceMetaAdsOnly) params.set('cf', customFilterParam)
+    if (forceMetaAdsOnly) params.set('meta_ads_only', '1')
 
     const url = `/api/crm/contacts?${params.toString()}`
 
@@ -575,27 +637,67 @@ export default function CRMPage() {
       return
     }
 
-    setLoading(true)
+    if (!hasLoadedOnceRef.current) setLoading(true)
     try {
       const data = await refetch<{ data?: CRMContact[]; total?: number }>(url, () => jsonFetcher(url), 30_000)
       setContacts(data.data ?? [])
       setTotal(data.total ?? 0)
+      hasLoadedOnceRef.current = true
     } catch {
       // garde le state precedent en cas d'erreur reseau
     } finally {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam])
+  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
   const fetchRef = useRef(fetchContacts)
   fetchRef.current = fetchContacts
 
+  const shouldAutoRefreshLeads = useMemo(() => {
+    const active = crmViews.find(v => v.id === activeViewId)
+    const activeName = (active?.name ?? '').toLowerCase()
+    return activeName.includes('linova') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
+  }, [crmViews, activeViewId, source, customFilterParam])
+
+  // Rafraichit la liste en continu pour refléter les leads Meta quasi en temps réel.
+  // Le webhook/poll peut insérer un lead pendant que la vue LINOVA est ouverte.
+  useEffect(() => {
+    if (!shouldAutoRefreshLeads) return
+    let timer: ReturnType<typeof setInterval> | null = null
+    const start = () => {
+      if (timer) return
+      timer = setInterval(() => {
+        if (document.visibilityState !== 'visible') return
+        fetchRef.current(false)
+      }, 12_000)
+    }
+    const stop = () => {
+      if (!timer) return
+      clearInterval(timer)
+      timer = null
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchRef.current(false)
+        start()
+      } else {
+        stop()
+      }
+    }
+    onVisibility()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      stop()
+    }
+  }, [shouldAutoRefreshLeads])
+
   function scheduleRefetch() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchRef.current(true), 300)
+    debounceRef.current = setTimeout(() => setPage(0), 50)
   }
 
   function handleSortChange(col: string) {
@@ -633,12 +735,13 @@ export default function CRMPage() {
     const customFilters: Array<{ field: string; operator: string; value: string }> = []
     if (firstGroup) {
       for (const rule of firstGroup.rules) {
+        const ruleField = normalizeLegacyFieldName(String(rule.field))
         if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
         const val = rule.value
         // Filtre custom (propriété HubSpot non-hardcodée) → JSON envoyé via ?cf=
-        if (typeof rule.field === 'string' && rule.field.startsWith('custom:')) {
+        if (ruleField.startsWith('custom:')) {
           customFilters.push({
-            field: rule.field.slice(7),
+            field: ruleField.slice(7),
             operator: rule.operator,
             value: val,
           })
@@ -646,7 +749,7 @@ export default function CRMPage() {
         }
         // form_event → route via le mecanisme `cf` (custom filters) sur la
         // colonne `recent_conversion_event`. Supporte tous les operateurs.
-        if (rule.field === 'form_event') {
+        if (ruleField === 'form_event') {
           customFilters.push({
             field: 'recent_conversion_event',
             operator: rule.operator,
@@ -656,7 +759,7 @@ export default function CRMPage() {
         }
         // Positive filters: is, is_any, contains
         if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
-          switch (rule.field) {
+          switch (ruleField) {
             case 'stage':       setStage(val); break
             case 'formation':   setFormation(val); break
             case 'classe':      setClasse(val); break
@@ -676,7 +779,7 @@ export default function CRMPage() {
         }
         // Exclusion filters: is_not, is_none
         if (rule.operator === 'is_not' || rule.operator === 'is_none') {
-          switch (rule.field) {
+          switch (ruleField) {
             case 'stage':         setStageNot(val); break
             case 'formation':     setFormationNot(val); break
             case 'closer':        setCloserNot(val); break
@@ -692,10 +795,10 @@ export default function CRMPage() {
         }
         // Empty / not-empty filters
         if (rule.operator === 'is_empty') {
-          setEmptyFields(prev => prev ? `${prev},${rule.field}` : rule.field)
+          setEmptyFields(prev => prev ? `${prev},${ruleField}` : ruleField)
         }
         if (rule.operator === 'is_not_empty') {
-          setNotEmptyFields(prev => prev ? `${prev},${rule.field}` : rule.field)
+          setNotEmptyFields(prev => prev ? `${prev},${ruleField}` : ruleField)
         }
       }
     }
@@ -809,7 +912,7 @@ export default function CRMPage() {
   }
 
   function removeRule(gid: string, rid: string) {
-    let updated = filterGroups.map(g => {
+    const updated = filterGroups.map(g => {
       if (g.id !== gid) return g
       return { ...g, rules: g.rules.filter(r => r.id !== rid) }
     }).filter(g => g.rules.length > 0)
@@ -1550,7 +1653,7 @@ export default function CRMPage() {
         <div style={{ padding: '0 20px' }}>
         <CRMContactsTable
           contacts={displayed}
-          loading={loading}
+          loading={loading && displayed.length === 0}
           mode="admin"
           onRefresh={() => fetchContacts()}
           selectedIds={selectedIds}
@@ -1696,8 +1799,9 @@ export default function CRMPage() {
                   </div>
 
                   {group.rules.map((rule, ri) => {
-                    const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
-                    const customName = isCustomField(rule.field)
+                    const normalizedField = normalizeLegacyFieldName(String(rule.field))
+                    const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === normalizedField)
+                    const customName = isCustomField(normalizedField)
                     const customProp = customName ? allCrmProps.find(p => p.name === customName) : null
 
                     // Détermine le « kind » de la propriété pour choisir l'input + les opérateurs
@@ -1707,7 +1811,7 @@ export default function CRMPage() {
                     } else if (fieldDef?.type === 'select') {
                       kind = 'enum'
                     }
-                    const ops = customProp ? opsForKind(kind) : opsForField(rule.field)
+                    const ops = customProp ? opsForKind(kind) : opsForField(normalizedField as CRMFilterField)
                     const showVal = opNeedsValue(rule.operator)
 
                     // Options pour les enums (hardcodés ou venant des propriétés HubSpot)
@@ -1715,7 +1819,7 @@ export default function CRMPage() {
                     if (customProp && customProp.options && customProp.options.length > 0) {
                       valueOptions = customProp.options.map(o => ({ id: o.value, label: o.label }))
                     } else {
-                      switch (rule.field) {
+                      switch (normalizedField) {
                         case 'stage':       valueOptions = allStageOptions; break
                         case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                         case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
@@ -1724,7 +1828,16 @@ export default function CRMPage() {
                         case 'contact_owner': valueOptions = closerOptions.filter(o => o.id); break
                         case 'telepro':       valueOptions = teleproOptions.filter(o => o.id); break
                         case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
-                        case 'source':      valueOptions = sourceOptions.filter(o => o.id); break
+                        case 'source': {
+                          const opts = sourceOptions.filter(o => o.id)
+                          // Garde un vrai dropdown même si les options ne sont pas
+                          // encore chargées au moment où le panneau s'ouvre.
+                          const fallback = rule.value
+                            ? [{ id: rule.value, label: rule.value }]
+                            : [{ id: 'meta_lead_ads', label: 'meta_lead_ads' }]
+                          valueOptions = opts.length > 0 ? opts : fallback
+                          break
+                        }
                         case 'zone':        valueOptions = zoneOptions.filter(o => o.id); break
                         case 'departement': valueOptions = deptOptions.filter(o => o.id); break
                         case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
@@ -1744,7 +1857,7 @@ export default function CRMPage() {
                       if (!showVal) return null
                       // form_event : ALWAYS searchable dropdown (toutes les options
                       // sont fetchees au mount, sans aucune condition de fallback).
-                      if (rule.field === 'form_event') {
+                      if (normalizedField === 'form_event') {
                         const evOpts = formEventOptions.filter(o => o.id)
                         if (opIsMulti(rule.operator)) {
                           return (
@@ -1836,7 +1949,7 @@ export default function CRMPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
                           <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
                           <CRMFieldPicker
-                            value={rule.field}
+                            value={normalizedField}
                             onChange={(field) => {
                               // Default operator selon le kind de la nouvelle propriété
                               const next = allCrmProps.find(p => 'custom:' + p.name === field)

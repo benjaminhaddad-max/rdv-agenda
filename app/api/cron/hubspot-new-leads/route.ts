@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getHubspotMode } from '@/lib/hubspot-mode'
 
 /**
  * Cron ultra-léger HubSpot → Supabase
@@ -40,6 +41,15 @@ const PROPS = [
 ]
 
 export async function GET(req: NextRequest) {
+  const mode = await getHubspotMode()
+  if (mode.disconnected) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'HubSpot disconnected (mirror + read disabled)',
+    })
+  }
+
   const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
   const token = auth.replace('Bearer ', '')
   if (CRON_SECRET && token !== CRON_SECRET && req.nextUrl.searchParams.get('force') !== '1') {

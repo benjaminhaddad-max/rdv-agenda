@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { createDeal, updateDealStage, updateDealOwner, updateContact, addNoteToEngagements, STAGES } from '@/lib/hubspot'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -66,65 +65,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-    // Sync HubSpot : mettre à jour l'owner du deal existant, ou créer si absent
-    const { data: closer } = await db
-      .from('rdv_users')
-      .select('hubspot_owner_id, name')
-      .eq('id', commercial_id)
-      .single()
-
-    if (closer?.hubspot_owner_id) {
-      try {
-        if (appointment.hubspot_deal_id) {
-          // Deal existe déjà → mettre à jour le propriétaire
-          await updateDealOwner(appointment.hubspot_deal_id, closer.hubspot_owner_id)
-          // En réassignation : ajouter une note dans HubSpot
-          if (reassign) {
-            await addNoteToEngagements({
-              dealId: appointment.hubspot_deal_id,
-              contactId: appointment.hubspot_contact_id || null,
-              body: `🔄 RDV RÉASSIGNÉ\nNouveau closer : ${closer.name}\n(Réassignation manuelle par Pascal)`,
-            })
-          }
-        } else {
-          // Deal pas encore créé → le créer maintenant
-          const enrichedNotes = [
-            appointment.formation_type  ? `📚 Formation souhaitée : ${appointment.formation_type}` : '',
-            appointment.departement     ? `📍 Département : ${appointment.departement}` : '',
-            appointment.classe_actuelle ? `🎓 Classe actuelle : ${appointment.classe_actuelle}` : '',
-            appointment.notes?.trim()   ? `\n📝 Notes d'appel :\n${appointment.notes}` : '',
-          ].filter(Boolean).join('\n')
-
-          const deal = await createDeal({
-            prospectName: appointment.prospect_name,
-            prospectEmail: appointment.prospect_email,
-            prospectPhone: appointment.prospect_phone,
-            ownerId: closer.hubspot_owner_id,
-            appointmentDate: appointment.start_at,
-            appointmentId: id,
-            formationType: appointment.formation_type,
-            classeActuelle: appointment.classe_actuelle || null,
-            hubspotContactId: appointment.hubspot_contact_id || null,
-            callNotes: enrichedNotes || null,
-          })
-
-          await db
-            .from('rdv_appointments')
-            .update({ hubspot_deal_id: deal.id, hubspot_synced_at: new Date().toISOString() })
-            .eq('id', id)
-
-          updated.hubspot_deal_id = deal.id
-        }
-        // Anti-boucle : marquer la synchro pour que le CRON ignore ce changement
-        await db
-          .from('rdv_appointments')
-          .update({ hubspot_synced_at: new Date().toISOString() })
-          .eq('id', id)
-      } catch (e) {
-        console.error('HubSpot deal sync on assign failed:', e)
-      }
-    }
-
     return NextResponse.json(updated)
   }
 
@@ -169,14 +109,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Sync HubSpot
-    if (appointment.hubspot_contact_id && email_parent) {
-      try {
-        await updateContact(appointment.hubspot_contact_id, { email_parent })
-      } catch (_e) {
-        console.error('HubSpot email_parent update failed:', _e)
-      }
-    }
     return NextResponse.json(data)
   }
 
@@ -215,92 +147,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Sync HubSpot stage + note
-  if (appointment.hubspot_deal_id && status !== 'non_assigne') {
-    const stageMap: Record<string, keyof typeof STAGES> = {
-      confirme: 'rdvPris',
-      no_show: 'aReplanifier',
-      annule: 'aReplanifier',
-      a_travailler: 'delaiReflexion',
-      pre_positif: 'delaiReflexion',
-      positif: 'preinscription',
-      negatif: 'fermePerdu',
-      // Legacy
-      va_reflechir: 'delaiReflexion',
-      preinscription: 'preinscription',
-    }
-    const statusLabel: Record<string, string> = {
-      no_show: '❌ NO-SHOW — À REPLANIFIER',
-      annule: '🚫 RDV ANNULÉ — À REPLANIFIER',
-      a_travailler: '📧 À TRAVAILLER — Mail PI + brochure',
-      pre_positif: '🔥 PRÉ-POSITIF — Mail PI + brochure',
-      positif: '🎉 POSITIF — Pré-inscription HubSpot',
-      negatif: '💀 NÉGATIF — Rien à faire',
-      confirme: '✅ RDV CONFIRMÉ',
-    }
-    try {
-      if (stageMap[status]) {
-        await updateDealStage(appointment.hubspot_deal_id, stageMap[status])
-      }
-
-      // Pour les statuts issus du RDV, le closer qui pose le statut devient propriétaire du deal + contact
-      const closerStatuses = ['a_travailler', 'pre_positif', 'positif', 'negatif']
-      if (closerStatuses.includes(status) && appointment.commercial_id) {
-        const { data: closer } = await db
-          .from('rdv_users')
-          .select('hubspot_owner_id')
-          .eq('id', appointment.commercial_id)
-          .single()
-
-        if (closer?.hubspot_owner_id) {
-          await updateDealOwner(appointment.hubspot_deal_id, closer.hubspot_owner_id)
-          if (appointment.hubspot_contact_id) {
-            await updateContact(appointment.hubspot_contact_id, { hubspot_owner_id: closer.hubspot_owner_id })
-          }
-        }
-      }
-
-      // Ajouter une note avec le statut bien visible + rapport closer
-      const negatifReasonLabels: Record<string, string> = {
-        inscrit_autre_prepa: 'Inscrit autre prépa',
-        pas_les_moyens: 'Pas les moyens (potentiel medibox)',
-        reorientation: 'Réorientation',
-        autre: 'Autre',
-      }
-      const concurrenceLabels: Record<string, string> = {
-        bien_renseignee: 'Bien renseignée ou va le faire',
-        peu_renseignee: 'Peu renseignée ou va pas trop regarder',
-        pas_renseignee: 'Pas renseignée',
-      }
-      const noteLines = [
-        `${statusLabel[status] || status.toUpperCase()}`,
-        '─────────────────────────',
-        report_summary ? `📝 Résumé du RDV :\n${report_summary}` : '',
-        report_telepro_advice ? `\n💬 Conseil télépro :\n${report_telepro_advice}` : '',
-        negatif_reason ? `\n❌ Raison négatif : ${negatifReasonLabels[negatif_reason] || negatif_reason}${negatif_reason_detail ? ` (${negatif_reason_detail})` : ''}` : '',
-        interlocuteur_principal ? `\n👤 Interlocuteur : ${interlocuteur_principal === 'parent' ? 'Parent' : 'Étudiant'}` : '',
-        consigne_text ? `📋 Consigne : ${consigne_text}${consigne_echeance ? ` — Échéance : ${consigne_echeance}` : ''}${consigne_rien_a_faire ? ' — Rien à faire' : ''}` : '',
-        contexte_concurrence ? `\n🏆 Concurrence : ${concurrenceLabels[contexte_concurrence] || contexte_concurrence}` : '',
-        financement ? `\n💰 Financement : ${financement === 'pas_de_probleme' ? 'Pas de problème' : 'Potentiel blocage financier'}` : '',
-        jpo_invitation ? `\n🎓 JPO : ${jpo_invitation === 'oui' ? 'À inviter' : 'Pas besoin'}` : '',
-      ].filter(Boolean).join('\n')
-
-      await addNoteToEngagements({
-        dealId: appointment.hubspot_deal_id,
-        contactId: appointment.hubspot_contact_id || null,
-        body: noteLines,
-      })
-
-      // Anti-boucle : marquer la synchro pour que le CRON ignore ce changement
-      await db
-        .from('rdv_appointments')
-        .update({ hubspot_synced_at: new Date().toISOString() })
-        .eq('id', id)
-    } catch (e) {
-      console.error('HubSpot update failed:', e)
-    }
-  }
 
   return NextResponse.json(data)
 }

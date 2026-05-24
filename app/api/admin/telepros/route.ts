@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 const TEAM_NAME = 'Télépros'
@@ -81,6 +82,7 @@ export async function GET() {
 
 // ── POST /api/admin/telepros — Ajouter un nouveau télépro ─────────────────────
 export async function POST(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { email, firstName, lastName } = await req.json()
 
   if (!email?.trim() || !firstName?.trim() || !lastName?.trim()) {
@@ -173,6 +175,7 @@ export async function POST(req: NextRequest) {
 
 // ── PATCH /api/admin/telepros — Activer / désactiver un télépro ───────────────
 export async function PATCH(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { userId, action } = await req.json()
 
   if (!userId || !['ban', 'unban', 'reset-password', 'impersonate'].includes(action)) {

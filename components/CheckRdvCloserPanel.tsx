@@ -6,8 +6,7 @@ import type { RdvPrisAuditDeal } from '@/app/api/admin/check-rdv-closer/route'
 
 type Closer = { id: string; name: string; role: string; avatar_color: string }
 
-const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
-const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
+const HUBSPOT_DISABLED_MSG = 'HubSpot est déconnecté. Action indisponible.'
 
 type Filter = 'all' | 'same_person' | 'closer_assigned' | 'unknown_telepro' | 'other'
 
@@ -95,20 +94,9 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const doReassign = async () => {
     if (!reassigningDeal || !selectedCloserId) return
     setReassigning(true)
-    setReassignError(null)
+    setReassignError(HUBSPOT_DISABLED_MSG)
     try {
-      const res = await fetch(`/api/hubspot/deal/${reassigningDeal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ closerId: selectedCloserId }),
-      })
-      if (res.ok) {
-        setReassigningDeal(null)
-        setSelectedCloserId(null)
-      } else {
-        const data = await res.json()
-        setReassignError(data.error || 'Erreur lors de la réassignation')
-      }
+      return
     } finally {
       setReassigning(false)
     }
@@ -117,15 +105,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
   const updateStage = async (deal: RdvPrisAuditDeal, stage: 'aReplanifier' | 'delaiReflexion' | 'fermePerdu') => {
     setActioning(prev => ({ ...prev, [deal.id]: stage }))
     try {
-      const res = await fetch(`/api/hubspot/deal/${deal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage }),
-      })
-      if (res.ok) {
-        // Retirer le deal de la liste (il n'est plus en RDV Pris)
-        setDeals(prev => prev.filter(d => d.id !== deal.id))
-      }
+      setReassignError(HUBSPOT_DISABLED_MSG)
     } finally {
       setActioning(prev => { const n = { ...prev }; delete n[deal.id]; return n })
     }
@@ -309,20 +289,16 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
                     {cat.label}
                   </span>
 
-                  {/* Lien HubSpot */}
-                  <a
-                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${deal.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <span
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-                      borderRadius: 6, padding: '4px 9px', color: '#ccac71',
-                      fontSize: 11, fontWeight: 600, textDecoration: 'none', flexShrink: 0,
+                      background: 'rgba(203,213,225,0.2)', border: '1px solid rgba(148,163,184,0.4)',
+                      borderRadius: 6, padding: '4px 9px', color: '#64748b',
+                      fontSize: 11, fontWeight: 600, flexShrink: 0,
                     }}
                   >
-                    <ExternalLink size={10} /> HubSpot
-                  </a>
+                    <ExternalLink size={10} /> HubSpot déconnecté
+                  </span>
                 </div>
 
                 {/* Boutons d'action */}

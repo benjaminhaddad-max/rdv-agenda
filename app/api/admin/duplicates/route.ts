@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
@@ -105,6 +106,7 @@ async function fetchContactsForOwner(ownerId: string): Promise<HubSpotContact[]>
 }
 
 export async function GET(_req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const db = createServiceClient()
 
   // 1. Récupérer les télépros actifs avec hubspot_owner_id

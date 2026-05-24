@@ -98,7 +98,7 @@ export default function CloserNewRdvModal({
   onClose,
   onSuccess,
 }: CloserNewRdvModalProps) {
-  // ── HubSpot lookup ──────────────────────────────────────────────────────
+  // ── CRM lookup ──────────────────────────────────────────────────────────
   const [hsMode, setHsMode]       = useState<'url' | 'phone' | 'new'>('url')
   const [hsUrl, setHsUrl]         = useState('')
   const [hsPhone, setHsPhone]     = useState('')
@@ -145,7 +145,7 @@ export default function CloserNewRdvModal({
     }
   }, [meetingType, meetingLink])
 
-  // ── Fill form from HubSpot contact ───────────────────────────────────────
+  // ── Fill form from CRM contact ───────────────────────────────────────────
   function fillFromContact(contact: HubSpotContact) {
     const p = contact.properties
     setName([p.firstname, p.lastname].filter(Boolean).join(' '))
@@ -163,17 +163,47 @@ export default function CloserNewRdvModal({
     }
   }
 
-  // ── HubSpot lookups ──────────────────────────────────────────────────────
+  function extractContactId(input: string): string | null {
+    const trimmed = input.trim()
+    if (/^\d+$/.test(trimmed)) return trimmed
+    const recordMatch = trimmed.match(/\/record\/0-1\/(\d+)/)
+    if (recordMatch) return recordMatch[1]
+    const contactMatch = trimmed.match(/\/contact\/(\d+)/)
+    if (contactMatch) return contactMatch[1]
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapCrmContact(c: any): HubSpotContact {
+    return {
+      id: c.hubspot_contact_id,
+      properties: {
+        email: c.email ?? '',
+        firstname: c.firstname ?? '',
+        lastname: c.lastname ?? '',
+        phone: c.phone ?? '',
+        departement: c.departement != null ? String(c.departement) : '',
+        classe_actuelle: c.classe_actuelle ?? '',
+        diploma_sante___formation_demandee: c.formation_demandee ?? '',
+        teleprospecteur: c.teleprospecteur ?? undefined,
+      },
+    }
+  }
+
+  // ── CRM lookups ──────────────────────────────────────────────────────────
   async function lookupByUrl() {
     if (!hsUrl.trim()) return
     setHsLoading(true)
     setHsError(null)
     try {
-      const res = await fetch(`/api/hubspot/contact?url=${encodeURIComponent(hsUrl.trim())}`)
-      if (!res.ok) throw new Error('Contact introuvable')
-      const data: HubSpotContact = await res.json()
-      setHsContact(data)
-      fillFromContact(data)
+      const id = extractContactId(hsUrl)
+      if (!id) throw new Error('ID contact introuvable dans le lien.')
+      const res = await fetch(`/api/crm/contacts/${id}/details?phase=core`)
+      const data = await res.json()
+      if (!res.ok || !data.contact) throw new Error('Contact introuvable')
+      const mapped = mapCrmContact(data.contact)
+      setHsContact(mapped)
+      fillFromContact(mapped)
       setStep('form')
     } catch (e) {
       setHsError(e instanceof Error ? e.message : 'Erreur de recherche')
@@ -187,11 +217,13 @@ export default function CloserNewRdvModal({
     setHsLoading(true)
     setHsError(null)
     try {
-      const res = await fetch(`/api/hubspot/contact?phone=${encodeURIComponent(hsPhone.trim())}`)
-      if (!res.ok) throw new Error('Contact introuvable')
-      const data: HubSpotContact = await res.json()
-      setHsContact(data)
-      fillFromContact(data)
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(hsPhone.trim())}&limit=1&all_classes=1&show_external=1`)
+      const data = await res.json()
+      const row = data?.data?.[0]
+      if (!res.ok || !row) throw new Error('Contact introuvable')
+      const mapped = mapCrmContact(row)
+      setHsContact(mapped)
+      fillFromContact(mapped)
       setStep('form')
     } catch (e) {
       setHsError(e instanceof Error ? e.message : 'Erreur de recherche')
@@ -323,11 +355,11 @@ export default function CloserNewRdvModal({
         {/* ── Body ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
 
-          {/* ══ STEP 1 : HubSpot lookup ══════════════════════════════ */}
+          {/* ══ STEP 1 : CRM lookup ══════════════════════════════════ */}
           {step === 'lookup' && (
             <div>
               <div style={{ fontSize: 13, color: '#8b8fa8', marginBottom: 14 }}>
-                Rechercher le contact HubSpot du prospect (ou créer manuellement)
+                Rechercher le contact du prospect dans le CRM (ou créer manuellement)
               </div>
 
               {/* Mode tabs */}
@@ -361,7 +393,7 @@ export default function CloserNewRdvModal({
                     value={hsUrl}
                     onChange={e => setHsUrl(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && lookupByUrl()}
-                    placeholder="https://app-eu1.hubspot.com/contacts/…"
+                    placeholder="ID contact ou ancien lien HubSpot"
                     style={inp}
                   />
                   <button
@@ -443,7 +475,7 @@ export default function CloserNewRdvModal({
           {step === 'form' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* HubSpot badge */}
+              {/* CRM badge */}
               {hsContact && (
                 <div style={{
                   background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
@@ -453,7 +485,7 @@ export default function CloserNewRdvModal({
                   <CheckCircle size={15} style={{ color: '#b89450', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#ccac71' }}>
-                      Contact HubSpot lié
+                      Contact CRM lié
                     </div>
                     <div style={{ fontSize: 11, color: '#555870', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[hsContact.properties.firstname, hsContact.properties.lastname].filter(Boolean).join(' ')}

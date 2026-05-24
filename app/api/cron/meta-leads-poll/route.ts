@@ -18,6 +18,14 @@ export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
 
+function isFormProcessable(status: string | null | undefined): boolean {
+  // Meta renvoie parfois "ACTIVE", "active" ou null selon le contexte.
+  // On traite par defaut sauf si le form est explicitement archive/disabled.
+  const s = (status || '').trim().toUpperCase()
+  if (!s) return true
+  return !['ARCHIVED', 'DISABLED', 'INACTIVE'].includes(s)
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
   const token = auth.replace('Bearer ', '')
@@ -40,7 +48,7 @@ export async function GET(req: NextRequest) {
   const { data: forms } = await db.from('meta_lead_forms')
     .select('form_id, page_id, name, origine_label, default_owner_id, workflow_id, field_mappings, status')
     .in('page_id', pageIds)
-  const activeForms = (forms ?? []).filter(f => !f.status || f.status === 'ACTIVE')
+  const activeForms = (forms ?? []).filter(f => isFormProcessable(f.status as string | null | undefined))
 
   if (activeForms.length === 0) {
     return NextResponse.json({ ok: true, message: 'Aucun form actif', processed: 0 })
@@ -48,8 +56,14 @@ export async function GET(req: NextRequest) {
 
   const pageTokenById = new Map(pages.map(p => [p.page_id, p.access_token as string]))
 
-  // Limite: 200 leads max par form pour rester rapide (15 min × 200 = 3000/h max)
-  const MAX_PER_FORM = 200
+  // Fenetre logique de secours : le webhook doit etre temps reel, ce cron
+  // rattrape les trous (delay/retry Meta, cold start, etc.).
+  const minutesParam = parseInt(req.nextUrl.searchParams.get('minutes') ?? '10', 10)
+  const maxPerFormParam = parseInt(req.nextUrl.searchParams.get('max_per_form') ?? '600', 10)
+  const WINDOW_MINUTES = Number.isFinite(minutesParam) ? Math.min(Math.max(minutesParam, 5), 180) : 10
+  // Plus haut pour eviter les pertes sur pics; borne haute pour rester stable.
+  const MAX_PER_FORM = Number.isFinite(maxPerFormParam) ? Math.min(Math.max(maxPerFormParam, 100), 5000) : 600
+  const minCreatedAtMs = Date.now() - WINDOW_MINUTES * 60 * 1000
   let totalProcessed = 0
   let totalSkipped = 0
   let totalErrors = 0
@@ -64,20 +78,24 @@ export async function GET(req: NextRequest) {
 
     try {
       const leads = await fetchFormLeads(form.form_id, pageToken, MAX_PER_FORM)
-      fetched = leads.length
-      if (leads.length === 0) {
+      const freshLeads = leads.filter(l => {
+        const ms = Date.parse(l.created_time || '')
+        return Number.isFinite(ms) && ms >= minCreatedAtMs
+      })
+      fetched = freshLeads.length
+      if (freshLeads.length === 0) {
         formStats.push({ form_id: form.form_id, name: form.name, fetched, processed, skipped, errors })
         continue
       }
 
       // Idempotence : skip ceux déjà reçus
-      const ids = leads.map(l => l.id)
+      const ids = freshLeads.map(l => l.id)
       const { data: existing } = await db.from('meta_lead_events')
         .select('leadgen_id')
         .in('leadgen_id', ids)
       const known = new Set((existing ?? []).map(e => e.leadgen_id as string))
 
-      for (const lead of leads) {
+      for (const lead of freshLeads) {
         if (known.has(lead.id)) { skipped++; continue }
         try {
           const result = await processMetaLead(
@@ -129,6 +147,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     forms_polled: activeForms.length,
+    window_minutes: WINDOW_MINUTES,
+    max_per_form: MAX_PER_FORM,
     total_processed: totalProcessed,
     total_skipped: totalSkipped,
     total_errors: totalErrors,

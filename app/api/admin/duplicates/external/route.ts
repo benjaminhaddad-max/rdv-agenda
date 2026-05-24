@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
@@ -114,6 +115,7 @@ async function fetchContactsForOwner(ownerId: string): Promise<HubSpotContact[]>
 }
 
 export async function GET(_req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   if (!EXTERNAL_OWNER_ID) {
     return NextResponse.json(
       { error: 'EXTERNAL_TEAM_OWNER_ID non configuré' },

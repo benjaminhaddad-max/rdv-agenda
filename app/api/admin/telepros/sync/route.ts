@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 const TEAM_NAME = 'Télépros'
@@ -40,6 +41,7 @@ function generatePassword(): string {
 
 // GET /api/admin/telepros/sync — debug
 export async function GET() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     if (!HUBSPOT_TOKEN) {
       return NextResponse.json({ error: 'HUBSPOT_ACCESS_TOKEN manquant dans les variables Vercel' })
@@ -69,6 +71,7 @@ export async function GET() {
 // Importe tous les membres actifs de la team HubSpot "Télépros"
 // Crée les comptes manquants, ignore ceux déjà provisionnés
 export async function POST() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const db = createServiceClient()
 
   // 1. Récupérer la team "Télépros" (qui contient directement les userIds)

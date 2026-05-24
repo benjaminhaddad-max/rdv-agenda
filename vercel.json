@@ -7,9 +7,11 @@
     { "path": "/api/cron/crm-sync",         "schedule": "*/15 * * * *" },
     { "path": "/api/cron/crm-sync?full=1", "schedule": "0 3 * * *"    },
     { "path": "/api/cron/diploma-sync",    "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/meta-leads-poll", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/meta-leads-poll", "schedule": "* * * * *" },
     { "path": "/api/cron/hubspot-sync",    "schedule": "*/5 * * * *"  },
     { "path": "/api/cron/hubspot-new-leads","schedule": "*/5 * * * *"  },
+    { "path": "/api/cron/crm-fast-mv-refresh", "schedule": "*/3 * * * *" },
+    { "path": "/api/cron/typesense-crm-sync", "schedule": "*/2 * * * *" },
     { "path": "/api/cron/campaigns-process-pending", "schedule": "* * * * *" },
     { "path": "/api/cron/workflow-engine",            "schedule": "* * * * *" },
     { "path": "/api/cron/sms-campaigns-scheduled",    "schedule": "* * * * *" }

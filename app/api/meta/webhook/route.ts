@@ -29,12 +29,18 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-hub-signature-256') || ''
 
-  if (APP_SECRET && signature) {
+  if (APP_SECRET) {
+    if (!signature) {
+      return new NextResponse('Missing signature', { status: 401 })
+    }
     const expected = 'sha256=' + crypto
       .createHmac('sha256', APP_SECRET)
       .update(rawBody)
       .digest('hex')
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    const provided = Buffer.from(signature)
+    const target = Buffer.from(expected)
+    // timingSafeEqual throw si la taille diffère → on protège explicitement
+    if (provided.length !== target.length || !crypto.timingSafeEqual(provided, target)) {
       return new NextResponse('Invalid signature', { status: 401 })
     }
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners, getAllDealPipelineIds } from '@/lib/hubspot'
 import { logger } from '@/lib/logger'
+import { getHubspotMode } from '@/lib/hubspot-mode'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
@@ -13,6 +14,15 @@ const CRON_SECRET = process.env.CRON_SECRET
 const MAX_PAGES_PER_CHUNK = 50
 
 export async function GET(req: NextRequest) {
+  const mode = await getHubspotMode()
+  if (mode.disconnected) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'HubSpot disconnected (mirror + read disabled)',
+    })
+  }
+
   // Auth
   const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
   const token = auth.replace('Bearer ', '')

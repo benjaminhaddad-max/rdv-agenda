@@ -66,6 +66,35 @@ export default function ParametresPage() {
     }
   }
 
+  async function disconnectHubspot() {
+    if (!confirm('Couper totalement HubSpot du CRM ? (mirror + lectures OFF)')) return
+    setSaving('hubspot_disconnect')
+    setError(null)
+    setDoneKey(null)
+    try {
+      const payloads = [
+        { key: 'hubspot_mirror_enabled', value: false },
+        { key: 'hubspot_read_enabled', value: false },
+      ]
+      for (const payload of payloads) {
+        const res = await fetch('/api/crm/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const j = await res.json()
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      setDoneKey('hubspot_disconnect')
+      await load()
+      setTimeout(() => setDoneKey(null), 3000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const labelFor = (key: string) => {
     switch (key) {
       case 'hubspot_mirror_enabled': return 'Mirroir HubSpot (écritures)'
@@ -84,6 +113,30 @@ export default function ParametresPage() {
           <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
             Réglages dynamiques modifiables sans redéploiement.
           </p>
+          <div style={{ marginTop: 12 }}>
+            <button
+              onClick={disconnectHubspot}
+              disabled={saving !== null}
+              style={{
+                border: '1px solid #ef4444',
+                background: '#fff5f5',
+                color: '#b91c1c',
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: saving ? 'wait' : 'pointer',
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving === 'hubspot_disconnect' ? 'Déconnexion HubSpot…' : 'Déconnecter HubSpot du CRM'}
+            </button>
+            {doneKey === 'hubspot_disconnect' && (
+              <span style={{ marginLeft: 8, color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
+                HubSpot déconnecté
+              </span>
+            )}
+          </div>
         </div>
 
         {migrationPending && (

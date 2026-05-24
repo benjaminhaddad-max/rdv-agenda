@@ -15,8 +15,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { searchRecentlyModifiedDeals, PIPELINE_ID } from '@/lib/hubspot'
 import { REVERSE_STAGE_MAP, SKIP_STAGES, isAppOriginated } from '@/lib/hubspot-sync'
+import { getHubspotMode } from '@/lib/hubspot-mode'
 
 export async function GET(req: NextRequest) {
+  const mode = await getHubspotMode()
+  if (mode.disconnected) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'HubSpot disconnected (mirror + read disabled)',
+    })
+  }
+
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {

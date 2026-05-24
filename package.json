@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "benchmark:crm": "node scripts/benchmark-crm.mjs",
+    "typesense:reindex:crm": "node scripts/typesense-reindex-crm.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

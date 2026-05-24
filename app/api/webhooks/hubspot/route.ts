@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import { batchGetContacts, hubspotFetch } from '@/lib/hubspot'
+import { getHubspotMode } from '@/lib/hubspot-mode'
 
 // Vercel Pro : timeout étendu à 60s (suffit largement, batch read = ~2-5s)
 export const maxDuration = 60
@@ -128,6 +129,15 @@ function buildDealRow(d: { id: string; properties: Record<string, string | null>
 }
 
 export async function POST(req: NextRequest) {
+  const mode = await getHubspotMode()
+  if (mode.disconnected) {
+    return NextResponse.json({
+      ok: true,
+      ignored: true,
+      reason: 'HubSpot disconnected (mirror + read disabled)',
+    })
+  }
+
   const rawBody = await req.text()
   const signature = req.headers.get('x-hubspot-signature-v3') ?? ''
   const timestamp = req.headers.get('x-hubspot-request-timestamp') ?? ''
@@ -244,7 +254,11 @@ export async function POST(req: NextRequest) {
       deals_upserted:    stats.deals_upserted,
       duration_ms:       0,
       source:            'webhook',
-      details:           JSON.stringify({ ...stats, events: events.length }),
+      details:           JSON.stringify({
+        ...stats,
+        events: events.length,
+        deleted_contact_ids: [...contactsToDelete],
+      }),
     })
   } catch { /* table peut ne pas avoir source/details — best-effort */ }
 
@@ -253,9 +267,12 @@ export async function POST(req: NextRequest) {
 
 // GET pour test rapide / vérification du déploiement (HubSpot n'utilise pas GET)
 export async function GET() {
+  const mode = await getHubspotMode()
   return NextResponse.json({
     ok: true,
     endpoint: 'hubspot-webhook',
-    message: 'POST events here from HubSpot. Configure HUBSPOT_CLIENT_SECRET env var.',
+    message: mode.disconnected
+      ? 'HubSpot webhook disabled because HubSpot is disconnected.'
+      : 'POST events here from HubSpot. Configure HUBSPOT_CLIENT_SECRET env var.',
   })
 }

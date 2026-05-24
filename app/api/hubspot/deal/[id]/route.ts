@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDeal, getDealEngagements, getDealContactInfo, updateDealStage, updateDealOwner, addNoteToEngagements, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [STAGES.aReplanifier]:         { label: 'À replanifier',        color: '#f97316' },
@@ -16,6 +17,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { id } = await params
   const [deal, engagements, contactInfo] = await Promise.all([
     getDeal(id),
@@ -59,6 +61,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { id } = await params
   const body = await req.json() as { stage?: keyof typeof STAGES; closerId?: string }
 

@@ -184,15 +184,15 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   ]
 
   const fetchHistorique = useCallback(async () => {
-    if (!user.hubspot_owner_id) return
+    if (!user.id) return
     setHistLoading(true)
     try {
-      const res = await fetch(`/api/appointments/historique-closer?hubspot_owner_id=${user.hubspot_owner_id}`)
+      const res = await fetch(`/api/appointments/historique-closer?closer_id=${user.id}`)
       const data = await res.json()
       setHistRdvs(data)
     } catch { /* ignore */ }
     setHistLoading(false)
-  }, [user.hubspot_owner_id])
+  }, [user.id])
 
   useEffect(() => {
     if (activeTab === 'historique' && histRdvs.length === 0 && !histLoading) {
@@ -236,13 +236,12 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   }, [user.name])
 
   const marquerPerdu = useCallback(async (rdv: HistRdv) => {
-    if (!rdv.hubspot_deal_id) return
     setClosingDeal(rdv.id)
     try {
-      const res = await fetch(`/api/hubspot/deal/${rdv.hubspot_deal_id}`, {
+      const res = await fetch(`/api/appointments/${rdv.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: 'fermePerdu' }),
+        body: JSON.stringify({ status: 'negatif' }),
       })
       if (res.ok) {
         setHistRdvs(prev => prev.map(r =>
@@ -261,16 +260,28 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     if (rdv.hubspot_contact_id) {
       setRebookLoading(rdv.id)
       try {
-        const res = await fetch(`/api/hubspot/contact?url=${rdv.hubspot_contact_id}`)
+        const res = await fetch(`/api/crm/contacts/${rdv.hubspot_contact_id}/details?phase=core`)
         const data = await res.json()
-        if (res.ok && data.results?.length > 0) {
-          const c = data.results[0]; setContact(c)
-          const p = c.properties
-          const ev = p.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-          if (p.phone) setPhone(p.phone)
-          if (p.departement) setDepartement(String(p.departement))
-          if (p.classe_actuelle) setClasseActuelle(p.classe_actuelle)
-          if (p.diploma_sante___formation_demandee) setFormation(p.diploma_sante___formation_demandee)
+        if (res.ok && data.contact) {
+          const c = data.contact
+          const shaped: HubSpotContact = {
+            id: c.hubspot_contact_id,
+            properties: {
+              email: c.email ?? '',
+              firstname: c.firstname ?? '',
+              lastname: c.lastname ?? '',
+              phone: c.phone ?? '',
+              departement: c.departement != null ? String(c.departement) : '',
+              classe_actuelle: c.classe_actuelle ?? '',
+              diploma_sante___formation_demandee: c.formation_demandee ?? '',
+            },
+          }
+          setContact(shaped)
+          const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
+          if (c.phone) setPhone(c.phone)
+          if (c.departement) setDepartement(String(c.departement))
+          if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
+          if (c.formation_demandee) setFormation(c.formation_demandee)
         }
       } finally {
         setRebookLoading(null)
@@ -569,9 +580,9 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   async function syncEmail() {
     if (!contact || !email.trim() || email.trim() === emailOriginalRef.current) return
     try {
-      const res = await fetch('/api/hubspot/contact', {
+      const res = await fetch(`/api/crm/contacts/${contact.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, properties: { email: email.trim() } }),
+        body: JSON.stringify({ email: email.trim() }),
       })
       if (res.ok) { emailOriginalRef.current = email.trim(); setEmailSynced(true); setTimeout(() => setEmailSynced(false), 2000) }
     } catch { /* silencieux */ }

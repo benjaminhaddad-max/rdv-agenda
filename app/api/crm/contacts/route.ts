@@ -1,33 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { hubspotFetch, PIPELINE_ID } from '@/lib/hubspot'
+import { cached } from '@/lib/cache'
+import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
+const CURRENT_PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID ?? ''
 
 // Retourne les stage IDs "preinscription ou +" de tous les anciens pipelines
 async function getPriorPreinscStageIds(): Promise<string[]> {
-  const negRe = /perdu|lost|ferm[eé]|annul|rejet/i
-  function preinscPlusOf(stages: { id: string; label: string; displayOrder: number }[]) {
-    const pos = stages.filter(s => !negRe.test(s.label))
-    let pivot = pos.find(s => /pr[eé]inscription/i.test(s.label))
-    if (!pivot && pos.length > 0) pivot = pos[Math.floor(pos.length / 2)]
-    const min = pivot?.displayOrder ?? Infinity
-    return stages.filter(s => s.displayOrder >= min && !negRe.test(s.label)).map(s => s.id)
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await hubspotFetch('/crm/v3/pipelines/deals')
-    const ids: string[] = []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const p of (data.results ?? []) as any[]) {
-      if (p.id === PIPELINE_ID) continue
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stages = (p.stages ?? []).map((s: any) => ({ id: s.id as string, label: s.label as string, displayOrder: s.displayOrder as number }))
-      ids.push(...preinscPlusOf(stages))
-    }
-    return [...new Set(ids)]
-  } catch { return [] }
+  // Mode CRM sans dépendance HubSpot : filtre non supporté sans mapping local de pipelines.
+  return []
 }
 
 export async function GET(req: NextRequest) {
@@ -63,6 +46,8 @@ export async function GET(req: NextRequest) {
   const allClasses       = searchParams.get('all_classes') === '1'
   const leadStatus       = searchParams.get('lead_status') ?? ''
   const source           = searchParams.get('source') ?? ''
+  const metaAdsOnlyParam = searchParams.get('meta_ads_only') === '1'
+  const viewIdParam      = searchParams.get('view_id') ?? ''
   const zone             = searchParams.get('zone') ?? ''
   const departement      = searchParams.get('departement') ?? ''
 
@@ -83,6 +68,7 @@ export async function GET(req: NextRequest) {
   const zoneNot          = searchParams.get('zone_not') ?? ''
   const deptNot          = searchParams.get('departement_not') ?? ''
   const closerNot        = searchParams.get('closer_not') ?? ''
+  const contactOwnerNot  = searchParams.get('contact_owner_not') ?? ''
   const teleproNot       = searchParams.get('telepro_not') ?? ''
   const formationNot     = searchParams.get('formation_not') ?? ''
   const pipeline            = searchParams.get('pipeline') ?? ''
@@ -95,6 +81,7 @@ export async function GET(req: NextRequest) {
 
   const isExport         = searchParams.get('export') === '1'
   const countOnly        = searchParams.get('limit') === '0'
+  const deferCount       = searchParams.get('defer_count') === '1' && !countOnly && !isExport
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -119,6 +106,71 @@ export async function GET(req: NextRequest) {
     }
   } catch { /* JSON invalide — on ignore */ }
 
+  async function fetchAllMetaLeadContactIds(): Promise<string[]> {
+    const ids = new Set<string>()
+    const PAGE = 1000
+    for (let off = 0; off < 200000; off += PAGE) {
+      const { data, error } = await db
+        .rpc('crm_meta_lead_contact_ids')
+        .range(off, off + PAGE - 1)
+      if (error) break
+      const rows = (data ?? []) as Array<{ hubspot_contact_id: string | null }>
+      if (rows.length === 0) break
+      for (const r of rows) {
+        if (r?.hubspot_contact_id) ids.add(r.hubspot_contact_id)
+      }
+      if (rows.length < PAGE) break
+    }
+    return [...ids]
+  }
+
+  const appendCustomFiltersFromView = async (viewId: string, reset = false) => {
+    const { data: viewRow } = await db
+      .from('crm_saved_views')
+      .select('filter_groups')
+      .eq('id', viewId)
+      .maybeSingle()
+    const firstGroup = (viewRow?.filter_groups as Array<{ rules?: Array<{ field?: string; operator?: string; value?: string }> }> | null)?.[0]
+    const rules = firstGroup?.rules ?? []
+    if (reset) customFilters = []
+    for (const r of rules) {
+      const fieldRaw = String(r?.field ?? '')
+      const op = String(r?.operator ?? '')
+      const val = String(r?.value ?? '')
+      if (!fieldRaw || !op) continue
+      if (!val && op !== 'is_empty' && op !== 'is_not_empty') continue
+
+      if (fieldRaw === 'form_event') {
+        customFilters.push({ field: 'recent_conversion_event', operator: op, value: val })
+        continue
+      }
+      if (fieldRaw === 'custom:meta_lead_ads' || fieldRaw === 'meta_lead_ads') {
+        customFilters.push({ field: 'meta_lead_ads', operator: op, value: val })
+        continue
+      }
+      if (fieldRaw.startsWith('custom:')) {
+        const normalized = fieldRaw.slice(7)
+        if (/^[a-z0-9_]+$/i.test(normalized)) {
+          customFilters.push({ field: normalized, operator: op, value: val })
+        }
+      }
+    }
+  }
+
+  // Vue Meta ADS: filtre robuste côté serveur.
+  // On force un marqueur dédié pour éviter les collisions/intersections
+  // avec des listes de formulaires contenant des virgules.
+  if (viewIdParam === 'v_meta_ads_all') {
+    customFilters = [{ field: 'meta_lead_ads', operator: 'is', value: '1' }]
+  }
+
+  // Fallback robuste: si `cf` est absent/invalide (souvent URL trop longue),
+  // on recharge les règles de la vue sauvegardée côté serveur via `view_id`.
+  // Cela évite qu'une vue (ex: Meta ADS) retombe silencieusement sur "tous les leads".
+  if (customFilters.length === 0 && viewIdParam && viewIdParam !== 'all') {
+    await appendCustomFiltersFromView(viewIdParam, false)
+  }
+
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
   // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
   // HubSpot ou meta_lead_forms.form_id) et on calcule la liste des contacts
@@ -131,7 +183,6 @@ export async function GET(req: NextRequest) {
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
   let formEventContactIds: string[] | null = null
   {
-    const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
     // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
     const formFilter = customFilters.find(
       r => r.field === 'recent_conversion_event' &&
@@ -139,42 +190,41 @@ export async function GET(req: NextRequest) {
     )
     if (formFilter && formFilter.value) {
       const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
+      const normalizedFormNames = [...new Set(formNames)]
+      // Regroupe automatiquement les variantes datees d'un meme form
+      // (ex: "LINOVA - Form LGF - 18/05/2026", "LINOVA - Form LGF - 21/05/2026").
+      const formNamePrefixes = [...new Set(
+        normalizedFormNames
+          .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
+          .filter(prefix => prefix.length >= 6)
+      )]
       if (formNames.length > 0) {
         // Charger les sources de mapping en parallèle
         const db2 = createServiceClient()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const [metaFormsRes, hubspotFormsRes]: [any, Array<{ id: string; name: string }>] = await Promise.all([
-          db2.from('meta_lead_forms').select('form_id, name').in('name', formNames),
-          (async () => {
-            if (!HUBSPOT_TOKEN) return [] as Array<{ id: string; name: string }>
-            // Cherche dans HubSpot Forms API les forms qui matchent les noms.
-            // On fetch toutes les pages (cache CDN cote HubSpot).
-            const out: Array<{ id: string; name: string }> = []
-            let url: string | null = 'https://api.hubapi.com/marketing/v3/forms?limit=100'
-            let pages = 0
-            const targetSet = new Set(formNames.map(n => n.toLowerCase()))
-            while (url && pages < 50) {
-              try {
-                const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } })
-                if (!r.ok) break
-                const j = await r.json() as { results?: Array<{ id?: string; name?: string }>; paging?: { next?: { link?: string } } }
-                for (const f of (j.results ?? [])) {
-                  if (f.id && f.name && targetSet.has(f.name.toLowerCase())) {
-                    out.push({ id: f.id, name: f.name })
-                  }
-                }
-                url = j.paging?.next?.link ?? null
-                pages++
-              } catch { break }
-            }
-            return out
-          })(),
+        const [metaFormsExactRes]: [any] = await Promise.all([
+          db2.from('meta_lead_forms').select('form_id, name').in('name', normalizedFormNames),
         ])
+        const metaFormsById = new Map<string, { form_id: string; name: string | null }>()
+        for (const mf of ((metaFormsExactRes?.data ?? []) as Array<{ form_id: string; name: string | null }>)) {
+          if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
+        }
+        // Ajoute les forms Meta partageant le meme prefixe (nouvelle date).
+        for (const prefix of formNamePrefixes) {
+          const { data: prefRows } = await db2
+            .from('meta_lead_forms')
+            .select('form_id, name')
+            .ilike('name', `${prefix}%`)
+            .limit(200)
+          for (const mf of (prefRows ?? []) as Array<{ form_id: string; name: string | null }>) {
+            if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
+          }
+        }
 
         const contactIdsSet = new Set<string>()
 
         // 1. Meta Lead Ads : récupère les contact_id depuis meta_lead_events
-        const metaFormIds = ((metaFormsRes?.data ?? []) as Array<{ form_id: string }>).map(r => r.form_id)
+        const metaFormIds = [...metaFormsById.keys()]
         if (metaFormIds.length > 0) {
           // Pagine pour éviter les payloads massifs
           let off = 0
@@ -196,30 +246,10 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // 2. HubSpot : pour chaque form_id resolu, scan hubspot_raw->>hs_calculated_form_submissions
-        for (const hsForm of hubspotFormsRes) {
-          let off = 0
-          const PAGE = 1000
-          while (true) {
-            const { data: rows } = await db2
-              .from('crm_contacts')
-              .select('hubspot_contact_id')
-              .ilike('hubspot_raw->>hs_calculated_form_submissions', `%${hsForm.id}%`)
-              .range(off, off + PAGE - 1)
-            if (!rows || rows.length === 0) break
-            for (const r of rows) {
-              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) contactIdsSet.add(cid)
-            }
-            if (rows.length < PAGE) break
-            off += PAGE
-          }
-        }
-
-        // 3. Fallback : exact match sur recent_conversion_event (last form only)
+        // 2. Fallback : exact match sur recent_conversion_event (last form only)
         // Capture les contacts dont la sync n'a pas encore rempli hubspot_raw OU
         // les variantes HubSpot des Meta Lead Ads (préfixe "Facebook Lead Ads:")
-        for (const name of formNames) {
+        for (const name of normalizedFormNames) {
           let off = 0
           const PAGE = 1000
           while (true) {
@@ -237,6 +267,25 @@ export async function GET(req: NextRequest) {
             off += PAGE
           }
         }
+        // Fallback supplementaire : variantes datees par prefixe.
+        for (const prefix of formNamePrefixes) {
+          let off = 0
+          const PAGE = 1000
+          while (true) {
+            const { data: rows } = await db2
+              .from('crm_contacts')
+              .select('hubspot_contact_id')
+              .ilike('recent_conversion_event', `${prefix}%`)
+              .range(off, off + PAGE - 1)
+            if (!rows || rows.length === 0) break
+            for (const r of rows) {
+              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+              if (cid) contactIdsSet.add(cid)
+            }
+            if (rows.length < PAGE) break
+            off += PAGE
+          }
+        }
 
         formEventContactIds = [...contactIdsSet]
         // Retire le filtre form_event des customFilters pour ne pas le double-appliquer
@@ -244,6 +293,54 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+
+  // ── Resolver dédié : "Leads Meta ADS" (tous les leads Meta) ───────────────
+  // Filtre activé via cf:
+  // [{ field: "meta_lead_ads", operator: "is", value: "1" }]
+  // ou [{ field: "custom:meta_lead_ads", operator: "is", value: "1" }]
+  // On ne dépend pas des noms de formulaires (qui changent souvent).
+  let metaLeadAdsContactIds: string[] | null = null
+  let metaLeadAdsOnly = false
+  {
+    const metaFilter = customFilters.find(
+      (r => (r.field === 'meta_lead_ads' || r.field === 'custom:meta_lead_ads') &&
+        (r.operator === 'is' || r.operator === 'is_any')
+      )
+    )
+    if (metaFilter) {
+      const rawVals = metaFilter.value.split(',').map(v => v.trim().toLowerCase()).filter(Boolean)
+      const enabled =
+        rawVals.length === 0 ||
+        rawVals.includes('1') ||
+        rawVals.includes('true') ||
+        rawVals.includes('yes') ||
+        rawVals.includes('meta')
+      if (enabled) {
+        // Vue Meta ADS : on utilise un marqueur SQL direct (source) pour éviter
+        // les payloads d'IDs volumineux et les erreurs 500 liées aux URL PostgREST.
+        if (viewIdParam === 'v_meta_ads_all') {
+          metaLeadAdsOnly = true
+          metaLeadAdsContactIds = null
+        } else {
+          // Fallback générique hors vue dédiée.
+          metaLeadAdsContactIds = await fetchAllMetaLeadContactIds()
+          metaLeadAdsOnly = false
+        }
+      } else {
+        metaLeadAdsContactIds = []
+      }
+      // Retire le filtre dédié pour ne pas tenter un filtre SQL sur une colonne inexistante.
+      customFilters = customFilters.filter(r => r !== metaFilter)
+    }
+  }
+  if (metaAdsOnlyParam) {
+    // Param dédié utilisé par la vue Meta ADS.
+    metaLeadAdsOnly = true
+    metaLeadAdsContactIds = null
+  }
+  // La vue Meta ADS doit toujours inclure toutes les classes.
+  const effectiveAllClasses =
+    allClasses || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null
 
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
@@ -266,11 +363,106 @@ export async function GET(req: NextRequest) {
     synced_at:           { col: 'synced_at' },
   }
   const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['createdat_contact']
+  const hasSelectiveFilter = !!(
+    search || teleproHsId || teleproOwnerHsId || teleproNot ||
+    closerHsId || closerContactHsId || closerContactNot ||
+    contactOwnerHsId || stage || stageNot ||
+    formation || formationNot || classeFilter || periodFilter ||
+    leadStatus || leadStatusNot || source || sourceNot ||
+    zone || zoneNot || departement || deptNot ||
+    pipeline || pipelineNot || priorPreinscription ||
+    noTelepro || withTelepro ||
+    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    formEvent || formEventNot ||
+    metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
+    customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
+  )
+  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null
+  const countMode: 'exact' | 'planned' | 'estimated' = countOnly
+    ? (hasSelectiveFilter ? 'exact' : 'estimated')
+    : (forceExactCount ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
 
-  // ── Charger rdv_users ──────────────────────────────────────────────────────
-  const { data: users } = await db
-    .from('rdv_users')
-    .select('id, name, hubspot_owner_id, hubspot_user_id, role, avatar_color, exclude_from_crm')
+  // Count-only rapide : évite les pré-résolutions deal/form/meta et le chargement users.
+  const hasDealHeavyFilter = !!(
+    stage || stageNot || closerHsId || closerNot || teleproOwnerHsId ||
+    formation || formationNot || pipeline || pipelineNot || priorPreinscription || periodFilter
+  )
+  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null)
+  const canFastCountOnly = countOnly &&
+    showExternal &&
+    !ownerExclude &&
+    !contactOwnerNot &&
+    !teleproNot &&
+    !hasDealHeavyFilter &&
+    !hasFormHeavyFilter
+
+  if (canFastCountOnly) {
+    const fastSplit = (v: string) => v.split(',').filter(Boolean)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let fastQ: any = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
+    if (!effectiveAllClasses) fastQ = fastQ.in('classe_actuelle', PRIORITY_CLASSES)
+    if (classeFilter) fastQ = fastQ.eq('classe_actuelle', classeFilter)
+    if (teleproHsId) {
+      const vals = fastSplit(teleproHsId)
+      fastQ = vals.length > 1 ? fastQ.in('telepro_user_id', vals) : fastQ.eq('telepro_user_id', teleproHsId)
+    }
+    if (noTelepro) fastQ = fastQ.is('telepro_user_id', null)
+    if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
+    if (contactOwnerHsId) {
+      const vals = fastSplit(contactOwnerHsId)
+      fastQ = vals.length > 1 ? fastQ.in('hubspot_owner_id', vals) : fastQ.eq('hubspot_owner_id', contactOwnerHsId)
+    }
+    if (leadStatus) {
+      const vals = fastSplit(leadStatus)
+      fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
+    }
+    if (source) {
+      const vals = fastSplit(source)
+      fastQ = vals.length > 1 ? fastQ.in('origine', vals) : fastQ.eq('origine', source)
+    }
+    if (zone) {
+      const vals = fastSplit(zone)
+      fastQ = vals.length > 1 ? fastQ.in('zone_localite', vals) : fastQ.eq('zone_localite', zone)
+    }
+    if (departement) {
+      const vals = fastSplit(departement)
+      fastQ = vals.length > 1 ? fastQ.in('departement', vals) : fastQ.eq('departement', departement)
+    }
+    if (search) {
+      const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
+      if (safeSearch) {
+        if (process.env.CRM_FTS_ENABLED === '1') {
+          fastQ = fastQ.textSearch('search_vector', safeSearch, { type: 'websearch', config: 'simple' })
+        } else {
+          fastQ = fastQ.or(
+            `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
+          )
+        }
+      }
+    }
+    const { count: totalCount, error } = await fastQ
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: false, page: 0, limit: 0 })
+  }
+
+  // ── Charger rdv_users (cache court pour éviter 1 requête DB à chaque hit) ─
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const users: any[] = await cached(
+    countOnly ? 'crm:contacts:rdv-users:min:v1' : 'crm:contacts:rdv-users:full:v1',
+    60,
+    async () => {
+      if (countOnly) {
+        const { data } = await db
+          .from('rdv_users')
+          .select('hubspot_owner_id,hubspot_user_id,exclude_from_crm')
+        return data ?? []
+      }
+      const { data } = await db
+        .from('rdv_users')
+        .select('id,name,hubspot_owner_id,hubspot_user_id,role,avatar_color,exclude_from_crm')
+      return data ?? []
+    }
+  )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userByOwnerId: Record<string, any> = {}
@@ -279,7 +471,7 @@ export async function GET(req: NextRequest) {
   const excludedOwnerIds: string[] = []
   const excludedUserIds:  string[] = []
 
-  for (const u of users ?? []) {
+  for (const u of users) {
     if (u.hubspot_owner_id) userByOwnerId[u.hubspot_owner_id] = u
     if (u.hubspot_user_id)  userByUserId[u.hubspot_user_id]  = u
     if (u.exclude_from_crm) {
@@ -293,8 +485,350 @@ export async function GET(req: NextRequest) {
   if (excludedOwnerIds.length === 0 && externalOwnerId) {
     excludedOwnerIds.push(externalOwnerId)
     // Trouver le user correspondant pour aussi exclure son hubspot_user_id
-    const extUser = (users ?? []).find((u: any) => u.hubspot_owner_id === externalOwnerId)
+    const extUser = users.find((u: any) => u.hubspot_owner_id === externalOwnerId)
     if (extUser?.hubspot_user_id) excludedUserIds.push(extUser.hubspot_user_id)
+  }
+
+  // ── Fast path interne Postgres (vue matérialisée) ──────────────────────────
+  // Active sans dépendance externe. Si la vue n'existe pas encore, fallback SQL.
+  const hasUnsupportedFastMvFilter = !!(
+    isExport ||
+    countOnly ||
+    stageNot || closerHsId || closerNot || teleproOwnerHsId ||
+    formationNot || pipelineNot || priorPreinscription || periodFilter ||
+    ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
+    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    formEvent || formEventNot ||
+    emptyFields.length > 0 || notEmptyFields.length > 0 ||
+    customFilters.length > 0 ||
+    formEventContactIds !== null || metaLeadAdsContactIds !== null || metaLeadAdsOnly ||
+    extraProps.length > 0 ||
+    !showExternal
+  )
+  const mvSortMap: Record<string, string> = {
+    contact: 'lastname',
+    formation_souhaitee: 'formation_souhaitee',
+    classe: 'classe_actuelle',
+    zone: 'zone_localite',
+    departement: 'departement',
+    lead_status: 'hs_lead_status',
+    origine: 'origine',
+    closer: 'hubspot_owner_id',
+    createdat_contact: 'contact_createdate',
+    createdat_deal: 'deal_createdate',
+    form_submission: 'recent_conversion_date',
+    synced_at: 'synced_at',
+  }
+  const mvSortCol = mvSortMap[sortBy]
+  if (!hasUnsupportedFastMvFilter && mvSortCol) {
+    try {
+      const splitMultiFast = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let fastMvQ: any = db
+        .from('crm_contacts_fast_mv')
+        .select(
+          `hubspot_contact_id, firstname, lastname, email, phone,
+           departement, classe_actuelle, zone_localite,
+           formation_demandee, formation_souhaitee, contact_createdate,
+           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+           hs_lead_status, origine, synced_at,
+           deal_hubspot_deal_id, dealstage, pipeline, formation_deal, deal_hubspot_owner_id, deal_teleprospecteur, deal_closedate, deal_createdate, deal_supabase_appt_id`,
+          deferCount ? undefined : { count: countMode }
+        )
+
+      if (!effectiveAllClasses) fastMvQ = fastMvQ.in('classe_actuelle', PRIORITY_CLASSES)
+      if (classeFilter) fastMvQ = fastMvQ.eq('classe_actuelle', classeFilter)
+      if (teleproHsId) {
+        const vals = splitMultiFast(teleproHsId)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('telepro_user_id', vals) : fastMvQ.eq('telepro_user_id', teleproHsId)
+      }
+      if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
+      if (noTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
+      if (contactOwnerHsId) {
+        const vals = splitMultiFast(contactOwnerHsId)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('hubspot_owner_id', vals) : fastMvQ.eq('hubspot_owner_id', contactOwnerHsId)
+      }
+      if (closerContactHsId) {
+        const vals = splitMultiFast(closerContactHsId)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('closer_du_contact_owner_id', vals) : fastMvQ.eq('closer_du_contact_owner_id', closerContactHsId)
+      }
+      if (leadStatus) {
+        const vals = splitMultiFast(leadStatus)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('hs_lead_status', vals) : fastMvQ.eq('hs_lead_status', leadStatus)
+      }
+      if (source) {
+        const vals = splitMultiFast(source)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('origine', vals) : fastMvQ.eq('origine', source)
+      }
+      if (zone) {
+        const vals = splitMultiFast(zone)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('zone_localite', vals) : fastMvQ.eq('zone_localite', zone)
+      }
+      if (departement) {
+        const vals = splitMultiFast(departement)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('departement', vals) : fastMvQ.eq('departement', departement)
+      }
+      if (stage) {
+        const vals = splitMultiFast(stage)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('dealstage', vals) : fastMvQ.eq('dealstage', stage)
+      }
+      if (formation) {
+        const vals = splitMultiFast(formation)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('formation_deal', vals) : fastMvQ.eq('formation_deal', formation)
+      }
+      if (pipeline) {
+        const vals = splitMultiFast(pipeline)
+        fastMvQ = vals.length > 1 ? fastMvQ.in('pipeline', vals) : fastMvQ.eq('pipeline', pipeline)
+      }
+      if (search) {
+        const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
+        if (safeSearch) {
+          fastMvQ = fastMvQ.or(
+            `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
+          )
+        }
+      }
+
+      fastMvQ = fastMvQ.order(mvSortCol, { ascending: sortAsc, nullsFirst: false })
+      if (mvSortCol !== 'synced_at') {
+        fastMvQ = fastMvQ.order('synced_at', { ascending: false })
+      }
+
+      const mvOffset = isExport ? 0 : page * limit
+      const pageFetchLimit = deferCount ? limit + 1 : limit
+      const { data: mvRows, count: mvCount, error: mvErr } = await fastMvQ
+        .range(mvOffset, mvOffset + pageFetchLimit - 1)
+
+      if (!mvErr) {
+        const rawRows = (mvRows ?? []) as Array<Record<string, unknown>>
+        const hasMore = deferCount && rawRows.length > limit
+        const pageRows = hasMore ? rawRows.slice(0, limit) : rawRows
+        const computedTotal = deferCount
+          ? (hasMore ? (page + 2) * limit : mvOffset + pageRows.length)
+          : (mvCount ?? 0)
+
+        const enriched = pageRows.map((c) => {
+          const dealOwnerId = typeof c.deal_hubspot_owner_id === 'string' ? c.deal_hubspot_owner_id : null
+          const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
+          const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
+          const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
+          const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
+          const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
+          return {
+            hubspot_contact_id: c.hubspot_contact_id,
+            firstname: c.firstname,
+            lastname: c.lastname,
+            email: c.email,
+            phone: c.phone,
+            departement: c.departement,
+            classe_actuelle: c.classe_actuelle,
+            zone_localite: c.zone_localite,
+            formation_demandee: c.formation_demandee,
+            formation_souhaitee: c.formation_souhaitee,
+            contact_createdate: c.contact_createdate,
+            hubspot_owner_id: c.hubspot_owner_id,
+            closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
+            telepro_user_id: c.telepro_user_id ?? null,
+            teleprospecteur: c.teleprospecteur ?? null,
+            recent_conversion_date: c.recent_conversion_date,
+            recent_conversion_event: c.recent_conversion_event,
+            hs_lead_status: c.hs_lead_status,
+            origine: c.origine,
+            contact_owner: contactOwner,
+            telepro,
+            deal: c.deal_hubspot_deal_id ? {
+              hubspot_deal_id: c.deal_hubspot_deal_id,
+              dealstage: c.dealstage,
+              formation: c.formation_deal,
+              closedate: c.deal_closedate,
+              createdate: c.deal_createdate,
+              supabase_appt_id: c.deal_supabase_appt_id,
+              hubspot_owner_id: c.deal_hubspot_owner_id,
+              teleprospecteur: c.deal_teleprospecteur,
+              closer,
+              telepro,
+            } : null,
+          }
+        })
+
+        const r = NextResponse.json({
+          data: enriched,
+          total: computedTotal,
+          total_estimated: deferCount ? true : countMode !== 'exact',
+          page,
+          limit,
+        })
+        r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+        return r
+      }
+    } catch {
+      // vue non dispo / erreur SQL: fallback automatique sur le chemin existant
+    }
+  }
+
+  // ── Fast path Typesense (fallback auto vers SQL si indisponible) ───────────
+  // Objectif: accélérer drastiquement le chargement des leads "classiques".
+  const hasUnsupportedTypesenseFilter = !!(
+    isExport ||
+    countOnly ||
+    stageNot || closerHsId || closerNot || teleproOwnerHsId ||
+    formationNot || pipelineNot || priorPreinscription || periodFilter ||
+    ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
+    noTelepro || withTelepro ||
+    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    formEvent || formEventNot ||
+    emptyFields.length > 0 || notEmptyFields.length > 0 ||
+    customFilters.length > 0 ||
+    formEventContactIds !== null || metaLeadAdsContactIds !== null || metaLeadAdsOnly ||
+    !showExternal
+  )
+  const typesenseSortMap: Record<string, string> = {
+    contact: 'lastname',
+    formation_souhaitee: 'formation_souhaitee',
+    classe: 'classe_actuelle',
+    zone: 'zone_localite',
+    departement: 'departement',
+    lead_status: 'hs_lead_status',
+    origine: 'origine',
+    closer: 'hubspot_owner_id',
+    createdat_contact: 'contact_createdate',
+    createdat_deal: 'deal_createdate',
+    form_submission: 'recent_conversion_date',
+    synced_at: 'synced_at',
+  }
+  const typesenseSortField = typesenseSortMap[sortBy]
+  if (!hasUnsupportedTypesenseFilter && typesenseSortField && isTypesenseEnabled()) {
+    const splitMultiLocal = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+    const filterParts: string[] = []
+    const pushIn = (field: string, raw: string) => {
+      const vals = splitMultiLocal(raw)
+      if (vals.length === 0) return
+      if (vals.length === 1) {
+        filterParts.push(`${field}:=${JSON.stringify(vals[0])}`)
+      } else {
+        filterParts.push(`(${vals.map(v => `${field}:=${JSON.stringify(v)}`).join(' || ')})`)
+      }
+    }
+    if (!effectiveAllClasses) {
+      pushIn('classe_actuelle', PRIORITY_CLASSES.join(','))
+    }
+    if (classeFilter) pushIn('classe_actuelle', classeFilter)
+    if (teleproHsId) pushIn('telepro_user_id', teleproHsId)
+    if (contactOwnerHsId) pushIn('hubspot_owner_id', contactOwnerHsId)
+    if (closerContactHsId) pushIn('closer_du_contact_owner_id', closerContactHsId)
+    if (leadStatus) pushIn('hs_lead_status', leadStatus)
+    if (source) pushIn('origine', source)
+    if (zone) pushIn('zone_localite', zone)
+    if (departement) pushIn('departement', departement)
+    if (stage) pushIn('dealstage', stage)
+    if (formation) pushIn('formation_deal', formation)
+    if (pipeline) pushIn('pipeline', pipeline)
+
+    const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
+    const ts = await searchTypesenseCrmContacts({
+      q: safeSearch || '*',
+      queryBy: 'firstname,lastname,email,phone',
+      filterBy: filterParts.length > 0 ? filterParts.join(' && ') : undefined,
+      sortBy: `${typesenseSortField}:${sortAsc ? 'asc' : 'desc'}`,
+      page: page + 1,
+      perPage: limit,
+    })
+
+    if (ts) {
+      const ids = ts.ids
+      if (ids.length === 0) {
+        return NextResponse.json({ data: [], total: ts.found, total_estimated: false, page, limit })
+      }
+      const { data: rows } = await db
+        .from('crm_contacts')
+        .select(
+          `hubspot_contact_id, firstname, lastname, email, phone,
+           departement, classe_actuelle, zone_localite,
+           formation_demandee, formation_souhaitee, contact_createdate,
+           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+           hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}`
+        )
+        .in('hubspot_contact_id', ids)
+
+      const byId: Record<string, Record<string, unknown>> = {}
+      for (const r of (rows ?? []) as unknown as Array<Record<string, unknown>>) {
+        const id = r.hubspot_contact_id
+        if (typeof id === 'string') byId[id] = r
+      }
+      const ordered = ids.map(id => byId[id]).filter((r): r is Record<string, unknown> => !!r)
+
+      const { data: dealRows } = await db
+        .from('crm_deals')
+        .select('hubspot_contact_id, hubspot_deal_id, dealstage, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, supabase_appt_id')
+        .in('hubspot_contact_id', ids)
+        .order('createdate', { ascending: false, nullsFirst: false })
+
+      const dealByContactId: Record<string, Record<string, unknown>> = {}
+      for (const row of (dealRows ?? []) as Array<Record<string, unknown>>) {
+        const cid = row.hubspot_contact_id
+        if (typeof cid !== 'string') continue
+        if (!dealByContactId[cid]) dealByContactId[cid] = row
+      }
+
+      const enriched = ordered.map((c) => {
+        const contactId = c.hubspot_contact_id as string
+        const deal = dealByContactId[contactId] ?? null
+        const dealOwnerId = typeof deal?.hubspot_owner_id === 'string' ? deal.hubspot_owner_id : null
+        const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
+        const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
+        const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
+        const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
+        const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
+        return {
+          hubspot_contact_id: c.hubspot_contact_id,
+          firstname: c.firstname,
+          lastname: c.lastname,
+          email: c.email,
+          phone: c.phone,
+          departement: c.departement,
+          classe_actuelle: c.classe_actuelle,
+          zone_localite: c.zone_localite,
+          formation_demandee: c.formation_demandee,
+          formation_souhaitee: c.formation_souhaitee,
+          contact_createdate: c.contact_createdate,
+          hubspot_owner_id: c.hubspot_owner_id,
+          closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
+          telepro_user_id: c.telepro_user_id ?? null,
+          teleprospecteur: c.teleprospecteur ?? null,
+          extra_props: extraProps.length > 0
+            ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
+            : undefined,
+          recent_conversion_date: c.recent_conversion_date,
+          recent_conversion_event: c.recent_conversion_event,
+          hs_lead_status: c.hs_lead_status,
+          origine: c.origine,
+          contact_owner: contactOwner,
+          telepro,
+          deal: deal ? {
+            hubspot_deal_id: deal.hubspot_deal_id,
+            dealstage: deal.dealstage,
+            formation: deal.formation,
+            closedate: deal.closedate,
+            createdate: deal.createdate,
+            supabase_appt_id: deal.supabase_appt_id,
+            hubspot_owner_id: deal.hubspot_owner_id,
+            teleprospecteur: deal.teleprospecteur,
+            closer,
+            telepro,
+          } : null,
+        }
+      })
+
+      const r = NextResponse.json({
+        data: enriched,
+        total: ts.found,
+        total_estimated: false,
+        page,
+        limit,
+      })
+      r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+      return r
+    }
   }
 
   // ── Étape 1 : Pré-filtres deal → listes de contact IDs ────────────────────
@@ -305,6 +839,29 @@ export async function GET(req: NextRequest) {
 
   // Helper: split comma-separated values
   const splitMulti = (v: string) => v.split(',').filter(Boolean)
+
+  async function fetchDealContactIdsViaRpc(params: {
+    stageIds?: string[]
+    closerOwnerIds?: string[]
+    teleproOwnerIds?: string[]
+    formations?: string[]
+    pipelineIds?: string[]
+    createdFrom?: string
+    createdTo?: string
+  }): Promise<string[]> {
+    const { data } = await db.rpc('crm_deal_contact_ids', {
+      p_stage_ids: params.stageIds && params.stageIds.length > 0 ? params.stageIds : null,
+      p_closer_owner_ids: params.closerOwnerIds && params.closerOwnerIds.length > 0 ? params.closerOwnerIds : null,
+      p_telepro_owner_ids: params.teleproOwnerIds && params.teleproOwnerIds.length > 0 ? params.teleproOwnerIds : null,
+      p_formations: params.formations && params.formations.length > 0 ? params.formations : null,
+      p_pipeline_ids: params.pipelineIds && params.pipelineIds.length > 0 ? params.pipelineIds : null,
+      p_created_from: params.createdFrom ?? null,
+      p_created_to: params.createdTo ?? null,
+    })
+    return ((data ?? []) as Array<{ hubspot_contact_id: string | null }>)
+      .map(r => r.hubspot_contact_id)
+      .filter((v): v is string => !!v)
+  }
 
   // A) Filtres positifs deal
   // Note: teleproHsId, withTelepro, noTelepro, teleproNot ne passent plus par les deals
@@ -322,40 +879,54 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    dealContactIds = await fetchAllDealContactIds(q => {
-      if (stage) {
-        const stages = splitMulti(stage)
-        q = stages.length > 1 ? q.in('dealstage', stages) : q.eq('dealstage', stage)
-      }
-      if (closerHsId) {
-        const closers = splitMulti(closerHsId)
-        q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
-      }
-      if (teleproOwnerHsId) {
-        const tlp = splitMulti(teleproOwnerHsId)
-        q = tlp.length > 1 ? q.in('teleprospecteur', tlp) : q.eq('teleprospecteur', teleproOwnerHsId)
-      }
-      if (formation) {
-        const formations = splitMulti(formation)
-        q = formations.length > 1 ? q.in('formation', formations) : q.eq('formation', formation)
-      }
-      if (pipeline) {
-        const vals = splitMulti(pipeline)
-        q = vals.length > 1 ? q.in('pipeline', vals) : q.eq('pipeline', pipeline)
-      }
-      if (pipelineNot) {
-        const vals = splitMulti(pipelineNot)
-        if (vals.length > 1) {
-          q = q.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
-        } else {
-          q = q.neq('pipeline', pipelineNot)
+    if (pipelineNot) {
+      // Cas "pipeline_not" : conservation du chemin legacy (NOT IN) pour rester exact.
+      dealContactIds = await fetchAllDealContactIds(q => {
+        if (stage) {
+          const stages = splitMulti(stage)
+          q = stages.length > 1 ? q.in('dealstage', stages) : q.eq('dealstage', stage)
         }
-      }
-      if (priorPreinscription && priorIds.length > 0) {
-        q = q.neq('pipeline', PIPELINE_ID).in('dealstage', priorIds)
-      }
-      return q
-    })
+        if (closerHsId) {
+          const closers = splitMulti(closerHsId)
+          q = closers.length > 1 ? q.in('hubspot_owner_id', closers) : q.eq('hubspot_owner_id', closerHsId)
+        }
+        if (teleproOwnerHsId) {
+          const tlp = splitMulti(teleproOwnerHsId)
+          q = tlp.length > 1 ? q.in('teleprospecteur', tlp) : q.eq('teleprospecteur', teleproOwnerHsId)
+        }
+        if (formation) {
+          const formations = splitMulti(formation)
+          q = formations.length > 1 ? q.in('formation', formations) : q.eq('formation', formation)
+        }
+        if (pipeline) {
+          const vals = splitMulti(pipeline)
+          q = vals.length > 1 ? q.in('pipeline', vals) : q.eq('pipeline', pipeline)
+        }
+        if (pipelineNot) {
+          const vals = splitMulti(pipelineNot)
+          if (vals.length > 1) {
+            q = q.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
+          } else {
+            q = q.neq('pipeline', pipelineNot)
+          }
+        }
+        if (priorPreinscription && priorIds.length > 0) {
+          if (CURRENT_PIPELINE_ID) q = q.neq('pipeline', CURRENT_PIPELINE_ID)
+          q = q.in('dealstage', priorIds)
+        }
+        return q
+      })
+    } else {
+      dealContactIds = await fetchDealContactIdsViaRpc({
+        stageIds: priorPreinscription && priorIds.length > 0
+          ? priorIds
+          : (stage ? splitMulti(stage) : undefined),
+        closerOwnerIds: closerHsId ? splitMulti(closerHsId) : undefined,
+        teleproOwnerIds: teleproOwnerHsId ? splitMulti(teleproOwnerHsId) : undefined,
+        formations: formation ? splitMulti(formation) : undefined,
+        pipelineIds: pipeline ? splitMulti(pipeline) : (priorPreinscription && CURRENT_PIPELINE_ID ? [CURRENT_PIPELINE_ID] : undefined),
+      })
+    }
   }
 
   // A-bis) Exclusion deal filters (stage_not, closer_not, formation_not)
@@ -364,20 +935,10 @@ export async function GET(req: NextRequest) {
   let excludeByDealFilter: string[] = []
 
   if (hasDealExclusion) {
-    excludeByDealFilter = await fetchAllDealContactIds(q => {
-      if (stageNot) {
-        const vals = splitMulti(stageNot)
-        q = vals.length > 1 ? q.in('dealstage', vals) : q.eq('dealstage', stageNot)
-      }
-      if (closerNot) {
-        const vals = splitMulti(closerNot)
-        q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', closerNot)
-      }
-      if (formationNot) {
-        const vals = splitMulti(formationNot)
-        q = vals.length > 1 ? q.in('formation', vals) : q.eq('formation', formationNot)
-      }
-      return q
+    excludeByDealFilter = await fetchDealContactIdsViaRpc({
+      stageIds: stageNot ? splitMulti(stageNot) : undefined,
+      closerOwnerIds: closerNot ? splitMulti(closerNot) : undefined,
+      formations: formationNot ? splitMulti(formationNot) : undefined,
     })
   }
 
@@ -451,45 +1012,45 @@ export async function GET(req: NextRequest) {
   // télépro) : il a déjà retourné 855 alors que le vrai count était 2362.
   // → Dès qu'un filtre "qui réduit fortement le scope" est actif, on bascule
   //   en 'exact' (la query est de toute façon rapide sur un index ciblé).
-  const hasSelectiveFilter = !!(
-    search || teleproHsId || teleproOwnerHsId || teleproNot ||
-    closerHsId || closerContactHsId || closerContactNot ||
-    contactOwnerHsId || stage || stageNot ||
-    formation || formationNot || classeFilter || periodFilter ||
-    leadStatus || leadStatusNot || source || sourceNot ||
-    zone || zoneNot || departement || deptNot ||
-    pipeline || pipelineNot || priorPreinscription ||
-    noTelepro || withTelepro ||
-    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
-    formEvent || formEventNot ||
-    customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
-  )
-  const countMode: 'exact' | 'estimated' = hasSelectiveFilter ? 'exact' : 'estimated'
+  const sortUsesDealTable = sortInfo.foreignTable === 'crm_deals'
+  // Count-only ultra léger : pas d'embed deals, pas de tri.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query: any = db
-    .from('crm_contacts')
-    .select(
-      `hubspot_contact_id, firstname, lastname, email, phone,
-       departement, classe_actuelle, zone_localite,
-       formation_demandee, formation_souhaitee, contact_createdate,
-       hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
-       hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''},
-       crm_deals (
-         hubspot_deal_id, dealstage, pipeline, formation,
-         hubspot_owner_id, teleprospecteur, closedate, createdate,
-         supabase_appt_id
-       )`,
-      { count: countMode }
-    )
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  query = (query as any).order(sortInfo.col, {
-    ascending: sortAsc,
-    nullsFirst: false,
-    ...(sortInfo.foreignTable ? { foreignTable: sortInfo.foreignTable } : {}),
-  })
-  if (sortInfo.col !== 'synced_at') {
+  let query: any
+  if (countOnly) {
+    query = db
+      .from('crm_contacts')
+      .select('hubspot_contact_id', { count: countMode, head: true })
+  } else {
+    query = db
+      .from('crm_contacts')
+      .select(
+        `hubspot_contact_id, firstname, lastname, email, phone,
+         departement, classe_actuelle, zone_localite,
+         formation_demandee, formation_souhaitee, contact_createdate,
+         hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+         hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}${sortUsesDealTable ? `,
+         crm_deals (
+           hubspot_deal_id, dealstage, pipeline, formation,
+           hubspot_owner_id, teleprospecteur, closedate, createdate,
+           supabase_appt_id
+         )` : ''}`,
+        deferCount ? undefined : { count: countMode }
+      )
+    if (sortUsesDealTable) {
+      // Si le tri dépend de crm_deals, on garde l'embed (et on limite à 1 deal).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).limit(1, { foreignTable: 'crm_deals' })
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query = (query as any).order('synced_at', { ascending: false })
+    query = (query as any).order(sortInfo.col, {
+      ascending: sortAsc,
+      nullsFirst: false,
+      ...(sortInfo.foreignTable ? { foreignTable: sortInfo.foreignTable } : {}),
+    })
+    if (sortInfo.col !== 'synced_at') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).order('synced_at', { ascending: false })
+    }
   }
 
   // Filtre positif deal → IN (batched to avoid URL length limits)
@@ -522,15 +1083,12 @@ export async function GET(req: NextRequest) {
       : query.eq('telepro_user_id', teleproHsId)
   }
 
-  // Filtre Telepro (exclusion) — inclut les contacts sans telepro (NULL),
-  // comme HubSpot : un contact sans telepro "n'est pas Pascal", donc il matche.
+  // Filtre Telepro (exclusion) — version stable en SQL natif.
   if (teleproNot) {
     const vals = splitMulti(teleproNot)
-    if (vals.length > 1) {
-      query = query.or(`telepro_user_id.is.null,telepro_user_id.not.in.(${vals.join(',')})`)
-    } else {
-      query = query.or(`telepro_user_id.is.null,telepro_user_id.neq.${teleproNot}`)
-    }
+    query = vals.length > 1
+      ? query.not('telepro_user_id', 'in', `(${vals.join(',')})`)
+      : query.neq('telepro_user_id', teleproNot)
   }
 
   // withTelepro = a un telepro renseigne
@@ -541,7 +1099,7 @@ export async function GET(req: NextRequest) {
 
   // Exclusion equipe externe sur le telepro du contact (natif)
   if (!showExternal && excludedUserIds.length > 0) {
-    query = query.or(`telepro_user_id.is.null,telepro_user_id.not.in.(${excludedUserIds.join(',')})`)
+    query = query.not('telepro_user_id', 'in', `(${excludedUserIds.join(',')})`)
   }
 
   // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN (batched)
@@ -598,7 +1156,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Filtre classe SQL
-  if (!allClasses) {
+  if (!effectiveAllClasses) {
     query = query.in('classe_actuelle', PRIORITY_CLASSES)
   }
 
@@ -620,22 +1178,25 @@ export async function GET(req: NextRequest) {
       periodSince = new Date(now.getFullYear(), now.getMonth(), 1); periodExact = true
     }
     if (periodSince) {
-      const periodContactIds = await fetchAllDealContactIds(q => {
-        q = q.gte('createdate', periodSince!.toISOString())
+      const periodEnd = (() => {
         if (periodExact && periodFilter === 'today') {
-          const end = new Date(periodSince!); end.setHours(23, 59, 59, 999)
-          q = q.lte('createdate', end.toISOString())
+          const end = new Date(periodSince); end.setHours(23, 59, 59, 999)
+          return end.toISOString()
         }
         if (periodExact && periodFilter === 'month') {
           const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-          q = q.lte('createdate', end.toISOString())
+          return end.toISOString()
         }
-        return q
+        return undefined
+      })()
+      const periodIds = await fetchDealContactIdsViaRpc({
+        createdFrom: periodSince.toISOString(),
+        createdTo: periodEnd,
       })
-      if (periodContactIds.length === 0) {
+      if (periodIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page, limit })
       }
-      query = query.in('hubspot_contact_id', periodContactIds)
+      query = query.in('hubspot_contact_id', periodIds)
     }
   }
 
@@ -666,31 +1227,21 @@ export async function GET(req: NextRequest) {
   }
 
   // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
-  // HubSpot inclut les contacts sans owner (NULL) dans ce filtre :
-  // un contact sans owner "n'est pas Benjamin", donc il matche.
-  const contactOwnerNot = searchParams.get('contact_owner_not') ?? ''
   if (contactOwnerNot) {
     const vals = contactOwnerNot.split(',').filter(Boolean)
-    if (vals.length > 1) {
-      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.(${vals.join(',')})`)
-    } else {
-      query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${contactOwnerNot}`)
-    }
+    query = vals.length > 1
+      ? query.not('hubspot_owner_id', 'in', `(${vals.join(',')})`)
+      : query.neq('hubspot_owner_id', contactOwnerNot)
   }
 
   // Exclusion équipe externe (owner du contact)
-  // ATTENTION : SQL `NOT (NULL IN (x))` évalue à NULL → filtré comme false.
-  // Du coup `.not('col','in',(x))` exclut aussi les contacts dont l'owner est
-  // NULL, ce qui fait disparaître 800+ contacts d'un télépro qui n'ont pas
-  // d'owner assigné. On ajoute donc explicitement `OR is null` pour les
-  // garder, comme on le fait déjà pour telepro_user_id (ligne ~400).
   if (!showExternal && excludedOwnerIds.length > 0) {
-    query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.(${excludedOwnerIds.join(',')})`)
+    query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
   }
 
   // Exclure un owner manuellement
   if (ownerExclude) {
-    query = query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${ownerExclude}`)
+    query = query.neq('hubspot_owner_id', ownerExclude)
   }
 
   // Formulaires récents (par mois)
@@ -724,17 +1275,35 @@ export async function GET(req: NextRequest) {
     query = query.lt('contact_createdate', before.toISOString())
   }
 
-  // Filtre form_event resolu en amont → liste de contact_ids
-  // (capture historique complet : Meta + HubSpot hs_calculated_form_submissions
-  // + fallback recent_conversion_event)
-  if (formEventContactIds !== null) {
-    if (formEventContactIds.length === 0) {
+  // Filtres résolus en amont → liste de contact_ids
+  // (form_event historique complet + segment dédié Meta ADS).
+  let scopedContactIds: string[] | null = null
+  if (formEventContactIds !== null && metaLeadAdsContactIds !== null) {
+    const b = new Set(metaLeadAdsContactIds)
+    scopedContactIds = formEventContactIds.filter(id => b.has(id))
+  } else if (formEventContactIds !== null) {
+    scopedContactIds = formEventContactIds
+  } else if (metaLeadAdsContactIds !== null) {
+    scopedContactIds = metaLeadAdsContactIds
+  }
+  if (scopedContactIds !== null) {
+    if (scopedContactIds.length === 0) {
       // Aucun contact ne matche → force resultat vide
       query = query.eq('hubspot_contact_id', '__no_match__')
     } else {
-      // .in() supporte ~2000 IDs avant que l'URL devienne trop longue.
-      // Pour les forms avec plus de leads, on tronque (limite practique).
-      query = query.in('hubspot_contact_id', formEventContactIds.slice(0, 2000))
+      // Pour ne perdre aucun lead Meta, on ne tronque pas : on split en lots.
+      // Un seul lot -> .in() ; plusieurs lots -> OR de in().
+      const BATCH = 2000
+      if (scopedContactIds.length <= BATCH) {
+        query = query.in('hubspot_contact_id', scopedContactIds)
+      } else {
+        const orParts: string[] = []
+        for (let i = 0; i < scopedContactIds.length; i += BATCH) {
+          const batch = scopedContactIds.slice(i, i + BATCH)
+          orParts.push(`hubspot_contact_id.in.(${batch.join(',')})`)
+        }
+        query = query.or(orParts.join(','))
+      }
     }
   }
 
@@ -752,6 +1321,9 @@ export async function GET(req: NextRequest) {
   if (source) {
     const vals = splitMulti(source)
     query = vals.length > 1 ? query.in('origine', vals) : query.eq('origine', source)
+  }
+  if (metaLeadAdsOnly) {
+    query = query.eq('source', 'meta_lead_ads')
   }
   if (sourceNot) {
     const vals = splitMulti(sourceNot)
@@ -848,7 +1420,8 @@ export async function GET(req: NextRequest) {
             continue
           case 'neq':
           case 'is_not':
-            query = query.or(`${col}.lt.${dayStart(val)},${col}.gte.${dayEnd(val)}`)
+            // Version stable sans .or() pour éviter l'écrasement d'autres filtres.
+            query = query.neq(col, val)
             continue
           case 'before':
           case 'lt':
@@ -897,20 +1470,17 @@ export async function GET(req: NextRequest) {
       ? query.in('closer_du_contact_owner_id', vals)
       : query.eq('closer_du_contact_owner_id', closerContactHsId)
   }
-  // Exclusion "Closer du contact" — inclut les contacts sans closer (NULL),
-  // comme HubSpot.
+  // Exclusion "Closer du contact"
   if (closerContactNot) {
     const vals = splitMulti(closerContactNot)
-    if (vals.length > 1) {
-      query = query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.not.in.(${vals.join(',')})`)
-    } else {
-      query = query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.neq.${closerContactNot}`)
-    }
+    query = vals.length > 1
+      ? query.not('closer_du_contact_owner_id', 'in', `(${vals.join(',')})`)
+      : query.neq('closer_du_contact_owner_id', closerContactNot)
   }
 
   // Count-only mode — return just the total without data
   if (countOnly) {
-    const { count: totalCount, error } = await query.range(0, 0)
+    const { count: totalCount, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const r = NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: countMode === 'estimated', page: 0, limit: 0 })
     r.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
@@ -919,69 +1489,145 @@ export async function GET(req: NextRequest) {
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
   const offset = isExport ? 0 : page * limit
-  const { data: contacts, count: totalCount, error } = await query
-    .range(offset, offset + limit - 1)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const buildPayload = async () => {
+    const pageFetchLimit = deferCount ? limit + 1 : limit
+    const { data: contacts, count: totalCount, error } = await query
+      .range(offset, offset + pageFetchLimit - 1)
+    if (error) throw new Error(error.message)
 
-  // ── Enrichissement (cosmétique — seulement les ~50 lignes de la page) ──────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enriched = (contacts ?? []).map((c: any) => {
+    const rawContacts = contacts ?? []
+    const hasMore = deferCount && rawContacts.length > limit
+    const pageContacts = hasMore ? rawContacts.slice(0, limit) : rawContacts
+
+    // Sans tri deal, on charge les deals dans une 2e requête limitée aux contacts
+    // paginés : c'est bien plus rapide que d'embarquer crm_deals pour tout le SQL.
+    const dealByContactId: Record<string, {
+      hubspot_deal_id: string | null
+      dealstage: string | null
+      pipeline: string | null
+      formation: string | null
+      hubspot_owner_id: string | null
+      teleprospecteur: string | null
+      closedate: string | null
+      createdate: string | null
+      supabase_appt_id: string | null
+    }> = {}
+    if (!sortUsesDealTable && pageContacts.length > 0) {
+      const contactIds = pageContacts
+        .map((c: { hubspot_contact_id?: string | null }) => c.hubspot_contact_id)
+        .filter((id: string | null | undefined): id is string => !!id)
+      if (contactIds.length > 0) {
+        const { data: dealRows } = await db
+          .from('crm_deals')
+          .select('hubspot_contact_id, hubspot_deal_id, dealstage, pipeline, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, supabase_appt_id')
+          .in('hubspot_contact_id', contactIds)
+          .order('createdate', { ascending: false, nullsFirst: false })
+        for (const row of (dealRows ?? []) as Array<{
+          hubspot_contact_id: string | null
+          hubspot_deal_id: string | null
+          dealstage: string | null
+          pipeline: string | null
+          formation: string | null
+          hubspot_owner_id: string | null
+          teleprospecteur: string | null
+          closedate: string | null
+          createdate: string | null
+          supabase_appt_id: string | null
+        }>) {
+          if (!row.hubspot_contact_id) continue
+          // Le premier vu (createdate DESC) devient le deal de référence.
+          if (!dealByContactId[row.hubspot_contact_id]) {
+            dealByContactId[row.hubspot_contact_id] = {
+              hubspot_deal_id: row.hubspot_deal_id,
+              dealstage: row.dealstage,
+              pipeline: row.pipeline,
+              formation: row.formation,
+              hubspot_owner_id: row.hubspot_owner_id,
+              teleprospecteur: row.teleprospecteur,
+              closedate: row.closedate,
+              createdate: row.createdate,
+              supabase_appt_id: row.supabase_appt_id,
+            }
+          }
+        }
+      }
+    }
+
+    // ── Enrichissement (cosmétique — seulement les ~50 lignes de la page) ──────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const deal         = (c.crm_deals as any[])?.[0] ?? null
-    const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
-    // Telepro = colonne native crm_contacts.telepro_user_id (independance HubSpot).
-    // Resolution via userByUserId puis fallback userByOwnerId pour couvrir les 2 conventions.
-    const telepro      = c.telepro_user_id      ? (userByUserId[c.telepro_user_id]    ?? userByOwnerId[c.telepro_user_id]   ?? null) : null
-    const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]   ?? null : null
+    const enriched = pageContacts.map((c: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const deal         = dealByContactId[c.hubspot_contact_id] ?? (c.crm_deals as any[])?.[0] ?? null
+      const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
+      // Telepro = colonne native crm_contacts.telepro_user_id (independance HubSpot).
+      // Resolution via userByUserId puis fallback userByOwnerId pour couvrir les 2 conventions.
+      const telepro      = c.telepro_user_id      ? (userByUserId[c.telepro_user_id]    ?? userByOwnerId[c.telepro_user_id]   ?? null) : null
+      const contactOwner = c.hubspot_owner_id     ? userByOwnerId[c.hubspot_owner_id]   ?? null : null
+
+      return {
+        hubspot_contact_id:      c.hubspot_contact_id,
+        firstname:               c.firstname,
+        lastname:                c.lastname,
+        email:                   c.email,
+        phone:                   c.phone,
+        departement:             c.departement,
+        classe_actuelle:         c.classe_actuelle,
+        zone_localite:           c.zone_localite,
+        formation_demandee:      c.formation_demandee,
+        formation_souhaitee:     c.formation_souhaitee,
+        contact_createdate:      c.contact_createdate,
+        hubspot_owner_id:        c.hubspot_owner_id,
+        closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
+        telepro_user_id:         c.telepro_user_id ?? null,
+        teleprospecteur:         c.teleprospecteur ?? null,
+        extra_props:             extraProps.length > 0
+          ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
+          : undefined,
+        recent_conversion_date:  c.recent_conversion_date,
+        recent_conversion_event: c.recent_conversion_event,
+        hs_lead_status:          c.hs_lead_status,
+        origine:                 c.origine,
+        contact_owner:           contactOwner,
+        telepro,
+        deal: deal ? {
+          hubspot_deal_id:  deal.hubspot_deal_id,
+          dealstage:        deal.dealstage,
+          formation:        deal.formation,
+          closedate:        deal.closedate,
+          createdate:       deal.createdate,
+          supabase_appt_id: deal.supabase_appt_id,
+          hubspot_owner_id: deal.hubspot_owner_id,
+          teleprospecteur:  deal.teleprospecteur,
+          closer,
+          telepro,  // retro-compat avec front qui lit deal.telepro
+        } : null,
+      }
+    })
+
+    const computedTotal = deferCount
+      ? (hasMore ? (page + 2) * limit : offset + enriched.length)
+      : (totalCount ?? 0)
 
     return {
-      hubspot_contact_id:      c.hubspot_contact_id,
-      firstname:               c.firstname,
-      lastname:                c.lastname,
-      email:                   c.email,
-      phone:                   c.phone,
-      departement:             c.departement,
-      classe_actuelle:         c.classe_actuelle,
-      zone_localite:           c.zone_localite,
-      formation_demandee:      c.formation_demandee,
-      formation_souhaitee:     c.formation_souhaitee,
-      contact_createdate:      c.contact_createdate,
-      hubspot_owner_id:        c.hubspot_owner_id,
-      closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
-      telepro_user_id:         c.telepro_user_id ?? null,
-      teleprospecteur:         c.teleprospecteur ?? null,
-      extra_props:             extraProps.length > 0
-        ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
-        : undefined,
-      recent_conversion_date:  c.recent_conversion_date,
-      recent_conversion_event: c.recent_conversion_event,
-      hs_lead_status:          c.hs_lead_status,
-      origine:                 c.origine,
-      contact_owner:           contactOwner,
-      telepro,
-      deal: deal ? {
-        hubspot_deal_id:  deal.hubspot_deal_id,
-        dealstage:        deal.dealstage,
-        formation:        deal.formation,
-        closedate:        deal.closedate,
-        createdate:       deal.createdate,
-        supabase_appt_id: deal.supabase_appt_id,
-        hubspot_owner_id: deal.hubspot_owner_id,
-        teleprospecteur:  deal.teleprospecteur,
-        closer,
-        telepro,  // retro-compat avec front qui lit deal.telepro
-      } : null,
+      data: enriched,
+      total: computedTotal,
+      total_estimated: deferCount ? true : countMode !== 'exact',
+      page,
+      limit,
     }
-  })
+  }
 
-  const response = NextResponse.json({
-    data:  enriched,
-    total: totalCount ?? 0,
-    total_estimated: countMode === 'estimated',
-    page,
-    limit,
-  })
+  // Cache court de la réponse finale leads: filtre/page identiques deviennent
+  // quasi instantanés, même quand la route est riche en filtres.
+  const responseCacheKey = !isExport
+    ? `crm:contacts:response:v1:${req.nextUrl.searchParams.toString()}`
+    : null
+  const payload = responseCacheKey
+    ? await cached(responseCacheKey, 20, buildPayload)
+    : await buildPayload()
+
+  const response = NextResponse.json(payload)
   // Stale-while-revalidate : le navigateur peut reutiliser la reponse pendant
   // 15s sans refetch (max-age=15), et entre 15s et 60s elle est servie
   // immediatement tout en revalidant en arriere-plan. Combine avec le cache

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 const TEAM_NAME = 'Closer'
@@ -40,6 +41,7 @@ function generatePassword(): string {
 
 // GET /api/admin/closers/sync — debug
 export async function GET() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     if (!HUBSPOT_TOKEN) {
       return NextResponse.json({ error: 'HUBSPOT_ACCESS_TOKEN manquant dans les variables Vercel' })
@@ -67,6 +69,7 @@ export async function GET() {
 
 // POST /api/admin/closers/sync
 export async function POST() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const db = createServiceClient()
 
   const teamsData = await hubspotGet('/settings/v3/users/teams')

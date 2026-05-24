@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PIPELINE_ID, STAGES } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
@@ -19,6 +20,7 @@ async function hubspotSearch(filterGroups: object[], properties: string[], limit
 
 // GET /api/hubspot/telepro-stats?hubspot_owner_id=xxx
 export async function GET(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const ownerId = req.nextUrl.searchParams.get('hubspot_owner_id')
   if (!ownerId) return NextResponse.json({ error: 'hubspot_owner_id requis' }, { status: 400 })
 

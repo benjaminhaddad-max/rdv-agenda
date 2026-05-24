@@ -297,30 +297,191 @@ export async function fetchFormLeads(
  */
 const META_FIELD_MAP: Record<string, string> = {
   email: 'email',
+  e_mail: 'email',
   full_name: 'firstname',           // sera split en firstname+lastname
+  fullname: 'firstname',
   first_name: 'firstname',
+  prenom: 'firstname',
   last_name: 'lastname',
+  nom: 'lastname',
+  nom_de_famille: 'lastname',
   phone_number: 'phone',
+  numero_de_telephone: 'phone',
+  telephone: 'phone',
   phone: 'phone',
   city: 'zone_localite',
   zip: 'departement',
   postal_code: 'departement',
+  code_postal: 'departement',
+  departement: 'departement',
   state: 'zone_localite',
   // Particularité Diploma : niveau d'études → classe actuelle
   niveau: 'classe_actuelle',
+  formation_actuelle: 'classe_actuelle',
+  formation_actuelle_: 'classe_actuelle',
   classe: 'classe_actuelle',
   classe_actuelle: 'classe_actuelle',
   formation: 'formation_souhaitee',
+  formation_souhaitee: 'formation_souhaitee',
+  formation_souhaitee_en: 'formation_souhaitee',
+}
+
+function normalizeMetaKey(key: string): string {
+  return key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function normalizeDepartementValue(value: string): string {
+  const compact = String(value || '').trim().toUpperCase().replace(/\s+/g, '')
+  if (!compact) return ''
+  if (/^[0-9]{5}$/.test(compact)) return compact.slice(0, 2)
+  if (/^[1-9]$/.test(compact)) return `0${compact}`
+  if (/^[0-9]{2}$/.test(compact)) return compact
+  if (/^2[AB]$/.test(compact)) return compact
+  if (/^9[78][0-9]$/.test(compact)) return compact
+  return compact
+}
+
+function computeZoneFromDepartement(value: string): string | null {
+  const code = normalizeDepartementValue(value)
+  if (!code) return null
+  if (['75', '77', '78', '91', '92', '93', '94', '95'].includes(code)) return 'IDF'
+  if (['10', '27', '28', '45', '51', '60', '89'].includes(code)) return 'Proche IDF'
+  if (['04', '05', '06', '13', '83', '84'].includes(code)) return 'Aix / Marseille'
+  if (['16', '17', '24', '33', '40', '47', '64'].includes(code)) return 'Bordeaux / Pau'
+  if (['09', '11', '12', '30', '34', '48', '66', '81'].includes(code)) return 'Montpellier / Nimes'
+  if (['02', '59', '62'].includes(code)) return 'Lille'
+  if (/^[0-9]{2}$/.test(code) || /^2[AB]$/.test(code) || /^9[78][0-9]$/.test(code)) return 'Autre'
+  return null
+}
+
+function normalizeZoneLocaliteValue(value: string, departement?: string): string {
+  const raw = String(value || '').trim()
+  if (!raw) {
+    const fromDept = departement ? computeZoneFromDepartement(departement) : null
+    return fromDept ?? ''
+  }
+
+  const k = normalizeMetaKey(raw)
+  const known: Record<string, string> = {
+    idf: 'IDF',
+    ile_de_france: 'IDF',
+    iledefrance: 'IDF',
+    proche_idf: 'Proche IDF',
+    procheidf: 'Proche IDF',
+    aix_marseille: 'Aix / Marseille',
+    aix___marseille: 'Aix / Marseille',
+    aixmarseille: 'Aix / Marseille',
+    bordeaux_pau: 'Bordeaux / Pau',
+    bordeaux___pau: 'Bordeaux / Pau',
+    bordeauxpau: 'Bordeaux / Pau',
+    montpellier_nimes: 'Montpellier / Nimes',
+    montpellier___nimes: 'Montpellier / Nimes',
+    montpelliernimes: 'Montpellier / Nimes',
+    lille: 'Lille',
+    autre: 'Autre',
+  }
+  if (known[k]) return known[k]
+
+  // Si la valeur saisie dans zone_localite est un code département/CP,
+  // on la convertit vers le libellé de zone attendu.
+  const fromRawDept = computeZoneFromDepartement(raw)
+  if (fromRawDept) return fromRawDept
+
+  const fromDept = departement ? computeZoneFromDepartement(departement) : null
+  if (fromDept) return fromDept
+
+  return raw
+}
+
+function normalizePhoneForMatch(phone: string): string {
+  const v = phone.replace(/[^0-9+]/g, '').trim()
+  if (!v) return ''
+  // 0033XXXXXXXXX -> +33XXXXXXXXX
+  if (v.startsWith('00')) return '+' + v.slice(2)
+  return v
+}
+
+function phoneCandidates(phone: string): string[] {
+  const base = normalizePhoneForMatch(phone)
+  if (!base) return []
+  const out = new Set<string>([base])
+  // +33XXXXXXXXX -> 0XXXXXXXXX
+  if (base.startsWith('+33') && base.length > 3) out.add('0' + base.slice(3))
+  // 0XXXXXXXXX -> +33XXXXXXXXX
+  if (base.startsWith('0') && base.length > 1) out.add('+33' + base.slice(1))
+  return [...out]
 }
 
 function normalizeMetaFieldValue(name: string, value: string): { field: string; value: string } | null {
-  const target = META_FIELD_MAP[name.toLowerCase()]
+  const normalizedName = normalizeMetaKey(name)
+  let target = META_FIELD_MAP[normalizedName]
+  if (!target) {
+    // Fallback "intelligent" : match partiel des clés connues
+    // (ex: niveau_d_etudes, phone_number_mobile, prenom_etudiant, etc.)
+    const sorted = Object.keys(META_FIELD_MAP).sort((a, b) => b.length - a.length)
+    const compact = normalizedName.replace(/_/g, '')
+    for (const k of sorted) {
+      const kk = normalizeMetaKey(k).replace(/_/g, '')
+      if (kk.length >= 4 && (compact.includes(kk) || kk.includes(compact))) {
+        target = META_FIELD_MAP[k]
+        break
+      }
+    }
+  }
   if (!target) return null
   // full_name → firstname (le lastname sera vide)
-  if (name.toLowerCase() === 'full_name') {
+  if (normalizedName === 'full_name' || normalizedName === 'fullname') {
     return { field: 'firstname', value }
   }
   return { field: target, value }
+}
+
+function normalizeClasseActuelleValue(value: string): string {
+  const k = normalizeMetaKey(value)
+  const map: Record<string, string> = {
+    premiere: 'Première',
+    terminale: 'Terminale',
+    seconde: 'Seconde',
+    troisieme: 'Troisième',
+    etudes_superieures: 'Etudes supérieures',
+    etude_superieure: 'Etudes supérieures',
+    etudes_sup: 'Etudes supérieures',
+    etude_sup: 'Etudes supérieures',
+    etudesup: 'Etudes supérieures',
+    etudessup: 'Etudes supérieures',
+    pass: 'PASS',
+    las: 'LAS',
+    lsps: 'LSPS',
+    autre: 'Autres',
+    autres: 'Autres',
+  }
+  return map[k] ?? value
+}
+
+function buildNormalizedLeadFieldMap(fields: MetaLeadField[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const f of fields || []) {
+    const raw = (f.values?.[0] || '').trim()
+    if (!raw) continue
+    out[normalizeMetaKey(f.name)] = raw
+  }
+  return out
+}
+
+function pickByAliases(
+  normalizedFieldMap: Record<string, string>,
+  aliases: string[],
+): string | null {
+  for (const a of aliases) {
+    const k = normalizeMetaKey(a)
+    if (normalizedFieldMap[k]) return normalizedFieldMap[k]
+  }
+  return null
 }
 
 /**
@@ -337,17 +498,17 @@ export type MetaFieldMappings = Record<string, { crm_field: string; value_map?: 
  * @param crmPropNames liste des property `name` de crm_contacts disponibles
  */
 export function autoSuggestCrmField(metaKey: string, crmPropNames: string[]): string | null {
-  const m = metaKey.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const m = normalizeMetaKey(metaKey).replace(/_/g, '')
   if (!m) return null
   const exists = (name: string) => crmPropNames.includes(name)
   // 1. Synonymes : match exact sur la clé brute
-  const direct = META_FIELD_MAP[metaKey.toLowerCase()]
+  const direct = META_FIELD_MAP[normalizeMetaKey(metaKey)]
   if (direct && exists(direct)) return direct
   // 2. Synonymes : match substring (priorité sur le match littéral CRM)
   // Plus longue clé d'abord pour préférer les synonymes spécifiques.
   const sortedKeys = Object.keys(META_FIELD_MAP).sort((a, b) => b.length - a.length)
   for (const key of sortedKeys) {
-    const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const normKey = normalizeMetaKey(key).replace(/_/g, '')
     if (normKey.length >= 4 && (m.includes(normKey) || normKey.includes(m))) {
       const target = META_FIELD_MAP[key]
       if (exists(target)) return target
@@ -355,11 +516,11 @@ export function autoSuggestCrmField(metaKey: string, crmPropNames: string[]): st
   }
   // 3. Match exact sur le nom CRM normalisé
   for (const p of crmPropNames) {
-    if (p.toLowerCase().replace(/[^a-z0-9]/g, '') === m) return p
+    if (normalizeMetaKey(p).replace(/_/g, '') === m) return p
   }
   // 4. Match par préfixe (ex: "phone_number_mobile" → "phone")
   for (const p of crmPropNames) {
-    const pn = p.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const pn = normalizeMetaKey(p).replace(/_/g, '')
     if (pn.length >= 4 && (m.startsWith(pn) || pn.startsWith(m))) return p
   }
   return null
@@ -383,28 +544,67 @@ export async function processMetaLead(
   const db = createServiceClient()
   const nowIso = new Date().toISOString()
 
-  const customMappings: MetaFieldMappings = formMetadata?.field_mappings || {}
+  let resolvedFormMetadata = formMetadata
+  if (lead.form_id && (!resolvedFormMetadata?.name || !resolvedFormMetadata?.origine_label || !resolvedFormMetadata?.field_mappings)) {
+    const { data: dbFormMeta } = await db
+      .from('meta_lead_forms')
+      .select('name, origine_label, default_owner_id, workflow_id, field_mappings')
+      .eq('form_id', lead.form_id)
+      .maybeSingle()
+    if (dbFormMeta) {
+      resolvedFormMetadata = {
+        name: resolvedFormMetadata?.name || dbFormMeta.name || undefined,
+        origine_label: resolvedFormMetadata?.origine_label || dbFormMeta.origine_label || undefined,
+        default_owner_id: resolvedFormMetadata?.default_owner_id || dbFormMeta.default_owner_id || undefined,
+        workflow_id: resolvedFormMetadata?.workflow_id || dbFormMeta.workflow_id || undefined,
+        field_mappings: resolvedFormMetadata?.field_mappings || (dbFormMeta.field_mappings as MetaFieldMappings | null) || undefined,
+      }
+    }
+  }
+
+  const customMappings: MetaFieldMappings = resolvedFormMetadata?.field_mappings || {}
+  const normalizedFieldMap = buildNormalizedLeadFieldMap(lead.field_data || [])
 
   // 1. Construit le contactData depuis field_data
   const contactData: Record<string, string> = {}
   let fullName: string | null = null
   for (const f of lead.field_data || []) {
+    const normalizedFieldName = normalizeMetaKey(f.name)
     const rawValue = (f.values?.[0] || '').trim()
     if (!rawValue) continue
-    if (f.name.toLowerCase() === 'full_name') {
+    if (normalizedFieldName === 'full_name' || normalizedFieldName === 'fullname') {
       fullName = rawValue
       continue
     }
     // Priorité 1 : field_mappings personnalisé pour ce form
-    const custom = customMappings[f.name]
+    const custom =
+      customMappings[f.name] ||
+      customMappings[f.name.toLowerCase()] ||
+      customMappings[normalizedFieldName] ||
+      Object.entries(customMappings).find(([k]) => normalizeMetaKey(k) === normalizedFieldName)?.[1]
     if (custom?.crm_field) {
       const mappedValue = custom.value_map?.[rawValue] ?? custom.value_map?.[rawValue.toLowerCase()] ?? rawValue
-      contactData[custom.crm_field] = mappedValue
+      contactData[custom.crm_field] = custom.crm_field === 'classe_actuelle'
+        ? normalizeClasseActuelleValue(mappedValue)
+        : mappedValue
       continue
     }
     // Priorité 2 : mapping hardcodé META_FIELD_MAP
     const mapped = normalizeMetaFieldValue(f.name, rawValue)
-    if (mapped) contactData[mapped.field] = mapped.value
+    if (mapped) {
+      contactData[mapped.field] = mapped.field === 'classe_actuelle'
+        ? normalizeClasseActuelleValue(mapped.value)
+        : mapped.value
+    }
+  }
+  if (contactData.departement) {
+    contactData.departement = normalizeDepartementValue(contactData.departement)
+  }
+  if (contactData.zone_localite) {
+    contactData.zone_localite = normalizeZoneLocaliteValue(contactData.zone_localite, contactData.departement)
+  } else if (contactData.departement) {
+    const zoneFromDept = computeZoneFromDepartement(contactData.departement)
+    if (zoneFromDept) contactData.zone_localite = zoneFromDept
   }
   // Si full_name fourni mais pas first_name/last_name, on split
   if (fullName && !contactData.firstname) {
@@ -415,29 +615,106 @@ export async function processMetaLead(
     }
   }
 
+  // Fallback intelligent par alias (Meta field keys variables selon formulaires)
+  if (!contactData.firstname) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'first_name', 'firstname', 'prenom', 'prenom_etudiant', 'given_name',
+    ])
+    if (v) contactData.firstname = v
+  }
+  if (!contactData.lastname) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'last_name', 'lastname', 'nom', 'nom_de_famille', 'family_name',
+    ])
+    if (v) contactData.lastname = v
+  }
+  if (!contactData.email) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'email', 'e_mail', 'mail', 'email_etudiant', 'email_address',
+      'email_du_responsable_legal_1', 'email_parent',
+    ])
+    if (v) contactData.email = v
+  }
+  if (!contactData.phone) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'phone_number', 'phone', 'telephone', 'numero_de_telephone', 'mobile_phone',
+      'phone_number_mobile', 'telephone_du_responsable_legal_1', 'telephone_parent',
+    ])
+    if (v) contactData.phone = v
+  }
+  if (!contactData.classe_actuelle) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'niveau_d_etudes', 'niveau_d_études', 'niveau', 'niveau_etudes',
+      'classe', 'classe_actuelle', 'formation_actuelle',
+    ])
+    if (v) contactData.classe_actuelle = normalizeClasseActuelleValue(v)
+  }
+  if (!contactData.zone_localite) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'zone_localite', 'zone', 'localite', 'localité', 'ville', 'city', 'state',
+    ])
+    if (v) contactData.zone_localite = normalizeZoneLocaliteValue(v, contactData.departement)
+  }
+  if (!contactData.departement) {
+    const v = pickByAliases(normalizedFieldMap, [
+      'departement', 'département', 'code_postal', 'postal_code', 'zip',
+    ])
+    if (v) contactData.departement = normalizeDepartementValue(v)
+  }
+  if (!contactData.zone_localite && contactData.departement) {
+    const zoneFromDept = computeZoneFromDepartement(contactData.departement)
+    if (zoneFromDept) contactData.zone_localite = zoneFromDept
+  }
+
   if (!contactData.email && !contactData.phone) {
     return { contactId: null, contactCreated: false, workflowsTriggered: 0, error: 'Pas d\'email ni de téléphone' }
   }
 
   // Normalise email + phone
   if (contactData.email) contactData.email = contactData.email.toLowerCase().trim()
-  if (contactData.phone) contactData.phone = contactData.phone.replace(/\s+/g, '')
+  if (contactData.phone) contactData.phone = normalizePhoneForMatch(contactData.phone)
 
   // 2. Cherche un contact existant par email puis téléphone
   let existingId: string | null = null
+  let existingZoneLocalite: string | null = null
+  let existingDepartement: string | null = null
   if (contactData.email) {
     const { data } = await db.from('crm_contacts')
-      .select('hubspot_contact_id')
+      .select('hubspot_contact_id, zone_localite, departement')
       .eq('email', contactData.email)
       .maybeSingle()
     existingId = data?.hubspot_contact_id || null
+    existingZoneLocalite = data?.zone_localite || null
+    existingDepartement = data?.departement || null
   }
   if (!existingId && contactData.phone) {
-    const { data } = await db.from('crm_contacts')
-      .select('hubspot_contact_id')
-      .eq('phone', contactData.phone)
-      .maybeSingle()
-    existingId = data?.hubspot_contact_id || null
+    const candidates = phoneCandidates(contactData.phone)
+    if (candidates.length > 0) {
+      const { data } = await db.from('crm_contacts')
+        .select('hubspot_contact_id, phone, zone_localite, departement')
+        .in('phone', candidates)
+        .limit(5)
+      existingId = data?.[0]?.hubspot_contact_id || null
+      existingZoneLocalite = data?.[0]?.zone_localite || null
+      existingDepartement = data?.[0]?.departement || null
+    }
+    // fallback fuzzy sur les 9 derniers digits pour absorber les anciens formats
+    if (!existingId) {
+      const digits = contactData.phone.replace(/\D/g, '')
+      const last9 = digits.slice(-9)
+      if (last9.length >= 8) {
+        const { data } = await db.from('crm_contacts')
+          .select('hubspot_contact_id, phone, zone_localite, departement')
+          .ilike('phone', `%${last9}`)
+          .limit(20)
+        const match = (data ?? []).find(r =>
+          phoneCandidates(String(r.phone ?? '')).some(p => p.replace(/\D/g, '').endsWith(last9))
+        )
+        existingId = match?.hubspot_contact_id || null
+        existingZoneLocalite = match?.zone_localite || null
+        existingDepartement = match?.departement || null
+      }
+    }
   }
 
   let contactId: string | null = null
@@ -453,12 +730,31 @@ export async function processMetaLead(
     // recent_conversion_event = nom du form Meta (utilise par le filtre
     // "Dernier formulaire soumis"). Fallback : origine_label ou 'Meta Lead Ads'.
     recent_conversion_event:
-      formMetadata?.name || formMetadata?.origine_label || 'Meta Lead Ads',
+      resolvedFormMetadata?.name || resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
+    source: 'meta_lead_ads',
     synced_at: nowIso,
   }
 
   if (existingId) {
     // UPDATE — n'écrase pas les valeurs existantes (sauf conversion + synced_at)
+    if (!contactData.departement && existingDepartement) {
+      contactData.departement = normalizeDepartementValue(existingDepartement)
+    }
+    if (!contactData.zone_localite) {
+      const zoneFromDept = computeZoneFromDepartement(contactData.departement || existingDepartement || '')
+      if (zoneFromDept) {
+        contactData.zone_localite = zoneFromDept
+      } else if (!existingZoneLocalite || String(existingZoneLocalite).trim() === '') {
+        // Règle métier: tous les leads Meta doivent avoir une zone_localite non vide.
+        contactData.zone_localite = 'Non renseignee'
+      }
+    } else {
+      contactData.zone_localite = normalizeZoneLocaliteValue(
+        contactData.zone_localite,
+        contactData.departement || existingDepartement || undefined,
+      )
+    }
+
     const updateData: Record<string, unknown> = { ...conversionMeta }
     for (const [k, v] of Object.entries(contactData)) {
       if (v && String(v).trim() !== '') updateData[k] = v
@@ -468,15 +764,24 @@ export async function processMetaLead(
   } else {
     // INSERT
     const nativeId = 'NATIVE_META_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
+    const insertContactData: Record<string, unknown> = { ...contactData }
+    // Règle métier: toujours remplir les champs clés sur les nouveaux leads Meta.
+    if (!insertContactData.firstname) insertContactData.firstname = 'Inconnu'
+    if (!insertContactData.lastname) insertContactData.lastname = 'Inconnu'
+    if (!insertContactData.classe_actuelle) insertContactData.classe_actuelle = 'Autres'
+    if (!insertContactData.zone_localite) insertContactData.zone_localite = 'Non renseignee'
+    // Email/téléphone: on ne laisse pas vide à l'insert.
+    if (!insertContactData.email) insertContactData.email = `meta+${lead.id}@meta.local`
+    if (!insertContactData.phone) insertContactData.phone = 'non_renseigne'
     const insertData: Record<string, unknown> = {
-      ...contactData,
+      ...insertContactData,
       ...conversionMeta,
       // Date de création = date REELLE de soumission Meta (pas now()) pour
       // que les leads backfilles gardent leur date d'origine.
       contact_createdate: leadCreatedIso,
       hubspot_contact_id: nativeId,
-      origine: formMetadata?.origine_label || 'Meta Lead Ads',
-      hubspot_owner_id: formMetadata?.default_owner_id || null,
+      origine: resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
+      hubspot_owner_id: resolvedFormMetadata?.default_owner_id || null,
     }
     const { data, error } = await db.from('crm_contacts')
       .insert(insertData)
@@ -502,7 +807,7 @@ export async function processMetaLead(
         const cfg = (wf.trigger_config ?? {}) as { meta_form_id?: string }
         // Match si meta_form_id correspond, ou si workflow_id explicitement lié au form
         const matches =
-          (formMetadata?.workflow_id && wf.id === formMetadata.workflow_id) ||
+          (resolvedFormMetadata?.workflow_id && wf.id === resolvedFormMetadata.workflow_id) ||
           (cfg.meta_form_id && cfg.meta_form_id === lead.form_id)
         if (matches) {
           await enrollContact(db, wf.id, contactId, {

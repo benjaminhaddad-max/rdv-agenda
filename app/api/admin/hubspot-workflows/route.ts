@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -17,6 +18,7 @@ export const maxDuration = 60
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
 export async function GET(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   if (!HUBSPOT_TOKEN) {
     return NextResponse.json({ error: 'HUBSPOT_ACCESS_TOKEN missing' }, { status: 500 })
   }

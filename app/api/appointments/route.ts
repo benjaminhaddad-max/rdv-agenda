@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { createDeal, updateContact, getContact } from '@/lib/hubspot'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms, buildBookingSms } from '@/lib/smsfactor'
@@ -112,12 +111,11 @@ export async function POST(req: NextRequest) {
     start_at,
     end_at,
     source = 'telepro',     // 'telepro' | 'prospect' | 'admin'
-    formation_type,         // label lisible → Supabase + deal description
-    formation_hs_value,     // valeur enum HubSpot → diploma_sante___formation_demandee
-    hubspot_contact_id,     // ID contact HubSpot connu (évite doublon)
-    departement,            // code département → mis à jour sur le contact HubSpot
+    formation_type,
+    hubspot_contact_id,
+    departement,
     classe_actuelle,        // classe → mis à jour sur le contact HubSpot
-    call_notes,             // notes d'appel → ajoutées comme note sur le deal HubSpot
+    call_notes,
     meeting_type,           // 'visio' | 'telephone' | 'presentiel'
     meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
@@ -258,77 +256,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Mettre à jour les propriétés HubSpot du contact (si ID connu) ─────────
-  if (hubspot_contact_id) {
-    try {
-      const propsToUpdate: Record<string, string | number | null> = {}
-      if (prospect_phone)    propsToUpdate.phone = prospect_phone
-      if (departement)       propsToUpdate.departement = parseInt(String(departement)) || departement
-      if (classe_actuelle)   propsToUpdate.classe_actuelle = classe_actuelle
-      if (formation_hs_value) propsToUpdate.diploma_sante___formation_demandee = formation_hs_value
-      if (email_parent)      propsToUpdate.email_parent = email_parent
-
-      if (Object.keys(propsToUpdate).length > 0) {
-        await updateContact(hubspot_contact_id, propsToUpdate)
-      }
-    } catch (_e) {
-      console.error('HubSpot contact update failed:', _e)
-    }
-  }
-
-  // ── Créer le deal HubSpot (même sans commercial assigné) ─────────────────
-  {
-    let ownerId: string | null = assignedOwnerId
-
-    if (!ownerId && assignedCommercialId) {
-      // Closer assigné (manuel ou auto) → utiliser son owner HubSpot
-      const { data: commercial } = await db
-        .from('rdv_users')
-        .select('hubspot_owner_id, name')
-        .eq('id', assignedCommercialId)
-        .single()
-      ownerId = commercial?.hubspot_owner_id || null
-    } else if (!ownerId && source === 'telepro' && hubspot_contact_id) {
-      // RDV télépro → recopier le propriétaire (télépro) du contact HubSpot
-      try {
-        const hsContact = await getContact(hubspot_contact_id)
-        ownerId = hsContact.properties.hubspot_owner_id || null
-      } catch (_e) {
-        console.error('Failed to fetch contact owner:', _e)
-      }
-    }
-
-    try {
-      const enrichedNotes = [
-        formation_type      ? `📚 Formation souhaitée : ${formation_type}` : '',
-        departement         ? `📍 Département : ${departement}` : '',
-        classe_actuelle     ? `🎓 Classe actuelle : ${classe_actuelle}` : '',
-        call_notes?.trim()  ? `\n📝 Notes d'appel :\n${call_notes}` : '',
-      ].filter(Boolean).join('\n')
-
-      const deal = await createDeal({
-        prospectName: prospect_name,
-        prospectEmail: prospect_email,
-        prospectPhone: prospect_phone,
-        ownerId,
-        appointmentDate: start_at,
-        appointmentId: appointment.id,
-        formationType: formation_type,
-        classeActuelle: classe_actuelle || null,
-        hubspotContactId: hubspot_contact_id || null,
-        callNotes: enrichedNotes || null,
-      })
-
-      await db
-        .from('rdv_appointments')
-        .update({ hubspot_deal_id: deal.id })
-        .eq('id', appointment.id)
-
-      appointment.hubspot_deal_id = deal.id
-    } catch (e) {
-      console.error('HubSpot deal creation failed:', e)
-    }
-  }
+  // HubSpot est déconnecté : on reste en mode CRM natif uniquement.
+  // Le RDV est enregistré localement avec ses notes/champs métier.
 
   return NextResponse.json(appointment, { status: 201 })
 }

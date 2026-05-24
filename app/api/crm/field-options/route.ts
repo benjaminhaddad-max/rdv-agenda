@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-
-const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
+import { cached } from '@/lib/cache'
 
 /**
  * Paginated helper to fetch all distinct values for a column from crm_contacts.
@@ -32,123 +31,56 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
   return [...allValues]
 }
 
-/**
- * Fetch distinct form events triés par "date de création du formulaire" desc.
- *
- * Proxy de la date de création : on prend la PREMIÈRE date de soumission
- * trouvée parmi tous les contacts qui ont soumis ce formulaire. Le formulaire
- * existait au moins depuis cette date.
- *
- * Le `not(col, 'is', null)` utilise l'index partiel
- * idx_crm_contacts_recent_conversion_event (WHERE recent_conversion_event
- * IS NOT NULL). Sans cet index, Postgres timeout sur 70k+ contacts.
- */
 async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
-  const allValues = new Set<string>()
-  // 4 queries en parallele, chunks de 2000. Stop early si 2 batches sans
-  // nouveau formulaire. Plus rapide que sequentiel.
-  const PAGE = 2000
-  const MAX_PAGES = 25 // 50k contacts max
-  let stableStreak = 0
+  const out = new Set<string>()
+  const [metaRes, crmFormsRes] = await Promise.all([
+    db.from('meta_lead_forms').select('name').not('name', 'is', null).limit(5000),
+    db.from('forms').select('name').not('name', 'is', null).limit(5000),
+  ])
 
-  for (let batch = 0; batch < MAX_PAGES; batch += 4) {
-    const queries = []
-    for (let k = 0; k < 4 && batch + k < MAX_PAGES; k++) {
-      const off = batch + k
-      queries.push(
-        db.from('crm_contacts')
-          .select('recent_conversion_event')
-          .not('recent_conversion_event', 'is', null)
-          .range(off * PAGE, (off + 1) * PAGE - 1)
-      )
-    }
-    const results = await Promise.all(queries)
-    let anyRows = false
-    const beforeSize = allValues.size
-    for (const { data: rows, error } of results) {
-      if (error) {
-        console.error('fetchDistinctFormEvents:', error.message)
-        return [...allValues]
-      }
-      if (!rows || rows.length === 0) continue
-      anyRows = true
-      for (const r of rows) {
-        const v = (r as { recent_conversion_event: string | null }).recent_conversion_event
-        if (v) allValues.add(v)
-      }
-    }
-    if (!anyRows) break
-    if (allValues.size === beforeSize) {
-      stableStreak++
-      if (stableStreak >= 2) break
-    } else {
-      stableStreak = 0
-    }
+  for (const r of (metaRes.data ?? [])) {
+    const n = (r as { name: string | null }).name
+    if (n && n.trim() !== '') out.add(n.trim())
   }
-  return [...allValues]
-}
+  for (const r of (crmFormsRes.data ?? [])) {
+    const n = (r as { name: string | null }).name
+    if (n && n.trim() !== '') out.add(n.trim())
+  }
 
-/**
- * Récupère les options d'une propriété HubSpot via l'API Properties v3.
- * Retourne un tableau de strings (valeur interne) ou [] si échec.
- */
-async function fetchHubSpotPropertyOptions(propertyName: string): Promise<string[]> {
-  if (!HUBSPOT_TOKEN) return []
-  try {
-    const res = await fetch(
-      `https://api.hubapi.com/crm/v3/properties/contacts/${propertyName}`,
-      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data.options ?? []).map((o: any) => o.value as string).filter(Boolean)
-  } catch {
-    return []
-  }
+  return [...out].sort()
 }
 
 /**
  * GET /api/crm/field-options
- * 1. Essaie d'abord de récupérer les options depuis l'API HubSpot Properties
- *    (source de vérité — toutes les options, même non encore synchro)
- * 2. Si HubSpot ne répond pas, fallback sur les valeurs distinctes dans Supabase
+ * Source unique : valeurs distinctes côté CRM/Supabase (sans dépendance HubSpot).
  */
 export async function GET() {
-  // Appel HubSpot + Supabase en parallèle (Supabase = fallback paginé)
-  // formEvents = nom du dernier formulaire soumis (`recent_conversion_event`).
-  // Pas d'API HubSpot Properties (champ libre), donc seul Supabase fait foi.
-  const [hsLeadStatuses, hsSources, hsFormations, hsZones, hsDepts, sbLeadStatuses, sbSources, sbFormations, sbZones, sbDepts, sbFormEvents] = await Promise.all([
-    fetchHubSpotPropertyOptions('hs_lead_status'),
-    fetchHubSpotPropertyOptions('origine'),
-    fetchHubSpotPropertyOptions('diploma_sante___formation_demandee'),
-    fetchHubSpotPropertyOptions('zone___localite'),
-    fetchHubSpotPropertyOptions('departement'),
-    fetchAllDistinctValues('hs_lead_status'),
-    fetchAllDistinctValues('origine'),
-    fetchAllDistinctValues('formation_demandee'),
-    fetchAllDistinctValues('zone_localite'),
-    fetchAllDistinctValues('departement'),
-    fetchDistinctFormEvents(),
-  ])
+  const staticPayload = await cached('crm:field-options:v4:static', 3600, async () => {
+    const [leadStatuses, sources, formations, zones, departements] = await Promise.all([
+      fetchAllDistinctValues('hs_lead_status'),
+      fetchAllDistinctValues('origine'),
+      fetchAllDistinctValues('formation_demandee'),
+      fetchAllDistinctValues('zone_localite'),
+      fetchAllDistinctValues('departement'),
+    ])
+    return {
+      leadStatuses: leadStatuses.slice().sort(),
+      sources: sources.slice().sort(),
+      formations: formations.slice().sort(),
+      zones: zones.slice().sort(),
+      departements: departements.slice().sort(),
+    }
+  })
+  const formEvents = await fetchDistinctFormEvents()
+  const payload = {
+    ...staticPayload,
+    formEvents: formEvents.slice().sort(),
+  }
 
-  // Priorité HubSpot ; si vide, fallback Supabase
-  const leadStatuses  = (hsLeadStatuses.length > 0  ? hsLeadStatuses  : sbLeadStatuses).sort()
-  const sources       = (hsSources.length > 0       ? hsSources       : sbSources).sort()
-  const formations    = (hsFormations.length > 0     ? hsFormations    : sbFormations).sort()
-  const zones         = (hsZones.length > 0          ? hsZones         : sbZones).sort()
-  const departements  = (hsDepts.length > 0          ? hsDepts         : sbDepts).sort()
-  const formEvents      = sbFormEvents.slice().sort()
-
-  // Cache : ces options changent très rarement → 1h CDN + 24h stale-while-revalidate.
-  // 1er chargement = lent (HubSpot), tous les suivants = instantanés.
-  return NextResponse.json(
-    { leadStatuses, sources, formations, zones, departements, formEvents },
-    {
-      headers: {
-        'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
-      },
-    },
-  )
+  return NextResponse.json(payload, {
+    // Hyper-important métier: les nouveaux formulaires (CRM + Meta) doivent
+    // apparaître immédiatement dans "Soumission de formulaire".
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }

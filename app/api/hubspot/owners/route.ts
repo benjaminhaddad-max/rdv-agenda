@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
 // GET /api/hubspot/owners — retourne tous les owners HubSpot (id + nom)
 export async function GET() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const res = await fetch(`${BASE_URL}/crm/v3/owners?limit=200`, {
     headers: {
       Authorization: `Bearer ${TOKEN}`,

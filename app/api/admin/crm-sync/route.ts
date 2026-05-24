@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
+import { getHubspotMode } from '@/lib/hubspot-mode'
 
 // Endpoint sécurisé pour déclencher le sync CRM depuis l'UI admin.
 // Pas besoin de NEXT_PUBLIC_CRON_SECRET côté client — le secret reste côté serveur.
 
 export async function POST(req: NextRequest) {
+  const mode = await getHubspotMode()
+  if (mode.disconnected) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'HubSpot disconnected (mirror + read disabled)',
+    })
+  }
+
   // ── Auth : vérifier que c'est un admin ──────────────────────────────────────
   const cookieStore = await cookies()
   const supabase = createServerClient(

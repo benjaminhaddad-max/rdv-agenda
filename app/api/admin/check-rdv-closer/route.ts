@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { searchPastRdvPrisDeals, PIPELINE_2026_2027 } from '@/lib/hubspot'
+import { isHubspotHardOff } from '@/lib/hubspot-hard-off'
 
 export type RdvPrisAuditDeal = {
   id: string
@@ -17,6 +18,7 @@ export type RdvPrisAuditDeal = {
 
 // GET /api/admin/check-rdv-closer
 export async function GET() {
+  if (isHubspotHardOff()) return NextResponse.json([])
   // 1. Récupérer les deals passés encore en "RDV Pris"
   const deals = await searchPastRdvPrisDeals(PIPELINE_2026_2027)
   if (deals.length === 0) return NextResponse.json([])

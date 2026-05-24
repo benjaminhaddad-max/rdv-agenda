@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { hubspotFetch } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 export const maxDuration = 60
 
@@ -16,6 +17,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
  * Filtre optionnel par préfixe de nom (ex: prefix=NS pour "NS - ...").
  */
 export async function GET(req: Request) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const url = new URL(req.url)
   const prefix = url.searchParams.get('prefix')?.trim() || ''
   const limit = parseInt(url.searchParams.get('limit') || '50', 10)

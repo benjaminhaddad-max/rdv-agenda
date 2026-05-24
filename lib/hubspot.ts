@@ -1,5 +1,6 @@
 const BASE_URL = 'https://api.hubapi.com'
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
+const FORCE_HUBSPOT_DISCONNECT = true
 
 /**
  * Indique si les écritures HubSpot (mirror) sont actives.
@@ -8,6 +9,7 @@ const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
  * doivent respecter ce flag pour ne pas casser l'app.
  */
 export function isHubspotMirrorEnabled(): boolean {
+  if (FORCE_HUBSPOT_DISCONNECT) return false
   return process.env.HUBSPOT_MIRROR_ENABLED !== '0' && !!TOKEN
 }
 
@@ -17,6 +19,7 @@ export function isHubspotMirrorEnabled(): boolean {
  * uniquement sur les caches Supabase (crm_properties, etc.).
  */
 export function isHubspotReadEnabled(): boolean {
+  if (FORCE_HUBSPOT_DISCONNECT) return false
   return process.env.HUBSPOT_READ_ENABLED !== '0' && !!TOKEN
 }
 
@@ -38,6 +41,11 @@ function isWriteCall(path: string, method: string): boolean {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function hubspotFetch(path: string, options: RequestInit = {}, _retry = 0): Promise<any> {
+  if (FORCE_HUBSPOT_DISCONNECT) {
+    const methodForced = (options.method || 'GET').toUpperCase()
+    return isWriteCall(path, methodForced) ? {} : { results: [] }
+  }
+
   const method = (options.method || 'GET').toUpperCase()
   const isWrite = isWriteCall(path, method)
 
