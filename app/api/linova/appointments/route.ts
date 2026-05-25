@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     const hasLinovaOrigine = currentOrigine.toLowerCase().includes('linova')
     const hasLinovaRecentEvent = currentRecentEvent.toLowerCase().includes('linova')
 
-    let defaultLinovaTeleproUserId: string | null = null
+    let defaultLinovaTeleproRdvUserId: string | null = null
     let defaultLinovaTeleproHsUserId: string | null = null
     const { data: defaultLinovaTelepro } = await db
       .from('rdv_users')
@@ -101,12 +101,13 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     if (defaultLinovaTelepro) {
-      defaultLinovaTeleproUserId = defaultLinovaTelepro.id ?? null
+      defaultLinovaTeleproRdvUserId = defaultLinovaTelepro.id ?? null
       defaultLinovaTeleproHsUserId =
         defaultLinovaTelepro.hubspot_user_id ??
         defaultLinovaTelepro.hubspot_owner_id ??
         null
     }
+    const effectiveTeleproId = defaultLinovaTeleproHsUserId || defaultLinovaTeleproRdvUserId
 
     await db
       .from('crm_contacts')
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
         recent_conversion_event: hasLinovaRecentEvent ? contactRow.recent_conversion_event : 'LINOVA - RDV admission',
         recent_conversion_date: nowIso,
         hs_lead_status: contactRow.hs_lead_status || 'Nouveau',
-        telepro_user_id: defaultLinovaTeleproUserId,
+        telepro_user_id: effectiveTeleproId,
         teleprospecteur: defaultLinovaTeleproHsUserId,
       })
       .eq('hubspot_contact_id', canonicalContactId)

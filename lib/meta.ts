@@ -399,11 +399,12 @@ function normalizeZoneLocaliteValue(value: string, departement?: string): string
 }
 
 type BrandDefaultTelepro = {
-  userId: string | null
+  rdvUserId: string | null
   hubspotUserId: string | null
 }
 
 const brandTeleproCache = new Map<string, { expiresAt: number; value: BrandDefaultTelepro }>()
+const LINOVA_TELEPRO_EMAIL = 'meryeme.benramdane@linova-education.fr'
 
 function inferLeadBrand(formName?: string | null, origineLabel?: string | null): string | null {
   const v = `${formName ?? ''} ${origineLabel ?? ''}`.toLowerCase()
@@ -415,7 +416,7 @@ function inferLeadBrand(formName?: string | null, origineLabel?: string | null):
 
 async function getDefaultTeleproForBrand(brand: string): Promise<BrandDefaultTelepro> {
   const key = brand.trim().toLowerCase()
-  if (!key) return { userId: null, hubspotUserId: null }
+  if (!key) return { rdvUserId: null, hubspotUserId: null }
 
   const now = Date.now()
   const cached = brandTeleproCache.get(key)
@@ -424,7 +425,7 @@ async function getDefaultTeleproForBrand(brand: string): Promise<BrandDefaultTel
   const db = createServiceClient()
   const { data } = await db
     .from('rdv_users')
-    .select('id, hubspot_user_id')
+    .select('id, hubspot_user_id, hubspot_owner_id')
     .eq('role', 'telepro')
     .eq('crm_brand', key)
     .eq('is_default_brand_telepro', true)
@@ -432,10 +433,35 @@ async function getDefaultTeleproForBrand(brand: string): Promise<BrandDefaultTel
     .maybeSingle()
 
   const value: BrandDefaultTelepro = {
-    userId: data?.id ?? null,
-    hubspotUserId: data?.hubspot_user_id ?? null,
+    rdvUserId: data?.id ?? null,
+    hubspotUserId: data?.hubspot_user_id ?? data?.hubspot_owner_id ?? null,
   }
   brandTeleproCache.set(key, { expiresAt: now + 5 * 60_000, value })
+  return value
+}
+
+async function getTeleproByEmail(email: string): Promise<BrandDefaultTelepro> {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!normalizedEmail) return { rdvUserId: null, hubspotUserId: null }
+  const cacheKey = `email:${normalizedEmail}`
+  const now = Date.now()
+  const cached = brandTeleproCache.get(cacheKey)
+  if (cached && cached.expiresAt > now) return cached.value
+
+  const db = createServiceClient()
+  const { data } = await db
+    .from('rdv_users')
+    .select('id, hubspot_user_id, hubspot_owner_id')
+    .ilike('email', normalizedEmail)
+    .eq('role', 'telepro')
+    .limit(1)
+    .maybeSingle()
+
+  const value: BrandDefaultTelepro = {
+    rdvUserId: data?.id ?? null,
+    hubspotUserId: data?.hubspot_user_id ?? data?.hubspot_owner_id ?? null,
+  }
+  brandTeleproCache.set(cacheKey, { expiresAt: now + 5 * 60_000, value })
   return value
 }
 
@@ -771,7 +797,14 @@ export async function processMetaLead(
     resolvedFormMetadata?.origine_label ?? null,
   )
   const defaultTelepro =
-    leadBrand ? await getDefaultTeleproForBrand(leadBrand) : { userId: null, hubspotUserId: null }
+    leadBrand ? await getDefaultTeleproForBrand(leadBrand) : { rdvUserId: null, hubspotUserId: null }
+  const linovaTelepro =
+    leadBrand === 'linova' ? await getTeleproByEmail(LINOVA_TELEPRO_EMAIL) : null
+  const assignedTelepro: BrandDefaultTelepro =
+    (leadBrand === 'linova' && (linovaTelepro?.hubspotUserId || linovaTelepro?.rdvUserId))
+      ? (linovaTelepro as BrandDefaultTelepro)
+      : defaultTelepro
+  const assignedTeleproId = assignedTelepro.hubspotUserId || assignedTelepro.rdvUserId || null
 
   const conversionMeta = {
     recent_conversion_date: leadCreatedIso,
@@ -807,8 +840,8 @@ export async function processMetaLead(
     for (const [k, v] of Object.entries(contactData)) {
       if (v && String(v).trim() !== '') updateData[k] = v
     }
-    if (defaultTelepro.userId) updateData.telepro_user_id = defaultTelepro.userId
-    if (defaultTelepro.hubspotUserId) updateData.teleprospecteur = defaultTelepro.hubspotUserId
+    if (assignedTeleproId) updateData.telepro_user_id = assignedTeleproId
+    if (assignedTelepro.hubspotUserId) updateData.teleprospecteur = assignedTelepro.hubspotUserId
     await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existingId)
     contactId = existingId
   } else {
@@ -833,8 +866,8 @@ export async function processMetaLead(
       hubspot_contact_id: nativeId,
       origine: resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
       hubspot_owner_id: resolvedFormMetadata?.default_owner_id || null,
-      telepro_user_id: defaultTelepro.userId,
-      teleprospecteur: defaultTelepro.hubspotUserId,
+      telepro_user_id: assignedTeleproId,
+      teleprospecteur: assignedTelepro.hubspotUserId,
     }
     const { data, error } = await db.from('crm_contacts')
       .insert(insertData)
