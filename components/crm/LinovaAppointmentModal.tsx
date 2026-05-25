@@ -115,7 +115,11 @@ export default function LinovaAppointmentModal({ contact, onClose, onSaved }: Pr
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ zIndex: 200000 }}
+      onClick={onClose}
+    >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div className="flex items-center gap-2">
