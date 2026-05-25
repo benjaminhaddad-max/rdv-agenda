@@ -452,13 +452,17 @@ export async function GET(req: NextRequest) {
 
   if (canFastCountOnly) {
     const fastSplit = (v: string) => v.split(',').filter(Boolean)
+    const quotePg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fastQ: any = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
     if (!effectiveAllClasses) fastQ = fastQ.in('classe_actuelle', PRIORITY_CLASSES)
     if (classeFilter) fastQ = fastQ.eq('classe_actuelle', classeFilter)
     if (teleproHsId) {
       const vals = fastSplit(teleproHsId)
-      fastQ = vals.length > 1 ? fastQ.in('telepro_user_id', vals) : fastQ.eq('telepro_user_id', teleproHsId)
+      if (vals.length > 0) {
+        const inList = vals.map(quotePg).join(',')
+        fastQ = fastQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
+      }
     }
     if (noTelepro) fastQ = fastQ.is('telepro_user_id', null)
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
@@ -595,7 +599,10 @@ export async function GET(req: NextRequest) {
       if (classeFilter) fastMvQ = fastMvQ.eq('classe_actuelle', classeFilter)
       if (teleproHsId) {
         const vals = splitMultiFast(teleproHsId)
-        fastMvQ = vals.length > 1 ? fastMvQ.in('telepro_user_id', vals) : fastMvQ.eq('telepro_user_id', teleproHsId)
+        if (vals.length > 0) {
+          const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
+          fastMvQ = fastMvQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
+        }
       }
       if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
       if (noTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
@@ -1134,9 +1141,10 @@ export async function GET(req: NextRequest) {
   // Filtre Telepro (positif) — colonne native crm_contacts.telepro_user_id
   if (teleproHsId) {
     const vals = splitMulti(teleproHsId)
-    query = vals.length > 1
-      ? query.in('telepro_user_id', vals)
-      : query.eq('telepro_user_id', teleproHsId)
+    if (vals.length > 0) {
+      const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
+      query = query.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
+    }
   }
 
   // Filtre Telepro (exclusion) — version stable en SQL natif.
