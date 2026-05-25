@@ -33,3 +33,17 @@ Calendly + Google Calendar interne pour les commerciaux, connecté à HubSpot.
 |-------|-------------|
 | `/` | Agenda interne |
 | `/book/[slug]` | Page de réservation publique |
+
+## Intégration Linova (RDV admission)
+
+Variables d'environnement à configurer :
+
+- `LINOVA_API_BASE=https://linova-education.fr`
+- `LINOVA_API_KEY=<LINOVA_EXTERNAL_API_KEY>`
+- `CRM_WEBHOOK_SECRET=<secret HMAC partagé>`
+
+Endpoints CRM côté Linova :
+
+- Création RDV (proxy CRM) : `POST /api/linova/appointments`
+- Créneaux dispos (proxy CRM) : `GET /api/linova/slots?date=YYYY-MM-DD`
+- Webhook retour statut : `POST /api/webhooks/linova`

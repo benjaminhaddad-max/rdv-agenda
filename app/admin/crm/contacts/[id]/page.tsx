@@ -16,6 +16,7 @@ import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/cli
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
 const PropertyHistoryPanel = dynamic(() => import('@/components/crm/PropertyHistoryPanel'), { ssr: false })
+const LinovaAppointmentModal = dynamic(() => import('@/components/crm/LinovaAppointmentModal'), { ssr: false })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -196,6 +197,8 @@ const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'formation_souhaitee',   label: 'Formation souhaitée' },
   { name: 'hubspot_owner_id',           label: 'Propriétaire' },
   { name: 'closer_du_contact_owner_id', label: 'Closer du contact' },
+  { name: 'linova_status',              label: 'Statut Linova' },
+  { name: 'linova_appointment_id',      label: 'RDV Linova ID' },
 ]
 
 // Couleurs pour les status de lead (pills)
@@ -231,6 +234,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
+  const [showLinovaModal, setShowLinovaModal] = useState(false)
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
@@ -324,6 +328,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     formation_souhaitee:                contact.formation_souhaitee,
     diploma_sante___formation_demandee: contact.formation_demandee,
   }
+
+  const isLinovaContact = String(contact.recent_conversion_event || contact.origine || '').toLowerCase().includes('linova')
 
   const propMeta: Record<string, CRMProperty> = {}
   for (const p of properties) propMeta[p.name] = p
@@ -785,6 +791,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           </RightSection>
 
           <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="gold">
+            {isLinovaContact && (
+              <div className="mb-2">
+                <button
+                  onClick={() => setShowLinovaModal(true)}
+                  className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0038f0] text-white hover:bg-[#002bc2]"
+                >
+                  Programmer RDV admission Linova
+                </button>
+              </div>
+            )}
             {appointments.length === 0 ? (
               <EmptyRight text="Aucun RDV." />
             ) : (
@@ -931,6 +947,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           owners={owners}
           defaultOwnerId={contact.hubspot_owner_id as string | undefined}
           onClose={() => setQuickAction(null)}
+          onSaved={() => load({ force: true })}
+        />
+      )}
+
+      {showLinovaModal && (
+        <LinovaAppointmentModal
+          contact={{
+            id,
+            firstname: contact.firstname,
+            lastname: contact.lastname,
+            email: contact.email,
+            phone: contact.phone,
+            classe_actuelle: contact.classe_actuelle,
+          }}
+          onClose={() => setShowLinovaModal(false)}
           onSaved={() => load({ force: true })}
         />
       )}
