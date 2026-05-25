@@ -134,6 +134,31 @@ export async function GET(req: NextRequest) {
     return [...ids]
   }
 
+  async function expandTeleproFilterValues(rawCsv: string): Promise<string[]> {
+    const base = rawCsv.split(',').map(v => v.trim()).filter(Boolean)
+    if (base.length === 0) return []
+    const out = new Set(base)
+
+    const db2 = createServiceClient()
+    const [byOwner, byUser, byId] = await Promise.all([
+      db2.from('rdv_users').select('id, hubspot_owner_id, hubspot_user_id').in('hubspot_owner_id', base),
+      db2.from('rdv_users').select('id, hubspot_owner_id, hubspot_user_id').in('hubspot_user_id', base),
+      db2.from('rdv_users').select('id, hubspot_owner_id, hubspot_user_id').in('id', base),
+    ])
+
+    const rows = [
+      ...((byOwner.data ?? []) as Array<{ id?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>),
+      ...((byUser.data ?? []) as Array<{ id?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>),
+      ...((byId.data ?? []) as Array<{ id?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>),
+    ]
+    for (const r of rows) {
+      if (r?.id) out.add(String(r.id).trim())
+      if (r?.hubspot_owner_id) out.add(String(r.hubspot_owner_id).trim())
+      if (r?.hubspot_user_id) out.add(String(r.hubspot_user_id).trim())
+    }
+    return [...out]
+  }
+
   const appendCustomFiltersFromView = async (viewId: string, reset = false) => {
     const { data: viewRow } = await db
       .from('crm_saved_views')
@@ -218,6 +243,13 @@ export async function GET(req: NextRequest) {
     }
     forcedScopedTeleproIds = [...new Set(scopedTeleproIds.filter(Boolean))]
   }
+
+  const expandedTeleproFilterValues = teleproHsId
+    ? await expandTeleproFilterValues(teleproHsId)
+    : []
+  const effectiveTeleproFilterCsv = expandedTeleproFilterValues.length > 0
+    ? expandedTeleproFilterValues.join(',')
+    : teleproHsId
 
   const pgQuoteForScoped = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
   const forcedScopedOrFilter =
@@ -457,8 +489,8 @@ export async function GET(req: NextRequest) {
     let fastQ: any = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
     if (!effectiveAllClasses) fastQ = fastQ.in('classe_actuelle', PRIORITY_CLASSES)
     if (classeFilter) fastQ = fastQ.eq('classe_actuelle', classeFilter)
-    if (teleproHsId) {
-      const vals = fastSplit(teleproHsId)
+    if (effectiveTeleproFilterCsv) {
+      const vals = fastSplit(effectiveTeleproFilterCsv)
       if (vals.length > 0) {
         const inList = vals.map(quotePg).join(',')
         fastQ = fastQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
@@ -597,8 +629,8 @@ export async function GET(req: NextRequest) {
 
       if (!effectiveAllClasses) fastMvQ = fastMvQ.in('classe_actuelle', PRIORITY_CLASSES)
       if (classeFilter) fastMvQ = fastMvQ.eq('classe_actuelle', classeFilter)
-      if (teleproHsId) {
-        const vals = splitMultiFast(teleproHsId)
+      if (effectiveTeleproFilterCsv) {
+        const vals = splitMultiFast(effectiveTeleproFilterCsv)
         if (vals.length > 0) {
           const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
           fastMvQ = fastMvQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
@@ -1139,8 +1171,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Filtre Telepro (positif) — colonne native crm_contacts.telepro_user_id
-  if (teleproHsId) {
-    const vals = splitMulti(teleproHsId)
+  if (effectiveTeleproFilterCsv) {
+    const vals = splitMulti(effectiveTeleproFilterCsv)
     if (vals.length > 0) {
       const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
       query = query.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
