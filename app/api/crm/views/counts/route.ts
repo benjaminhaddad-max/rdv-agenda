@@ -75,10 +75,37 @@ async function resolveFormContactIds(db: ReturnType<typeof createServiceClient>,
   return [...contactIds]
 }
 
+function pgQuote(v: string): string {
+  return `"${String(v).replace(/"/g, '\\"')}"`
+}
+
+async function resolveScopedTeleproContactIds(
+  db: ReturnType<typeof createServiceClient>,
+  teleproIds: string[],
+): Promise<string[]> {
+  if (teleproIds.length === 0) return []
+  const inList = teleproIds.map(pgQuote).join(',')
+  const out = new Set<string>()
+  const PAGE = 1000
+
+  for (let off = 0; off < 100000; off += PAGE) {
+    const { data: rows } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id')
+      .or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
+      .range(off, off + PAGE - 1)
+    if (!rows || rows.length === 0) break
+    for (const r of rows) if (r.hubspot_contact_id) out.add(r.hubspot_contact_id)
+    if (rows.length < PAGE) break
+  }
+
+  return [...out]
+}
+
 async function computeCountForView(
   db: ReturnType<typeof createServiceClient>,
   row: SavedViewRow,
-  forcedTeleproId: string | null,
+  forcedTeleproIds: string[],
 ): Promise<number> {
   const first = row.filter_groups?.[0]
   const rules = [...(first?.rules ?? [])]
@@ -89,9 +116,9 @@ async function computeCountForView(
   let formContactIds: string[] | null = null
   let metaAdsOnly = false
 
-  if (forcedTeleproId) {
-    filters.telepro_user_id = forcedTeleproId
-  }
+  const scopedIds = forcedTeleproIds.length > 0
+    ? await resolveScopedTeleproContactIds(db, forcedTeleproIds)
+    : null
 
   for (const r of rules) {
     const field = String(r.field || '')
@@ -116,10 +143,19 @@ async function computeCountForView(
 
   if (metaAdsOnly) {
     const ids = await fetchAllMetaLeadContactIds(db)
-    return ids.length
+    if (!scopedIds) return ids.length
+    const scopedSet = new Set(scopedIds)
+    return ids.filter(id => scopedSet.has(id)).length
   }
 
-  if (formContactIds !== null) filters.form_contact_ids = formContactIds
+  if (scopedIds !== null && formContactIds !== null) {
+    const scopedSet = new Set(scopedIds)
+    filters.form_contact_ids = formContactIds.filter(id => scopedSet.has(id))
+  } else if (scopedIds !== null) {
+    filters.form_contact_ids = scopedIds
+  } else if (formContactIds !== null) {
+    filters.form_contact_ids = formContactIds
+  }
 
   const { data } = await db.rpc('crm_contacts_count_filtered', {
     p_filters: filters,
@@ -146,21 +182,35 @@ export async function POST(req: Request) {
 
   const db = createServiceClient()
   const apiUser = await getApiUserContext()
-  let forcedTeleproId: string | null = null
+  let forcedTeleproIds: string[] = []
   if (
     apiUser?.crmScope === 'brand_only' &&
     String(apiUser.crmBrand || '').toLowerCase() === 'linova'
   ) {
     const { data: me } = await db
       .from('rdv_users')
-      .select('id, hubspot_user_id, hubspot_owner_id')
+      .select('id, email, hubspot_user_id, hubspot_owner_id')
       .eq('id', apiUser.appUserId)
       .maybeSingle()
-    forcedTeleproId =
-      (me?.hubspot_user_id ? String(me.hubspot_user_id).trim() : '') ||
-      (me?.hubspot_owner_id ? String(me.hubspot_owner_id).trim() : '') ||
-      (me?.id ? String(me.id).trim() : '') ||
-      null
+    const ids = [
+      me?.hubspot_user_id ? String(me.hubspot_user_id).trim() : '',
+      me?.hubspot_owner_id ? String(me.hubspot_owner_id).trim() : '',
+      me?.id ? String(me.id).trim() : '',
+    ].filter(Boolean)
+
+    const meEmail = String(me?.email || '').trim().toLowerCase()
+    if (meEmail) {
+      const { data: sameEmailUsers } = await db
+        .from('rdv_users')
+        .select('id, hubspot_user_id, hubspot_owner_id')
+        .ilike('email', meEmail)
+      for (const u of (sameEmailUsers ?? []) as Array<{ id?: string | null; hubspot_user_id?: string | null; hubspot_owner_id?: string | null }>) {
+        if (u?.id) ids.push(String(u.id).trim())
+        if (u?.hubspot_user_id) ids.push(String(u.hubspot_user_id).trim())
+        if (u?.hubspot_owner_id) ids.push(String(u.hubspot_owner_id).trim())
+      }
+    }
+    forcedTeleproIds = [...new Set(ids.filter(Boolean))]
   }
   const { data: rows, error } = await db
     .from('crm_saved_views')
@@ -176,8 +226,8 @@ export async function POST(req: Request) {
 
   const entries = await Promise.all(
     scopedViews.map(async (v) => {
-      const key = `crm:view-count:${v.id}:telepro:${forcedTeleproId ?? 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
-      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedTeleproId))
+      const key = `crm:view-count:${v.id}:telepro:${forcedTeleproIds.sort().join('|') || 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
+      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedTeleproIds))
       return [v.id, count] as const
     })
   )

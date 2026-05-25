@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
   // Format : [{ field: 'createdate', operator: 'before', value: '2025-01-01' }, …]
   type CustomFilterRule = { field: string; operator: string; value: string }
   let customFilters: CustomFilterRule[] = []
+  let forcedScopedTeleproIds: string[] = []
   try {
     const raw = searchParams.get('cf')
     if (raw) {
@@ -189,7 +190,7 @@ export async function GET(req: NextRequest) {
   ) {
     const { data: me } = await db
       .from('rdv_users')
-      .select('id, hubspot_user_id, hubspot_owner_id')
+      .select('id, email, hubspot_user_id, hubspot_owner_id')
       .eq('id', apiUser.appUserId)
       .maybeSingle()
 
@@ -199,14 +200,29 @@ export async function GET(req: NextRequest) {
       me?.id ? String(me.id).trim() : '',
     ].filter(Boolean)
 
-    if (scopedTeleproIds.length > 0) {
-      customFilters.push({
-        field: 'telepro_user_id',
-        operator: 'is_any',
-        value: [...new Set(scopedTeleproIds)].join(','),
-      })
+    // Certains environnements ont eu des doublons historiques dans rdv_users.
+    // On élargit aux IDs des comptes portant le même email pour ne pas perdre
+    // des contacts assignés avec un ancien mapping télépro.
+    const meEmail = String(me?.email || '').trim().toLowerCase()
+    if (meEmail) {
+      const { data: sameEmailUsers } = await db
+        .from('rdv_users')
+        .select('id, hubspot_user_id, hubspot_owner_id')
+        .ilike('email', meEmail)
+      for (const u of (sameEmailUsers ?? []) as Array<{ id?: string | null; hubspot_user_id?: string | null; hubspot_owner_id?: string | null }>) {
+        if (u?.id) scopedTeleproIds.push(String(u.id).trim())
+        if (u?.hubspot_user_id) scopedTeleproIds.push(String(u.hubspot_user_id).trim())
+        if (u?.hubspot_owner_id) scopedTeleproIds.push(String(u.hubspot_owner_id).trim())
+      }
     }
+    forcedScopedTeleproIds = [...new Set(scopedTeleproIds.filter(Boolean))]
   }
+
+  const pgQuoteForScoped = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
+  const forcedScopedOrFilter =
+    forcedScopedTeleproIds.length > 0
+      ? `telepro_user_id.in.(${forcedScopedTeleproIds.map(pgQuoteForScoped).join(',')}),teleprospecteur.in.(${forcedScopedTeleproIds.map(pgQuoteForScoped).join(',')})`
+      : ''
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
   // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
@@ -445,6 +461,7 @@ export async function GET(req: NextRequest) {
     }
     if (noTelepro) fastQ = fastQ.is('telepro_user_id', null)
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
+    if (forcedScopedOrFilter) fastQ = fastQ.or(forcedScopedOrFilter)
     if (contactOwnerHsId) {
       const vals = fastSplit(contactOwnerHsId)
       fastQ = vals.length > 1 ? fastQ.in('hubspot_owner_id', vals) : fastQ.eq('hubspot_owner_id', contactOwnerHsId)
@@ -581,6 +598,7 @@ export async function GET(req: NextRequest) {
       }
       if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
       if (noTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
+      if (forcedScopedOrFilter) fastMvQ = fastMvQ.or(forcedScopedOrFilter)
       if (contactOwnerHsId) {
         const vals = splitMultiFast(contactOwnerHsId)
         fastMvQ = vals.length > 1 ? fastMvQ.in('hubspot_owner_id', vals) : fastMvQ.eq('hubspot_owner_id', contactOwnerHsId)
@@ -1133,6 +1151,12 @@ export async function GET(req: NextRequest) {
 
   // noTelepro = pas de telepro renseigne
   if (noTelepro) query = query.is('telepro_user_id', null)
+
+  // Scope serveur brand_only (linova): inclut les 2 colonnes historiques
+  // de mapping télépro pour couvrir tous les cas d'assignation.
+  if (forcedScopedOrFilter) {
+    query = query.or(forcedScopedOrFilter)
+  }
 
   // Exclusion equipe externe sur le telepro du contact (natif)
   if (!showExternal && excludedUserIds.length > 0) {
