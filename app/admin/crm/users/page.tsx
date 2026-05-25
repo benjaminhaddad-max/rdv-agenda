@@ -317,7 +317,7 @@ export default function UsersPage() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Jean Dupont"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Email">
@@ -326,7 +326,7 @@ export default function UsersPage() {
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="jean@diploma-sante.fr"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Rôle">
@@ -338,7 +338,7 @@ export default function UsersPage() {
                     is_default_brand_telepro:
                       (e.target.value as User['role']) === 'telepro' ? f.is_default_brand_telepro : false,
                   }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 >
                   {ROLES.map(r => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -350,14 +350,14 @@ export default function UsersPage() {
                   value={form.hubspot_owner_id}
                   onChange={e => setForm(f => ({ ...f, hubspot_owner_id: e.target.value }))}
                   placeholder="844126942"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Marque CRM (optionnel)">
                 <select
                   value={form.crm_brand}
                   onChange={e => setForm(f => ({ ...f, crm_brand: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 >
                   {BRAND_OPTIONS.map(b => (
                     <option key={b.id} value={b.id}>{b.label}</option>
