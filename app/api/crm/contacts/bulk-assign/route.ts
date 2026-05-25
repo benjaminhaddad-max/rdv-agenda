@@ -6,30 +6,49 @@ export async function POST(req: NextRequest) {
   const db = createServiceClient()
   const {
     contact_ids,
+    telepro_rdv_user_id,
     telepro_user_id,
     teleprospecteur,
   }: {
     contact_ids: string[]
+    telepro_rdv_user_id?: string | null
     telepro_user_id?: string | null
     teleprospecteur?: string | null
   } = await req.json()
 
-  if (!contact_ids?.length || !telepro_user_id) {
-    return NextResponse.json({ error: 'contact_ids and telepro_user_id required' }, { status: 400 })
+  if (!contact_ids?.length || (!telepro_user_id && !telepro_rdv_user_id)) {
+    return NextResponse.json({ error: 'contact_ids and telepro_user_id or telepro_rdv_user_id required' }, { status: 400 })
   }
 
-  // Backward-compat: si seul teleprospecteur est fourni (ancien front),
-  // on tente de retrouver le user interne pour remplir telepro_user_id.
-  let teleproUserId = String(telepro_user_id).trim()
-  let teleprospecteurHsUserId = teleprospecteur ? String(teleprospecteur).trim() : ''
-  if (!teleprospecteurHsUserId) {
+  // telepro_user_id dans crm_contacts = HubSpot user id (bigint).
+  // Si le front ne l'a pas (nouveau user sans mapping), on le récupère depuis rdv_users
+  // et on crée un identifiant local numérique de secours pour permettre l'assignation CRM.
+  let teleproUserId = String(telepro_user_id ?? '').trim()
+  let teleprospecteurHsUserId = teleprospecteur ? String(teleprospecteur).trim() : teleproUserId
+  if ((!teleproUserId || !teleprospecteurHsUserId) && telepro_rdv_user_id) {
     const { data: rdvUser } = await db
       .from('rdv_users')
-      .select('id, hubspot_user_id')
-      .eq('id', teleproUserId)
+      .select('id, hubspot_user_id, hubspot_owner_id')
+      .eq('id', telepro_rdv_user_id)
       .maybeSingle()
-    teleproUserId = rdvUser?.id ?? teleproUserId
-    teleprospecteurHsUserId = rdvUser?.hubspot_user_id ?? ''
+
+    let resolved = rdvUser?.hubspot_user_id || rdvUser?.hubspot_owner_id || ''
+    if (!resolved && rdvUser?.id) {
+      // Génère un identifiant local numérique de secours (non HubSpot)
+      // pour conserver un mapping télépro stable côté CRM.
+      resolved = String(Date.now())
+      await db
+        .from('rdv_users')
+        .update({ hubspot_user_id: resolved })
+        .eq('id', rdvUser.id)
+        .is('hubspot_user_id', null)
+    }
+    teleproUserId = teleproUserId || resolved
+    teleprospecteurHsUserId = teleprospecteurHsUserId || resolved
+  }
+
+  if (!teleproUserId) {
+    return NextResponse.json({ error: 'Cannot resolve telepro_user_id for selected telepro' }, { status: 400 })
   }
 
   let done = 0

@@ -1180,6 +1180,7 @@ export default function CRMPage() {
     if (!bulkTeleproId || selectedIds.size === 0) return
     const selectedTelepro = telepros.find(u => u.id === bulkTeleproId)
     if (!selectedTelepro) return
+    const teleproHsUserId = selectedTelepro.hubspot_user_id || selectedTelepro.hubspot_owner_id || null
     setBulkAssigning(true)
     try {
       const res = await fetch('/api/crm/contacts/bulk-assign', {
@@ -1187,8 +1188,9 @@ export default function CRMPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact_ids: [...selectedIds],
-          telepro_user_id: selectedTelepro.id,
-          teleprospecteur: selectedTelepro.hubspot_user_id || null,
+          telepro_rdv_user_id: selectedTelepro.id,
+          telepro_user_id: teleproHsUserId,
+          teleprospecteur: teleproHsUserId,
         }),
       })
       if (!res.ok) {
@@ -1231,10 +1233,15 @@ export default function CRMPage() {
     { id: '', label: 'Tous les closers' },
     ...mergeOwnersWithUsers(closers),
   ], [closers, mergeOwnersWithUsers])
+  // Le télépro est piloté par crm_contacts.telepro_user_id (HubSpot user id, bigint).
+  // On préfère hubspot_user_id, puis fallback hubspot_owner_id.
   const teleproOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Tous les télépros' },
-    ...mergeOwnersWithUsers(telepros),
-  ], [telepros, mergeOwnersWithUsers])
+    ...telepros
+      .map(u => ({ id: (u.hubspot_user_id || u.hubspot_owner_id || '').toString(), label: u.name }))
+      .filter(o => !!o.id)
+      .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+  ], [telepros])
   // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
   const ownerExcludeOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Aucune exclusion' },
