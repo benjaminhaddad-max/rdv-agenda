@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
+import { getApiUserContext } from '@/lib/api-auth'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
 const CURRENT_PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID ?? ''
+const LINOVA_FORM_NAMES = [
+  'LINOVA - Form LGF - 21/05/2026',
+  'LINOVA - Form LGF - 18/05/2026',
+]
 
 // Retourne les stage IDs "preinscription ou +" de tous les anciens pipelines
 async function getPriorPreinscStageIds(): Promise<string[]> {
@@ -14,8 +19,15 @@ async function getPriorPreinscStageIds(): Promise<string[]> {
 }
 
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now()
+  const withPerfHeader = (response: NextResponse) => {
+    response.headers.set('X-Response-Time-Ms', String(Date.now() - startedAt))
+    return response
+  }
+
   const db = createServiceClient()
   const { searchParams } = req.nextUrl
+  const apiUser = await getApiUserContext()
 
   const search           = searchParams.get('search') ?? ''
   const stage            = searchParams.get('stage') ?? ''
@@ -169,6 +181,20 @@ export async function GET(req: NextRequest) {
   // Cela évite qu'une vue (ex: Meta ADS) retombe silencieusement sur "tous les leads".
   if (customFilters.length === 0 && viewIdParam && viewIdParam !== 'all') {
     await appendCustomFiltersFromView(viewIdParam, false)
+  }
+
+  // Scope marque: utilisateur restreint à LINOVA uniquement.
+  // Important: appliqué côté serveur pour éviter tout contournement UI/URL.
+  if (
+    apiUser &&
+    apiUser.crmScope === 'brand_only' &&
+    String(apiUser.crmBrand || '').toLowerCase() === 'linova'
+  ) {
+    customFilters.push({
+      field: 'recent_conversion_event',
+      operator: 'is_any',
+      value: LINOVA_FORM_NAMES.join(','),
+    })
   }
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
@@ -441,8 +467,8 @@ export async function GET(req: NextRequest) {
       }
     }
     const { count: totalCount, error } = await fastQ
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: false, page: 0, limit: 0 })
+    if (error) return withPerfHeader(NextResponse.json({ error: error.message }, { status: 500 }))
+    return withPerfHeader(NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: false, page: 0, limit: 0 }))
   }
 
   // ── Charger rdv_users (cache court pour éviter 1 requête DB à chaque hit) ─
@@ -485,7 +511,7 @@ export async function GET(req: NextRequest) {
   if (excludedOwnerIds.length === 0 && externalOwnerId) {
     excludedOwnerIds.push(externalOwnerId)
     // Trouver le user correspondant pour aussi exclure son hubspot_user_id
-    const extUser = users.find((u: any) => u.hubspot_owner_id === externalOwnerId)
+    const extUser = users.find((u: { hubspot_owner_id: string | null; hubspot_user_id: string | null }) => u.hubspot_owner_id === externalOwnerId)
     if (extUser?.hubspot_user_id) excludedUserIds.push(extUser.hubspot_user_id)
   }
 
@@ -737,7 +763,7 @@ export async function GET(req: NextRequest) {
     if (ts) {
       const ids = ts.ids
       if (ids.length === 0) {
-        return NextResponse.json({ data: [], total: ts.found, total_estimated: false, page, limit })
+        return withPerfHeader(NextResponse.json({ data: [], total: ts.found, total_estimated: false, page, limit }))
       }
       const { data: rows } = await db
         .from('crm_contacts')
@@ -875,7 +901,7 @@ export async function GET(req: NextRequest) {
     if (priorPreinscription) {
       priorIds = await getPriorPreinscStageIds()
       if (priorIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0, page, limit })
+        return withPerfHeader(NextResponse.json({ data: [], total: 0, page, limit }))
       }
     }
 
@@ -1056,7 +1082,7 @@ export async function GET(req: NextRequest) {
   // Filtre positif deal → IN (batched to avoid URL length limits)
   if (dealContactIds !== null) {
     if (dealContactIds.length === 0) {
-      return NextResponse.json({ data: [], total: 0, page, limit })
+      return withPerfHeader(NextResponse.json({ data: [], total: 0, page, limit }))
     }
     // PostgREST IN clause goes in URL — split into OR-joined batches if very large
     // For positive filters, we use .in() which ANDs if called multiple times (bad),
@@ -1124,7 +1150,7 @@ export async function GET(req: NextRequest) {
   // Not-empty deal fields → INCLUDE only contacts with non-null deal field (batched OR)
   if (emptyDealInclude !== null) {
     if (emptyDealInclude.length === 0) {
-      return NextResponse.json({ data: [], total: 0, page, limit })
+      return withPerfHeader(NextResponse.json({ data: [], total: 0, page, limit }))
     }
     if (emptyDealInclude.length <= 5000) {
       query = query.in('hubspot_contact_id', emptyDealInclude)
@@ -1194,7 +1220,7 @@ export async function GET(req: NextRequest) {
         createdTo: periodEnd,
       })
       if (periodIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0, page, limit })
+        return withPerfHeader(NextResponse.json({ data: [], total: 0, page, limit }))
       }
       query = query.in('hubspot_contact_id', periodIds)
     }
@@ -1481,10 +1507,10 @@ export async function GET(req: NextRequest) {
   // Count-only mode — return just the total without data
   if (countOnly) {
     const { count: totalCount, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return withPerfHeader(NextResponse.json({ error: error.message }, { status: 500 }))
     const r = NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: countMode === 'estimated', page: 0, limit: 0 })
     r.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-    return r
+    return withPerfHeader(r)
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
@@ -1636,7 +1662,7 @@ export async function GET(req: NextRequest) {
   if (!isExport && !countOnly) {
     response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
   }
-  return response
+  return withPerfHeader(response)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1706,6 +1732,7 @@ export async function POST(req: NextRequest) {
         departement,
         classe_actuelle:      classe,
         formation_demandee:   formation,
+        hs_lead_status:       'Nouveau',
         contact_createdate:   now,
         synced_at:            now,
       })

@@ -3,10 +3,17 @@ import { createServiceClient } from '@/lib/supabase'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
 const ROLES = new Set(['admin', 'commercial', 'manager', 'telepro'])
+const CRM_SCOPES = new Set(['all', 'brand_only'])
 
 function slugify(s: string): string {
   return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'user'
+}
+
+function normalizeBrand(value: unknown): string | null {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (!v) return null
+  return v
 }
 
 // GET /api/users — List users (optionnel: ?role=telepro ou ?roles=closer,admin)
@@ -18,7 +25,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   let query = db
     .from('rdv_users')
-    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at')
+    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .order('name')
 
   if (roles) {
@@ -36,8 +43,14 @@ export async function GET(req: NextRequest) {
 // pour qu'il choisisse son mot de passe)
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { name, email, role, hubspot_owner_id } = body as {
-    name?: string; email?: string; role?: string; hubspot_owner_id?: string
+  const { name, email, role, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro } = body as {
+    name?: string
+    email?: string
+    role?: string
+    hubspot_owner_id?: string
+    crm_brand?: string
+    crm_scope?: string
+    is_default_brand_telepro?: boolean
   }
 
   if (!name?.trim() || !email?.trim() || !role || !ROLES.has(role)) {
@@ -50,6 +63,13 @@ export async function POST(req: NextRequest) {
   const db = createServiceClient()
   const cleanEmail = email.trim().toLowerCase()
   const cleanName = name.trim()
+  const normalizedBrand = normalizeBrand(crm_brand)
+  const normalizedScope =
+    typeof crm_scope === 'string' && CRM_SCOPES.has(crm_scope)
+      ? crm_scope
+      : (normalizedBrand ? 'brand_only' : 'all')
+  const defaultBrandTelepro =
+    role === 'telepro' && !!is_default_brand_telepro && !!normalizedBrand
 
   // 1. Verifier doublon email
   const { data: existing } = await db
@@ -102,6 +122,14 @@ export async function POST(req: NextRequest) {
   }
   const avatar_color = COLORS[Math.floor(Math.random() * COLORS.length)]
 
+  if (defaultBrandTelepro && normalizedBrand) {
+    await db
+      .from('rdv_users')
+      .update({ is_default_brand_telepro: false })
+      .eq('role', 'telepro')
+      .eq('crm_brand', normalizedBrand)
+  }
+
   const { data: row, error } = await db
     .from('rdv_users')
     .insert({
@@ -112,8 +140,11 @@ export async function POST(req: NextRequest) {
       avatar_color,
       hubspot_owner_id: hubspot_owner_id?.trim() || null,
       auth_id: authId,
+      crm_brand: normalizedBrand,
+      crm_scope: normalizedScope,
+      is_default_brand_telepro: defaultBrandTelepro,
     })
-    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at')
+    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -123,8 +154,15 @@ export async function POST(req: NextRequest) {
 // PATCH /api/users — Update un utilisateur (name, role, email, hubspot_owner_id)
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  const { id, name, role, email, hubspot_owner_id } = body as {
-    id?: string; name?: string; role?: string; email?: string; hubspot_owner_id?: string | null
+  const { id, name, role, email, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro } = body as {
+    id?: string
+    name?: string
+    role?: string
+    email?: string
+    hubspot_owner_id?: string | null
+    crm_brand?: string | null
+    crm_scope?: string | null
+    is_default_brand_telepro?: boolean
   }
 
   if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
@@ -136,16 +174,49 @@ export async function PATCH(req: NextRequest) {
   if (hubspot_owner_id !== undefined) {
     update.hubspot_owner_id = hubspot_owner_id?.toString().trim() || null
   }
+  const normalizedBrand = crm_brand === undefined ? undefined : normalizeBrand(crm_brand)
+  if (crm_brand !== undefined) {
+    update.crm_brand = normalizedBrand
+    if (crm_scope === undefined) update.crm_scope = normalizedBrand ? 'brand_only' : 'all'
+  }
+  if (crm_scope !== undefined) {
+    if (crm_scope !== null && !CRM_SCOPES.has(String(crm_scope))) {
+      return NextResponse.json({ error: 'crm_scope invalide (all|brand_only)' }, { status: 400 })
+    }
+    update.crm_scope = crm_scope ?? 'all'
+  }
+  if (is_default_brand_telepro !== undefined) {
+    update.is_default_brand_telepro = !!is_default_brand_telepro
+  }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'aucun champ a mettre a jour' }, { status: 400 })
   }
 
   const db = createServiceClient()
+
+  if (is_default_brand_telepro === true) {
+    const { data: current } = await db
+      .from('rdv_users')
+      .select('role, crm_brand')
+      .eq('id', id)
+      .maybeSingle()
+    const roleTarget = (typeof role === 'string' && ROLES.has(role)) ? role : current?.role
+    const brandTarget = normalizedBrand !== undefined ? normalizedBrand : (current?.crm_brand ?? null)
+    if (roleTarget === 'telepro' && brandTarget) {
+      await db
+        .from('rdv_users')
+        .update({ is_default_brand_telepro: false })
+        .eq('role', 'telepro')
+        .eq('crm_brand', brandTarget)
+        .neq('id', id)
+    }
+  }
+
   const { data, error } = await db
     .from('rdv_users')
     .update(update)
     .eq('id', id)
-    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at')
+    .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

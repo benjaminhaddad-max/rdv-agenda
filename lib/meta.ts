@@ -398,6 +398,47 @@ function normalizeZoneLocaliteValue(value: string, departement?: string): string
   return raw
 }
 
+type BrandDefaultTelepro = {
+  userId: string | null
+  hubspotUserId: string | null
+}
+
+const brandTeleproCache = new Map<string, { expiresAt: number; value: BrandDefaultTelepro }>()
+
+function inferLeadBrand(formName?: string | null, origineLabel?: string | null): string | null {
+  const v = `${formName ?? ''} ${origineLabel ?? ''}`.toLowerCase()
+  if (v.includes('linova')) return 'linova'
+  if (v.includes('edumove')) return 'edumove'
+  if (v.includes('afem')) return 'afem'
+  return null
+}
+
+async function getDefaultTeleproForBrand(brand: string): Promise<BrandDefaultTelepro> {
+  const key = brand.trim().toLowerCase()
+  if (!key) return { userId: null, hubspotUserId: null }
+
+  const now = Date.now()
+  const cached = brandTeleproCache.get(key)
+  if (cached && cached.expiresAt > now) return cached.value
+
+  const db = createServiceClient()
+  const { data } = await db
+    .from('rdv_users')
+    .select('id, hubspot_user_id')
+    .eq('role', 'telepro')
+    .eq('crm_brand', key)
+    .eq('is_default_brand_telepro', true)
+    .limit(1)
+    .maybeSingle()
+
+  const value: BrandDefaultTelepro = {
+    userId: data?.id ?? null,
+    hubspotUserId: data?.hubspot_user_id ?? null,
+  }
+  brandTeleproCache.set(key, { expiresAt: now + 5 * 60_000, value })
+  return value
+}
+
 function normalizePhoneForMatch(phone: string): string {
   const v = phone.replace(/[^0-9+]/g, '').trim()
   if (!v) return ''
@@ -725,6 +766,13 @@ export async function processMetaLead(
     ? new Date(lead.created_time).toISOString()
     : nowIso
 
+  const leadBrand = inferLeadBrand(
+    resolvedFormMetadata?.name ?? null,
+    resolvedFormMetadata?.origine_label ?? null,
+  )
+  const defaultTelepro =
+    leadBrand ? await getDefaultTeleproForBrand(leadBrand) : { userId: null, hubspotUserId: null }
+
   const conversionMeta = {
     recent_conversion_date: leadCreatedIso,
     // recent_conversion_event = nom du form Meta (utilise par le filtre
@@ -759,6 +807,8 @@ export async function processMetaLead(
     for (const [k, v] of Object.entries(contactData)) {
       if (v && String(v).trim() !== '') updateData[k] = v
     }
+    if (defaultTelepro.userId) updateData.telepro_user_id = defaultTelepro.userId
+    if (defaultTelepro.hubspotUserId) updateData.teleprospecteur = defaultTelepro.hubspotUserId
     await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existingId)
     contactId = existingId
   } else {
@@ -776,12 +826,15 @@ export async function processMetaLead(
     const insertData: Record<string, unknown> = {
       ...insertContactData,
       ...conversionMeta,
+      hs_lead_status: 'Nouveau',
       // Date de création = date REELLE de soumission Meta (pas now()) pour
       // que les leads backfilles gardent leur date d'origine.
       contact_createdate: leadCreatedIso,
       hubspot_contact_id: nativeId,
       origine: resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
       hubspot_owner_id: resolvedFormMetadata?.default_owner_id || null,
+      telepro_user_id: defaultTelepro.userId,
+      teleprospecteur: defaultTelepro.hubspotUserId,
     }
     const { data, error } = await db.from('crm_contacts')
       .insert(insertData)

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
+import { getApiUserContext } from '@/lib/api-auth'
 
 type ViewRule = { field?: string; operator?: string; value?: string }
 type ViewGroup = { rules?: ViewRule[] }
@@ -13,6 +14,11 @@ type SavedViewRow = {
     noTelepro?: boolean
   } | null
 }
+
+const LINOVA_FORM_NAMES = [
+  'LINOVA - Form LGF - 21/05/2026',
+  'LINOVA - Form LGF - 18/05/2026',
+]
 
 function splitMulti(v: string): string[] {
   return v.split(',').map(s => s.trim()).filter(Boolean)
@@ -74,15 +80,27 @@ async function resolveFormContactIds(db: ReturnType<typeof createServiceClient>,
   return [...contactIds]
 }
 
-async function computeCountForView(db: ReturnType<typeof createServiceClient>, row: SavedViewRow): Promise<number> {
+async function computeCountForView(
+  db: ReturnType<typeof createServiceClient>,
+  row: SavedViewRow,
+  forcedBrand: string | null,
+): Promise<number> {
   const first = row.filter_groups?.[0]
-  const rules = first?.rules ?? []
+  const rules = [...(first?.rules ?? [])]
 
   const filters: Record<string, unknown> = { all_classes: true }
   if (row.preset_flags?.noTelepro) filters.telepro_user_id = null
 
   let formContactIds: string[] | null = null
   let metaAdsOnly = false
+
+  if ((forcedBrand ?? '').toLowerCase() === 'linova') {
+    rules.push({
+      field: 'form_event',
+      operator: 'is_any',
+      value: LINOVA_FORM_NAMES.join(','),
+    })
+  }
 
   for (const r of rules) {
     const field = String(r.field || '')
@@ -118,8 +136,29 @@ async function computeCountForView(db: ReturnType<typeof createServiceClient>, r
   return Number(data ?? 0)
 }
 
-export async function POST() {
+type CountsRequestBody = {
+  view_ids?: string[]
+}
+
+export async function POST(req: Request) {
+  const startedAt = Date.now()
+  let body: CountsRequestBody = {}
+  try {
+    body = await req.json()
+  } catch {
+    body = {}
+  }
+
+  const requestedIds = new Set(
+    Array.isArray(body.view_ids) ? body.view_ids.map(v => String(v)) : []
+  )
+
   const db = createServiceClient()
+  const apiUser = await getApiUserContext()
+  const forcedBrand =
+    apiUser?.crmScope === 'brand_only'
+      ? (apiUser.crmBrand ?? null)
+      : null
   const { data: rows, error } = await db
     .from('crm_saved_views')
     .select('id, name, filter_groups, preset_flags')
@@ -127,16 +166,27 @@ export async function POST() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const allViews: SavedViewRow[] = [{ id: 'all', name: 'Tous les leads', filter_groups: [], preset_flags: null }, ...(rows ?? [])]
+  const scopedViews =
+    requestedIds.size > 0
+      ? allViews.filter(v => requestedIds.has(v.id))
+      : allViews
+
   const entries = await Promise.all(
-    allViews.map(async (v) => {
-      const key = `crm:view-count:${v.id}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
-      const count = await cached<number>(key, 30, async () => computeCountForView(db, v))
+    scopedViews.map(async (v) => {
+      const key = `crm:view-count:${v.id}:${forcedBrand ?? 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
+      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedBrand))
       return [v.id, count] as const
     })
   )
   const out: Record<string, number> = Object.fromEntries(entries)
 
-  return NextResponse.json({ counts: out }, {
-    headers: { 'Cache-Control': 'private, max-age=15, stale-while-revalidate=60' },
-  })
+  return NextResponse.json(
+    { counts: out },
+    {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+        'X-Response-Time-Ms': String(Date.now() - startedAt),
+      },
+    }
+  )
 }
