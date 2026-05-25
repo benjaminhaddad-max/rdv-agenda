@@ -38,6 +38,7 @@ const ROLE_BADGE: Record<User['role'], string> = {
 
 const BRAND_OPTIONS = [
   { id: '', label: 'Toutes marques' },
+  { id: 'diploma', label: 'DIPLOMA' },
   { id: 'linova', label: 'LINOVA' },
   { id: 'edumove', label: 'EDUMOVE' },
   { id: 'afem', label: 'AFEM' },
