@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase'
+import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms, buildBookingSms } from '@/lib/smsfactor'
@@ -124,6 +124,30 @@ export async function POST(req: NextRequest) {
 
   if (!prospect_name || !prospect_email || !start_at || !end_at) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
+  }
+
+  // Verrou metier: les utilisateurs CRM de marque LINOVA ne doivent pas pouvoir
+  // utiliser le flux RDV classique (/api/appointments). Ils doivent passer par
+  // le flux Linova dedie (/api/linova/appointments).
+  try {
+    const auth = await createServerSupabase()
+    const { data: { user } } = await auth.auth.getUser()
+    if (user) {
+      const dbCheck = createServiceClient()
+      const { data: rdvUser } = await dbCheck
+        .from('rdv_users')
+        .select('crm_brand')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      if (String(rdvUser?.crm_brand || '').toLowerCase() === 'linova') {
+        return NextResponse.json(
+          { error: 'Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova.' },
+          { status: 403 },
+        )
+      }
+    }
+  } catch {
+    // Best-effort: si l'auth server-side echoue, on laisse le flux historique.
   }
 
   const db = createServiceClient()

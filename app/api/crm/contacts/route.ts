@@ -7,10 +7,6 @@ import { getApiUserContext } from '@/lib/api-auth'
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
 const CURRENT_PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID ?? ''
-const LINOVA_FORM_NAMES = [
-  'LINOVA - Form LGF - 21/05/2026',
-  'LINOVA - Form LGF - 18/05/2026',
-]
 
 // Retourne les stage IDs "preinscription ou +" de tous les anciens pipelines
 async function getPriorPreinscStageIds(): Promise<string[]> {
@@ -183,18 +179,33 @@ export async function GET(req: NextRequest) {
     await appendCustomFiltersFromView(viewIdParam, false)
   }
 
-  // Scope marque: utilisateur restreint à LINOVA uniquement.
+  // Scope restreint: pour les comptes "brand_only", on force l'affichage
+  // aux leads où l'utilisateur courant est le télépro assigné.
   // Important: appliqué côté serveur pour éviter tout contournement UI/URL.
   if (
     apiUser &&
     apiUser.crmScope === 'brand_only' &&
     String(apiUser.crmBrand || '').toLowerCase() === 'linova'
   ) {
-    customFilters.push({
-      field: 'recent_conversion_event',
-      operator: 'is_any',
-      value: LINOVA_FORM_NAMES.join(','),
-    })
+    const { data: me } = await db
+      .from('rdv_users')
+      .select('id, hubspot_user_id, hubspot_owner_id')
+      .eq('id', apiUser.appUserId)
+      .maybeSingle()
+
+    const scopedTeleproIds = [
+      me?.hubspot_user_id ? String(me.hubspot_user_id).trim() : '',
+      me?.hubspot_owner_id ? String(me.hubspot_owner_id).trim() : '',
+      me?.id ? String(me.id).trim() : '',
+    ].filter(Boolean)
+
+    if (scopedTeleproIds.length > 0) {
+      customFilters.push({
+        field: 'telepro_user_id',
+        operator: 'is_any',
+        value: [...new Set(scopedTeleproIds)].join(','),
+      })
+    }
   }
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────

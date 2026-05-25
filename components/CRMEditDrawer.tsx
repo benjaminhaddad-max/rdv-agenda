@@ -132,6 +132,10 @@ interface HubspotOwnerMeta {
   email?: string
 }
 
+interface CurrentApiUser {
+  crm_brand?: string | null
+}
+
 interface Props {
   contact: CRMContact | null
   closers: RdvUser[]
@@ -751,6 +755,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
   const [showLinovaModal, setShowLinovaModal] = useState(false)
+  const [currentUser, setCurrentUser] = useState<CurrentApiUser | null>(null)
 
   // Le drawer fetch ses propres owners si la prop est vide ou pas fournie —
   // sinon des fiches ouvertes avant que la page parent ait fini de charger
@@ -778,6 +783,15 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   }, [contact])
 
   useEffect(() => {
+    let alive = true
+    fetch('/api/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: CurrentApiUser | null) => { if (alive) setCurrentUser(d) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
     const apply = (d: { leadStatuses?: string[]; sources?: string[]; formations?: string[]; zones?: string[] }) => {
       if (d.leadStatuses?.length) setLeadStatusOpts([{ id: '', label: '—' }, ...d.leadStatuses.map(v => ({ id: v, label: v }))])
       if (d.sources?.length)      setSourceOpts([{ id: '', label: '—' }, ...d.sources.map(v => ({ id: v, label: v }))])
@@ -795,6 +809,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
 
   const c = localContact
   const deal = c.deal
+  const norm = (v: unknown): string =>
+    String(v ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '')
+
   // Règle métier demandée:
   // Flux Linova UNIQUEMENT quand le lead est attribué à Meryeme.
   const assignedTeleproRaw =
@@ -807,7 +828,23 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
     || String(u.hubspot_user_id || '') === String(assignedTeleproRaw)
     || String(u.hubspot_owner_id || '') === String(assignedTeleproRaw)
   )
-  const isAssignedToMeryeme = String(assignedTelepro?.email || '').toLowerCase() === 'meryeme.benramdane@linova-education.fr'
+  const meryemeUser = telepros.find(u => {
+    const email = String(u.email || '').toLowerCase().trim()
+    if (email === 'meryeme.benramdane@linova-education.fr') return true
+    const n = norm(u.name)
+    return n.includes('meryeme') && (n.includes('benramdane') || n.includes('benramdae'))
+  })
+  const assignedNameNorm = norm(assignedTelepro?.name || '')
+  const isAssignedToMeryeme =
+    !!meryemeUser && (
+      String(meryemeUser.id || '') === String(assignedTeleproRaw)
+      || String(meryemeUser.hubspot_user_id || '') === String(assignedTeleproRaw)
+      || String(meryemeUser.hubspot_owner_id || '') === String(assignedTeleproRaw)
+      || String(assignedTelepro?.id || '') === String(meryemeUser.id || '')
+      || (assignedNameNorm.includes('meryeme') && (assignedNameNorm.includes('benramdane') || assignedNameNorm.includes('benramdae')))
+    )
+  const isLinovaBrandUser = String(currentUser?.crm_brand || '').toLowerCase() === 'linova'
+  const shouldUseLinovaBooking = isAssignedToMeryeme || isLinovaBrandUser
 
   async function patchContact(fields: Record<string, string | null>) {
     const res = await fetch(`/api/crm/contacts/${c.hubspot_contact_id}`, {
@@ -1044,7 +1081,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
           <div style={{ marginBottom: 16 }}>
             <button
               onClick={() => {
-                if (isAssignedToMeryeme) {
+                if (shouldUseLinovaBooking) {
                   setShowLinovaModal(true)
                   return
                 }
@@ -1053,10 +1090,10 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                background: (showBooking && !isAssignedToMeryeme) ? 'rgba(204,172,113,0.15)' : `linear-gradient(135deg, ${GOLD}, #b8963f)`,
-                border: (showBooking && !isAssignedToMeryeme) ? `1px solid ${GOLD}` : 'none',
+                background: (showBooking && !shouldUseLinovaBooking) ? 'rgba(204,172,113,0.15)' : `linear-gradient(135deg, ${GOLD}, #b8963f)`,
+                border: (showBooking && !shouldUseLinovaBooking) ? `1px solid ${GOLD}` : 'none',
                 borderRadius: 10,
-                color: (showBooking && !isAssignedToMeryeme) ? GOLD : '#ffffff',
+                color: (showBooking && !shouldUseLinovaBooking) ? GOLD : '#ffffff',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1068,14 +1105,14 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
               }}
             >
               <Calendar size={14} />
-              {isAssignedToMeryeme
+              {shouldUseLinovaBooking
                 ? 'Programmer RDV admission Linova'
                 : (showBooking ? 'Fermer le formulaire de RDV' : 'Prendre un rendez-vous')}
             </button>
           </div>
 
           {/* ── Formulaire de booking inline ──────────────────────────────── */}
-          {showBooking && !isAssignedToMeryeme && (
+          {showBooking && !shouldUseLinovaBooking && (
             <div style={{
               marginBottom: 20,
               padding: '14px',

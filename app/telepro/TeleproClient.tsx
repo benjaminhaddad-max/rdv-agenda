@@ -43,6 +43,8 @@ type TeleproUser = {
   avatar_color: string
   hubspot_owner_id?: string | null
   hubspot_user_id?: string | null
+  crm_brand?: string | null
+  crm_scope?: string | null
 }
 
 type MyAppointment = {
@@ -449,6 +451,7 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   const isAdmin = teleproUser.role === 'admin'
+  const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
   const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
@@ -955,6 +958,10 @@ export default function TeleproClient({
 
   // ── Reprendre un RDV (depuis la vue suivi) ────────────────────────────
   async function handleReprendre(rdv: MyAppointment) {
+    if (isLinovaBrandUser) {
+      setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
+      return
+    }
     resetContact()
     if (rdv.hubspot_contact_id) {
       setRebookLoading(rdv.id)
@@ -995,6 +1002,10 @@ export default function TeleproClient({
   const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation
 
   async function submit() {
+    if (isLinovaBrandUser) {
+      setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
+      return
+    }
     if (!canSubmit) { setError('Remplis tous les champs obligatoires (*)'); return }
     setSubmitting(true); setError(null)
     const formationLabel = FORMATIONS.find(f => f.value === formation)?.label || formation
@@ -1102,14 +1113,16 @@ export default function TeleproClient({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {!isAdmin && (
             <>
-              <button onClick={() => setActiveTab('form')} style={{
-                background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#ccac71' : '#64748b',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <PlusCircle size={12} /> Nouveau RDV
-              </button>
+              {!isLinovaBrandUser && (
+                <button onClick={() => setActiveTab('form')} style={{
+                  background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
+                  borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#ccac71' : '#64748b',
+                  fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                }}>
+                  <PlusCircle size={12} /> Nouveau RDV
+                </button>
+              )}
               <button onClick={() => setActiveTab('rdvs')} style={{
                 background: activeTab === 'rdvs' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${activeTab === 'rdvs' ? 'rgba(34,197,94,0.4)' : '#475569'}`,
@@ -1605,7 +1618,7 @@ export default function TeleproClient({
       )}
 
       {/* ── Onglet Nouveau RDV ─────────────────────────────────────────── */}
-      {(activeTab === 'form' || isAdmin) && (
+      {(activeTab === 'form' || isAdmin) && !isLinovaBrandUser && (
         <div style={{ maxWidth: 780, margin: '0 auto', padding: '24px 20px' }}>
 
           {/* Étape 1 */}
@@ -1954,6 +1967,28 @@ export default function TeleproClient({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'form' && isLinovaBrandUser && !isAdmin && (
+        <div style={{ maxWidth: 780, margin: '0 auto', padding: '24px 20px' }}>
+          <div
+            style={{
+              background: '#ffffff',
+              border: '1px solid rgba(204,172,113,0.35)',
+              borderRadius: 14,
+              padding: '18px 20px',
+              color: '#334155',
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#b89450', marginBottom: 8 }}>
+              Prise de RDV classique desactivee
+            </div>
+            <div style={{ fontSize: 13 }}>
+              Les utilisateurs rattaches a la marque LINOVA ne peuvent reserver que via le flux
+              {' '}<strong>Linova</strong> depuis la fiche contact CRM.
+            </div>
+          </div>
         </div>
       )}
 

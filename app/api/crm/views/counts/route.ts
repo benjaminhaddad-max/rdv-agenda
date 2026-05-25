@@ -15,11 +15,6 @@ type SavedViewRow = {
   } | null
 }
 
-const LINOVA_FORM_NAMES = [
-  'LINOVA - Form LGF - 21/05/2026',
-  'LINOVA - Form LGF - 18/05/2026',
-]
-
 function splitMulti(v: string): string[] {
   return v.split(',').map(s => s.trim()).filter(Boolean)
 }
@@ -83,7 +78,7 @@ async function resolveFormContactIds(db: ReturnType<typeof createServiceClient>,
 async function computeCountForView(
   db: ReturnType<typeof createServiceClient>,
   row: SavedViewRow,
-  forcedBrand: string | null,
+  forcedTeleproId: string | null,
 ): Promise<number> {
   const first = row.filter_groups?.[0]
   const rules = [...(first?.rules ?? [])]
@@ -94,12 +89,8 @@ async function computeCountForView(
   let formContactIds: string[] | null = null
   let metaAdsOnly = false
 
-  if ((forcedBrand ?? '').toLowerCase() === 'linova') {
-    rules.push({
-      field: 'form_event',
-      operator: 'is_any',
-      value: LINOVA_FORM_NAMES.join(','),
-    })
+  if (forcedTeleproId) {
+    filters.telepro_user_id = forcedTeleproId
   }
 
   for (const r of rules) {
@@ -155,10 +146,22 @@ export async function POST(req: Request) {
 
   const db = createServiceClient()
   const apiUser = await getApiUserContext()
-  const forcedBrand =
-    apiUser?.crmScope === 'brand_only'
-      ? (apiUser.crmBrand ?? null)
-      : null
+  let forcedTeleproId: string | null = null
+  if (
+    apiUser?.crmScope === 'brand_only' &&
+    String(apiUser.crmBrand || '').toLowerCase() === 'linova'
+  ) {
+    const { data: me } = await db
+      .from('rdv_users')
+      .select('id, hubspot_user_id, hubspot_owner_id')
+      .eq('id', apiUser.appUserId)
+      .maybeSingle()
+    forcedTeleproId =
+      (me?.hubspot_user_id ? String(me.hubspot_user_id).trim() : '') ||
+      (me?.hubspot_owner_id ? String(me.hubspot_owner_id).trim() : '') ||
+      (me?.id ? String(me.id).trim() : '') ||
+      null
+  }
   const { data: rows, error } = await db
     .from('crm_saved_views')
     .select('id, name, filter_groups, preset_flags')
@@ -173,8 +176,8 @@ export async function POST(req: Request) {
 
   const entries = await Promise.all(
     scopedViews.map(async (v) => {
-      const key = `crm:view-count:${v.id}:${forcedBrand ?? 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
-      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedBrand))
+      const key = `crm:view-count:${v.id}:telepro:${forcedTeleproId ?? 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
+      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedTeleproId))
       return [v.id, count] as const
     })
   )
