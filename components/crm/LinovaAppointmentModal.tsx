@@ -25,6 +25,24 @@ type CreateResponse = {
   googleEventId?: string
 }
 
+const CURRENT_STUDIES_OPTIONS = [
+  '',
+  'Troisième',
+  'Seconde',
+  'Première',
+  'Terminale',
+  'PASS',
+  'LSPS 1',
+  'LSPS 2',
+  'LSPS 3',
+  'LAS 1',
+  'LAS 2',
+  'LAS 3',
+  'Etudes médicales',
+  'Etudes supérieures',
+  'Autres',
+]
+
 function tomorrowIsoDate(): string {
   const d = new Date()
   d.setDate(d.getDate() + 1)
@@ -214,7 +232,16 @@ export default function LinovaAppointmentModal({ contact, onClose, onSaved }: Pr
               <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
             </Field>
             <Field label="Études actuelles">
-              <input value={currentStudies} onChange={e => setCurrentStudies(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <select
+                value={currentStudies}
+                onChange={e => setCurrentStudies(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                <option value="">Sélectionner...</option>
+                {CURRENT_STUDIES_OPTIONS.filter(Boolean).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Message (optionnel)">
               <input value={message} onChange={e => setMessage(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
