@@ -150,6 +150,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         page: String(page),
         sort_by: sortBy,
         sort_dir: sortDir,
+        exact_count: '1',
         all_classes: '1',     // afficher tous les leads, pas seulement les classes prioritaires
         show_external: '1',   // vue personnelle "Mes Contacts/Transactions" : on
                               // ne masque pas les contacts de l'équipe externe

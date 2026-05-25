@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
 
   const isExport         = searchParams.get('export') === '1'
   const countOnly        = searchParams.get('limit') === '0'
+  const exactCountParam  = searchParams.get('exact_count') === '1'
   const deferCount       = searchParams.get('defer_count') === '1' && !countOnly && !isExport
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
@@ -432,8 +433,8 @@ export async function GET(req: NextRequest) {
   )
   const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
-    ? (hasSelectiveFilter ? 'exact' : 'estimated')
-    : (forceExactCount ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
+    ? 'exact'
+    : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
 
   // Count-only rapide : évite les pré-résolutions deal/form/meta et le chargement users.
   const hasDealHeavyFilter = !!(
