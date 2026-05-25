@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const { data: deals } = await db.from('crm_deals').select('hubspot_deal_id, hubspot_contact_id').in('hubspot_contact_id', chunk)
 
     // Update contacts in Supabase (source of truth for CRM filtering/telepro column)
-    await db
+    const { error: contactUpdateError } = await db
       .from('crm_contacts')
       .update({
         telepro_user_id: teleproUserId,
@@ -52,13 +52,19 @@ export async function POST(req: NextRequest) {
         synced_at: new Date().toISOString(),
       })
       .in('hubspot_contact_id', chunk)
+    if (contactUpdateError) {
+      errors.push(`contacts chunk ${i / BATCH + 1}: ${contactUpdateError.message}`)
+    }
 
     // Update deals in Supabase
     if (deals && deals.length > 0) {
-      await db
+      const { error: dealsUpdateError } = await db
         .from('crm_deals')
         .update({ teleprospecteur: teleprospecteurHsUserId || null, synced_at: new Date().toISOString() })
         .in('hubspot_contact_id', chunk)
+      if (dealsUpdateError) {
+        errors.push(`deals chunk ${i / BATCH + 1}: ${dealsUpdateError.message}`)
+      }
 
       // Update HubSpot deals uniquement si hubspot_user_id du télépro disponible.
       if (teleprospecteurHsUserId) {
@@ -72,6 +78,13 @@ export async function POST(req: NextRequest) {
     }
 
     done += chunk.length
+  }
+
+  // Le listing CRM lit souvent la vue matérialisée rapide. On force un refresh
+  // pour refléter immédiatement l'assignation télépro dans l'UI.
+  const { error: refreshError } = await db.rpc('crm_refresh_contacts_fast_mv')
+  if (refreshError) {
+    errors.push(`fast_mv_refresh: ${refreshError.message}`)
   }
 
   return NextResponse.json({ ok: true, done, errors: errors.length > 0 ? errors : undefined })
