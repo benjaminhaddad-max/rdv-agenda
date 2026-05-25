@@ -1178,16 +1178,28 @@ export default function CRMPage() {
 
   async function handleBulkAssign() {
     if (!bulkTeleproId || selectedIds.size === 0) return
+    const selectedTelepro = telepros.find(u => u.id === bulkTeleproId)
+    if (!selectedTelepro) return
     setBulkAssigning(true)
     try {
-      await fetch('/api/crm/contacts/bulk-assign', {
+      const res = await fetch('/api/crm/contacts/bulk-assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_ids: [...selectedIds], teleprospecteur: bulkTeleproId }),
+        body: JSON.stringify({
+          contact_ids: [...selectedIds],
+          telepro_user_id: selectedTelepro.id,
+          teleprospecteur: selectedTelepro.hubspot_user_id || null,
+        }),
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error || 'Erreur attribution en masse')
+      }
       setSelectedIds(new Set())
       setBulkTeleproId('')
       await fetchContacts(true)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erreur attribution en masse')
     } finally {
       setBulkAssigning(false)
     }
@@ -1762,7 +1774,7 @@ export default function CRMPage() {
             >
               <option value="">— Choisir un télépro —</option>
               {telepros.map(u => (
-                <option key={u.id} value={u.hubspot_user_id || u.id}>{u.name}</option>
+                <option key={u.id} value={u.id}>{u.name}</option>
               ))}
             </select>
             <button
