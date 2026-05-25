@@ -252,10 +252,21 @@ export async function GET(req: NextRequest) {
     : teleproHsId
 
   const pgQuoteForScoped = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
-  const forcedScopedOrFilter =
-    forcedScopedTeleproIds.length > 0
-      ? `telepro_user_id.in.(${forcedScopedTeleproIds.map(pgQuoteForScoped).join(',')}),teleprospecteur.in.(${forcedScopedTeleproIds.map(pgQuoteForScoped).join(',')})`
-      : ''
+  const buildTeleproOrFilter = (vals: string[]): string => {
+    const uniq = [...new Set(vals.map(v => String(v).trim()).filter(Boolean))]
+    if (uniq.length === 0) return ''
+    // telepro_user_id est bigint sur certains environnements: on n'injecte que
+    // des valeurs numeriques pour eviter les erreurs de cast.
+    const numericOnly = uniq.filter(v => /^\d+$/.test(v))
+    const parts: string[] = []
+    if (numericOnly.length > 0) {
+      parts.push(`telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`)
+    }
+    // teleprospecteur est stocke en texte (historique/fallback).
+    parts.push(`teleprospecteur.in.(${uniq.map(pgQuoteForScoped).join(',')})`)
+    return parts.join(',')
+  }
+  const forcedScopedOrFilter = buildTeleproOrFilter(forcedScopedTeleproIds)
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
   // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
@@ -484,17 +495,14 @@ export async function GET(req: NextRequest) {
 
   if (canFastCountOnly) {
     const fastSplit = (v: string) => v.split(',').filter(Boolean)
-    const quotePg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fastQ: any = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
     if (!effectiveAllClasses) fastQ = fastQ.in('classe_actuelle', PRIORITY_CLASSES)
     if (classeFilter) fastQ = fastQ.eq('classe_actuelle', classeFilter)
     if (effectiveTeleproFilterCsv) {
       const vals = fastSplit(effectiveTeleproFilterCsv)
-      if (vals.length > 0) {
-        const inList = vals.map(quotePg).join(',')
-        fastQ = fastQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
-      }
+      const teleproOr = buildTeleproOrFilter(vals)
+      if (teleproOr) fastQ = fastQ.or(teleproOr)
     }
     if (noTelepro) fastQ = fastQ.is('telepro_user_id', null)
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
@@ -631,10 +639,8 @@ export async function GET(req: NextRequest) {
       if (classeFilter) fastMvQ = fastMvQ.eq('classe_actuelle', classeFilter)
       if (effectiveTeleproFilterCsv) {
         const vals = splitMultiFast(effectiveTeleproFilterCsv)
-        if (vals.length > 0) {
-          const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
-          fastMvQ = fastMvQ.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
-        }
+        const teleproOr = buildTeleproOrFilter(vals)
+        if (teleproOr) fastMvQ = fastMvQ.or(teleproOr)
       }
       if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
       if (noTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
@@ -1173,10 +1179,8 @@ export async function GET(req: NextRequest) {
   // Filtre Telepro (positif) — colonne native crm_contacts.telepro_user_id
   if (effectiveTeleproFilterCsv) {
     const vals = splitMulti(effectiveTeleproFilterCsv)
-    if (vals.length > 0) {
-      const inList = vals.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(',')
-      query = query.or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
-    }
+    const teleproOr = buildTeleproOrFilter(vals)
+    if (teleproOr) query = query.or(teleproOr)
   }
 
   // Filtre Telepro (exclusion) — version stable en SQL natif.
