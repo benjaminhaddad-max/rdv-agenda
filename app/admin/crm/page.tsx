@@ -35,7 +35,7 @@ import {
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
-import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
+import { getCached, refetch } from '@/lib/client-cache'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -89,32 +89,6 @@ interface SyncLog {
   error_message?: string | null
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function isPeriodMatch(contact: CRMContact, period: string): boolean {
-  if (!period) return true
-  const dateStr = contact.deal?.createdate
-  if (!dateStr) return false
-  const d = new Date(dateStr)
-  const now = new Date()
-  if (period === 'today') return d.toDateString() === now.toDateString()
-  if (period === 'week') {
-    const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7)
-    return d >= weekAgo
-  }
-  if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  return true
-}
-
-function filterClientSide(contacts: CRMContact[], period: string, formation: string, classe: string): CRMContact[] {
-  return contacts.filter(c => {
-    if (period && !isPeriodMatch(c, period)) return false
-    if (formation && c.deal?.formation !== formation) return false
-    if (classe && c.classe_actuelle !== classe) return false
-    return true
-  })
-}
-
 // ExportCSVModal → @/components/crm/CRMExportModal
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -145,6 +119,9 @@ export default function CRMPage() {
   // CSV export
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [lastFetchClientMs, setLastFetchClientMs] = useState<number | null>(null)
+  const [lastFetchServerMs, setLastFetchServerMs] = useState<number | null>(null)
+  const [totalEstimated, setTotalEstimated] = useState(false)
 
   // Server-side filters (déclenchent un appel API)
   const [search, setSearch]           = useState('')
@@ -404,6 +381,8 @@ export default function CRMPage() {
   const [limit, setLimit] = useState(50)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLoadedOnceRef = useRef(false)
+  const contactsFetchSeqRef = useRef(0)
+  const didInitViewFromUrlRef = useRef(false)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
   useEffect(() => {
@@ -440,6 +419,43 @@ export default function CRMPage() {
       .catch(() => setViewsLoaded(true))
   }, [])
 
+  // Au chargement, restaure la vue depuis ?view_id=... (si présente).
+  useEffect(() => {
+    if (!viewsLoaded || didInitViewFromUrlRef.current) return
+    didInitViewFromUrlRef.current = true
+    const params = new URLSearchParams(window.location.search)
+    const viewIdFromUrl = params.get('view_id') || params.get('view')
+    if (!viewIdFromUrl || viewIdFromUrl === activeViewId) return
+    const view = crmViews.find(v => v.id === viewIdFromUrl)
+    if (view) applyCRMView(view)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewsLoaded, crmViews, activeViewId])
+
+  // Quand on change de vue, reflète ce choix dans l'URL.
+  useEffect(() => {
+    if (!viewsLoaded) return
+    const url = new URL(window.location.href)
+    if (activeViewId) url.searchParams.set('view_id', activeViewId)
+    else url.searchParams.delete('view_id')
+    const nextSearch = url.searchParams.toString()
+    const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`
+    if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(window.history.state, '', nextUrl)
+    }
+  }, [activeViewId, viewsLoaded])
+
+  function syncViewIdInUrl(viewId: string, mode: 'replace' | 'push' = 'replace') {
+    const url = new URL(window.location.href)
+    if (viewId) url.searchParams.set('view_id', viewId)
+    else url.searchParams.delete('view_id')
+    const nextSearch = url.searchParams.toString()
+    const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (nextUrl === currentUrl) return
+    if (mode === 'push') window.history.pushState(window.history.state, '', nextUrl)
+    else window.history.replaceState(window.history.state, '', nextUrl)
+  }
+
   // ── Charger les pipelines HubSpot ─────────────────────────────────────────
   useEffect(() => {
     fetch('/api/crm/pipelines')
@@ -452,19 +468,36 @@ export default function CRMPage() {
       .catch(() => {})
   }, [])
 
-  // ── Pré-charger les counts de toutes les vues ─────────────────────────────
+  const fetchViewCounts = useCallback((viewIds?: string[]) => {
+    const body = viewIds && viewIds.length > 0 ? { view_ids: viewIds } : {}
+    return fetch('/api/crm/views/counts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d?.counts && typeof d.counts === 'object') {
+          setViewCounts(prev => ({ ...prev, ...(d.counts as Record<string, number>) }))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Pré-charger les counts : vue active d'abord, toutes les vues ensuite ──
   useEffect(() => {
     if (!viewsLoaded || loading) return
-    const t = setTimeout(() => {
-      fetch('/api/crm/views/counts', { method: 'POST' })
-        .then(r => r.json())
-        .then(d => {
-          if (d?.counts && typeof d.counts === 'object') setViewCounts(d.counts as Record<string, number>)
-        })
-        .catch(() => {})
-    }, 600)
-    return () => clearTimeout(t)
-  }, [viewsLoaded, crmViews.length, loading])
+    const t1 = setTimeout(() => {
+      void fetchViewCounts([activeViewId, 'all'])
+    }, 300)
+    const t2 = setTimeout(() => {
+      void fetchViewCounts()
+    }, 1500)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [viewsLoaded, crmViews.length, loading, activeViewId, fetchViewCounts])
 
   // Mettre à jour le count de la vue active quand total change
   useEffect(() => {
@@ -475,15 +508,19 @@ export default function CRMPage() {
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch('/api/users?roles=closer,admin').then(r => r.json()).then(d => {
-      const arr = Array.isArray(d) ? d : []
-      setClosers(arr)
-      setAllUsers(prev => [...prev.filter(u => u.role !== 'closer' && u.role !== 'admin'), ...arr])
-    })
-    fetch('/api/users?role=telepro').then(r => r.json()).then(d => {
-      const arr = Array.isArray(d) ? d : []
-      setTelepros(arr)
-      setAllUsers(prev => [...prev.filter(u => u.role !== 'telepro'), ...arr])
+    Promise.all([
+      fetch('/api/users?roles=closer,admin').then(r => r.json()).catch(() => []),
+      fetch('/api/users?role=telepro').then(r => r.json()).catch(() => []),
+    ]).then(([closersData, teleprosData]) => {
+      const closerArr = Array.isArray(closersData) ? closersData : []
+      const teleproArr = Array.isArray(teleprosData) ? teleprosData : []
+      setClosers(closerArr)
+      setTelepros(teleproArr)
+      setAllUsers(prev => [
+        ...prev.filter(u => u.role !== 'closer' && u.role !== 'admin' && u.role !== 'telepro'),
+        ...closerArr,
+        ...teleproArr,
+      ])
     })
     // Charger TOUS les owners HubSpot (table crm_owners — 51 personnes)
     // pour alimenter complètement les dropdowns "Propriétaire du contact"
@@ -551,6 +588,11 @@ export default function CRMPage() {
     return () => clearTimeout(t)
   }, [search])
 
+  // Quand la recherche change, revenir sur la première page.
+  useEffect(() => {
+    if (page !== 0) setPage(0)
+  }, [debouncedSearch, page])
+
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
@@ -564,6 +606,8 @@ export default function CRMPage() {
       limit: String(limit),
       page: String(currentPage),
     })
+    // Liste rapide d'abord: le count exact sera récupéré en arrière-plan si nécessaire.
+    params.set('defer_count', '1')
     if (activeViewId) params.set('view_id', activeViewId)
     if (debouncedSearch)      params.set('search', debouncedSearch)
     if (stage)                params.set('stage', stage)
@@ -619,19 +663,79 @@ export default function CRMPage() {
     if (forceMetaAdsOnly) params.set('meta_ads_only', '1')
 
     const url = `/api/crm/contacts?${params.toString()}`
+    const requestSeq = ++contactsFetchSeqRef.current
+
+    const fetchContactsPayload = async () => {
+      const start = performance.now()
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`HTTP ${response.status} on ${url}`)
+      const payload = await response.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+      const serverMsRaw = response.headers.get('X-Response-Time-Ms')
+      const serverMs = serverMsRaw ? Number(serverMsRaw) : null
+      return {
+        payload,
+        clientMs: Math.round(performance.now() - start),
+        serverMs: Number.isFinite(serverMs) ? serverMs : null,
+      }
+    }
+
+    const fetchExactCount = async () => {
+      const countParams = new URLSearchParams(params)
+      countParams.set('limit', '0')
+      countParams.set('page', '0')
+      countParams.delete('defer_count')
+      const countUrl = `/api/crm/contacts?${countParams.toString()}`
+      try {
+        const res = await fetch(countUrl)
+        if (!res.ok) return
+        const json = await res.json() as { total?: number }
+        if (requestSeq !== contactsFetchSeqRef.current) return
+        if (typeof json.total === 'number') {
+          setTotal(json.total)
+          setTotalEstimated(false)
+        }
+      } catch {
+        // best effort
+      }
+    }
 
     // Cache hit (typiquement : retour sur la page apres avoir ouvert un
     // contact) → render immediat avec les anciennes donnees, puis revalidation
     // silencieuse en arriere-plan.
-    const cached = getCached<{ data?: CRMContact[]; total?: number }>(url)
+    const cached = getCached<
+      | {
+          payload?: { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+          clientMs?: number
+          serverMs?: number | null
+        }
+      | { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+    >(url)
     if (cached) {
-      setContacts(cached.data ?? [])
-      setTotal(cached.total ?? 0)
+      const cachedPayload =
+        'payload' in cached && cached.payload
+          ? cached.payload
+          : cached
+      if (requestSeq === contactsFetchSeqRef.current) {
+        setContacts(cachedPayload.data ?? [])
+        setTotal(cachedPayload.total ?? 0)
+        setTotalEstimated(cachedPayload.total_estimated === true)
+        if ('clientMs' in cached && typeof cached.clientMs === 'number') setLastFetchClientMs(cached.clientMs)
+        if ('serverMs' in cached && typeof cached.serverMs === 'number') setLastFetchServerMs(cached.serverMs)
+      }
       setLoading(false)
-      refetch<{ data?: CRMContact[]; total?: number }>(url, () => jsonFetcher(url), 30_000)
-        .then(d => {
-          setContacts(d.data ?? [])
-          setTotal(d.total ?? 0)
+      refetch<{
+        payload: { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+        clientMs: number
+        serverMs: number | null
+      }>(url, fetchContactsPayload, 30_000)
+        .then(({ payload, clientMs, serverMs }) => {
+          if (requestSeq !== contactsFetchSeqRef.current) return
+          setContacts(payload.data ?? [])
+          setTotal(payload.total ?? 0)
+          setTotalEstimated(payload.total_estimated === true)
+          setLastFetchClientMs(clientMs)
+          setLastFetchServerMs(serverMs)
+          if (payload.total_estimated === true) void fetchExactCount()
         })
         .catch(() => {})
       return
@@ -639,14 +743,23 @@ export default function CRMPage() {
 
     if (!hasLoadedOnceRef.current) setLoading(true)
     try {
-      const data = await refetch<{ data?: CRMContact[]; total?: number }>(url, () => jsonFetcher(url), 30_000)
-      setContacts(data.data ?? [])
-      setTotal(data.total ?? 0)
+      const { payload, clientMs, serverMs } = await refetch<{
+        payload: { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+        clientMs: number
+        serverMs: number | null
+      }>(url, fetchContactsPayload, 30_000)
+      if (requestSeq !== contactsFetchSeqRef.current) return
+      setContacts(payload.data ?? [])
+      setTotal(payload.total ?? 0)
+      setTotalEstimated(payload.total_estimated === true)
+      setLastFetchClientMs(clientMs)
+      setLastFetchServerMs(serverMs)
+      if (payload.total_estimated === true) void fetchExactCount()
       hasLoadedOnceRef.current = true
     } catch {
       // garde le state precedent en cas d'erreur reseau
     } finally {
-      setLoading(false)
+      if (requestSeq === contactsFetchSeqRef.current) setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
@@ -697,7 +810,7 @@ export default function CRMPage() {
 
   function scheduleRefetch() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setPage(0), 50)
+    debounceRef.current = setTimeout(() => setPage(0), 180)
   }
 
   function handleSortChange(col: string) {
@@ -807,6 +920,7 @@ export default function CRMPage() {
   }
 
   function applyCRMView(view: CRMSavedView) {
+    syncViewIdInUrl(view.id, 'push')
     setActiveViewId(view.id)
     setFilterGroups(view.groups)
     applyGroupsToFilters(view.groups, view.presetFlags)
@@ -824,6 +938,7 @@ export default function CRMPage() {
     const position = customViews.length
     setCrmViews(prev => [...prev, newView])
     persistViewCreate(newView, position)
+    syncViewIdInUrl(id, 'push')
     setActiveViewId(id)
     setCreatingView(false)
     setNewViewName('')
@@ -1029,6 +1144,7 @@ export default function CRMPage() {
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
     setLeadStatus(''); setSource(''); setZoneFilter(''); setDeptFilter('')
     setFilterGroups([])
+    syncViewIdInUrl('all', 'push')
     setActiveViewId('all')
   }
 
@@ -1081,7 +1197,7 @@ export default function CRMPage() {
 
   // Helper : fusionner les owners HubSpot (51) avec les rdv_users (closer/telepro),
   // dédupliquer sur hubspot_owner_id, trier par label.
-  const mergeOwnersWithUsers = (users: RdvUser[]): SelectOption[] => {
+  const mergeOwnersWithUsers = useCallback((users: RdvUser[]): SelectOption[] => {
     const map = new Map<string, SelectOption>()
     // Priorité aux rdv_users (qui ont un name explicite)
     for (const u of users) {
@@ -1097,21 +1213,21 @@ export default function CRMPage() {
       map.set(o.hubspot_owner_id, { id: o.hubspot_owner_id, label })
     }
     return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-  }
+  }, [hubspotOwners])
 
-  const closerOptions: SelectOption[] = [
+  const closerOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Tous les closers' },
     ...mergeOwnersWithUsers(closers),
-  ]
-  const teleproOptions: SelectOption[] = [
+  ], [closers, mergeOwnersWithUsers])
+  const teleproOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Tous les télépros' },
     ...mergeOwnersWithUsers(telepros),
-  ]
+  ], [telepros, mergeOwnersWithUsers])
   // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
-  const ownerExcludeOptions: SelectOption[] = [
+  const ownerExcludeOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Aucune exclusion' },
     ...mergeOwnersWithUsers(allUsers.filter(u => u.hubspot_owner_id)),
-  ]
+  ], [allUsers, mergeOwnersWithUsers])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f8fa', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -1495,12 +1611,12 @@ export default function CRMPage() {
             <input
               type="text" placeholder="Nom, email, téléphone…"
               value={search}
-              onChange={e => { setSearch(e.target.value); scheduleRefetch() }}
+              onChange={e => { setSearch(e.target.value) }}
               onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
               style={{ background: 'transparent', border: 'none', color: '#33475b', fontSize: 13, outline: 'none', flex: 1, fontFamily: 'inherit' }}
             />
             {search && (
-              <button onClick={() => { setSearch(''); scheduleRefetch() }} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', padding: 0, display: 'flex' }}>
+              <button onClick={() => { setSearch('') }} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', padding: 0, display: 'flex' }}>
                 <X size={13} />
               </button>
             )}
@@ -1564,13 +1680,13 @@ export default function CRMPage() {
                 padding: '5px 14px',
               }}>
                 <span style={{ fontSize: 17, fontWeight: 800, color: '#4cabdb', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.5px' }}>
-                  {total.toLocaleString('fr')}
+                  {totalEstimated ? `≈ ${total.toLocaleString('fr')}` : total.toLocaleString('fr')}
                 </span>
                 <span style={{ fontSize: 11, color: '#4a6a8a', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   contact{total !== 1 ? 's' : ''}
                 </span>
               </div>
-              {(formation || classe || period) && displayed.length !== contacts.length ? (
+              {(formation || classe || period) ? (
                 <div style={{
                   display: 'flex', alignItems: 'baseline', gap: 4,
                   background: 'rgba(58,80,112,0.12)',
@@ -1591,6 +1707,21 @@ export default function CRMPage() {
                   borderRadius: '0 10px 10px 0',
                 }} />
               )}
+            </div>
+          )}
+          {lastFetchClientMs !== null && (
+            <div style={{ marginTop: 6, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+              <span style={{
+                fontSize: 10,
+                color: '#516f90',
+                border: '1px solid rgba(81,111,144,0.25)',
+                borderRadius: 999,
+                padding: '2px 8px',
+                background: '#fff',
+              }}>
+                API {lastFetchClientMs}ms
+                {lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}
+              </span>
             </div>
           )}
         </div>
