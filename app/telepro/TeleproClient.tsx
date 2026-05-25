@@ -16,6 +16,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import { validateEmailDomain } from '@/lib/email-validation'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -469,6 +470,7 @@ export default function TeleproClient({
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [contact, setContact] = useState<HubSpotContact | null>(null)
+  const [showLinovaModal, setShowLinovaModal] = useState(false)
   // Résultats de recherche dans le CRM (Supabase)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [searchResults, setSearchResults] = useState<any[]>([])
@@ -1113,16 +1115,14 @@ export default function TeleproClient({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {!isAdmin && (
             <>
-              {!isLinovaBrandUser && (
-                <button onClick={() => setActiveTab('form')} style={{
-                  background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                  borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#ccac71' : '#64748b',
-                  fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                }}>
-                  <PlusCircle size={12} /> Nouveau RDV
-                </button>
-              )}
+              <button onClick={() => setActiveTab('form')} style={{
+                background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#ccac71' : '#64748b',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <PlusCircle size={12} /> {isLinovaBrandUser ? 'Nouveau RDV Linova' : 'Nouveau RDV'}
+              </button>
               <button onClick={() => setActiveTab('rdvs')} style={{
                 background: activeTab === 'rdvs' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${activeTab === 'rdvs' ? 'rgba(34,197,94,0.4)' : '#475569'}`,
@@ -1972,22 +1972,155 @@ export default function TeleproClient({
 
       {activeTab === 'form' && isLinovaBrandUser && !isAdmin && (
         <div style={{ maxWidth: 780, margin: '0 auto', padding: '24px 20px' }}>
-          <div
-            style={{
-              background: '#ffffff',
-              border: '1px solid rgba(204,172,113,0.35)',
-              borderRadius: 14,
-              padding: '18px 20px',
-              color: '#334155',
-            }}
-          >
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#b89450', marginBottom: 8 }}>
-              Prise de RDV classique desactivee
-            </div>
-            <div style={{ fontSize: 13 }}>
-              Les utilisateurs rattaches a la marque LINOVA ne peuvent reserver que via le flux
-              {' '}<strong>Linova</strong> depuis la fiche contact CRM.
-            </div>
+          <div style={{
+            background: '#ffffff',
+            border: contact ? '1px solid rgba(34,197,94,0.35)' : '1px solid #e2e8f0',
+            borderRadius: 14, padding: '18px 20px', marginBottom: 16,
+          }}>
+            {contact ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <User size={17} style={{ color: '#22c55e' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>
+                      {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || '(Sans nom)'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{contact.properties.email || '—'} · CRM #{contact.id}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <X size={11} /> Changer
+                  </button>
+                  <button onClick={() => setShowLinovaModal(true)} style={{ background: '#b89450', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Calendar size={11} /> Programmer RDV Linova
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Search size={14} style={{ color: '#ccac71' }} />
+                  Nouveau RDV Linova — choisir un contact
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {([
+                    { key: 'search' as const, icon: <Search size={11} />, label: 'Contact existant CRM' },
+                    { key: 'new' as const, icon: <Plus size={11} />, label: 'Nouveau contact' },
+                  ]).map(tab => (
+                    <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null); setSearchResults([]) }}
+                      style={{
+                        background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)' : 'transparent',
+                        border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.4)' : '#e2e8f0'}`,
+                        borderRadius: 8, padding: '5px 12px',
+                        color: lookupMode === tab.key ? tab.key === 'new' ? '#22c55e' : '#ccac71' : '#64748b',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                      {tab.icon} {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {lookupMode === 'search' && (
+                  <>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={lookupInput} onChange={e => setLookupInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchContact()}
+                        placeholder="Nom, prénom, email ou téléphone…"
+                        style={{ ...inputStyle, flex: 1 }} autoFocus />
+                      <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
+                        style={{ background: lookupInput.trim() ? '#b89450' : '#f1f5f9', color: lookupInput.trim() ? 'white' : '#64748b', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {lookupLoading ? '…' : 'Rechercher'}
+                      </button>
+                    </div>
+                    {searchResults.length > 0 && (
+                      <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
+                        {searchResults.map(r => {
+                          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
+                          return (
+                            <button key={r.hubspot_contact_id}
+                              onClick={() => pickSearchResult(r)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                width: '100%', padding: '10px 14px',
+                                background: 'transparent', border: 'none',
+                                borderBottom: '1px solid #f1f5f9',
+                                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <User size={14} style={{ color: '#b89450' }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
+                                <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {lookupMode === 'new' && (() => {
+                  const allFilled =
+                    newFirstname.trim() && newLastname.trim() && newEmail.trim() &&
+                    newPhone.trim() && newDepartement.trim() && newClasse.trim()
+                  const canCreate =
+                    !!allFilled && !newEmailFormatError && !newEmailExisting && !newEmailChecking && !creating
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="email" value={newEmail}
+                          onChange={e => setNewEmail(e.target.value)}
+                          placeholder="Email *"
+                          style={{
+                            ...inputStyle,
+                            borderColor: newEmailFormatError ? '#ef4444' : (newEmailExisting ? '#f0d28a' : (inputStyle as React.CSSProperties).borderColor),
+                          }}
+                          autoFocus
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inputStyle} />
+                        <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={inputStyle} />
+                      </div>
+                      <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone *" style={inputStyle} />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département * (ex: 75)" maxLength={3} style={inputStyle} />
+                        <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                          <option value="">Classe actuelle *</option>
+                          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <button onClick={createNewContact} disabled={!canCreate}
+                        style={{
+                          background: canCreate ? '#22c55e' : '#cbd6e2',
+                          color: canCreate ? '#ffffff' : '#94a3b8',
+                          border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700,
+                          cursor: !canCreate ? 'not-allowed' : (creating ? 'wait' : 'pointer'),
+                          opacity: canCreate ? 1 : 0.85,
+                        }}>
+                        {creating ? 'Création…' : 'Créer le contact'}
+                      </button>
+                    </div>
+                  )
+                })()}
+
+                {lookupError && (
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '9px 14px', color: '#ef4444', fontSize: 13, marginTop: 10 }}>
+                    {lookupError}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2246,6 +2379,24 @@ export default function TeleproClient({
           hubspotOwnerId={teleproUser.hubspot_owner_id ?? undefined}
           scope="telepro"
           scopeId={teleproUser.id}
+        />
+      )}
+
+      {showLinovaModal && contact && (
+        <LinovaAppointmentModal
+          contact={{
+            id: contact.id,
+            firstname: contact.properties.firstname ?? '',
+            lastname: contact.properties.lastname ?? '',
+            email: contact.properties.email ?? '',
+            phone: contact.properties.phone ?? '',
+            classe_actuelle: contact.properties.classe_actuelle ?? '',
+          }}
+          onClose={() => setShowLinovaModal(false)}
+          onSaved={() => {
+            setShowLinovaModal(false)
+            fetchMyRdvs()
+          }}
         />
       )}
 

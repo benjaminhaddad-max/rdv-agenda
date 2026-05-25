@@ -35,12 +35,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: true })
   }
 
+  // Compat: externalId peut être suffixé (ex: "<contactId>__<timestamp>").
+  const hubspotContactId = String(payload.externalId).split('__')[0] || payload.externalId
   const db = createServiceClient()
 
   const { data: existing } = await db
     .from('crm_contacts')
     .select('hubspot_raw')
-    .eq('hubspot_contact_id', payload.externalId)
+    .eq('hubspot_contact_id', hubspotContactId)
     .maybeSingle()
 
   const currentRaw = (existing?.hubspot_raw as Record<string, unknown> | null) ?? {}
@@ -58,11 +60,11 @@ export async function POST(req: NextRequest) {
       hubspot_raw: updatedRaw,
       synced_at: new Date().toISOString(),
     })
-    .eq('hubspot_contact_id', payload.externalId)
+    .eq('hubspot_contact_id', hubspotContactId)
 
   await db.from('crm_activities').insert({
     activity_type: 'note',
-    hubspot_contact_id: payload.externalId,
+    hubspot_contact_id: hubspotContactId,
     subject: 'Mise à jour statut Linova',
     body: `Linova: ${payload.previousStatus ?? 'unknown'} -> ${payload.newStatus ?? 'unknown'}`,
     metadata: {
