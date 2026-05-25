@@ -711,10 +711,10 @@ export default function CRMPage() {
       | { data?: CRMContact[]; total?: number; total_estimated?: boolean }
     >(url)
     if (cached) {
-      const cachedPayload =
-        'payload' in cached && cached.payload
+      const cachedPayload: { data?: CRMContact[]; total?: number; total_estimated?: boolean } =
+        ('payload' in cached && cached.payload)
           ? cached.payload
-          : cached
+          : (cached as { data?: CRMContact[]; total?: number; total_estimated?: boolean })
       if (requestSeq === contactsFetchSeqRef.current) {
         setContacts(cachedPayload.data ?? [])
         setTotal(cachedPayload.total ?? 0)
