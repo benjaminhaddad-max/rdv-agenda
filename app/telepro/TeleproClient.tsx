@@ -7,7 +7,7 @@ import {
   Calendar, Clock, Phone, Tag, FileText, ArrowLeft, Search, User, MapPin,
   GraduationCap, X, CheckCircle, Link, Plus, Mail, Video, PhoneCall, Copy,
   Check, PlusCircle, RefreshCw, ChevronLeft, ChevronRight, TrendingUp, RotateCcw, List,
-  ExternalLink,
+  ExternalLink, AlertCircle,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
