@@ -23,6 +23,10 @@ export function isTypesenseEnabled(): boolean {
   return !!host && !!apiKey
 }
 
+type MultiSearchResponse<T> = {
+  results?: Array<TypesenseSearchResponse<T>>
+}
+
 export async function searchTypesenseCrmContacts(params: {
   q: string
   queryBy: string
@@ -37,23 +41,39 @@ export async function searchTypesenseCrmContacts(params: {
   const base = host.startsWith('http://') || host.startsWith('https://')
     ? host
     : `https://${host}`
-  const url = new URL(`${base.replace(/\/+$/, '')}/collections/${encodeURIComponent(collection)}/documents/search`)
-  url.searchParams.set('q', params.q || '*')
-  url.searchParams.set('query_by', params.queryBy)
-  url.searchParams.set('page', String(Math.max(1, params.page)))
-  url.searchParams.set('per_page', String(Math.max(1, Math.min(params.perPage, 250))))
-  url.searchParams.set('include_fields', 'hubspot_contact_id')
-  if (params.filterBy) url.searchParams.set('filter_by', params.filterBy)
-  if (params.sortBy) url.searchParams.set('sort_by', params.sortBy)
 
-  const res = await fetch(url.toString(), {
-    headers: { 'X-TYPESENSE-API-KEY': apiKey },
+  // Toujours utiliser POST /multi_search : compatible avec les gros filter_by
+  // (>4KB) qu'un GET ne peut pas porter. Les filtres "vue Edumove" peuvent
+  // facilement atteindre 16KB+ avec 1000+ contact_ids Meta.
+  const url = `${base.replace(/\/+$/, '')}/multi_search`
+
+  const search: Record<string, unknown> = {
+    collection,
+    q: params.q || '*',
+    query_by: params.queryBy,
+    page: Math.max(1, params.page),
+    per_page: Math.max(1, Math.min(params.perPage, 250)),
+    include_fields: 'hubspot_contact_id',
+  }
+  if (params.filterBy) search.filter_by = params.filterBy
+  if (params.sortBy) search.sort_by = params.sortBy
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-TYPESENSE-API-KEY': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ searches: [search] }),
   })
   if (!res.ok) return null
 
-  const json = await res.json() as TypesenseSearchResponse<TypesenseCrmDoc>
-  const ids = (json.hits ?? [])
+  const json = await res.json() as MultiSearchResponse<TypesenseCrmDoc>
+  const result = json.results?.[0]
+  if (!result) return null
+
+  const ids = (result.hits ?? [])
     .map(h => h.document?.hubspot_contact_id)
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
-  return { ids, found: Number(json.found ?? 0) }
+  return { ids, found: Number(result.found ?? 0) }
 }
