@@ -309,19 +309,26 @@ export async function POST(req: NextRequest) {
     void notifyQueueAlert(appointment, source)
   }
 
-  // ── Mettre à jour la propriété closer_du_contact_owner_id (Supabase) ──────
-  // Si on a auto-assigné un closer, on met à jour le contact côté Supabase.
-  if (hubspot_contact_id && assignedOwnerId) {
+  // ── Mettre à jour les propriétés contact CRM après prise de RDV télépro ────
+  // Règle métier: quand un télépro place un RDV, le lead passe en "RDV pris".
+  // Si un closer a été auto-assigné, on met aussi à jour closer_du_contact_owner_id.
+  if (hubspot_contact_id && (source === 'telepro' || !!assignedOwnerId)) {
     try {
+      const contactUpdate: Record<string, string> = {
+        synced_at: new Date().toISOString(),
+      }
+      if (source === 'telepro') {
+        contactUpdate.hs_lead_status = 'RDV pris'
+      }
+      if (assignedOwnerId) {
+        contactUpdate.closer_du_contact_owner_id = assignedOwnerId
+      }
       await db
         .from('crm_contacts')
-        .update({
-          closer_du_contact_owner_id: assignedOwnerId,
-          synced_at: new Date().toISOString(),
-        })
+        .update(contactUpdate)
         .eq('hubspot_contact_id', hubspot_contact_id)
     } catch (e) {
-      console.error('[appointments POST] Update closer_du_contact failed:', e)
+      console.error('[appointments POST] Update CRM contact post-booking failed:', e)
     }
   }
 
