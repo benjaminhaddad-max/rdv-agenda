@@ -95,7 +95,9 @@ export async function GET(req: NextRequest) {
   const notEmptyFields   = (searchParams.get('not_empty_fields') ?? '').split(',').filter(Boolean)
 
   const isExport         = searchParams.get('export') === '1'
-  const countOnly        = searchParams.get('limit') === '0'
+  // Compat: anciens clients envoient `count_only=1`; nouveau chemin standard
+  // utilise `limit=0`.
+  const countOnly        = searchParams.get('limit') === '0' || searchParams.get('count_only') === '1'
   const exactCountParam  = searchParams.get('exact_count') === '1'
   const deferCount       = searchParams.get('defer_count') === '1' && !countOnly && !isExport
   const bypassCache      = searchParams.get('no_cache') === '1'

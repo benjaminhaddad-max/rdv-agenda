@@ -105,6 +105,8 @@ const REPLAN_STATUSES: AppointmentStatus[] = ['no_show', 'a_travailler', 'negati
 // ─── Constantes HubSpot ────────────────────────────────────────────────────
 const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
+const PLANNING_FETCH_TIMEOUT_MS = 2500
+const PLANNING_LOADING_GUARD_MS = 3000
 const SOURCE_LABEL: Record<string, string> = {
   telepro: '📞 Placé par télépro',
   prospect: '🌐 Réservé en ligne',
@@ -630,7 +632,7 @@ export default function TeleproClient({
         hardTimeout = setTimeout(() => {
           ctrl.abort()
           reject(new Error('Timeout chargement planning'))
-        }, 12000)
+        }, PLANNING_FETCH_TIMEOUT_MS)
       })
       const res = await Promise.race([
         fetch(`/api/appointments?telepro_id=${teleproUser.id}`, {
@@ -735,7 +737,7 @@ export default function TeleproClient({
       myRdvsFetchInFlightRef.current = false
       setMyRdvsLoading(false)
       setMyRdvsError(prev => prev || 'Timeout chargement planning')
-    }, 15000)
+    }, PLANNING_LOADING_GUARD_MS)
     return () => clearTimeout(guard)
   }, [myRdvsLoading])
 
