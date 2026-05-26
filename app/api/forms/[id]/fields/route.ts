@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { invalidatePublicFormCache } from '@/lib/public-forms'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -21,14 +22,17 @@ export async function PUT(req: Request, { params }: Params) {
   const db = createServiceClient()
 
   // Vérifie que le formulaire existe
-  const { data: form, error: fErr } = await db.from('forms').select('id').eq('id', id).single()
+  const { data: form, error: fErr } = await db.from('forms').select('id, slug').eq('id', id).single()
   if (fErr || !form) return NextResponse.json({ error: 'Form not found' }, { status: 404 })
 
   // Supprime les champs existants
   const { error: dErr } = await db.from('form_fields').delete().eq('form_id', id)
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 })
 
-  if (fields.length === 0) return NextResponse.json({ fields: [] })
+  if (fields.length === 0) {
+    if (form.slug) await invalidatePublicFormCache(String(form.slug))
+    return NextResponse.json({ fields: [] })
+  }
 
   // Réinsère avec index réordonné
   const toInsert = fields.map((f, idx) => ({
@@ -50,5 +54,6 @@ export async function PUT(req: Request, { params }: Params) {
   const { data, error } = await db.from('form_fields').insert(toInsert).select()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (form.slug) await invalidatePublicFormCache(String(form.slug))
   return NextResponse.json({ fields: data })
 }

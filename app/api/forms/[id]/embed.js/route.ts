@@ -1,23 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase'
+import { getPublicFormBySlug } from '@/lib/public-forms'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(req: Request, { params }: Params) {
   const { id: slug } = await params
-  const db = createServiceClient()
 
   const url = new URL(req.url)
   const host = url.origin
 
-  // Charge le form complet (inline dans le JS pour éviter un 2e round-trip)
-  const { data: form } = await db
-    .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single()
-
+  // Forme publique récupérée depuis le cache serveur partagé.
+  const form = await getPublicFormBySlug(slug)
   if (!form) {
     return new NextResponse('// Form not found or not published', {
       status: 404,
@@ -25,15 +18,9 @@ export async function GET(req: Request, { params }: Params) {
     })
   }
 
-  const { data: fields } = await db
-    .from('form_fields')
-    .select('field_type, field_key, label, placeholder, help_text, default_value, required, options, validation, conditional, order_index')
-    .eq('form_id', form.id)
-    .order('order_index', { ascending: true })
-
   // Le schema complet est inliné dans le JS → la 1ère ouverture évite
   // un fetch supplémentaire vers /public (gain ~500ms en série)
-  const inlineForm = { ...form, fields: fields || [] }
+  const inlineForm = form
 
   const js = generateEmbedScript(host, slug, inlineForm)
 

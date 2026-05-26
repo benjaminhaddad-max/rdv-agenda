@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getPublicFormBySlug } from '@/lib/public-forms'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -22,26 +23,13 @@ export async function OPTIONS() {
 export async function GET(_req: Request, { params }: Params) {
   // Le paramètre est nommé "id" pour conformité Next.js mais contient le slug
   const { id: slug } = await params
-  const db = createServiceClient()
-
-  const { data: form, error } = await db
-    .from('forms')
-    .select('id, name, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, honeypot_enabled')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single()
-
-  if (error || !form) {
+  const form = await getPublicFormBySlug(slug)
+  if (!form) {
     return NextResponse.json({ error: 'Form not found' }, { status: 404, headers: CORS_HEADERS })
   }
 
-  const { data: fields } = await db
-    .from('form_fields')
-    .select('field_type, field_key, label, placeholder, help_text, default_value, required, options, validation, conditional, order_index')
-    .eq('form_id', form.id)
-    .order('order_index', { ascending: true })
-
   // Incrémente le compteur de vues (async)
+  const db = createServiceClient()
   db.from('forms').update({ view_count: db.rpc as unknown }).eq('id', form.id) // no-op si RPC absent
   db.from('forms').select('view_count').eq('id', form.id).single().then(r => {
     if (r.data) {
@@ -52,7 +40,7 @@ export async function GET(_req: Request, { params }: Params) {
   // Cache court (10s navigateur + 10s CDN, stale-while-revalidate 60s)
   // → les modifs côté admin se voient quasi-immédiatement sur le site public
   return NextResponse.json(
-    { ...form, fields: fields || [] },
+    form,
     {
       headers: {
         ...CORS_HEADERS,

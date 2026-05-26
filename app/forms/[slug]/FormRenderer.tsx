@@ -1,83 +1,59 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { PublicField, PublicForm } from '@/lib/public-forms'
 
-interface PublicField {
-  field_type: string
-  field_key: string
-  label: string
-  placeholder: string | null
-  help_text: string | null
-  default_value: string | null
-  required: boolean
-  options: Array<{ value: string; label: string }>
-  validation: Record<string, unknown>
+function buildInitialValues(nextForm: PublicForm): Record<string, string> {
+  const initial: Record<string, string> = {}
+  for (const f of nextForm.fields) {
+    if (f.default_value) initial[f.field_key] = f.default_value
+  }
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    for (const f of nextForm.fields) {
+      const urlVal = params.get(f.field_key) || params.get('utm_' + f.field_key)
+      if (urlVal) initial[f.field_key] = urlVal
+    }
+  }
+  return initial
 }
 
-interface PublicForm {
-  id: string
+export default function FormRenderer({
+  slug,
+  embed,
+  initialForm = null,
+}: {
   slug: string
-  title: string | null
-  subtitle: string | null
-  submit_label: string
-  success_message: string | null
-  redirect_url: string | null
-  primary_color: string
-  bg_color: string
-  text_color: string
-  // Style des champs de réponse (optionnel, fallback aux valeurs par défaut)
-  field_border_color?: string | null
-  field_border_width?: number | null
-  field_border_radius?: number | null
-  field_bg_color?: string | null
-  // Style du bouton de soumission (optionnel)
-  submit_bg_color?: string | null
-  submit_text_color?: string | null
-  submit_border_radius?: number | null
-  submit_size?: 'small' | 'medium' | 'large' | null
-  submit_full_width?: boolean | null
-  submit_padding_y?: number | null
-  submit_padding_x?: number | null
-  submit_font_size?: number | null
-  honeypot_enabled: boolean
-  fields: PublicField[]
-}
-
-export default function FormRenderer({ slug, embed }: { slug: string; embed: boolean }) {
-  const [form, setForm] = useState<PublicForm | null>(null)
-  const [loading, setLoading] = useState(true)
+  embed: boolean
+  initialForm?: PublicForm | null
+}) {
+  const [form, setForm] = useState<PublicForm | null>(initialForm)
+  const [loading, setLoading] = useState(!initialForm)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = useState<Record<string, string>>(() => (initialForm ? buildInitialValues(initialForm) : {}))
   const [error, setError] = useState<string | null>(null)
   const [hp, setHp] = useState('') // honeypot
   const formRef = useRef<HTMLFormElement>(null)
   const successRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    if (!form) return
+    setValues(buildInitialValues(form))
+  }, [form])
+
   // 1. Charge le formulaire
   useEffect(() => {
+    if (initialForm) return
+
     fetch(`/api/forms/${slug}/public`)
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then((data: PublicForm) => {
         setForm(data)
-        // Initialise les valeurs par défaut + récupère les UTM depuis l'URL
-        const initial: Record<string, string> = {}
-        for (const f of data.fields) {
-          if (f.default_value) initial[f.field_key] = f.default_value
-        }
-        // UTM auto
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search)
-          for (const f of data.fields) {
-            const urlVal = params.get(f.field_key) || params.get('utm_' + f.field_key)
-            if (urlVal) initial[f.field_key] = urlVal
-          }
-        }
-        setValues(initial)
       })
       .catch(() => setError("Formulaire introuvable ou non publié"))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, initialForm])
 
   // 2. Auto-resize pour l'embed
   useEffect(() => {

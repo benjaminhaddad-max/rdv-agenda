@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { invalidatePublicFormCache } from '@/lib/public-forms'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -25,6 +26,9 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
+  const db = createServiceClient()
+  const { data: existingForm } = await db.from('forms').select('slug').eq('id', id).single()
+  const oldSlug = existingForm?.slug ? String(existingForm.slug) : ''
 
   const ALLOWED = [
     'name', 'slug', 'description', 'status',
@@ -45,7 +49,6 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
-  const db = createServiceClient()
   // Si la colonne `folder` n'existe pas encore (migration non appliquée), on
   // retire `folder` du patch et on retente — pas de crash.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +68,8 @@ export async function PATCH(req: Request, { params }: Params) {
     }
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (oldSlug) await invalidatePublicFormCache(oldSlug)
+  if (data?.slug) await invalidatePublicFormCache(String(data.slug))
   return NextResponse.json(data)
 }
 
@@ -72,7 +77,10 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   const { id } = await params
   const db = createServiceClient()
+  const { data: existingForm } = await db.from('forms').select('slug').eq('id', id).single()
+  const slug = existingForm?.slug ? String(existingForm.slug) : ''
   const { error } = await db.from('forms').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (slug) await invalidatePublicFormCache(slug)
   return NextResponse.json({ ok: true })
 }
