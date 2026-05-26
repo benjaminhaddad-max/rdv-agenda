@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
@@ -327,27 +328,36 @@ export async function GET(req: NextRequest) {
         (r.operator === 'is' || r.operator === 'is_any')
     )
     if (formFilter && formFilter.value && !skipHeavyFormResolver) {
-      const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
-      const normalizedFormNames = [...new Set(formNames)]
-      // Regroupe automatiquement les variantes datees d'un meme form
-      // (ex: "LINOVA - Form LGF - 18/05/2026", "LINOVA - Form LGF - 21/05/2026").
-      const formNamePrefixes = [...new Set(
-        normalizedFormNames
-          .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
-          .filter(prefix => prefix.length >= 6)
-      )]
-      if (formNames.length > 0) {
-        // Charger les sources de mapping en parallèle
+      // Retire le filtre form_event des customFilters : on l'applique via
+      // filtre hybride (Typesense ou SQL direct) sur la requête principale.
+      customFilters = customFilters.filter(r => r !== formFilter)
+
+      const formEventCacheKey = `crm:form-event:v3:${crypto.createHash('sha1').update(formFilter.value).digest('hex')}`
+      const resolved = await cached(formEventCacheKey, 300, async () => {
+        const empty = {
+          formEventNames: null as string[] | null,
+          formEventPrefixes: null as string[] | null,
+          formEventMetaOnlyIds: null as string[] | null,
+          formEventContactIds: null as string[] | null,
+        }
+        const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
+        const normalizedFormNames = [...new Set(formNames)]
+        const formNamePrefixes = [...new Set(
+          normalizedFormNames
+            .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
+            .filter(prefix => prefix.length >= 6)
+        )]
+        if (formNames.length === 0) return empty
+
         const db2 = createServiceClient()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const [metaFormsExactRes]: [any] = await Promise.all([
-          db2.from('meta_lead_forms').select('form_id, name').in('name', normalizedFormNames),
-        ])
         const metaFormsById = new Map<string, { form_id: string; name: string | null }>()
-        for (const mf of ((metaFormsExactRes?.data ?? []) as Array<{ form_id: string; name: string | null }>)) {
+        const { data: exactForms } = await db2
+          .from('meta_lead_forms')
+          .select('form_id, name')
+          .in('name', normalizedFormNames)
+        for (const mf of (exactForms ?? []) as Array<{ form_id: string; name: string | null }>) {
           if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
         }
-        // Ajoute les forms Meta partageant le meme prefixe (nouvelle date).
         for (const prefix of formNamePrefixes) {
           const { data: prefRows } = await db2
             .from('meta_lead_forms')
@@ -359,19 +369,9 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Retire le filtre form_event des customFilters dans tous les cas :
-        // on l'applique nous-même via filtre hybride (recent_conversion_event
-        // direct + .in() pour Meta-only) sur la requête principale.
-        customFilters = customFilters.filter(r => r !== formFilter)
-
-        // Resolution en parallele (3 sources independantes) pour minimiser la
-        // latence : Meta lead events / matches exacts noms / matches ilike prefix.
         const metaIds = new Set<string>()
-        const namesIds = new Set<string>()
-
         const metaFormIds = [...metaFormsById.keys()]
-        const metaTask = (async () => {
-          if (metaFormIds.length === 0) return
+        if (metaFormIds.length > 0) {
           let off = 0
           const PAGE = 1000
           while (true) {
@@ -389,83 +389,92 @@ export async function GET(req: NextRequest) {
             if (ev.length < PAGE) break
             off += PAGE
           }
-        })()
+        }
 
-        // Optimisation: 1 seule requete .in(noms) au lieu de N reqs .eq().
-        // (ex. Edumove : 1 req au lieu de 16 → ~800ms gagnees).
-        const namesEqTask = (async () => {
-          if (normalizedFormNames.length === 0) return
-          let off = 0
-          const PAGE = 1000
-          while (true) {
-            const { data: rows } = await db2
-              .from('crm_contacts')
-              .select('hubspot_contact_id')
-              .in('recent_conversion_event', normalizedFormNames)
-              .range(off, off + PAGE - 1)
-            if (!rows || rows.length === 0) break
-            for (const r of rows) {
-              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) namesIds.add(cid)
-            }
-            if (rows.length < PAGE) break
-            off += PAGE
-          }
-        })()
-
-        // Variantes datees : lance 1 requete par prefix EN PARALLELE (au lieu
-        // de en serie comme avant). Pour Edumove, les prefixes == noms donc
-        // ilike rajoute juste de la redondance — on skip si tous les prefixes
-        // sont deja exactement dans normalizedFormNames.
         const namesSet = new Set(normalizedFormNames)
         const distinctPrefixes = formNamePrefixes.filter(p => !namesSet.has(p))
-        const prefixTasks = distinctPrefixes.map(async (prefix) => {
-          let off = 0
-          const PAGE = 1000
+
+        // Fast path (Edumove, etc.) : pas de variantes datees hors noms exacts.
+        // L'union names ∪ meta se calcule via OR Typesense/SQL :
+        //   recent_conversion_event IN (noms) OR hubspot_contact_id IN (metaIds)
+        // Pas besoin de scanner crm_contacts (2-3 reqs lourdes évitées).
+        if (distinctPrefixes.length === 0) {
+          return {
+            formEventNames: normalizedFormNames,
+            formEventPrefixes: formNamePrefixes,
+            formEventMetaOnlyIds: [...metaIds],
+            formEventContactIds: null,
+          }
+        }
+
+        // Slow path (Linova variantes datees) : resout namesIds + metaOnlyIds.
+        const namesIds = new Set<string>()
+        let off = 0
+        const PAGE = 1000
+        while (true) {
+          const { data: rows } = await db2
+            .from('crm_contacts')
+            .select('hubspot_contact_id')
+            .in('recent_conversion_event', normalizedFormNames)
+            .range(off, off + PAGE - 1)
+          if (!rows || rows.length === 0) break
+          for (const r of rows) {
+            const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+            if (cid) namesIds.add(cid)
+          }
+          if (rows.length < PAGE) break
+          off += PAGE
+        }
+        await Promise.all(distinctPrefixes.map(async (prefix) => {
+          let pOff = 0
           while (true) {
             const { data: rows } = await db2
               .from('crm_contacts')
               .select('hubspot_contact_id')
               .ilike('recent_conversion_event', `${prefix}%`)
-              .range(off, off + PAGE - 1)
+              .range(pOff, pOff + PAGE - 1)
             if (!rows || rows.length === 0) break
             for (const r of rows) {
               const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
               if (cid) namesIds.add(cid)
             }
             if (rows.length < PAGE) break
-            off += PAGE
+            pOff += PAGE
           }
-        })
+        }))
 
-        await Promise.all([metaTask, namesEqTask, ...prefixTasks])
-
-        // Meta-only = Meta - déjà couvert par noms/prefixes.
-        // Typiquement bien plus petit que metaIds.size (~quelques centaines).
         const metaOnlyIds: string[] = []
         for (const id of metaIds) {
           if (!namesIds.has(id)) metaOnlyIds.push(id)
         }
 
-        // Mode hybride par défaut : URL toujours légère et count cohérent.
-        // - eq/in sur recent_conversion_event (filtre SQL direct sur indexe)
-        // - ILIKE prefix1*, prefix2*, ... (filtre SQL direct)
-        // - .in('hubspot_contact_id', metaOnlyIds) (uniquement Meta-only)
-        // Si metaOnlyIds est trop gros (>1500), on retombe sur le legacy
-        // path (matérialisation complète) qui sait batcher en .or(in,in).
         const HYBRID_MAX_META_ONLY = 1500
-        if (metaOnlyIds.length <= HYBRID_MAX_META_ONLY) {
-          formEventNames = normalizedFormNames
-          formEventPrefixes = formNamePrefixes
-          formEventMetaOnlyIds = metaOnlyIds
-        } else {
-          // Cas extrême (Linova historique massif) → on matérialise comme avant.
-          const allIds = new Set<string>()
-          for (const id of namesIds) allIds.add(id)
-          for (const id of metaIds) allIds.add(id)
-          formEventContactIds = [...allIds]
+        const canUseHybridFilter =
+          metaOnlyIds.length <= HYBRID_MAX_META_ONLY || isTypesenseEnabled()
+        if (canUseHybridFilter) {
+          return {
+            formEventNames: normalizedFormNames,
+            formEventPrefixes: formNamePrefixes,
+            formEventMetaOnlyIds: metaOnlyIds,
+            formEventContactIds: null,
+          }
         }
-      }
+
+        const allIds = new Set<string>()
+        for (const id of namesIds) allIds.add(id)
+        for (const id of metaIds) allIds.add(id)
+        return {
+          formEventNames: null,
+          formEventPrefixes: null,
+          formEventMetaOnlyIds: null,
+          formEventContactIds: [...allIds],
+        }
+      })
+
+      formEventNames = resolved.formEventNames
+      formEventPrefixes = resolved.formEventPrefixes
+      formEventMetaOnlyIds = resolved.formEventMetaOnlyIds
+      formEventContactIds = resolved.formEventContactIds
     }
   }
 
