@@ -310,12 +310,15 @@ export async function GET(req: NextRequest) {
   //   3. Fallback : recent_conversion_event = nom (last submission match)
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
   let formEventContactIds: string[] | null = null
-  // Si la résolution se réduit à recent_conversion_event (cas des forms
-  // HubSpot pur, ex. Edumove), on garde le filtre SQL direct sur la colonne
-  // au lieu de matérialiser une liste massive de contact_ids dans l'URL
-  // PostgREST (qui dépasse la limite et casse la liste tout en laissant
-  // passer le count).
+  // Pour éviter de matérialiser 2.7K contact_ids dans l'URL PostgREST (limite
+  // ~16K → la liste renvoie [] alors que le count vaut 2.7K), on combine :
+  //  - filtre SQL direct sur recent_conversion_event = noms exacts (URL légère)
+  //  - filtre SQL direct ILIKE pour chaque prefixe (variantes datées)
+  //  - .in('hubspot_contact_id', metaOnlyIds) UNIQUEMENT pour les Meta Ads
+  //    qui ne sont pas déjà couverts par les noms (typiquement quelques 100s)
   let formEventNames: string[] | null = null
+  let formEventPrefixes: string[] | null = null
+  let formEventMetaOnlyIds: string[] | null = null
   const skipHeavyFormResolver = deferCount
   {
     // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
@@ -356,11 +359,13 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const contactIdsSet = new Set<string>()
+        // On distingue 3 sources pour pouvoir construire ensuite un filtre
+        // hybride (eq/ilike SQL direct + .in() uniquement pour les Meta-only).
+        const metaIds = new Set<string>()
+        const namesIds = new Set<string>()
 
         // 1. Meta Lead Ads : récupère les contact_id depuis meta_lead_events
         const metaFormIds = [...metaFormsById.keys()]
-        let metaContributedCount = 0
         if (metaFormIds.length > 0) {
           // Pagine pour éviter les payloads massifs
           let off = 0
@@ -375,19 +380,30 @@ export async function GET(req: NextRequest) {
             if (!ev || ev.length === 0) break
             for (const r of ev) {
               const cid = (r as { contact_id: string | null }).contact_id
-              if (cid) {
-                if (!contactIdsSet.has(cid)) metaContributedCount += 1
-                contactIdsSet.add(cid)
-              }
+              if (cid) metaIds.add(cid)
             }
             if (ev.length < PAGE) break
             off += PAGE
           }
         }
 
-        // 2. Fallback : exact match sur recent_conversion_event (last form only)
-        // Capture les contacts dont la sync n'a pas encore rempli hubspot_raw OU
-        // les variantes HubSpot des Meta Lead Ads (préfixe "Facebook Lead Ads:")
+        // 2. Match exact sur recent_conversion_event (last form only).
+        // Capture les contacts dont la sync n'a pas encore rempli hubspot_raw
+        // OU les variantes HubSpot des Meta Lead Ads (préfixe "Facebook Lead Ads:")
+        // Note: en mode hybride on n'a pas besoin de matérialiser les IDs ici
+        // (le filtre SQL direct couvre tous les contacts qui matchent par nom).
+        // On compte juste pour décider du chemin (hybride vs legacy massif).
+
+        // 3. Variantes datées par préfixe (ex. "LINOVA - Form LGF - 18/05/2026")
+        // Idem : pris en compte via filtre ILIKE direct sur la requête principale.
+
+        // Retire le filtre form_event des customFilters dans tous les cas :
+        // on l'applique nous-même via filtre hybride (recent_conversion_event
+        // direct + .in() pour Meta-only) sur la requête principale.
+        customFilters = customFilters.filter(r => r !== formFilter)
+
+        // Calcule le set "couvert par les noms" pour soustraire de Meta.
+        // C'est rapide : eq sur indexe column (ou ilike avec préfixe).
         for (const name of normalizedFormNames) {
           let off = 0
           const PAGE = 1000
@@ -400,14 +416,12 @@ export async function GET(req: NextRequest) {
             if (!rows || rows.length === 0) break
             for (const r of rows) {
               const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) contactIdsSet.add(cid)
+              if (cid) namesIds.add(cid)
             }
             if (rows.length < PAGE) break
             off += PAGE
           }
         }
-        // Fallback supplementaire : variantes datees par prefixe.
-        let prefixVariantCount = 0
         for (const prefix of formNamePrefixes) {
           let off = 0
           const PAGE = 1000
@@ -420,35 +434,37 @@ export async function GET(req: NextRequest) {
             if (!rows || rows.length === 0) break
             for (const r of rows) {
               const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) {
-                if (!contactIdsSet.has(cid)) prefixVariantCount += 1
-                contactIdsSet.add(cid)
-              }
+              if (cid) namesIds.add(cid)
             }
             if (rows.length < PAGE) break
             off += PAGE
           }
         }
 
-        // Retire le filtre form_event des customFilters dans tous les cas :
-        // on l'applique nous-même (soit via .in('hubspot_contact_id'),
-        // soit via filtre direct sur recent_conversion_event ci-dessous).
-        customFilters = customFilters.filter(r => r !== formFilter)
+        // Meta-only = Meta - déjà couvert par noms/prefixes.
+        // Typiquement bien plus petit que metaIds.size (~quelques centaines).
+        const metaOnlyIds: string[] = []
+        for (const id of metaIds) {
+          if (!namesIds.has(id)) metaOnlyIds.push(id)
+        }
 
-        // Garde-fou anti URL massive : quand la résolution n'apporte AUCUN
-        // contact via Meta Ads ou variantes datées (cas Edumove / forms
-        // HubSpot pur), on n'a pas besoin de matérialiser la liste de
-        // contact_ids — on applique le filtre SQL direct sur la colonne
-        // recent_conversion_event. Sinon, l'URL PostgREST dépasse la limite
-        // et la liste renvoie [] alors que le count vaut 2.7K.
-        const contactIdResolutionRequired = metaContributedCount > 0 || prefixVariantCount > 0
-        if (contactIdResolutionRequired) {
-          formEventContactIds = [...contactIdsSet]
-        } else {
-          // Filtre SQL direct sur recent_conversion_event : URL légère,
-          // count + data toujours cohérents (cas Edumove / forms HubSpot pur,
-          // sans variantes datées et sans Meta Ads).
+        // Mode hybride par défaut : URL toujours légère et count cohérent.
+        // - eq/in sur recent_conversion_event (filtre SQL direct sur indexe)
+        // - ILIKE prefix1*, prefix2*, ... (filtre SQL direct)
+        // - .in('hubspot_contact_id', metaOnlyIds) (uniquement Meta-only)
+        // Si metaOnlyIds est trop gros (>1500), on retombe sur le legacy
+        // path (matérialisation complète) qui sait batcher en .or(in,in).
+        const HYBRID_MAX_META_ONLY = 1500
+        if (metaOnlyIds.length <= HYBRID_MAX_META_ONLY) {
           formEventNames = normalizedFormNames
+          formEventPrefixes = formNamePrefixes
+          formEventMetaOnlyIds = metaOnlyIds
+        } else {
+          // Cas extrême (Linova historique massif) → on matérialise comme avant.
+          const allIds = new Set<string>()
+          for (const id of namesIds) allIds.add(id)
+          for (const id of metaIds) allIds.add(id)
+          formEventContactIds = [...allIds]
         }
       }
     }
@@ -535,10 +551,10 @@ export async function GET(req: NextRequest) {
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
-    formEventNames !== null ||
+    formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
-  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null || formEventNames !== null
+  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null || formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
     ? 'exact'
     : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
@@ -548,7 +564,7 @@ export async function GET(req: NextRequest) {
     stage || stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formation || formationNot || pipeline || pipelineNot || priorPreinscription || periodFilter
   )
-  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null || formEventNames !== null)
+  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null || formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null)
   const canFastCountOnly = countOnly &&
     showExternal &&
     !ownerExclude &&
@@ -658,7 +674,7 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
-    formEventNames !== null ||
+    formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null ||
     extraProps.length > 0 ||
     !showExternal
   )
@@ -1469,16 +1485,39 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Filtre form_event "léger" (cas où la résolution n'est faite que via
-  // recent_conversion_event, sans Meta Ads ni variantes datées).
-  // On filtre directement sur la colonne, ce qui évite de matérialiser une
-  // liste massive de contact_ids dans l'URL PostgREST (limite ~16K) — sinon
-  // le count fonctionne mais la liste renvoie [] (cas Edumove ~2.7K leads).
-  if (formEventNames !== null && formEventNames.length > 0) {
-    if (formEventNames.length === 1) {
-      query = query.eq('recent_conversion_event', formEventNames[0])
+  // Filtre form_event hybride (mode par défaut, URL légère).
+  // On combine via PostgREST .or() :
+  //  - recent_conversion_event.in.("name1","name2",...)
+  //  - recent_conversion_event.ilike."prefix1"*  (variantes datées)
+  //  - hubspot_contact_id.in.(metaOnlyId1,metaOnlyId2,...)
+  // Garantit count + data toujours cohérents même avec 2.7K résultats
+  // (les noms sont en SQL direct, seuls les Meta-only ~100s passent en .in).
+  if (formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null) {
+    const orParts: string[] = []
+    // PostgREST quote: doubles quotes pour valeurs contenant , ou espaces.
+    const quoteForPg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
+    if (formEventNames && formEventNames.length > 0) {
+      orParts.push(`recent_conversion_event.in.(${formEventNames.map(quoteForPg).join(',')})`)
+    }
+    if (formEventPrefixes && formEventPrefixes.length > 0) {
+      for (const p of formEventPrefixes) {
+        // ilike prefix*: on quote la valeur pour gérer les espaces / tirets.
+        orParts.push(`recent_conversion_event.ilike.${quoteForPg(`${p}%`)}`)
+      }
+    }
+    if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
+      // Batch au cas où (devrait toujours être < HYBRID_MAX_META_ONLY = 1500).
+      const BATCH = 1500
+      for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
+        const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
+        orParts.push(`hubspot_contact_id.in.(${batch.map(quoteForPg).join(',')})`)
+      }
+    }
+    if (orParts.length > 0) {
+      query = query.or(orParts.join(','))
     } else {
-      query = query.in('recent_conversion_event', formEventNames)
+      // Aucune source (filtre vide) → résultat vide.
+      query = query.eq('hubspot_contact_id', '__no_match__')
     }
   }
 
