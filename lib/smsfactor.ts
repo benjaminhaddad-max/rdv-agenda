@@ -4,14 +4,14 @@
  *
  * Endpoint : GET https://api.smsfactor.com/send
  * Auth     : Bearer token via Authorization header
- * Sender   : "DiploSante" (10 chars)
+ * Sender   : "Diploma" (7 chars)
  *
  * Encoding : UCS-2 (accents français) → 67 chars par segment concaténé
  *            Nos textes visent ~130 chars = 2 SMS
  */
 
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
-const DEFAULT_SENDER = 'DiploSante'
+const DEFAULT_SENDER = 'Diploma'
 
 /**
  * Liste des senders pré-validés côté SMS Factor.
