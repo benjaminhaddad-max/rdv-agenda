@@ -359,15 +359,19 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // On distingue 3 sources pour pouvoir construire ensuite un filtre
-        // hybride (eq/ilike SQL direct + .in() uniquement pour les Meta-only).
+        // Retire le filtre form_event des customFilters dans tous les cas :
+        // on l'applique nous-même via filtre hybride (recent_conversion_event
+        // direct + .in() pour Meta-only) sur la requête principale.
+        customFilters = customFilters.filter(r => r !== formFilter)
+
+        // Resolution en parallele (3 sources independantes) pour minimiser la
+        // latence : Meta lead events / matches exacts noms / matches ilike prefix.
         const metaIds = new Set<string>()
         const namesIds = new Set<string>()
 
-        // 1. Meta Lead Ads : récupère les contact_id depuis meta_lead_events
         const metaFormIds = [...metaFormsById.keys()]
-        if (metaFormIds.length > 0) {
-          // Pagine pour éviter les payloads massifs
+        const metaTask = (async () => {
+          if (metaFormIds.length === 0) return
           let off = 0
           const PAGE = 1000
           while (true) {
@@ -385,33 +389,19 @@ export async function GET(req: NextRequest) {
             if (ev.length < PAGE) break
             off += PAGE
           }
-        }
+        })()
 
-        // 2. Match exact sur recent_conversion_event (last form only).
-        // Capture les contacts dont la sync n'a pas encore rempli hubspot_raw
-        // OU les variantes HubSpot des Meta Lead Ads (préfixe "Facebook Lead Ads:")
-        // Note: en mode hybride on n'a pas besoin de matérialiser les IDs ici
-        // (le filtre SQL direct couvre tous les contacts qui matchent par nom).
-        // On compte juste pour décider du chemin (hybride vs legacy massif).
-
-        // 3. Variantes datées par préfixe (ex. "LINOVA - Form LGF - 18/05/2026")
-        // Idem : pris en compte via filtre ILIKE direct sur la requête principale.
-
-        // Retire le filtre form_event des customFilters dans tous les cas :
-        // on l'applique nous-même via filtre hybride (recent_conversion_event
-        // direct + .in() pour Meta-only) sur la requête principale.
-        customFilters = customFilters.filter(r => r !== formFilter)
-
-        // Calcule le set "couvert par les noms" pour soustraire de Meta.
-        // C'est rapide : eq sur indexe column (ou ilike avec préfixe).
-        for (const name of normalizedFormNames) {
+        // Optimisation: 1 seule requete .in(noms) au lieu de N reqs .eq().
+        // (ex. Edumove : 1 req au lieu de 16 → ~800ms gagnees).
+        const namesEqTask = (async () => {
+          if (normalizedFormNames.length === 0) return
           let off = 0
           const PAGE = 1000
           while (true) {
             const { data: rows } = await db2
               .from('crm_contacts')
               .select('hubspot_contact_id')
-              .eq('recent_conversion_event', name)
+              .in('recent_conversion_event', normalizedFormNames)
               .range(off, off + PAGE - 1)
             if (!rows || rows.length === 0) break
             for (const r of rows) {
@@ -421,8 +411,15 @@ export async function GET(req: NextRequest) {
             if (rows.length < PAGE) break
             off += PAGE
           }
-        }
-        for (const prefix of formNamePrefixes) {
+        })()
+
+        // Variantes datees : lance 1 requete par prefix EN PARALLELE (au lieu
+        // de en serie comme avant). Pour Edumove, les prefixes == noms donc
+        // ilike rajoute juste de la redondance — on skip si tous les prefixes
+        // sont deja exactement dans normalizedFormNames.
+        const namesSet = new Set(normalizedFormNames)
+        const distinctPrefixes = formNamePrefixes.filter(p => !namesSet.has(p))
+        const prefixTasks = distinctPrefixes.map(async (prefix) => {
           let off = 0
           const PAGE = 1000
           while (true) {
@@ -439,7 +436,9 @@ export async function GET(req: NextRequest) {
             if (rows.length < PAGE) break
             off += PAGE
           }
-        }
+        })
+
+        await Promise.all([metaTask, namesEqTask, ...prefixTasks])
 
         // Meta-only = Meta - déjà couvert par noms/prefixes.
         // Typiquement bien plus petit que metaIds.size (~quelques centaines).
