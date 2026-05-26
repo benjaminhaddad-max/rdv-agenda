@@ -13,6 +13,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Fast-path public routes: avoid Supabase auth network call on every hit.
+  // Important for client polling APIs like /api/appointments to prevent
+  // perceived infinite loading when auth lookup is slow.
+  const isPublicPath =
+    pathname.startsWith('/book/') ||
+    pathname.startsWith('/confirm/') ||
+    pathname.startsWith('/reschedule/') ||
+    pathname.startsWith('/forms/') ||    // pages publiques de formulaires
+    pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
+    pathname.startsWith('/r/')
+  const isPublicApi = pathname.startsWith('/api/') &&
+    !pathname.startsWith('/api/admin/') &&
+    !pathname.startsWith('/api/crm/')
+  if (isPublicPath || isPublicApi) {
+    return NextResponse.next()
+  }
+
   // Create response
   let response = NextResponse.next({ request })
 
@@ -59,19 +76,6 @@ export async function middleware(request: NextRequest) {
     if (!dbUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    return response
-  }
-
-  // ── Public routes ──────────────────────────────────────────────
-  if (
-    pathname.startsWith('/book/') ||
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/confirm/') ||
-    pathname.startsWith('/reschedule/') ||
-    pathname.startsWith('/forms/') ||    // pages publiques de formulaires
-    pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
-    pathname.startsWith('/r/')           // liens trackes des campagnes SMS
-  ) {
     return response
   }
 
