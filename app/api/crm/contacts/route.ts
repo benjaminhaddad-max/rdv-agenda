@@ -843,6 +843,18 @@ export async function GET(req: NextRequest) {
 
   // ── Fast path Typesense (fallback auto vers SQL si indisponible) ───────────
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
+  // Le mode hybride form_event (formEventNames / formEventMetaOnlyIds) est
+  // supporté par Typesense via filterBy `recent_conversion_event:=[...] ||
+  // hubspot_contact_id:=[...]`. Les prefixes ILIKE (variantes datées Linova)
+  // ne sont en revanche pas indexables → fallback Postgres dans ce cas.
+  const hybridFormEventFitsTypesense = !!(
+    (formEventNames !== null || formEventMetaOnlyIds !== null) &&
+    formEventContactIds === null &&
+    // Si on a des préfixes qui matchent autre chose que les noms exacts,
+    // on perdrait les variantes datées avec Typesense (pas d'ILIKE filter).
+    (!formEventPrefixes ||
+      formEventPrefixes.every(p => (formEventNames ?? []).includes(p)))
+  )
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
@@ -854,7 +866,10 @@ export async function GET(req: NextRequest) {
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
-    formEventContactIds !== null || metaLeadAdsContactIds !== null
+    formEventContactIds !== null || metaLeadAdsContactIds !== null ||
+    // Mode hybride form_event : supporté seulement si pas de prefix ILIKE.
+    ((formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null) &&
+      !hybridFormEventFitsTypesense)
   )
   const typesenseSortMap: Record<string, string> = {
     contact: 'lastname',
@@ -874,13 +889,17 @@ export async function GET(req: NextRequest) {
   if (!hasUnsupportedTypesenseFilter && typesenseSortField && isTypesenseEnabled()) {
     const splitMultiLocal = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
     const filterParts: string[] = []
+    // Typesense `:=` fait du token-match par défaut (ex: `:=` sur "EDUMOVE -
+    // CONTACT" matche aussi "...EDUMOVE - CONTACT"). Pour reproduire le
+    // comportement Postgres `eq` (strict), on entoure les valeurs de backticks.
+    const escapeBack = (v: string) => `\`${String(v).replace(/`/g, '\\`')}\``
     const pushIn = (field: string, raw: string) => {
       const vals = splitMultiLocal(raw)
       if (vals.length === 0) return
       if (vals.length === 1) {
-        filterParts.push(`${field}:=${JSON.stringify(vals[0])}`)
+        filterParts.push(`${field}:=${escapeBack(vals[0])}`)
       } else {
-        filterParts.push(`(${vals.map(v => `${field}:=${JSON.stringify(v)}`).join(' || ')})`)
+        filterParts.push(`(${vals.map(v => `${field}:=${escapeBack(v)}`).join(' || ')})`)
       }
     }
     if (!effectiveAllClasses) {
@@ -901,9 +920,39 @@ export async function GET(req: NextRequest) {
     if (!showExternal && excludedUserIds.length > 0) {
       const blocked = [...new Set(excludedUserIds.map(v => String(v).trim()).filter(Boolean))]
       if (blocked.length === 1) {
-        filterParts.push(`telepro_user_id:!=${JSON.stringify(blocked[0])}`)
+        filterParts.push(`telepro_user_id:!=${escapeBack(blocked[0])}`)
       } else if (blocked.length > 1) {
-        filterParts.push(`telepro_user_id:!=[${blocked.map(v => JSON.stringify(v)).join(',')}]`)
+        filterParts.push(`telepro_user_id:!=[${blocked.map(escapeBack).join(',')}]`)
+      }
+    }
+
+    // Mode hybride form_event : combine recent_conversion_event:=[noms] avec
+    // hubspot_contact_id:=[meta_only_ids] via OR. Permet d'utiliser Typesense
+    // (rapide, pas de limite URL) au lieu du fallback Postgres pour les vues
+    // de type Edumove (forms HubSpot + Meta Ads mixés).
+    // Backticks obligatoires pour reproduire le `eq` strict de Postgres.
+    if (formEventNames !== null || formEventMetaOnlyIds !== null) {
+      const orParts: string[] = []
+      if (formEventNames && formEventNames.length > 0) {
+        if (formEventNames.length === 1) {
+          orParts.push(`recent_conversion_event:=${escapeBack(formEventNames[0])}`)
+        } else {
+          orParts.push(`recent_conversion_event:=[${formEventNames.map(escapeBack).join(',')}]`)
+        }
+      }
+      if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
+        // Typesense filter limit (~4MB par défaut) → on batch en plusieurs OR.
+        const BATCH = 1000
+        for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
+          const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
+          orParts.push(`hubspot_contact_id:=[${batch.map(escapeBack).join(',')}]`)
+        }
+      }
+      if (orParts.length > 0) {
+        filterParts.push(`(${orParts.join(' || ')})`)
+      } else {
+        // Filtre vide → forcer 0 résultat
+        filterParts.push(`hubspot_contact_id:=__no_match__`)
       }
     }
 
