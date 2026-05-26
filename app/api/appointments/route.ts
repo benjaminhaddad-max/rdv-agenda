@@ -55,11 +55,24 @@ async function notifyQueueAlert(appointment: any, source: string): Promise<void>
 
 // GET /api/appointments?commercial_id=xxx&week=2024-W10&unassigned=true&telepro_id=xxx
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now()
   const { searchParams } = new URL(req.url)
-  const commercialId = searchParams.get('commercial_id')
+  const commercialId = (searchParams.get('commercial_id') || '').trim()
   const week = searchParams.get('week') // e.g. "2025-03-10" (Monday of week)
   const unassigned = searchParams.get('unassigned') === 'true'
-  const teleproId = searchParams.get('telepro_id')
+  const teleproId = (searchParams.get('telepro_id') || '').trim()
+  const scopedLimit = Math.min(Math.max(parseInt(searchParams.get('limit') || '2000', 10) || 2000, 1), 5000)
+
+  // Safety net: avoid accidental full-table scans that can stall the UI.
+  // This endpoint is expected to be scoped by telepro/commercial/unassigned.
+  if (!teleproId && !commercialId && !unassigned) {
+    return NextResponse.json([], {
+      headers: {
+        'X-Response-Time-Ms': String(Date.now() - startedAt),
+        'X-Appointments-Guard': 'missing_scope_filter',
+      },
+    })
+  }
 
   const db = createServiceClient()
   let query = db.from('rdv_appointments').select(`
@@ -105,6 +118,7 @@ export async function GET(req: NextRequest) {
   }
 
   query = query.order('start_at', { ascending: true })
+  query = query.limit(scopedLimit)
 
   // Guard anti-blocage : si la requête DB tarde trop, on retourne une erreur
   // explicite au front au lieu de laisser le client spinner indéfiniment.
@@ -123,7 +137,11 @@ export async function GET(req: NextRequest) {
   // pour ne pas casser TeleproClient qui utilise `rdv_users`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const enriched = (data ?? []).map((r: any) => ({ ...r, users: r.rdv_users ?? null }))
-  return NextResponse.json(enriched)
+  return NextResponse.json(enriched, {
+    headers: {
+      'X-Response-Time-Ms': String(Date.now() - startedAt),
+    },
+  })
 }
 
 // POST /api/appointments — Créer un RDV (assigné ou non)
