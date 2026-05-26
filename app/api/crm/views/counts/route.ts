@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { getApiUserContext } from '@/lib/api-auth'
+import { warmupFormEventCache } from '@/lib/form-event-resolver'
 
 type ViewRule = { field?: string; operator?: string; value?: string }
 type ViewGroup = { rules?: ViewRule[] }
@@ -233,6 +234,26 @@ export async function POST(req: Request) {
     })
   )
   const out: Record<string, number> = Object.fromEntries(entries)
+
+  // Warmup async (fire-and-forget) du cache form_event pour toutes les vues
+  // visibles ayant un filtre form_event. Quand l'utilisateur clique sur la
+  // vue (ex: Edumove), la liste se chargera depuis le cache, instantanement.
+  try {
+    const formEventValues = new Set<string>()
+    for (const v of scopedViews) {
+      const rules = v.filter_groups?.[0]?.rules ?? []
+      for (const r of rules) {
+        if (r.field === 'form_event' && (r.operator === 'is' || r.operator === 'is_any') && r.value) {
+          formEventValues.add(r.value)
+        }
+      }
+    }
+    if (formEventValues.size > 0) {
+      void warmupFormEventCache([...formEventValues])
+    }
+  } catch {
+    // ignore
+  }
 
   return NextResponse.json(
     { counts: out },
