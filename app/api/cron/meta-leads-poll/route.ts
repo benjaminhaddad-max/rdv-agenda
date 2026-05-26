@@ -56,7 +56,11 @@ export async function GET(req: NextRequest) {
   // rattrape les trous (delay/retry Meta, cold start, etc.).
   const minutesParam = parseInt(req.nextUrl.searchParams.get('minutes') ?? '10', 10)
   const maxPerFormParam = parseInt(req.nextUrl.searchParams.get('max_per_form') ?? '600', 10)
-  const WINDOW_MINUTES = Number.isFinite(minutesParam) ? Math.min(Math.max(minutesParam, 5), 180) : 10
+  // Mode backfill manuel: permet un rattrapage large après incident (jusqu'à 7 jours).
+  // Le cron standard reste borné à 3h pour limiter la charge.
+  const backfillMode = req.nextUrl.searchParams.get('backfill') === '1'
+  const maxWindowMinutes = backfillMode ? 7 * 24 * 60 : 180
+  const WINDOW_MINUTES = Number.isFinite(minutesParam) ? Math.min(Math.max(minutesParam, 5), maxWindowMinutes) : 10
   // Plus haut pour eviter les pertes sur pics; borne haute pour rester stable.
   const MAX_PER_FORM = Number.isFinite(maxPerFormParam) ? Math.min(Math.max(maxPerFormParam, 100), 5000) : 600
   const minCreatedAtMs = Date.now() - WINDOW_MINUTES * 60 * 1000
@@ -144,6 +148,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     forms_polled: activeForms.length,
     window_minutes: WINDOW_MINUTES,
+    backfill_mode: backfillMode,
     max_per_form: MAX_PER_FORM,
     total_processed: totalProcessed,
     total_skipped: totalSkipped,
