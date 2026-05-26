@@ -111,30 +111,41 @@ async function paginateMetaContactIds(
   return metaIds
 }
 
-async function paginateContactIdsByPrefixes(
+/**
+ * Etend les prefixes (ex: "LINOVA - Form LGF") en la liste des noms distincts
+ * actuellement presents dans crm_contacts.recent_conversion_event et
+ * meta_lead_forms.name. Resultat petit (~10-50 par prefixe), permet de passer
+ * la totalite a Typesense en filtre exact recent_conversion_event:=[noms].
+ *
+ * Necessite l'index trgm sur recent_conversion_event (v36b).
+ */
+async function expandPrefixesToDistinctNames(
   db: SupabaseClient,
   distinctPrefixes: string[],
-): Promise<Set<string>> {
-  const namesIds = new Set<string>()
-  const PAGE = 1000
+): Promise<string[]> {
+  const allNames = new Set<string>()
   await Promise.all(distinctPrefixes.map(async (prefix) => {
-    let off = 0
-    while (true) {
-      const { data: rows } = await db
+    const [contactsRes, formsRes] = await Promise.all([
+      db
         .from('crm_contacts')
-        .select('hubspot_contact_id')
+        .select('recent_conversion_event')
         .ilike('recent_conversion_event', `${prefix}%`)
-        .range(off, off + PAGE - 1)
-      if (!rows || rows.length === 0) break
-      for (const r of rows) {
-        const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-        if (cid) namesIds.add(cid)
-      }
-      if (rows.length < PAGE) break
-      off += PAGE
+        .not('recent_conversion_event', 'is', null)
+        .limit(5000),
+      db
+        .from('meta_lead_forms')
+        .select('name')
+        .ilike('name', `${prefix}%`)
+        .limit(500),
+    ])
+    for (const r of (contactsRes.data ?? []) as Array<{ recent_conversion_event: string | null }>) {
+      if (r.recent_conversion_event) allNames.add(r.recent_conversion_event)
+    }
+    for (const r of (formsRes.data ?? []) as Array<{ name: string | null }>) {
+      if (r.name) allNames.add(r.name)
     }
   }))
-  return namesIds
+  return [...allNames]
 }
 
 /**
@@ -172,33 +183,28 @@ async function computeMetaOnlyIds(
   return metaOnly
 }
 
-/** Mode hybride : meta-only IDs en cache, noms exacts via Typesense (pas de liste 2.7K). */
+/**
+ * Resolution generique mode hybride :
+ *  1. Etend les prefixes en noms distincts (utilise index trgm v36b)
+ *  2. Calcule metaOnlyIds (leads Meta Ads pas couverts par les noms)
+ *  3. Renvoie les noms etendus + metaOnlyIds → Typesense filtre directement.
+ *
+ * Marche pour Edumove (16 noms, 0 prefixe), Linova (2 noms + variantes
+ * datees), et toute autre vue future avec form_event.
+ */
 async function computeHybrid(
   db: SupabaseClient,
   normalizedFormNames: string[],
-): Promise<FormEventFilterHybrid> {
-  const metaOnlyIds = await computeMetaOnlyIds(db, normalizedFormNames)
-  return { mode: 'hybrid', exactNames: normalizedFormNames, metaOnlyIds }
-}
-
-/** Mode ids : union complete (Linova avec variantes datees). */
-async function computeFullIds(
-  db: SupabaseClient,
-  normalizedFormNames: string[],
   distinctPrefixes: string[],
-): Promise<FormEventFilterIds> {
-  const [namesEqIds, prefixIds, metaIds] = await Promise.all([
-    paginateContactIdsByEventNames(db, normalizedFormNames),
-    distinctPrefixes.length > 0
-      ? paginateContactIdsByPrefixes(db, distinctPrefixes)
-      : Promise.resolve(new Set<string>()),
-    paginateMetaContactIds(db, normalizedFormNames, distinctPrefixes),
-  ])
-  const allIds = new Set<string>()
-  for (const id of namesEqIds) allIds.add(id)
-  for (const id of prefixIds) allIds.add(id)
-  for (const id of metaIds) allIds.add(id)
-  return { mode: 'ids', contactIds: [...allIds] }
+): Promise<FormEventFilterHybrid> {
+  const expandedFromPrefixes = distinctPrefixes.length > 0
+    ? await expandPrefixesToDistinctNames(db, distinctPrefixes)
+    : []
+  const allNames = new Set<string>(normalizedFormNames)
+  for (const n of expandedFromPrefixes) allNames.add(n)
+  const exactNames = [...allNames]
+  const metaOnlyIds = await computeMetaOnlyIds(db, exactNames)
+  return { mode: 'hybrid', exactNames, metaOnlyIds }
 }
 
 async function compute(
@@ -209,15 +215,7 @@ async function compute(
   if (normalizedFormNames.length === 0) {
     return { mode: 'hybrid', exactNames: [], metaOnlyIds: [] }
   }
-  if (distinctPrefixes.length === 0) {
-    return computeHybrid(db, normalizedFormNames)
-  }
-  return computeFullIds(db, normalizedFormNames, distinctPrefixes)
-}
-
-/** contact_ids en cache = metaOnlyIds (mode hybrid) ou liste complete (mode ids). */
-function cacheContactIds(result: FormEventFilterResult): string[] {
-  return result.mode === 'hybrid' ? result.metaOnlyIds : result.contactIds
+  return computeHybrid(db, normalizedFormNames, distinctPrefixes)
 }
 
 async function writeCache(
@@ -226,18 +224,25 @@ async function writeCache(
   filterValue: string,
   result: FormEventFilterResult,
 ): Promise<void> {
+  const cacheContactIds = result.mode === 'hybrid' ? result.metaOnlyIds : result.contactIds
+  const fullPayload = {
+    filter_hash: filterHash,
+    filter_value: filterValue,
+    contact_ids: cacheContactIds,
+    result_json: result,
+    computed_at: new Date().toISOString(),
+  }
   try {
-    await db
+    const { error } = await db
       .from('crm_form_event_cache')
-      .upsert(
-        {
-          filter_hash: filterHash,
-          filter_value: filterValue,
-          contact_ids: cacheContactIds(result),
-          computed_at: new Date().toISOString(),
-        },
-        { onConflict: 'filter_hash' },
-      )
+      .upsert(fullPayload, { onConflict: 'filter_hash' })
+    if (error) {
+      // Colonne result_json absente : retry sans elle.
+      const { result_json: _omit, ...legacyPayload } = fullPayload
+      await db
+        .from('crm_form_event_cache')
+        .upsert(legacyPayload, { onConflict: 'filter_hash' })
+    }
   } catch {
     // ignore
   }
@@ -246,9 +251,19 @@ async function writeCache(
 function readCache(
   filterValue: string,
   contactIds: string[],
-  distinctPrefixes: string[],
+  resultJson: unknown,
 ): FormEventFilterResult {
-  const { normalizedFormNames } = parseFilterValue(filterValue)
+  if (resultJson && typeof resultJson === 'object') {
+    const r = resultJson as Partial<FormEventFilterHybrid> & Partial<FormEventFilterIds> & { mode?: string }
+    if (r.mode === 'hybrid' && Array.isArray(r.exactNames) && Array.isArray(r.metaOnlyIds)) {
+      return { mode: 'hybrid', exactNames: r.exactNames, metaOnlyIds: r.metaOnlyIds }
+    }
+    if (r.mode === 'ids' && Array.isArray(r.contactIds)) {
+      return { mode: 'ids', contactIds: r.contactIds }
+    }
+  }
+  // Fallback : ancienne entree (contact_ids seuls).
+  const { normalizedFormNames, distinctPrefixes } = parseFilterValue(filterValue)
   if (distinctPrefixes.length === 0) {
     return { mode: 'hybrid', exactNames: normalizedFormNames, metaOnlyIds: contactIds }
   }
@@ -275,24 +290,39 @@ export async function resolveFormEventFilter(
   filterValue: string,
 ): Promise<FormEventFilterResult> {
   const filterHash = crypto.createHash('sha1').update(filterValue).digest('hex')
-  const { distinctPrefixes } = parseFilterValue(filterValue)
   const now = Date.now()
   const staleThreshold = new Date(now - STALE_TTL_MS).toISOString()
 
-  type CacheRow = { contact_ids: string[]; computed_at: string; filter_value: string }
+  type CacheRow = {
+    contact_ids: string[]
+    computed_at: string
+    filter_value: string
+    result_json: unknown
+  }
   let cacheRow: CacheRow | null = null
   try {
-    const { data } = await db
+    const { data, error } = await db
       .from('crm_form_event_cache')
-      .select('contact_ids, computed_at, filter_value')
+      .select('contact_ids, computed_at, filter_value, result_json')
       .eq('filter_hash', filterHash)
       .gte('computed_at', staleThreshold)
       .maybeSingle()
-    if (data && Array.isArray((data as CacheRow).contact_ids)) {
+    if (!error && data && Array.isArray((data as CacheRow).contact_ids)) {
       cacheRow = data as CacheRow
+    } else if (error) {
+      // Colonne result_json non migree (v36c absent) : retry sans elle.
+      const { data: legacy } = await db
+        .from('crm_form_event_cache')
+        .select('contact_ids, computed_at, filter_value')
+        .eq('filter_hash', filterHash)
+        .gte('computed_at', staleThreshold)
+        .maybeSingle()
+      if (legacy && Array.isArray((legacy as Omit<CacheRow, 'result_json'>).contact_ids)) {
+        cacheRow = { ...(legacy as Omit<CacheRow, 'result_json'>), result_json: null }
+      }
     }
   } catch {
-    // table absente
+    // table absente : fallback compute
   }
 
   if (cacheRow) {
@@ -301,25 +331,12 @@ export async function resolveFormEventFilter(
     if (age > FRESH_TTL_MS) {
       refreshAsync(db, filterHash, filterValue)
     }
-    return readCache(filterValue, cacheRow.contact_ids, distinctPrefixes)
+    return readCache(filterValue, cacheRow.contact_ids, cacheRow.result_json)
   }
 
   const result = await compute(db, filterValue)
   await writeCache(db, filterHash, filterValue, result)
   return result
-}
-
-/** @deprecated Utiliser resolveFormEventFilter — conserve pour compat interne. */
-export async function resolveFormEventContactIds(
-  db: SupabaseClient,
-  filterValue: string,
-): Promise<string[]> {
-  const result = await resolveFormEventFilter(db, filterValue)
-  if (result.mode === 'ids') return result.contactIds
-  const namesIds = await paginateContactIdsByEventNames(db, result.exactNames)
-  const all = new Set(namesIds)
-  for (const id of result.metaOnlyIds) all.add(id)
-  return [...all]
 }
 
 export async function warmupFormEventCache(filterValues: string[]): Promise<void> {

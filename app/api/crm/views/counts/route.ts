@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { getApiUserContext } from '@/lib/api-auth'
-import { warmupFormEventCache } from '@/lib/form-event-resolver'
+import { resolveFormEventFilter, warmupFormEventCache } from '@/lib/form-event-resolver'
 
 type ViewRule = { field?: string; operator?: string; value?: string }
 type ViewGroup = { rules?: ViewRule[] }
@@ -36,44 +36,6 @@ async function fetchAllMetaLeadContactIds(db: ReturnType<typeof createServiceCli
     if (rows.length < PAGE) break
   }
   return [...ids]
-}
-
-async function resolveFormContactIds(db: ReturnType<typeof createServiceClient>, values: string[]): Promise<string[]> {
-  if (values.length === 0) return []
-
-  const normalizedNames = [...new Set(values)]
-  const prefixes = [...new Set(
-    normalizedNames
-      .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
-      .filter(Boolean)
-  )]
-
-  const formIds = new Set<string>()
-  const { data: exactForms } = await db.from('meta_lead_forms').select('form_id').in('name', normalizedNames)
-  for (const f of exactForms ?? []) if (f.form_id) formIds.add(f.form_id)
-
-  for (const p of prefixes) {
-    const { data: prefForms } = await db.from('meta_lead_forms').select('form_id').ilike('name', `${p}%`).limit(200)
-    for (const f of prefForms ?? []) if (f.form_id) formIds.add(f.form_id)
-  }
-
-  if (formIds.size === 0) return []
-  const ids = [...formIds]
-  const contactIds = new Set<string>()
-  const PAGE = 1000
-  for (let off = 0; off < 50000; off += PAGE) {
-    const { data: rows } = await db
-      .from('meta_lead_events')
-      .select('contact_id')
-      .in('form_id', ids)
-      .not('contact_id', 'is', null)
-      .range(off, off + PAGE - 1)
-    if (!rows || rows.length === 0) break
-    for (const r of rows) if (r.contact_id) contactIds.add(r.contact_id)
-    if (rows.length < PAGE) break
-  }
-
-  return [...contactIds]
 }
 
 async function resolveScopedTeleproContactIds(
@@ -130,7 +92,32 @@ async function computeCountForView(
     if (field === 'lead_status') filters.hs_lead_status = splitMulti(value)[0] ?? null
     if (field === 'classe') filters.classe = splitMulti(value)[0] ?? null
     if (field === 'form_event') {
-      formContactIds = await resolveFormContactIds(db, splitMulti(value))
+      const resolved = await resolveFormEventFilter(db, value)
+      if (resolved.mode === 'ids') {
+        formContactIds = resolved.contactIds
+      } else {
+        const namesIds = new Set<string>()
+        if (resolved.exactNames.length > 0) {
+          const PAGE = 1000
+          let off = 0
+          while (true) {
+            const { data: rows } = await db
+              .from('crm_contacts')
+              .select('hubspot_contact_id')
+              .in('recent_conversion_event', resolved.exactNames)
+              .range(off, off + PAGE - 1)
+            if (!rows || rows.length === 0) break
+            for (const r of rows) {
+              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+              if (cid) namesIds.add(cid)
+            }
+            if (rows.length < PAGE) break
+            off += PAGE
+          }
+        }
+        for (const id of resolved.metaOnlyIds) namesIds.add(id)
+        formContactIds = [...namesIds]
+      }
     }
     if (field === 'custom:meta_lead_ads' || field === 'meta_lead_ads') {
       metaAdsOnly = true
