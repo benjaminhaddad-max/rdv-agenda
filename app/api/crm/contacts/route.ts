@@ -5,7 +5,7 @@ import { cached } from '@/lib/cache'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
-import { resolveFormEventContactIds } from '@/lib/form-event-resolver'
+import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -312,6 +312,8 @@ export async function GET(req: NextRequest) {
   //   3. Fallback : recent_conversion_event = nom (last submission match)
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
   let formEventContactIds: string[] | null = null
+  let formEventNames: string[] | null = null
+  let formEventMetaOnlyIds: string[] | null = null
   // Pour éviter de matérialiser 2.7K contact_ids dans l'URL PostgREST (limite
   // ~16K → la liste renvoie [] alors que le count vaut 2.7K), on combine :
   //  - filtre SQL direct sur recent_conversion_event = noms exacts (URL légère)
@@ -330,8 +332,13 @@ export async function GET(req: NextRequest) {
       // filtre hybride (Typesense ou SQL direct) sur la requête principale.
       customFilters = customFilters.filter(r => r !== formFilter)
 
-      const result = await resolveFormEventContactIds(db, formFilter.value)
-      formEventContactIds = result
+      const resolved = await resolveFormEventFilter(db, formFilter.value)
+      if (resolved.mode === 'hybrid') {
+        formEventNames = resolved.exactNames
+        formEventMetaOnlyIds = resolved.metaOnlyIds
+      } else {
+        formEventContactIds = resolved.contactIds
+      }
     }
   }
 
@@ -416,9 +423,11 @@ export async function GET(req: NextRequest) {
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
+    formEventNames !== null || formEventMetaOnlyIds !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
-  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null
+  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
+    formEventContactIds !== null || formEventNames !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
     ? 'exact'
     : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
@@ -428,7 +437,10 @@ export async function GET(req: NextRequest) {
     stage || stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formation || formationNot || pipeline || pipelineNot || priorPreinscription || periodFilter
   )
-  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null)
+  const hasFormHeavyFilter = !!(
+    formEvent || formEventNot || formEventContactIds !== null ||
+    formEventNames !== null || metaLeadAdsContactIds !== null
+  )
   const canFastCountOnly = countOnly &&
     showExternal &&
     !ownerExclude &&
@@ -706,9 +718,8 @@ export async function GET(req: NextRequest) {
 
   // ── Fast path Typesense (fallback auto vers SQL si indisponible) ───────────
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
-  // Avec le resolver v36, on passe directement par formEventContactIds
-  // (union complete deja resolue, supportee par Typesense via batchs
-  // hubspot_contact_id:=[...]).
+  // Edumove (hybrid) : recent_conversion_event:=[noms] || hubspot_contact_id:=[meta].
+  // Linova (ids) : hubspot_contact_id:=[...] en batchs.
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
@@ -777,8 +788,32 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Resolver form_event v36 : on a deja l'union complete des contact_ids
-    // (cache SQL ou RPC). On les pousse a Typesense via hubspot_contact_id:=[].
+    // Mode hybride Edumove : filtre Typesense sur les noms de forms (rapide,
+    // pas de matérialisation 2.7K IDs) + meta-only en hubspot_contact_id.
+    if (formEventNames !== null || formEventMetaOnlyIds !== null) {
+      const orParts: string[] = []
+      if (formEventNames && formEventNames.length > 0) {
+        if (formEventNames.length === 1) {
+          orParts.push(`recent_conversion_event:=${escapeBack(formEventNames[0])}`)
+        } else {
+          orParts.push(`recent_conversion_event:=[${formEventNames.map(escapeBack).join(',')}]`)
+        }
+      }
+      if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
+        const BATCH = 1000
+        for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
+          const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
+          orParts.push(`hubspot_contact_id:=[${batch.map(escapeBack).join(',')}]`)
+        }
+      }
+      if (orParts.length > 0) {
+        filterParts.push(`(${orParts.join(' || ')})`)
+      } else {
+        filterParts.push(`hubspot_contact_id:=__no_match__`)
+      }
+    }
+
+    // Mode ids (Linova variantes datees) : liste complete en hubspot_contact_id.
     if (formEventContactIds !== null) {
       if (formEventContactIds.length === 0) {
         filterParts.push(`hubspot_contact_id:=__no_match__`)
@@ -1337,6 +1372,27 @@ export async function GET(req: NextRequest) {
   if (createdBeforeDays > 0) {
     const before = new Date(Date.now() - createdBeforeDays * 86_400_000)
     query = query.lt('contact_createdate', before.toISOString())
+  }
+
+  // Filtre form_event hybride (PostgREST, fallback si Typesense indispo).
+  if (formEventNames !== null || formEventMetaOnlyIds !== null) {
+    const orParts: string[] = []
+    const quoteForPg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
+    if (formEventNames && formEventNames.length > 0) {
+      orParts.push(`recent_conversion_event.in.(${formEventNames.map(quoteForPg).join(',')})`)
+    }
+    if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
+      const BATCH = 1500
+      for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
+        const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
+        orParts.push(`hubspot_contact_id.in.(${batch.map(quoteForPg).join(',')})`)
+      }
+    }
+    if (orParts.length > 0) {
+      query = query.or(orParts.join(','))
+    } else {
+      query = query.eq('hubspot_contact_id', '__no_match__')
+    }
   }
 
   // Filtres résolus en amont → liste de contact_ids
