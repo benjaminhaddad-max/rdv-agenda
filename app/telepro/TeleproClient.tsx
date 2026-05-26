@@ -546,7 +546,6 @@ export default function TeleproClient({
   const [myRdvs, setMyRdvs] = useState<MyAppointment[]>([])
   const [myRdvsLoading, setMyRdvsLoading] = useState(false)
   const [myRdvsError, setMyRdvsError] = useState<string | null>(null)
-  const [planningFirstLoadTimedOut, setPlanningFirstLoadTimedOut] = useState(false)
   const myRdvsFetchInFlightRef = useRef(false)
   const myRdvsFetchSeqRef = useRef(0)
   const myRdvsLastFetchAtRef = useRef(0)
@@ -717,20 +716,6 @@ export default function TeleproClient({
   useEffect(() => {
     if (activeTab === 'rdvs' || previewMode) fetchMyRdvs()
   }, [activeTab, previewMode, fetchMyRdvs])
-
-  // Garde-fou supplémentaire: si l'écran reste vide trop longtemps au premier
-  // affichage, on force une sortie du spinner avec message d'erreur.
-  useEffect(() => {
-    if (planningFirstLoadTimedOut) return
-    if (myRdvs.length > 0 || myRdvsError) return
-    const t = setTimeout(() => {
-      setPlanningFirstLoadTimedOut(true)
-      myRdvsFetchInFlightRef.current = false
-      setMyRdvsLoading(false)
-      setMyRdvsError('Le planning met trop de temps à charger. Clique sur actualiser.')
-    }, 9000)
-    return () => clearTimeout(t)
-  }, [myRdvs.length, myRdvsError, planningFirstLoadTimedOut, activeTab])
 
   // Guard-fou UI: ne jamais laisser un spinner infini côté planning.
   useEffect(() => {
@@ -1397,7 +1382,6 @@ export default function TeleproClient({
               <div style={{ fontSize: 12, opacity: 0.9 }}>{myRdvsError}</div>
               <button
                 onClick={() => {
-                  setPlanningFirstLoadTimedOut(false)
                   fetchMyRdvs()
                 }}
                 style={{
