@@ -22,7 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: contactId } = await params
   const body = await req.json()
 
-  const { teleprospecteur, telepro_user_id, closer_du_contact_owner_id, ...contactFields } = body
+  const { telepro_user_id, closer_du_contact_owner_id, ...contactFields } = body
+  // Le télépro est mis à jour via telepro_user_id (colonne native crm_contacts).
+  // La valeur est aussi propagée aux deals liés (crm_deals.teleprospecteur).
+  const teleprospecteur: string | null | undefined = telepro_user_id
 
   // Build updates for Supabase + HubSpot
   const supabaseUpdates: Record<string, string | null> = {}
@@ -75,14 +78,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const needsDealSync    = teleprospecteur !== undefined || hubspot_owner_id !== undefined
 
   if (needsDealSync) {
-    // Stocker teleprospecteur sur le contact si besoin
-    if (teleprospecteur !== undefined) {
-      await db
-        .from('crm_contacts')
-        .update({ teleprospecteur, synced_at: new Date().toISOString() })
-        .eq('hubspot_contact_id', contactId)
-    }
-
     // Récupérer tous les deals liés
     const { data: deals } = await db
       .from('crm_deals')

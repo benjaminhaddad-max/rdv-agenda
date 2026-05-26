@@ -6,8 +6,8 @@ import { fr } from 'date-fns/locale'
 import {
   Calendar, Clock, Save, X, Plus, ChevronLeft, ChevronRight,
   Ban, CheckCircle, AlertCircle, User, Search, Phone, Tag,
-  FileText, Video, PhoneCall, Copy, Check, Link, Mail,
-  GraduationCap, MapPin, PlusCircle, RefreshCw, RotateCcw,
+  FileText, Video, Copy, Check, Link, Mail, MapPin,
+  GraduationCap, PlusCircle, RefreshCw, RotateCcw,
 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import LogoutButton from '@/components/LogoutButton'
@@ -77,6 +77,17 @@ type BlockedDate = {
 
 type Slot = { start: string; end: string; available?: boolean }
 
+function isWeeklyMigrationMissing(status: number, errorMessage?: string): boolean {
+  const msg = (errorMessage || '').toLowerCase()
+  return (
+    status === 503 ||
+    msg.includes('rdv_availability_weekly') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find the table') ||
+    msg.includes('migration v26')
+  )
+}
+
 interface HubSpotContact {
   id: string
   properties: {
@@ -123,6 +134,11 @@ const CLASSES = [
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3',
   'LAS 1', 'LAS 2', 'LAS 3',
   'Etudes médicales', 'Etudes Sup.', 'Autre',
+]
+
+const CAMPUS_OPTIONS = [
+  '100 quai de la Rapée 75012 Paris',
+  '29 rue Lauriston 75016 Paris',
 ]
 
 const inputStyle: React.CSSProperties = {
@@ -364,8 +380,9 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   const [departement, setDepartement] = useState('')
   const [classeActuelle, setClasseActuelle] = useState('')
   const [formation, setFormation] = useState('')
-  const [meetingType, setMeetingType] = useState<'visio' | 'telephone' | 'presentiel'>('visio')
+  const [meetingType, setMeetingType] = useState<'visio' | 'presentiel'>('visio')
   const [meetingLink, setMeetingLink] = useState(() => generateJitsiLink())
+  const [meetingCampus, setMeetingCampus] = useState(CAMPUS_OPTIONS[0])
   const [linkCopied, setLinkCopied] = useState(false)
   const [notes, setNotes] = useState('')
 
@@ -388,14 +405,19 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // Mode par semaine : charge les regles de la semaine selectionnee.
   const loadRules = useCallback(async () => {
     const res = await fetch(`/api/availability?mode=rules&user_id=${user.id}&week_start=${dispoWeekStart}`)
-    if (res.status === 503) {
+    const json = await res.json().catch(() => null) as { error?: string; rules?: AvailabilityRule[] } | null
+    if (isWeeklyMigrationMissing(res.status, json?.error)) {
       setRulesMigrationNeeded(true)
+      setRulesError('Migration v26 manquante')
       return
     }
     setRulesMigrationNeeded(false)
-    if (!res.ok) return
-    const json = await res.json()
-    const data: AvailabilityRule[] = Array.isArray(json) ? json : (json.rules ?? [])
+    if (!res.ok) {
+      setRulesError(json?.error || 'Erreur lors du chargement des disponibilites')
+      return
+    }
+    setRulesError(null)
+    const data: AvailabilityRule[] = Array.isArray(json) ? json : (json?.rules ?? [])
     setRules(
       DAYS.map(d => {
         const existing = data.find(r => r.day_of_week === d.value)
@@ -440,7 +462,8 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           })),
         }),
       })
-      if (res.status === 503) {
+      const data = await res.json().catch(() => null) as { error?: string } | null
+      if (isWeeklyMigrationMissing(res.status, data?.error)) {
         setRulesMigrationNeeded(true)
         setRulesError('Migration v26 manquante')
         return
@@ -449,8 +472,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         setRulesSaved(true)
         setTimeout(() => setRulesSaved(false), 3000)
       } else {
-        const data = await res.json()
-        setRulesError(data.error || 'Erreur lors de la sauvegarde')
+        setRulesError(data?.error || 'Erreur lors de la sauvegarde')
       }
     } finally {
       setRulesSaving(false)
@@ -571,7 +593,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
     setContact(null); setLookupInput(''); setLookupError(null); setSearchResults([])
     setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
     setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
-    setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setLinkCopied(false)
+    setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setMeetingCampus(CAMPUS_OPTIONS[0]); setLinkCopied(false)
     setNotes(''); setSelectedDate(null); setSelectedSlot(null); setSubmitError(null)
     setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
     setNewFormation(''); setNewClasse(''); setNewDepartement('')
@@ -591,7 +613,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // ── Booking: submit ──
   const contactName = contact ? [contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') : ''
   const contactEmail = email || contact?.properties.email || ''
-  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation
+  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation && (meetingType !== 'presentiel' || !!meetingCampus)
 
   async function submitRdv() {
     if (!canSubmit) { setSubmitError('Remplis tous les champs obligatoires (*)'); return }
@@ -614,13 +636,14 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           departement,
           classe_actuelle: classeActuelle,
           meeting_type: meetingType,
-          meeting_link: meetingType === 'visio' ? meetingLink || null : null,
+          meeting_link: meetingType === 'visio' ? meetingLink || null : (meetingType === 'presentiel' ? meetingCampus : null),
           telepro_id: user.id,
           call_notes: [
             `📚 Formation demandée : ${formationLabel}`,
             `📍 Département : ${departement}`,
             `🎓 Classe actuelle : ${classeActuelle}`,
             phone ? `📞 Téléphone : ${phone}` : '',
+            meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
         }),
@@ -935,16 +958,30 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     {([
                       { value: 'visio', label: 'Visio', icon: <Video size={12} /> },
-                      { value: 'telephone', label: 'Téléphone', icon: <PhoneCall size={12} /> },
-                      { value: 'presentiel', label: 'Présentiel', icon: <User size={12} /> },
+                      { value: 'presentiel', label: 'Présentiel', icon: <MapPin size={12} /> },
                     ] as const).map(t => (
-                      <button key={t.value} onClick={() => setMeetingType(t.value)}
+                      <button key={t.value} onClick={() => {
+                        setMeetingType(t.value)
+                        if (t.value === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
+                      }}
                         style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#e2e8f0'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {/* Campus présentiel */}
+                {meetingType === 'presentiel' && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={labelStyle}><MapPin size={11} /> Campus (présentiel)</div>
+                    <select value={meetingCampus} onChange={e => setMeetingCampus(e.target.value)} style={{ ...fieldInputStyle }}>
+                      {CAMPUS_OPTIONS.map(campus => (
+                        <option key={campus} value={campus}>{campus}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Lien visio */}
                 {meetingType === 'visio' && (
@@ -1043,8 +1080,12 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         to_week_start: dispoWeekStart,
                       }),
                     })
+                    const data = await res.json().catch(() => null) as { error?: string } | null
                     if (res.ok) loadRules()
-                    else if (res.status === 503) setRulesMigrationNeeded(true)
+                    else if (isWeeklyMigrationMissing(res.status, data?.error)) {
+                      setRulesMigrationNeeded(true)
+                      setRulesError('Migration v26 manquante')
+                    }
                   }}
                   style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#1e293b', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >

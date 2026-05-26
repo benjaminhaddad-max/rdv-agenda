@@ -1,9 +1,8 @@
 /**
  * GET /api/cron/sms-24h-relance
  *
- * Envoi d'un SMS de relance 24h avant le RDV si le prospect
- * n'a toujours pas confirmé sa présence (status = 'confirme' uniquement,
- * pas 'confirme_prospect').
+ * Envoi d'un SMS J-1 (24h avant le RDV) quel que soit l'état de confirmation
+ * du prospect.
  *
  * Planifié 2×/jour : 8h UTC et 20h UTC.
  * Fenêtre de recherche : start_at dans [+20h, +28h].
@@ -14,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build24hRelanceSms } from '@/lib/smsfactor'
+import { send24hRelanceEmail } from '@/lib/email-reminders'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { randomUUID } from 'crypto'
@@ -33,11 +33,11 @@ export async function GET(req: NextRequest) {
 
   const db = createServiceClient()
 
-  // Uniquement status = 'confirme' : le prospect n'a pas encore confirmé
+  // SMS J-1 pour les RDV confirmés côté agenda, y compris déjà confirmés prospect
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, meeting_type, sms_24h_relance_sent_at, confirmation_token')
-    .eq('status', 'confirme')
+    .select('id, status, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_24h_relance_sent_at, confirmation_token')
+    .in('status', ['confirme', 'confirme_prospect'])
     .not('prospect_phone', 'is', null)
     .gte('start_at', windowStart.toISOString())
     .lte('start_at', windowEnd.toISOString())
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!appointments || appointments.length === 0) {
-    return NextResponse.json({ sent: 0, message: 'Aucun RDV non confirmé dans la fenêtre 24h' })
+    return NextResponse.json({ sent: 0, message: 'Aucun RDV dans la fenêtre 24h' })
   }
 
   const results: { id: string; name: string; status: 'sent' | 'skipped' | 'error'; reason?: string }[] = []
@@ -74,10 +74,26 @@ export async function GET(req: NextRequest) {
     const dateStr = format(startParis, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
 
-    const message = build24hRelanceSms(firstName, dateStr, appt.meeting_type, token)
+    const isConfirmedByProspect = appt.status === 'confirme_prospect'
+    const message = build24hRelanceSms(firstName, dateStr, appt.meeting_type, token, isConfirmedByProspect, appt.meeting_link)
     const smsResult = await sendSms(appt.prospect_phone, message)
 
     if (smsResult.ok) {
+      if (appt.prospect_email) {
+        const emailResult = await send24hRelanceEmail(
+          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          firstName,
+          dateStr,
+          appt.meeting_type,
+          appt.meeting_link,
+          token,
+          isConfirmedByProspect,
+          appt.id,
+        )
+        if (!emailResult.ok) {
+          console.error('[cron/sms-24h-relance] Erreur email:', emailResult.error, 'appt:', appt.id)
+        }
+      }
       await db.from('rdv_appointments').update({ sms_24h_relance_sent_at: new Date().toISOString() }).eq('id', appt.id)
       results.push({ id: appt.id, name: appt.prospect_name, status: 'sent' })
     } else {

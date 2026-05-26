@@ -258,7 +258,7 @@ export async function GET(req: NextRequest) {
       if ('origine' in p)             patch.origine         = p.origine         || null
       if ('source' in p)              patch.source          = p.source          || null
       if ('hubspot_owner_id' in p)    patch.hubspot_owner_id = p.hubspot_owner_id || null
-      if ('teleprospecteur' in p)     patch.teleprospecteur  = p.teleprospecteur  || null
+      if ('teleprospecteur' in p)     patch.telepro_user_id  = p.teleprospecteur  || null
       if ('createdate' in p && p.createdate) patch.contact_createdate = p.createdate
       if ('recent_conversion_date' in p && p.recent_conversion_date) patch.recent_conversion_date = p.recent_conversion_date
       if ('recent_conversion_event_name' in p) patch.recent_conversion_event = p.recent_conversion_event_name || null

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   // Scope filtering :
   //   scope=closer  → filtre sur crm_contacts.closer_du_contact_owner_id
-  //   scope=telepro → filtre sur crm_contacts.teleprospecteur
+  //   scope=telepro → filtre sur crm_contacts.telepro_user_id
   const { searchParams } = req.nextUrl
   const scope = searchParams.get('scope')
   const hubspotOwnerId = searchParams.get('hubspot_owner_id')
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     let q = db
       .from('crm_contacts')
-      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id, teleprospecteur, hs_lead_status')
+      .select('hubspot_contact_id, firstname, lastname, email, phone, classe_actuelle, zone_localite, departement, formation_demandee, contact_createdate, recent_conversion_date, recent_conversion_event, closer_du_contact_owner_id, telepro_user_id, hs_lead_status')
       .not('recent_conversion_date', 'is', null)
       .gte('recent_conversion_date', thirtyDaysAgo)
       .not('contact_createdate', 'is', null)
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     if (isCloserScope) {
       q = q.eq('closer_du_contact_owner_id', hubspotOwnerId)
     } else if (isTeleproScope) {
-      q = q.eq('teleprospecteur', hubspotOwnerId)
+      q = q.eq('telepro_user_id', hubspotOwnerId)
     }
 
     const { data: batch } = await q

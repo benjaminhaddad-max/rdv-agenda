@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build48hSms } from '@/lib/smsfactor'
+import { send48hConfirmEmail } from '@/lib/email-reminders'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { randomUUID } from 'crypto'
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, meeting_type, sms_48h_sent_at, confirmation_token')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_48h_sent_at, confirmation_token')
     .in('status', ['confirme', 'confirme_prospect'])
     .not('prospect_phone', 'is', null)
     .gte('start_at', windowStart.toISOString())
@@ -70,10 +71,24 @@ export async function GET(req: NextRequest) {
     const dateStr = format(startParis, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
 
-    const message = build48hSms(firstName, dateStr, appt.meeting_type, token)
+    const message = build48hSms(firstName, dateStr, appt.meeting_type, token, appt.meeting_link)
     const smsResult = await sendSms(appt.prospect_phone, message)
 
     if (smsResult.ok) {
+      if (appt.prospect_email) {
+        const emailResult = await send48hConfirmEmail(
+          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          firstName,
+          dateStr,
+          appt.meeting_type,
+          appt.meeting_link,
+          token,
+          appt.id,
+        )
+        if (!emailResult.ok) {
+          console.error('[cron/sms-48h] Erreur email:', emailResult.error, 'appt:', appt.id)
+        }
+      }
       await db.from('rdv_appointments').update({ sms_48h_sent_at: new Date().toISOString() }).eq('id', appt.id)
       results.push({ id: appt.id, name: appt.prospect_name, status: 'sent' })
     } else {

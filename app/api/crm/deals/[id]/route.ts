@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (deal.hubspot_contact_id && (hubspot_owner_id !== undefined || teleprospecteur !== undefined)) {
     const contactUpdate: Record<string, unknown> = { synced_at: new Date().toISOString() }
     if (hubspot_owner_id !== undefined) contactUpdate.hubspot_owner_id = hubspot_owner_id
-    if (teleprospecteur !== undefined)  contactUpdate.teleprospecteur  = teleprospecteur
+    if (teleprospecteur !== undefined)  contactUpdate.telepro_user_id  = teleprospecteur
     await db
       .from('crm_contacts')
       .update(contactUpdate)

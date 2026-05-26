@@ -3,6 +3,7 @@ import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms, buildBookingSms } from '@/lib/smsfactor'
+import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -288,7 +289,7 @@ export async function POST(req: NextRequest) {
       const startDate = new Date(start_at as string)
       const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
-      const message = buildBookingSms(firstName, dateStr, meeting_type || null)
+      const message = buildBookingSms(firstName, dateStr, meeting_type || null, meeting_link || null)
       const smsResult = await sendSms(prospect_phone, message)
       if (smsResult.ok) {
         await db
@@ -300,6 +301,28 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error('[appointments POST] Booking SMS exception:', e)
+    }
+  }
+
+  // ── Email de confirmation immédiat (best-effort) ──────────────────────────
+  if (prospect_email) {
+    try {
+      const startDate = new Date(start_at as string)
+      const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
+      const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
+      const emailResult = await sendBookingConfirmationEmail(
+        { prospectEmail: prospect_email, emailParent: email_parent || null },
+        firstName,
+        dateStr,
+        meeting_type || null,
+        meeting_link || null,
+        appointment.id,
+      )
+      if (!emailResult.ok) {
+        console.error('[appointments POST] Booking email failed:', emailResult.error)
+      }
+    } catch (e) {
+      console.error('[appointments POST] Booking email exception:', e)
     }
   }
 

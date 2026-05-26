@@ -454,7 +454,6 @@ export interface CRMContact {
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
   origine?: string | null
-  teleprospecteur?: string | null
   contact_owner?: { id: string; name: string; role: string; avatar_color: string } | null
   deal?: {
     hubspot_deal_id: string
@@ -1195,7 +1194,8 @@ export default function CRMContactsTable({
   // Propriétés HubSpot dont la valeur est un owner ID (à résoudre en nom).
   const OWNER_ID_PROPS = useMemo(() => new Set([
     'hubspot_owner_id',
-    'teleprospecteur',
+    'teleprospecteur',         // legacy : prop HubSpot custom (lecture seulement)
+    'telepro_user_id',
     'closer_hs_id',
     'closer_du_contact_owner_id',
     'hubspot_owner_assigneddate',  // pas un owner mais reste géré comme date plus bas
@@ -1441,8 +1441,8 @@ export default function CRMContactsTable({
 
       case 'telepro': {
         // Lit le télépro NATIF du CONTACT en priorité (telepro_user_id),
-        // fallback sur l'ancien champ deal.teleprospecteur / contact.teleprospecteur.
-        const tVal    = (contact.telepro_user_id || (deal ? deal.teleprospecteur : contact.teleprospecteur) || '')
+        // fallback sur l'ancien champ deal.teleprospecteur (deals seulement).
+        const tVal    = (contact.telepro_user_id || (deal ? deal.teleprospecteur : '') || '')
         const tSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`
           : savingContactField === `${contact.hubspot_contact_id}:teleprospecteur`
@@ -2011,6 +2011,8 @@ function PropertyPicker({
   onPick: (name: string) => void
 }) {
   const [query, setQuery] = useState('')
+  const normalizedQuery = query.trim().toLowerCase()
+  const canAddManualProp = /^[a-z0-9_]+$/.test(normalizedQuery) && !excludeNames.has(normalizedQuery)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -2046,9 +2048,27 @@ function PropertyPicker({
         maxHeight: 200, overflowY: 'auto', marginTop: 6,
         border: '1px solid #e2e8f0', borderRadius: 6,
       }}>
+        {canAddManualProp && !allProps.some(p => p.name === normalizedQuery) && (
+          <button
+            onClick={() => { onPick(normalizedQuery); setQuery('') }}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '8px 10px', fontSize: 12,
+              background: '#eff6ff', border: 'none',
+              borderBottom: '1px solid #e2e8f0',
+              cursor: 'pointer', color: '#1d4ed8', fontFamily: 'inherit',
+              fontWeight: 600,
+            }}
+            title={`Ajouter la propriété "${normalizedQuery}"`}
+          >
+            + Ajouter la propriété `{normalizedQuery}`
+          </button>
+        )}
         {filtered.length === 0 ? (
           <div style={{ padding: '8px 10px', fontSize: 12, color: '#94a3b8' }}>
-            {query ? 'Aucun résultat' : 'Toutes les propriétés sont déjà ajoutées'}
+            {query
+              ? (canAddManualProp ? 'Aucun résultat dans la liste, vous pouvez l’ajouter manuellement.' : 'Aucun résultat')
+              : 'Toutes les propriétés sont déjà ajoutées'}
           </div>
         ) : (
           filtered.map(p => (

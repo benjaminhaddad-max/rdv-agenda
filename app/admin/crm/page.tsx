@@ -509,19 +509,21 @@ export default function CRMPage() {
   useEffect(() => {
     if (!viewsLoaded || !activeViewId) return
     const known = viewCounts[activeViewId]
-    if (typeof known === 'number') {
+    // Seed visuel uniquement au 1er affichage d'une vue vide/chargement,
+    // pour éviter un mismatch "badge non-zéro + table vide".
+    if (typeof known === 'number' && (loading || contacts.length === 0)) {
       setTotal(known)
       setTotalEstimated(false)
     }
     void fetchViewCounts([activeViewId]).then((counts) => {
       if (!counts) return
       const next = counts[activeViewId]
-      if (typeof next === 'number') {
+      if (typeof next === 'number' && (loading || contacts.length === 0)) {
         setTotal(next)
         setTotalEstimated(false)
       }
     })
-  }, [viewsLoaded, activeViewId, fetchViewCounts])
+  }, [viewsLoaded, activeViewId, fetchViewCounts, loading, contacts.length, viewCounts])
 
   // Mettre à jour le count de la vue active quand total change
   useEffect(() => {
@@ -785,13 +787,41 @@ export default function CRMPage() {
     if (forceMetaAdsOnly) params.set('meta_ads_only', '1')
 
     const url = `/api/crm/contacts?${params.toString()}`
+    const retryParams = new URLSearchParams(params.toString())
+    retryParams.delete('cf')
+    const retryUrlWithoutCf = `/api/crm/contacts?${retryParams.toString()}`
     const requestSeq = ++contactsFetchSeqRef.current
 
     const fetchContactsPayload = async () => {
       const start = performance.now()
-      const response = await fetch(url)
+      let response = await fetch(url)
+      // Fallback robuste: si l'URL avec `cf` casse (URL trop longue / proxy),
+      // on retente automatiquement sans `cf` en conservant la vue active.
+      if (!response.ok && activeViewId && activeViewId !== 'all' && customFilterParam) {
+        response = await fetch(retryUrlWithoutCf)
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status} on ${url}`)
-      const payload = await response.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+      let payload = await response.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+
+      // Garde-fou anti incohérence (cas observé): parfois `cf` devient
+      // désynchronisé/invalidé et la requête retourne data=[] avec total>0.
+      // On retente une fois en s'appuyant uniquement sur `view_id` (sans `cf`)
+      // pour garantir un résultat cohérent avec l'onglet actif.
+      const shouldRetryWithoutCf = (
+        currentPage === 0 &&
+        !!activeViewId &&
+        activeViewId !== 'all' &&
+        !!customFilterParam &&
+        (payload.total ?? 0) > 0 &&
+        (payload.data?.length ?? 0) === 0
+      )
+      if (shouldRetryWithoutCf) {
+        const retryRes = await fetch(retryUrlWithoutCf)
+        if (retryRes.ok) {
+          payload = await retryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+        }
+      }
+
       const serverMsRaw = response.headers.get('X-Response-Time-Ms')
       const serverMs = serverMsRaw ? Number(serverMsRaw) : null
       return {
@@ -1229,8 +1259,13 @@ export default function CRMPage() {
   const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
   const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
 
-  const hasActiveFilters = search || stage || closerHsId || closerContactHsId || contactOwnerHsId || teleproHsId || formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
+  const hasActiveFilters = (
+    search || stage || closerHsId || closerContactHsId || contactOwnerHsId || teleproHsId ||
+    formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 ||
+    recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter ||
+    totalFilterRules > 0
+  )
 
   // Check if current filters changed from active view
   const activeCRMView = crmViews.find(v => v.id === activeViewId)
@@ -1246,6 +1281,12 @@ export default function CRMPage() {
     setFilterGroups([])
     syncViewIdInUrl('all', 'push')
     setActiveViewId('all')
+  }
+
+  function clearAdvancedFilters() {
+    setFilterGroups([])
+    setCustomFilterParam('')
+    setPage(0)
   }
 
   // ── Sélection en masse ────────────────────────────────────────────────────────
@@ -1290,7 +1331,6 @@ export default function CRMPage() {
           contact_ids: [...selectedIds],
           telepro_rdv_user_id: selectedTelepro.id,
           telepro_user_id: teleproHsUserId,
-          teleprospecteur: teleproHsUserId,
         }),
       })
       if (!res.ok) {
@@ -1901,6 +1941,40 @@ export default function CRMPage() {
         )}
 
         <div style={{ padding: '0 20px' }}>
+        {!loading && displayed.length === 0 && totalFilterRules > 0 && (
+          <div style={{
+            margin: '0 0 10px',
+            background: 'rgba(204,172,113,0.1)',
+            border: '1px solid rgba(204,172,113,0.35)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}>
+            <span style={{ fontSize: 12, color: '#6b5630' }}>
+              Les filtres avancés actifs masquent tous les résultats.
+            </span>
+            <button
+              onClick={clearAdvancedFilters}
+              style={{
+                background: '#ffffff',
+                border: '1px solid rgba(204,172,113,0.45)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                color: '#8a6e3a',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Retirer les filtres avancés
+            </button>
+          </div>
+        )}
         <CRMContactsTable
           contacts={displayed}
           loading={loading && displayed.length === 0}

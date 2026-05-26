@@ -185,7 +185,7 @@ export default function CloserNewRdvModal({
         departement: c.departement != null ? String(c.departement) : '',
         classe_actuelle: c.classe_actuelle ?? '',
         diploma_sante___formation_demandee: c.formation_demandee ?? '',
-        teleprospecteur: c.teleprospecteur ?? undefined,
+        teleprospecteur: c.telepro_user_id ?? undefined,
       },
     }
   }

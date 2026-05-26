@@ -96,7 +96,7 @@ function buildContactRow(c: { id: string; properties: Record<string, string | nu
     classe_actuelle:            p.classe_actuelle ?? null,
     zone_localite:              p.zone___localite ?? null,
     hubspot_owner_id:           p.hubspot_owner_id ?? null,
-    teleprospecteur:            p.teleprospecteur ?? null,
+    telepro_user_id:            p.teleprospecteur ?? null,
     contact_createdate:         parseHubSpotDate(p.createdate),
     recent_conversion_date:     parseHubSpotDate(p.recent_conversion_date),
     recent_conversion_event:    p.recent_conversion_event_name ?? null,

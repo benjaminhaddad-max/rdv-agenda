@@ -55,11 +55,17 @@ export function buildBookingSms(
   firstName: string,
   dateStr: string,
   meetingType: string | null,
+  meetingLink?: string | null,
 ): string {
   const typeLabel =
     meetingType === 'visio' ? 'en visio'
     : meetingType === 'telephone' ? 'par téléphone'
     : 'en présentiel'
+
+  if (meetingType === 'presentiel') {
+    const campus = resolvePresentielCampus(meetingLink)
+    return `Bonjour ${firstName}, votre rendez-vous d'orientation Diploma Santé est bien enregistré pour le ${dateStr} (${typeLabel}). Campus : ${campus}. Un mail de confirmation vous a également été envoyé.`
+  }
 
   return `Bonjour ${firstName}, votre rendez-vous d'orientation Diploma Santé est bien enregistré pour le ${dateStr} (${typeLabel}). À très vite ! Un mail de confirmation vous a également été envoyé.`
 }
@@ -74,7 +80,8 @@ export function build48hSms(
   firstName: string,
   dateStr: string,
   meetingType: string | null,
-  token: string
+  token: string,
+  meetingLink?: string | null,
 ): string {
   const link = `${SITE_URL}/confirm/${token}`
 
@@ -86,8 +93,8 @@ export function build48hSms(
     return `Bonjour ${firstName}, votre entretien téléphonique avec Diploma Santé est prévu ${dateStr}. Merci de confirmer : ${link}`
   }
 
-  // Défaut : présentiel Paris
-  return `Bonjour ${firstName}, votre rendez-vous avec Diploma Santé est prévu ${dateStr} dans nos locaux à Paris. Merci de confirmer votre présence : ${link}`
+  const campus = resolvePresentielCampus(meetingLink)
+  return `Bonjour ${firstName}, votre rendez-vous avec Diploma Santé est prévu ${dateStr}. Campus : ${campus}. Merci de confirmer votre présence : ${link}`
 }
 
 // ─── SMS relance 24h avant ───────────────────────────────────────────────────
@@ -99,12 +106,23 @@ export function build24hRelanceSms(
   firstName: string,
   dateStr: string,
   meetingType: string | null,
-  token: string
+  token: string,
+  isConfirmedByProspect: boolean,
+  meetingLink?: string | null,
 ): string {
+  if (isConfirmedByProspect) {
+    if (meetingType === 'presentiel') {
+      const campus = resolvePresentielCampus(meetingLink)
+      return `Bonjour ${firstName}, rappel : votre RDV Diploma Santé est demain (${dateStr}). Confirmation bien reçue. Campus : ${campus}. À demain.`
+    }
+    return `Bonjour ${firstName}, rappel : votre RDV Diploma Santé est demain (${dateStr}). Confirmation bien reçue. À demain.`
+  }
+
   const link = `${SITE_URL}/confirm/${token}`
-  // Message uniforme pour rester en 1 segment SMS — le détail du type est dans le mail J-1.
-  void meetingType
-  void dateStr
+  if (meetingType === 'presentiel') {
+    const campus = resolvePresentielCampus(meetingLink)
+    return `${firstName}, rappel : votre RDV Diploma Santé est demain. Campus : ${campus}. Merci de confirmer votre présence en 1 clic : ${link}`
+  }
   return `${firstName}, rappel : votre RDV Diploma Santé est demain. Merci de confirmer votre présence en 1 clic : ${link}`
 }
 
@@ -170,6 +188,12 @@ export function build5minSms(
   }
 
   return `${firstName}, votre entretien Diploma Santé commence dans 5 min. Tenez-vous prêt, on vous appelle.`
+}
+
+function resolvePresentielCampus(meetingLink?: string | null): string {
+  const candidate = String(meetingLink || '').trim()
+  if (candidate && !/^https?:\/\//i.test(candidate)) return candidate
+  return PREPA_ADDRESS
 }
 
 // ─── SMS replanification ─────────────────────────────────────────────────────

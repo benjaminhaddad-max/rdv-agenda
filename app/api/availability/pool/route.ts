@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { weekStartISO } from '@/lib/week'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isMissingWeeklyTable(err: any): boolean {
+  if (!err) return false
+  const code = (err.code || '').toString().toUpperCase()
+  const text = [err.message, err.details, err.hint]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return (
+    code === 'PGRST205' ||
+    text.includes('could not find the table') ||
+    text.includes('schema cache') ||
+    text.includes('does not exist') ||
+    (text.includes('relation') && text.includes('weekly'))
+  )
+}
+
 // GET /api/availability/pool?date=2025-03-10
 // Returns aggregated available 30-min slots across ALL closers for a given date.
 // The télépro sees a pool of slots without knowing which closer is behind each one.
@@ -56,21 +73,29 @@ export async function GET(req: NextRequest) {
     .eq('day_of_week', dayOfWeek)
     .eq('is_active', true)
     .in('user_id', availableCloserIds)
+
+  const loadLegacyRules = async () => {
+    const fb = await db
+      .from('rdv_availability')
+      .select('*')
+      .eq('day_of_week', dayOfWeek)
+      .eq('is_active', true)
+      .in('user_id', availableCloserIds)
+    return fb.data ?? []
+  }
+
   if (weeklyRes.error) {
-    const msg = (weeklyRes.error.message || '').toLowerCase()
-    if (msg.includes('does not exist') || msg.includes('relation')) {
-      const fb = await db
-        .from('rdv_availability')
-        .select('*')
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_active', true)
-        .in('user_id', availableCloserIds)
-      rules = fb.data ?? []
+    if (isMissingWeeklyTable(weeklyRes.error)) {
+      rules = await loadLegacyRules()
     } else {
       rules = []
     }
   } else {
     rules = weeklyRes.data ?? []
+    // Weekly table exists but may be empty for this week; keep pool usable via legacy rules.
+    if (rules.length === 0) {
+      rules = await loadLegacyRules()
+    }
   }
   if (!rules || rules.length === 0) {
     return NextResponse.json([])

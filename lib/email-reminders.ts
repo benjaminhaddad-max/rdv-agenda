@@ -31,57 +31,61 @@ const SENDER = {
 //  - Bleu Diploma #4fabdb (liens, CTA, accents)
 //  - Doré web   #c6aa7c (liseré premium)
 //  - Gris clair #dddddc (bordures)
-function emailLayout(content: string, ctaUrl?: string, ctaLabel?: string): string {
-  const cta = ctaUrl && ctaLabel ? `
-    <table cellpadding="0" cellspacing="0" style="margin:24px 0 8px">
-      <tr>
-        <td style="background:#12314d;border-radius:6px">
-          <a href="${ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;letter-spacing:0.2px">
-            ${ctaLabel}
-          </a>
-        </td>
-        <td style="padding-left:16px">
-          <a href="${ctaUrl}" style="color:#4fabdb;text-decoration:none;font-size:13px;font-weight:500">ou cliquer ici</a>
-        </td>
-      </tr>
-    </table>
-  ` : ''
-  // Petit ornement serpent (inspiré de l'isotype) — discret, doré, juste avant la signature
-  const ornement = `
-    <table cellpadding="0" cellspacing="0" style="margin:30px 0 8px">
-      <tr>
-        <td style="vertical-align:middle">
-          <svg width="44" height="14" viewBox="0 0 44 14" xmlns="http://www.w3.org/2000/svg" style="display:block">
-            <path d="M2 7 Q 8 1, 14 7 T 26 7 T 38 7" stroke="#c6aa7c" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-            <circle cx="42" cy="7" r="1.6" fill="#c6aa7c"/>
-          </svg>
-        </td>
-      </tr>
-    </table>
-  `
+type LayoutOptions = {
+  heroTitle?: string
+  heroSubtitle?: string
+  finalCtaUrl?: string
+  finalCtaLabel?: string
+  finalFootnote?: string
+}
+
+function emailLayout(content: string, options?: LayoutOptions): string {
+  const finalCta = options?.finalCtaUrl && options?.finalCtaLabel ? `
+  <tr>
+    <td>
+      <div class="cta-section" style="background:#1C2436; padding:44px 20px; text-align:center;" bgcolor="#1C2436" align="center">
+        <p style="font-family:'DM Serif Display', Georgia, serif; font-size:22px; color:#FFFFFF; margin:0 0 14px; line-height:1.3;">Une question ?</p>
+        <p style="font-size:16px; line-height:1.75; color:rgba(255,255,255,0.7); margin:0 0 28px; max-width:420px; margin-left:auto; margin-right:auto;">
+          Notre équipe est disponible pour vous accompagner.
+        </p>
+        <a href="${options.finalCtaUrl}" style="display:inline-block; background-color:#C2AB82; color:#1C2436 !important; font-family:'DM Sans',Arial,sans-serif; font-size:16px; font-weight:700; padding:14px 32px; border-radius:100px; text-decoration:none;">
+          ${options.finalCtaLabel}
+        </a>
+        ${options.finalFootnote ? `<p style="margin-top:16px; font-size:14px; color:rgba(255,255,255,0.5);">${options.finalFootnote}</p>` : ''}
+      </div>
+    </td>
+  </tr>` : ''
+
   return `
 <!DOCTYPE html>
 <html lang="fr"><head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style type="text/css">
+  body, table, td, p, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  @media only screen and (max-width: 600px) {
+    .email-container { width: 100% !important; }
+    .body-section { padding: 28px 20px 44px !important; }
+    .cta-section { padding: 36px 20px !important; }
+  }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:'Matter','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#12314d">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff">
+  <div style="text-align:center; padding:20px 0 8px; background-color:#FFFFFF;">
+    <img src="https://26711031.fs1.hubspotusercontent-eu1.net/hubfs/26711031/logo-diploma-bleu.png" alt="Diploma Santé" width="260" style="display:block; margin:0 auto; width:260px;">
+  </div>
+
+  <table class="email-container" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; max-width:640px; margin:0 auto;">
     <tr>
-      <td style="padding:0 14px 36px">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;margin:0">
-          <tr>
-            <td style="font-size:15px;line-height:1.6;color:#12314d">
-              ${content}
-              ${cta}
-              ${ornement}
-              <p style="margin:0 0 4px">Bien à vous,</p>
-              <p style="margin:0;font-weight:700;color:#12314d">L'équipe Diploma Santé</p>
-            </td>
-          </tr>
-        </table>
+      <td>
+        <div class="body-section" style="background-color:#FFFFFF; padding:16px 20px 44px; font-size:16px; line-height:1.65; color:#3D4B5C;" bgcolor="#FFFFFF">
+          ${content}
+          <p style="margin:20px 0 4px;color:#3D4B5C">Bien à vous,</p>
+          <p style="margin:0;font-weight:700;color:#1C2436">L'équipe Diploma Santé</p>
+        </div>
       </td>
     </tr>
+    ${finalCta}
   </table>
 </body></html>`
 }
@@ -92,15 +96,15 @@ function emailLayout(content: string, ctaUrl?: string, ctaLabel?: string): strin
 const numberedItem = (n: number, html: string) => `
   <tr>
     <td style="vertical-align:top;padding:0 12px 12px 0;width:28px">
-      <div style="width:24px;height:24px;border-radius:50%;background:#fbf3e3;color:#a4844c;font-size:12px;font-weight:700;text-align:center;line-height:24px">${n}</div>
+      <div style="width:24px;height:24px;border-radius:50%;background:#fbf3e3;color:#a4844c;font-size:14px;font-weight:700;text-align:center;line-height:24px">${n}</div>
     </td>
-    <td style="vertical-align:top;padding:2px 0 12px 0;color:#3a4a5b;font-size:14px;line-height:1.55">${html}</td>
+    <td style="vertical-align:top;padding:2px 0 12px 0;color:#3a4a5b;font-size:16px;line-height:1.65">${html}</td>
   </tr>
 `
 
 /** Eyebrow de section : petit trait doré + label uppercase. */
 const sectionTitle = (label: string) => `
-  <p style="margin:8px 0 14px;font-weight:700;color:#12314d;font-size:13px;letter-spacing:1.2px">
+  <p style="margin:8px 0 14px;font-weight:700;color:#12314d;font-size:16px;letter-spacing:1.2px">
     <span style="display:inline-block;width:18px;height:2px;background:#c6aa7c;vertical-align:middle;margin-right:10px;margin-bottom:3px"></span>${label}
   </p>
 `
@@ -118,26 +122,26 @@ const rdvBox = (dateStr: string, meetingLabel: string, eyebrow = 'Votre rendez-v
       <td style="position:relative;background:linear-gradient(135deg,#f6f9fc 0%,#eef4fa 100%);border-left:3px solid #c6aa7c;border-radius:0 10px 10px 0;padding:18px 22px">
         ${shapeRdv}
         <p style="margin:0 0 12px">
-          <span style="display:inline-block;background:#fff5e6;color:#a4844c;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;padding:4px 10px;border-radius:3px">${eyebrow}</span>
+          <span style="display:inline-block;background:#fff5e6;color:#a4844c;font-size:14px;letter-spacing:1.2px;text-transform:uppercase;font-weight:700;padding:4px 10px;border-radius:3px">${eyebrow}</span>
         </p>
-        <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#12314d;line-height:1.3">
+        <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#12314d;line-height:1.5">
           ${iconCalendar}&nbsp;&nbsp;${dateStr}
         </p>
-        <p style="margin:0;font-size:14px;color:#5b6b7a;line-height:1.5"><span style="color:#c6aa7c;font-weight:700;margin-right:6px">→</span>${meetingLabel}</p>
+        <p style="margin:0;font-size:16px;color:#5b6b7a;line-height:1.6"><span style="color:#c6aa7c;font-weight:700;margin-right:6px">→</span>${meetingLabel}</p>
       </td>
     </tr>
   </table>
 `
 
 /** Construit le label du type de RDV (visio / téléphone / présentiel). */
-function getMeetingLabel(meetingType: string | null): string {
+function getMeetingLabel(meetingType: string | null, meetingLink?: string | null): string {
   if (meetingType === 'visio') return 'En visioconférence (lien envoyé le matin du RDV)'
   if (meetingType === 'telephone') return 'Par téléphone — notre équipe vous appelle au numéro communiqué'
-  return `En présentiel — ${PREPA_ADDRESS}`
+  return `En présentiel — ${resolvePresentielCampus(meetingLink)}`
 }
 
 /** Construit la liste des items "Comment bien préparer le RDV". */
-function getMeetingPrepItems(meetingType: string | null): string[] {
+function getMeetingPrepItems(meetingType: string | null, meetingLink?: string | null): string[] {
   if (meetingType === 'visio') {
     return [
       `Vous recevrez le <strong>lien de visio</strong> par email le matin du rendez-vous.`,
@@ -152,7 +156,7 @@ function getMeetingPrepItems(meetingType: string | null): string[] {
   }
   return [
     `Présentez-vous <strong>5 minutes avant l&rsquo;heure prévue</strong> à l&rsquo;accueil de l&rsquo;école.`,
-    `Adresse : <strong>${PREPA_ADDRESS}</strong>${PREPA_CODE ? ` (code d&rsquo;entrée : <strong>${PREPA_CODE}</strong>)` : ''}.`,
+    `Adresse : <strong>${resolvePresentielCampus(meetingLink)}</strong>${PREPA_CODE ? ` (code d&rsquo;entrée : <strong>${PREPA_CODE}</strong>)` : ''}.`,
   ]
 }
 
@@ -167,17 +171,74 @@ export interface ReminderResult {
   messageId?: string
 }
 
+export async function sendBookingConfirmationEmail(
+  target: ReminderTarget,
+  firstName: string,
+  dateStr: string,
+  meetingType: string | null,
+  meetingLink: string | null | undefined,
+  apptId: string,
+): Promise<ReminderResult> {
+  const meetingLabel = getMeetingLabel(meetingType, meetingLink)
+  const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
+  const visioBlock = (meetingType === 'visio' && meetingLink) ? `
+    ${sectionTitle('LIEN DE VISIO')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
+      <tr>
+        <td style="background:#12314d;border-radius:6px">
+          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+            Rejoindre la visioconférence&nbsp;&nbsp;→
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
+      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+    </p>
+  ` : ''
+
+  const content = `
+    <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
+    <p style="margin:0 0 14px">
+      Votre rendez-vous d&rsquo;orientation Diploma Santé est bien confirmé. Voici toutes les informations utiles.
+    </p>
+
+    ${rdvBox(dateStr, meetingLabel)}
+    ${visioBlock}
+
+    ${sectionTitle('COMMENT BIEN PRÉPARER LE RDV')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 6px;border-collapse:collapse;width:100%">
+      ${[
+        ...meetingPrepItems,
+        `Notez les <strong>questions</strong> que vous voulez aborder pendant l&rsquo;échange.`,
+      ].map((html, i) => numberedItem(i + 1, html)).join('')}
+    </table>
+  `
+
+  return sendReminderEmail({
+    target,
+    subject: `Confirmation de votre RDV Diploma Santé — ${dateStr}`,
+    html: emailLayout(content, {
+      heroTitle: 'Votre rendez-vous est confirmé',
+      heroSubtitle: 'Retrouvez ici toutes les informations pratiques pour préparer sereinement votre échange.',
+    }),
+    tag: `reminder:booking:${apptId}`,
+  })
+}
+
 // ─── Email 48h : confirmation ───────────────────────────────────────────────
 export async function send48hConfirmEmail(
   target: ReminderTarget,
   firstName: string,
   dateStr: string,
   meetingType: string | null,
+  meetingLink: string | null | undefined,
   token: string,
   apptId: string,
 ): Promise<ReminderResult> {
-  const meetingLabel = getMeetingLabel(meetingType)
-  const meetingPrepItems = getMeetingPrepItems(meetingType)
+  const meetingLabel = getMeetingLabel(meetingType, meetingLink)
+  const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
+  const link = `${SITE_URL}/confirm/${token}`
 
   const content = `
     <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
@@ -185,6 +246,27 @@ export async function send48hConfirmEmail(
       Votre rendez-vous d&rsquo;orientation avec un référent pédagogique Diploma Santé est bien enregistré — merci de votre confiance&nbsp;!
       Ce moment d&rsquo;échange est conçu pour vous accompagner concrètement dans la construction de votre projet.
     </p>
+
+    <table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;border-collapse:separate;width:100%;max-width:520px">
+      <tr>
+        <td style="background:#0f2842;border-radius:10px;padding:18px 22px">
+          <p style="margin:0 0 4px;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:0.2px">Merci de confirmer votre présence.</p>
+          <p style="margin:0 0 12px;color:#a8c4dd;font-size:16px;line-height:1.6">Un seul clic suffit — pas de formulaire, pas de mot de passe.</p>
+          <table cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="background:#c6aa7c;border-radius:6px">
+                <a href="${link}" style="display:inline-block;padding:12px 24px;color:#0f2842;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.3px">
+                  ✓&nbsp;&nbsp;Confirmer ma présence
+                </a>
+              </td>
+              <td style="padding-left:14px">
+                <a href="${link}" style="color:#a8c4dd;text-decoration:underline;font-size:16px">ou cliquer ici</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
 
     ${rdvBox(dateStr, meetingLabel)}
 
@@ -206,13 +288,13 @@ export async function send48hConfirmEmail(
     </table>
   `
 
-  // Token réservé pour les relances 24h ; pas de CTA sur ce mail de confirmation immédiate
-  void token
-
   return sendReminderEmail({
     target,
     subject: `Votre rendez-vous Diploma Santé est confirmé — ${dateStr}`,
-    html: emailLayout(content),
+    html: emailLayout(content, {
+      heroTitle: 'Plus que 48h avant votre rendez-vous',
+      heroSubtitle: 'Un petit rappel pour tout préparer dans les meilleures conditions.',
+    }),
     tag: `reminder:48h:${apptId}`,
   })
 }
@@ -223,43 +305,48 @@ export async function send24hRelanceEmail(
   firstName: string,
   dateStr: string,
   meetingType: string | null,
+  meetingLink: string | null | undefined,
   token: string,
+  isConfirmedByProspect: boolean,
   apptId: string,
 ): Promise<ReminderResult> {
   const link = `${SITE_URL}/confirm/${token}`
-  const meetingLabel = getMeetingLabel(meetingType)
-  const meetingPrepItems = getMeetingPrepItems(meetingType)
+  const meetingLabel = getMeetingLabel(meetingType, meetingLink)
+  const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
 
   const content = `
     <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
     <p style="margin:0 0 14px">
       Petit rappel&nbsp;: votre rendez-vous d&rsquo;orientation avec un référent pédagogique Diploma Santé est prévu <strong>demain</strong>.
-      Pour nous aider à bien préparer notre échange, nous avons besoin de votre <strong>confirmation</strong>.
+      ${isConfirmedByProspect
+        ? `Votre présence est déjà <strong>bien confirmée</strong>.`
+        : `Pour nous aider à bien préparer notre échange, nous avons besoin de votre <strong>confirmation</strong>.`}
     </p>
 
     ${rdvBox(dateStr, meetingLabel, 'Demain')}
 
-    <!-- Bloc CTA : un seul clic pour confirmer -->
-    <table cellpadding="0" cellspacing="0" style="margin:8px 0 22px;border-collapse:separate;width:100%;max-width:520px">
-      <tr>
-        <td style="background:#0f2842;border-radius:10px;padding:20px 22px">
-          <p style="margin:0 0 4px;color:#ffffff;font-size:15px;font-weight:700;letter-spacing:0.2px">Un seul clic suffit pour confirmer votre présence.</p>
-          <p style="margin:0 0 14px;color:#a8c4dd;font-size:13px;line-height:1.5">Pas de formulaire, pas de mot de passe — il suffit de cliquer sur le bouton ci-dessous, et c&rsquo;est validé.</p>
-          <table cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="background:#c6aa7c;border-radius:6px">
-                <a href="${link}" style="display:inline-block;padding:13px 26px;color:#0f2842;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px">
-                  ✓&nbsp;&nbsp;Confirmer ma présence
-                </a>
-              </td>
-              <td style="padding-left:14px">
-                <a href="${link}" style="color:#a8c4dd;text-decoration:underline;font-size:13px">ou cliquer ici</a>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+    ${!isConfirmedByProspect ? `
+      <table cellpadding="0" cellspacing="0" style="margin:8px 0 22px;border-collapse:separate;width:100%;max-width:520px">
+        <tr>
+          <td style="background:#0f2842;border-radius:10px;padding:20px 22px">
+            <p style="margin:0 0 4px;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:0.2px">Un seul clic suffit pour confirmer votre présence.</p>
+            <p style="margin:0 0 14px;color:#a8c4dd;font-size:16px;line-height:1.6">Pas de formulaire, pas de mot de passe — il suffit de cliquer sur le bouton ci-dessous, et c&rsquo;est validé.</p>
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#c6aa7c;border-radius:6px">
+                  <a href="${link}" style="display:inline-block;padding:13px 26px;color:#0f2842;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.3px">
+                    ✓&nbsp;&nbsp;Confirmer ma présence
+                  </a>
+                </td>
+                <td style="padding-left:14px">
+                  <a href="${link}" style="color:#a8c4dd;text-decoration:underline;font-size:16px">ou cliquer ici</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    ` : ''}
 
     ${sectionTitle('COMMENT BIEN PRÉPARER LE RDV')}
     <table cellpadding="0" cellspacing="0" style="margin:0 0 6px;border-collapse:collapse;width:100%">
@@ -273,8 +360,15 @@ export async function send24hRelanceEmail(
 
   return sendReminderEmail({
     target,
-    subject: `Votre RDV de demain — confirmez votre présence`,
-    html: emailLayout(content),
+    subject: isConfirmedByProspect
+      ? `Votre RDV de demain est bien confirmé`
+      : `Votre RDV de demain — confirmez votre présence`,
+    html: emailLayout(content, {
+      heroTitle: 'Votre rendez-vous est demain',
+      heroSubtitle: isConfirmedByProspect
+        ? 'Votre présence est confirmée, voici votre rappel de la veille.'
+        : 'Merci de confirmer votre présence en un clic pour finaliser votre créneau.',
+    }),
     tag: `reminder:24h:${apptId}`,
   })
 }
@@ -292,7 +386,7 @@ export async function sendMorningEmail(
   /** Token de confirmation — utilisé seulement si !isConfirmed. */
   token: string,
 ): Promise<ReminderResult> {
-  const meetingLabel = getMeetingLabel(meetingType)
+  const meetingLabel = getMeetingLabel(meetingType, meetingLink)
   const confirmLink = `${SITE_URL}/confirm/${token}`
 
   // Bloc CTA "Confirmer ma présence" — affiché UNIQUEMENT si pas encore confirmé
@@ -300,17 +394,17 @@ export async function sendMorningEmail(
     <table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;border-collapse:separate;width:100%;max-width:520px">
       <tr>
         <td style="background:#0f2842;border-radius:10px;padding:18px 22px">
-          <p style="margin:0 0 4px;color:#ffffff;font-size:14px;font-weight:700;letter-spacing:0.2px">Vous n&rsquo;avez pas encore confirmé votre présence.</p>
-          <p style="margin:0 0 12px;color:#a8c4dd;font-size:13px;line-height:1.5">Un seul clic suffit — pas de formulaire, pas de mot de passe.</p>
+          <p style="margin:0 0 4px;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:0.2px">Vous n&rsquo;avez pas encore confirmé votre présence.</p>
+          <p style="margin:0 0 12px;color:#a8c4dd;font-size:16px;line-height:1.6">Un seul clic suffit — pas de formulaire, pas de mot de passe.</p>
           <table cellpadding="0" cellspacing="0">
             <tr>
               <td style="background:#c6aa7c;border-radius:6px">
-                <a href="${confirmLink}" style="display:inline-block;padding:12px 24px;color:#0f2842;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px">
+                <a href="${confirmLink}" style="display:inline-block;padding:12px 24px;color:#0f2842;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.3px">
                   ✓&nbsp;&nbsp;Confirmer ma présence
                 </a>
               </td>
               <td style="padding-left:14px">
-                <a href="${confirmLink}" style="color:#a8c4dd;text-decoration:underline;font-size:13px">ou cliquer ici</a>
+                <a href="${confirmLink}" style="color:#a8c4dd;text-decoration:underline;font-size:16px">ou cliquer ici</a>
               </td>
             </tr>
           </table>
@@ -325,13 +419,13 @@ export async function sendMorningEmail(
     <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
       <tr>
         <td style="background:#12314d;border-radius:6px">
-          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.2px">
+          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
             Rejoindre la visioconférence&nbsp;&nbsp;→
           </a>
         </td>
       </tr>
     </table>
-    <p style="margin:0 0 22px;font-size:12px;color:#5b6b7a;line-height:1.5">
+    <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
       Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
     </p>
   ` : ''
@@ -351,7 +445,7 @@ export async function sendMorningEmail(
       ]
     : [
         `Présentez-vous <strong>5 minutes avant l&rsquo;heure prévue</strong> à l&rsquo;accueil de l&rsquo;école.`,
-        `Adresse&nbsp;: <strong>${PREPA_ADDRESS}</strong>${PREPA_CODE ? ` (code d&rsquo;entrée&nbsp;: <strong>${PREPA_CODE}</strong>)` : ''}.`,
+        `Adresse&nbsp;: <strong>${resolvePresentielCampus(meetingLink)}</strong>${PREPA_CODE ? ` (code d&rsquo;entrée&nbsp;: <strong>${PREPA_CODE}</strong>)` : ''}.`,
         `Notez les <strong>questions</strong> que vous voulez aborder pendant l&rsquo;échange.`,
       ]
 
@@ -379,8 +473,107 @@ export async function sendMorningEmail(
   return sendReminderEmail({
     target,
     subject: `Aujourd'hui ${heureStr} — votre rendez-vous Diploma Santé`,
-    html: emailLayout(content),
+    html: emailLayout(content, {
+      heroTitle: "C'est aujourd'hui",
+      heroSubtitle: 'Votre rendez-vous approche, voici les informations utiles avant votre échange.',
+    }),
     tag: `reminder:morning:${apptId}`,
+  })
+}
+
+export async function sendVisio1hEmail(
+  target: ReminderTarget,
+  firstName: string,
+  heureStr: string,
+  meetingLink: string,
+  apptId: string,
+): Promise<ReminderResult> {
+  const content = `
+    <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
+    <p style="margin:0 0 14px">
+      Rappel : votre rendez-vous en visioconférence avec Diploma Santé commence dans <strong>1 heure</strong> (à ${heureStr}).
+    </p>
+    <p style="margin:0 0 14px">
+      Pour vous permettre d&rsquo;arriver sereinement à l&rsquo;échange, nous vous partageons le lien de connexion dès maintenant ainsi que quelques repères pratiques.
+    </p>
+
+    ${sectionTitle('REJOINDRE LA VISIO')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
+      <tr>
+        <td style="background:#12314d;border-radius:6px">
+          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+            Rejoindre la visioconférence&nbsp;&nbsp;→
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 10px;font-size:16px;color:#5b6b7a;line-height:1.6">
+      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+    </p>
+
+    ${sectionTitle('AVANT DE VOUS CONNECTER')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 6px;border-collapse:collapse;width:100%">
+      ${[
+        `Connectez-vous <strong>5 minutes en avance</strong> pour vérifier votre micro et votre caméra.`,
+        `Installez-vous dans un environnement calme, avec une connexion internet stable.`,
+        `Préparez vos questions : orientation, méthode de travail, organisation de l&rsquo;année, etc.`,
+      ].map((html, i) => numberedItem(i + 1, html)).join('')}
+    </table>
+  `
+
+  return sendReminderEmail({
+    target,
+    subject: `Rappel : votre visio commence à ${heureStr}`,
+    html: emailLayout(content, {
+      heroTitle: 'Votre visio commence dans 1 heure',
+      heroSubtitle: 'Cliquez sur le lien ci-dessous pour rejoindre facilement votre rendez-vous.',
+    }),
+    tag: `reminder:visio-1h:${apptId}`,
+  })
+}
+
+export async function sendVisio5minEmail(
+  target: ReminderTarget,
+  firstName: string,
+  meetingLink: string,
+  apptId: string,
+): Promise<ReminderResult> {
+  const content = `
+    <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
+    <p style="margin:0 0 14px">
+      Votre rendez-vous en visioconférence avec Diploma Santé commence dans <strong>5 minutes</strong>.
+    </p>
+    <p style="margin:0 0 14px">
+      Vous pouvez rejoindre la salle dès maintenant pour vous installer tranquillement avant le début de l&rsquo;échange.
+    </p>
+
+    ${sectionTitle('REJOINDRE LA VISIO')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
+      <tr>
+        <td style="background:#12314d;border-radius:6px">
+          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+            Rejoindre la visioconférence&nbsp;&nbsp;→
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 10px;font-size:16px;color:#5b6b7a;line-height:1.6">
+      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+    </p>
+
+    <p style="margin:0 0 6px">
+      Si le bouton ne fonctionne pas, copiez-collez simplement le lien direct dans votre navigateur.
+    </p>
+  `
+
+  return sendReminderEmail({
+    target,
+    subject: `Votre visio Diploma Santé commence dans 5 minutes`,
+    html: emailLayout(content, {
+      heroTitle: 'Votre visio commence dans 5 minutes',
+      heroSubtitle: 'Vous pouvez rejoindre la salle dès maintenant.',
+    }),
+    tag: `reminder:visio-5min:${apptId}`,
   })
 }
 
@@ -399,7 +592,13 @@ export async function sendReplanifierEmail(
   return sendReminderEmail({
     target,
     subject: 'On reprogramme votre rendez-vous ?',
-    html: emailLayout(content, REPLANIF_URL, 'Choisir un nouveau créneau'),
+    html: emailLayout(content, {
+      heroTitle: 'On reprogramme votre rendez-vous ?',
+      heroSubtitle: 'Choisissez un nouveau créneau en quelques clics.',
+      finalCtaUrl: REPLANIF_URL,
+      finalCtaLabel: 'Choisir un nouveau créneau',
+      finalFootnote: 'Gratuit · Sans engagement',
+    }),
     tag: `reminder:replanif:${apptId}`,
   })
 }
@@ -434,4 +633,10 @@ async function sendReminderEmail(opts: {
     const message = err instanceof Error ? err.message : String(err)
     return { ok: false, error: message }
   }
+}
+
+function resolvePresentielCampus(meetingLink?: string | null): string {
+  const candidate = String(meetingLink || '').trim()
+  if (candidate && !/^https?:\/\//i.test(candidate)) return candidate
+  return PREPA_ADDRESS
 }

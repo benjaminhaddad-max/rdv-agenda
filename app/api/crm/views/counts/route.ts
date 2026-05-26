@@ -75,16 +75,11 @@ async function resolveFormContactIds(db: ReturnType<typeof createServiceClient>,
   return [...contactIds]
 }
 
-function pgQuote(v: string): string {
-  return `"${String(v).replace(/"/g, '\\"')}"`
-}
-
 async function resolveScopedTeleproContactIds(
   db: ReturnType<typeof createServiceClient>,
   teleproIds: string[],
 ): Promise<string[]> {
   if (teleproIds.length === 0) return []
-  const inList = teleproIds.map(pgQuote).join(',')
   const out = new Set<string>()
   const PAGE = 1000
 
@@ -92,7 +87,7 @@ async function resolveScopedTeleproContactIds(
     const { data: rows } = await db
       .from('crm_contacts')
       .select('hubspot_contact_id')
-      .or(`telepro_user_id.in.(${inList}),teleprospecteur.in.(${inList})`)
+      .in('telepro_user_id', teleproIds)
       .range(off, off + PAGE - 1)
     if (!rows || rows.length === 0) break
     for (const r of rows) if (r.hubspot_contact_id) out.add(r.hubspot_contact_id)

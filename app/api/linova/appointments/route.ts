@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
         source: 'linova',
         origine: hasLinovaOrigine ? contactRow.origine : 'Linova',
         recent_conversion_event: hasLinovaRecentEvent ? contactRow.recent_conversion_event : 'LINOVA - RDV admission',
+        recent_conversion_event_name: hasLinovaRecentEvent ? contactRow.recent_conversion_event : 'LINOVA - RDV admission',
         recent_conversion_date: nowIso,
         hs_lead_status: contactRow.hs_lead_status || 'Nouveau',
         telepro_user_id: effectiveTeleproId,

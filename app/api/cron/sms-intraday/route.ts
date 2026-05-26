@@ -1,12 +1,12 @@
 /**
  * GET /api/cron/sms-intraday
  *
- * Rappels intra-journée pour les RDV visio et téléphoniques uniquement.
+ * Rappels intra-journée pour les RDV visio uniquement.
  * Planifié toutes les 5 minutes : `* /5 * * * *` (sans espace)
  *
  * Deux vérifications à chaque run :
- * 1. SMS 1h avant  : start_at dans [+55min, +65min] → sms_1h_sent_at IS NULL
- * 2. SMS 5min avant: start_at dans [+3min, +8min]   → sms_5min_sent_at IS NULL
+ * 1. SMS + email 1h avant  : start_at dans [+55min, +65min] → sms_1h_sent_at IS NULL
+ * 2. SMS + email 5min avant: start_at dans [+3min, +8min]   → sms_5min_sent_at IS NULL
  *
  * Sécurisé par le header `Authorization: Bearer CRON_SECRET`.
  */
@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build1hSms, build5minSms } from '@/lib/smsfactor'
+import { sendVisio1hEmail, sendVisio5minEmail } from '@/lib/email-reminders'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -36,9 +37,9 @@ export async function GET(req: NextRequest) {
   // ── 1h avant ─────────────────────────────────────────────────────────────
   const { data: appts1h } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, meeting_type, meeting_link, sms_1h_sent_at')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_1h_sent_at')
     .in('status', ['confirme', 'confirme_prospect'])
-    .in('meeting_type', ['visio', 'telephone'])
+    .eq('meeting_type', 'visio')
     .not('prospect_phone', 'is', null)
     .is('sms_1h_sent_at', null)
     .gte('start_at', win1hStart.toISOString())
@@ -47,9 +48,9 @@ export async function GET(req: NextRequest) {
   // ── 5min avant ───────────────────────────────────────────────────────────
   const { data: appts5min } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, meeting_type, meeting_link, sms_5min_sent_at')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_5min_sent_at')
     .in('status', ['confirme', 'confirme_prospect'])
-    .in('meeting_type', ['visio', 'telephone'])
+    .eq('meeting_type', 'visio')
     .not('prospect_phone', 'is', null)
     .is('sms_5min_sent_at', null)
     .gte('start_at', win5minStart.toISOString())
@@ -68,6 +69,18 @@ export async function GET(req: NextRequest) {
     const message = build1hSms(firstName, heureStr, appt.meeting_type, appt.meeting_link)
     const smsResult = await sendSms(appt.prospect_phone, message)
     if (smsResult.ok) {
+      if (appt.prospect_email && appt.meeting_link) {
+        const emailResult = await sendVisio1hEmail(
+          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          firstName,
+          heureStr,
+          appt.meeting_link,
+          appt.id,
+        )
+        if (!emailResult.ok) {
+          console.error('[cron/sms-intraday] Erreur email 1h:', emailResult.error, 'appt:', appt.id)
+        }
+      }
       await db.from('rdv_appointments').update({ sms_1h_sent_at: new Date().toISOString() }).eq('id', appt.id)
       results.push({ id: appt.id, name: appt.prospect_name, type: '1h', status: 'sent' })
     } else {
@@ -82,6 +95,17 @@ export async function GET(req: NextRequest) {
     const message = build5minSms(firstName, appt.meeting_type, appt.meeting_link)
     const smsResult = await sendSms(appt.prospect_phone, message)
     if (smsResult.ok) {
+      if (appt.prospect_email && appt.meeting_link) {
+        const emailResult = await sendVisio5minEmail(
+          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          firstName,
+          appt.meeting_link,
+          appt.id,
+        )
+        if (!emailResult.ok) {
+          console.error('[cron/sms-intraday] Erreur email 5min:', emailResult.error, 'appt:', appt.id)
+        }
+      }
       await db.from('rdv_appointments').update({ sms_5min_sent_at: new Date().toISOString() }).eq('id', appt.id)
       results.push({ id: appt.id, name: appt.prospect_name, type: '5min', status: 'sent' })
     } else {

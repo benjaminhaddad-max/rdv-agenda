@@ -89,6 +89,11 @@ const CLASSES = [
   'Etudes médicales', 'Etudes Sup.', 'Autre',
 ]
 
+const CAMPUS_OPTIONS = [
+  '100 quai de la Rapée 75012 Paris',
+  '29 rue Lauriston 75016 Paris',
+]
+
 // Statuts pertinents pour le suivi télépro (dans l'ordre d'affichage)
 const TRACKING_STATUSES: AppointmentStatus[] = [
   'no_show', 'a_travailler', 'pre_positif', 'positif', 'negatif', 'annule', 'confirme', 'non_assigne',
@@ -453,6 +458,11 @@ export default function TeleproClient({
 }) {
   const isAdmin = teleproUser.role === 'admin'
   const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
+  // "Mes Contacts" doit reposer sur l'identité CRM interne du télépro.
+  // Le backend gère la compatibilité avec les anciens enregistrements HubSpot.
+  const teleproCrmFilterId = teleproUser.id || ''
+  // Les transactions restent filtrées côté deal avec l'ID HubSpot existant.
+  const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
   const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
@@ -526,8 +536,9 @@ export default function TeleproClient({
   const [departement, setDepartement] = useState('')
   const [classeActuelle, setClasseActuelle] = useState('')
   const [formation, setFormation] = useState('')
-  const [meetingType, setMeetingType] = useState<'visio' | 'telephone' | 'presentiel'>('visio')
+  const [meetingType, setMeetingType] = useState<'visio' | 'presentiel'>('visio')
   const [meetingLink, setMeetingLink] = useState(() => generateJitsiLink())
+  const [meetingCampus, setMeetingCampus] = useState(CAMPUS_OPTIONS[0])
   const [linkCopied, setLinkCopied] = useState(false)
   const [notes, setNotes] = useState('')
 
@@ -989,7 +1000,7 @@ export default function TeleproClient({
     setExistingTeleproId(null); setExistingTeleproName(null)
     setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
     setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
-    setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setLinkCopied(false)
+    setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setMeetingCampus(CAMPUS_OPTIONS[0]); setLinkCopied(false)
     setNotes(''); setSelectedDate(null); setSelectedSlot(null); setError(null)
     setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
     setNewFormation(''); setNewClasse(''); setNewDepartement('')
@@ -1050,7 +1061,7 @@ export default function TeleproClient({
   // ── Submit ────────────────────────────────────────────────────────────
   const contactName = contact ? [contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') : ''
   const contactEmail = email || contact?.properties.email || ''
-  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation
+  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation && (meetingType !== 'presentiel' || !!meetingCampus)
 
   async function submit() {
     if (isLinovaBrandUser) {
@@ -1071,7 +1082,7 @@ export default function TeleproClient({
           source: 'telepro', formation_type: formationLabel, formation_hs_value: formation,
           hubspot_contact_id: contact!.id, departement, classe_actuelle: classeActuelle,
           meeting_type: meetingType,
-          meeting_link: meetingType === 'visio' ? meetingLink || null : null,
+          meeting_link: meetingType === 'visio' ? meetingLink || null : (meetingType === 'presentiel' ? meetingCampus : null),
           telepro_id: teleproUser.id,
           // Si le contact est déjà attribué à un AUTRE télépro, on transmet l'info
           // pour que l'API crée un doublon télépro à arbitrer par Pascal.
@@ -1081,6 +1092,7 @@ export default function TeleproClient({
             `📍 Département : ${departement}`,
             `🎓 Classe actuelle : ${classeActuelle}`,
             phone ? `📞 Téléphone : ${phone}` : '',
+            meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes d'appel :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
         }),
@@ -1996,15 +2008,27 @@ export default function TeleproClient({
                   <div style={{ display: 'flex', gap: 6 }}>
                     {([
                       { key: 'visio' as const, icon: <Video size={12} />, label: 'Visio', color: '#ccac71' },
-                      { key: 'telephone' as const, icon: <PhoneCall size={12} />, label: 'Téléphone', color: '#22c55e' },
                       { key: 'presentiel' as const, icon: <MapPin size={12} />, label: 'Présentiel', color: '#ccac71' },
                     ]).map(t => (
-                      <button key={t.key} type="button" onClick={() => { setMeetingType(t.key); if (t.key === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink()); setLinkCopied(false) }}
+                      <button key={t.key} type="button" onClick={() => {
+                        setMeetingType(t.key)
+                        if (t.key === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink())
+                        if (t.key === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
+                        setLinkCopied(false)
+                      }}
                         style={{ flex: 1, background: meetingType === t.key ? `${t.color}18` : '#f1f5f9', border: `1px solid ${meetingType === t.key ? `${t.color}60` : '#e2e8f0'}`, borderRadius: 8, padding: '8px 6px', color: meetingType === t.key ? t.color : '#64748b', fontSize: 12, fontWeight: meetingType === t.key ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
                   </div>
+                  {meetingType === 'presentiel' && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={labelStyle}><MapPin size={12} style={{ color: '#ccac71' }} /> Campus (présentiel)</div>
+                      <select value={meetingCampus} onChange={e => setMeetingCampus(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                        {CAMPUS_OPTIONS.map(campus => <option key={campus} value={campus}>{campus}</option>)}
+                      </select>
+                    </div>
+                  )}
                   {meetingType === 'visio' && meetingLink && (
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '8px 12px' }}>
                       <Video size={13} style={{ color: '#ccac71', flexShrink: 0 }} />
@@ -2421,14 +2445,18 @@ export default function TeleproClient({
             Inclut tous les contacts dont Elsa est le télépro, même sans deal associé). ──── */}
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <UserCRMView
-            ownerParam="telepro_hs_id"
-            // Filtrage strict sur la propriété télépro (HubSpot user/owner id).
-            // Fallback sur l'id interne uniquement si les ids HubSpot manquent.
-            ownerId={teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || teleproUser.id}
-            mode="telepro"
-            onTotalChange={setCrmTotal}
-          />
+          {teleproCrmFilterId ? (
+            <UserCRMView
+              ownerParam="telepro_id"
+              ownerId={teleproCrmFilterId}
+              mode="telepro"
+              onTotalChange={setCrmTotal}
+            />
+          ) : (
+            <div style={{ padding: 24, color: '#64748b', fontSize: 13 }}>
+              Aucun identifiant CRM configuré pour ce télépro.
+            </div>
+          )}
         </div>
       )}
 
@@ -2436,7 +2464,7 @@ export default function TeleproClient({
       {activeTab === 'transactions' && !isAdmin && (
         <div style={{ width: '100%' }}>
           <iframe
-            src={`/admin/crm/transactions?telepro=${encodeURIComponent(teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || '')}&embed=1`}
+            src={`/admin/crm/transactions?telepro=${encodeURIComponent(teleproDealsFilterId)}&embed=1`}
             style={{ width: '100%', height: 'calc(100vh - 180px)', border: 'none', display: 'block' }}
             title="Kanban Mes Transactions"
           />

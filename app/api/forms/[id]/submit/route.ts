@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
+import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -126,11 +127,18 @@ export async function POST(req: Request, { params }: Params) {
   // Création contact par défaut (sauf si explicitement désactivé : auto_create_contact === false)
   if (form.auto_create_contact !== false && (contactData.email || contactData.phone)) {
     // Cherche par email en priorité, sinon par téléphone (PK = hubspot_contact_id)
-    let existing: { hubspot_contact_id: string } | null = null
+    let existing: {
+      hubspot_contact_id: string
+      first_conversion_date: string | null
+      first_conversion_event_name: string | null
+      recent_conversion_date: string | null
+      recent_conversion_event: string | null
+      recent_conversion_event_name: string | null
+    } | null = null
     if (contactData.email) {
       const { data: c } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id')
+        .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
         .eq('email', String(contactData.email).toLowerCase().trim())
         .maybeSingle()
       existing = c
@@ -139,7 +147,7 @@ export async function POST(req: Request, { params }: Params) {
       const phoneClean = String(contactData.phone).replace(/\s+/g, '')
       const { data: c } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id')
+        .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
         .eq('phone', phoneClean)
         .maybeSingle()
       existing = c
@@ -147,15 +155,18 @@ export async function POST(req: Request, { params }: Params) {
 
     // Métadonnées de conversion à enregistrer / mettre à jour à chaque soumission
     const nowIso = new Date().toISOString()
-    const conversionMeta = {
-      recent_conversion_date:  nowIso,
-      recent_conversion_event: form.name || 'Formulaire web',
-      synced_at:               nowIso,
-    }
+    const conversionMeta = buildConversionFieldsForSubmission(
+      nowIso,
+      form.name || 'Formulaire web',
+      existing,
+    )
 
     if (existing) {
       // Met à jour le contact existant avec les nouvelles valeurs non vides
-      const updateData: Record<string, unknown> = { ...conversionMeta }
+      const updateData: Record<string, unknown> = {
+        ...conversionMeta,
+        synced_at: nowIso,
+      }
       for (const [k, v] of Object.entries(contactData)) {
         if (v !== undefined && v !== null && String(v).trim() !== '') {
           updateData[k] = v
@@ -169,6 +180,7 @@ export async function POST(req: Request, { params }: Params) {
       const insertData: Record<string, unknown> = {
         ...contactData,
         ...conversionMeta,
+        synced_at: nowIso,
         contact_createdate: nowIso,
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,

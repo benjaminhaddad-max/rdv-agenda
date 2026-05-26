@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
   if (!isAdmin && hubspotOwnerId && (ownerType === 'closer' || ownerType === 'telepro')) {
     // 1a. Récupérer les contact IDs selon le rôle :
     //   - closer  : crm_contacts.closer_du_contact_owner_id = ownerId
-    //   - telepro : crm_contacts.teleprospecteur          = ownerId
+    //   - telepro : crm_contacts.telepro_user_id           = ownerId
     const filterColumn = ownerType === 'closer'
       ? 'closer_du_contact_owner_id'
-      : 'teleprospecteur'
+      : 'telepro_user_id'
 
     const matchedContactIds: string[] = []
     let from = 0

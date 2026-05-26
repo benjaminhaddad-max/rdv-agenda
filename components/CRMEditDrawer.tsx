@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, PhoneCall, MapPin, CheckCircle, ChevronDown } from 'lucide-react'
+import { X, Save, ExternalLink, Calendar, ChevronLeft, ChevronRight, Clock, Video, MapPin, CheckCircle, ChevronDown } from 'lucide-react'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 // Constantes
 const NAVY_BORDER = '#cbd6e2'
@@ -69,13 +70,17 @@ const FORMATION_LIST = [
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième',
   'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3',
-  'Etudes médicales', 'Etudes Sup.', 'Autre',
+  'Etudes médicales', 'Etudes Sup.', 'Autres',
 ]
 
 const MEETING_TYPES = [
   { value: 'visio', label: 'Visio', icon: Video },
-  { value: 'telephone', label: 'Téléphone', icon: PhoneCall },
   { value: 'presentiel', label: 'Présentiel', icon: MapPin },
+]
+
+const CAMPUS_OPTIONS = [
+  '100 quai de la Rapée 75012 Paris',
+  '29 rue Lauriston 75016 Paris',
 ]
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
@@ -103,7 +108,6 @@ interface CRMContact {
   contact_createdate?: string | null
   hubspot_owner_id?: string | null
   telepro_user_id?: string | null
-  teleprospecteur?: string | null  // ancien champ HubSpot contact-level (fallback)
   closer_du_contact_owner_id?: string | null
   extra_props?: Record<string, unknown> | null
   recent_conversion_date?: string | null
@@ -123,6 +127,31 @@ interface CRMContact {
     closer?: { id: string; name: string; avatar_color: string } | null
     telepro?: { id: string; name: string; avatar_color: string } | null
   } | null
+}
+
+function pickString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function getContactClasseValue(contact: CRMContact): string {
+  const direct = normalizeClasseActuelle(contact.classe_actuelle) || pickString(contact.classe_actuelle)
+  if (direct) return direct
+
+  const extra = (contact.extra_props && typeof contact.extra_props === 'object')
+    ? contact.extra_props as Record<string, unknown>
+    : {}
+
+  return (
+    normalizeClasseActuelle(extra.classe_actuelle) ||
+    normalizeClasseActuelle(extra.classe) ||
+    normalizeClasseActuelle(extra.hs_classe_actuelle) ||
+    normalizeClasseActuelle(extra.current_class) ||
+    pickString(extra.classe_actuelle) ||
+    pickString(extra.classe) ||
+    pickString(extra.hs_classe_actuelle) ||
+    pickString(extra.current_class) ||
+    ''
+  )
 }
 
 interface HubspotOwnerMeta {
@@ -430,15 +459,32 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 
   const [phone, setPhone] = useState(contact.phone || '')
   const [departement, setDepartement] = useState(contact.departement || '')
-  const [classeActuelle, setClasseActuelle] = useState(contact.classe_actuelle || '')
+  const [classeActuelle, setClasseActuelle] = useState(getContactClasseValue(contact))
   const [formation, setFormation] = useState(contact.formation_demandee || '')
   const [meetingType, setMeetingType] = useState('visio')
   const [meetingLink, setMeetingLink] = useState(generateJitsiLink())
+  const [meetingCampus, setMeetingCampus] = useState(CAMPUS_OPTIONS[0])
   const [notes, setNotes] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  // Keep booking fields in sync with the currently opened contact.
+  useEffect(() => {
+    const classeFromContact = getContactClasseValue(contact)
+    setPhone(contact.phone || '')
+    setDepartement(contact.departement || '')
+    setClasseActuelle(classeFromContact)
+    setFormation(contact.formation_demandee || '')
+  }, [
+    contact.hubspot_contact_id,
+    contact.phone,
+    contact.departement,
+    contact.classe_actuelle,
+    contact.extra_props,
+    contact.formation_demandee,
+  ])
 
   const weekDays = getWeekDays(weekOffset)
   const today = new Date()
@@ -464,7 +510,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || ''
   const contactEmail = contact.email || ''
   const formationLabel = FORMATIONS.find(f => f.value === formation)?.label || formation
-  const canSubmit = selectedSlot && phone && departement && classeActuelle && formation
+  const canSubmit = selectedSlot && phone && departement && classeActuelle && formation && (meetingType !== 'presentiel' || !!meetingCampus)
 
   async function handleSubmit() {
     if (!canSubmit) { setError('Remplis tous les champs obligatoires'); return }
@@ -486,12 +532,13 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           departement,
           classe_actuelle: classeActuelle,
           meeting_type: meetingType,
-          meeting_link: meetingType === 'visio' ? meetingLink : null,
+          meeting_link: meetingType === 'visio' ? meetingLink : (meetingType === 'presentiel' ? meetingCampus : null),
           call_notes: [
             `📚 Formation souhaitée : ${formationLabel}`,
             `📍 Département : ${departement}`,
             `🎓 Classe actuelle : ${classeActuelle}`,
             phone ? `📞 Téléphone : ${phone}` : '',
+            meetingType === 'presentiel' && meetingCampus ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
         }),
@@ -649,14 +696,14 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
               <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Téléphone *</div>
               <input
                 type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#1e293b', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Département *</div>
               <input
                 value={departement} onChange={e => setDepartement(e.target.value)}
-                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#1e293b', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -688,7 +735,11 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                 return (
                   <button
                     key={mt.value}
-                    onClick={() => { setMeetingType(mt.value); if (mt.value === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink()) }}
+                    onClick={() => {
+                      setMeetingType(mt.value)
+                      if (mt.value === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink())
+                      if (mt.value === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
+                    }}
                     style={{
                       flex: 1, padding: '6px 8px',
                       background: active ? 'rgba(204,172,113,0.15)' : '#f5f8fa',
@@ -704,6 +755,26 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
               })}
             </div>
           </div>
+
+          {/* Campus présentiel */}
+          {meetingType === 'presentiel' && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                Campus (présentiel)
+              </div>
+              <select
+                value={meetingCampus}
+                onChange={e => setMeetingCampus(e.target.value)}
+                style={{
+                  width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`,
+                  borderRadius: 6, padding: '7px 10px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                  appearance: 'none', WebkitAppearance: 'none',
+                }}
+              >
+                {CAMPUS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Lien visio */}
           {meetingType === 'visio' && (
@@ -820,7 +891,6 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   // Flux Linova UNIQUEMENT quand le lead est attribué à Meryeme.
   const assignedTeleproRaw =
     c.telepro_user_id
-    || c.teleprospecteur
     || deal?.teleprospecteur
     || ''
   const assignedTelepro = telepros.find(u =>
@@ -1146,7 +1216,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
             <EditField label="Email" value={c.email || ''} type="email" onSave={v => patchContact({ email: v })} />
             <SelectField
               label="Classe actuelle"
-              value={c.classe_actuelle || ''}
+              value={getContactClasseValue(c)}
               options={classeOptionList}
               onSave={v => patchContact({ classe_actuelle: v })}
             />
@@ -1223,7 +1293,6 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
               const extraTelepro = (c.extra_props?.teleprospecteur as string | undefined) ?? ''
               const rawTelepro =
                 c.telepro_user_id
-                || c.teleprospecteur
                 || (deal?.telepro?.id ?? '')
                 || deal?.teleprospecteur
                 || extraTelepro
@@ -1243,7 +1312,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                   label="Téléprospecteur"
                   value={resolvedKey}
                   options={effectiveOptions}
-                  onSave={v => patchContact({ telepro_user_id: v || null, teleprospecteur: v || null })}
+                  onSave={v => patchContact({ telepro_user_id: v || null })}
                 />
               )
             })()}

@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
+import { buildConversionFieldsForSubmission, type ExistingConversionFields } from '@/lib/conversion-fields'
 
 /**
  * Helpers pour l'intégration Meta Lead Ads (Facebook + Instagram).
@@ -728,25 +729,28 @@ export async function processMetaLead(
   let existingId: string | null = null
   let existingZoneLocalite: string | null = null
   let existingDepartement: string | null = null
+  let existingConversion: ExistingConversionFields | null = null
   if (contactData.email) {
     const { data } = await db.from('crm_contacts')
-      .select('hubspot_contact_id, zone_localite, departement')
+      .select('hubspot_contact_id, zone_localite, departement, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
       .eq('email', contactData.email)
       .maybeSingle()
     existingId = data?.hubspot_contact_id || null
     existingZoneLocalite = data?.zone_localite || null
     existingDepartement = data?.departement || null
+    existingConversion = data
   }
   if (!existingId && contactData.phone) {
     const candidates = phoneCandidates(contactData.phone)
     if (candidates.length > 0) {
       const { data } = await db.from('crm_contacts')
-        .select('hubspot_contact_id, phone, zone_localite, departement')
+        .select('hubspot_contact_id, phone, zone_localite, departement, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
         .in('phone', candidates)
         .limit(5)
       existingId = data?.[0]?.hubspot_contact_id || null
       existingZoneLocalite = data?.[0]?.zone_localite || null
       existingDepartement = data?.[0]?.departement || null
+      existingConversion = data?.[0] || null
     }
     // fallback fuzzy sur les 9 derniers digits pour absorber les anciens formats
     if (!existingId) {
@@ -754,7 +758,7 @@ export async function processMetaLead(
       const last9 = digits.slice(-9)
       if (last9.length >= 8) {
         const { data } = await db.from('crm_contacts')
-          .select('hubspot_contact_id, phone, zone_localite, departement')
+          .select('hubspot_contact_id, phone, zone_localite, departement, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
           .ilike('phone', `%${last9}`)
           .limit(20)
         const match = (data ?? []).find(r =>
@@ -763,6 +767,7 @@ export async function processMetaLead(
         existingId = match?.hubspot_contact_id || null
         existingZoneLocalite = match?.zone_localite || null
         existingDepartement = match?.departement || null
+        existingConversion = match || null
       }
     }
   }
@@ -789,15 +794,13 @@ export async function processMetaLead(
       : defaultTelepro
   const assignedTeleproId = assignedTelepro.hubspotUserId || assignedTelepro.rdvUserId || null
 
-  const conversionMeta = {
-    recent_conversion_date: leadCreatedIso,
-    // recent_conversion_event = nom du form Meta (utilise par le filtre
-    // "Dernier formulaire soumis"). Fallback : origine_label ou 'Meta Lead Ads'.
-    recent_conversion_event:
-      resolvedFormMetadata?.name || resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
-    source: 'meta_lead_ads',
-    synced_at: nowIso,
-  }
+  const formEventName =
+    resolvedFormMetadata?.name || resolvedFormMetadata?.origine_label || 'Meta Lead Ads'
+  const conversionMeta = buildConversionFieldsForSubmission(
+    leadCreatedIso,
+    formEventName,
+    existingConversion,
+  )
 
   if (existingId) {
     // UPDATE — n'écrase pas les valeurs existantes (sauf conversion + synced_at)
@@ -819,7 +822,11 @@ export async function processMetaLead(
       )
     }
 
-    const updateData: Record<string, unknown> = { ...conversionMeta }
+    const updateData: Record<string, unknown> = {
+      ...conversionMeta,
+      source: 'meta_lead_ads',
+      synced_at: nowIso,
+    }
     for (const [k, v] of Object.entries(contactData)) {
       if (v && String(v).trim() !== '') updateData[k] = v
     }
@@ -842,6 +849,8 @@ export async function processMetaLead(
     const insertData: Record<string, unknown> = {
       ...insertContactData,
       ...conversionMeta,
+      source: 'meta_lead_ads',
+      synced_at: nowIso,
       hs_lead_status: 'Nouveau',
       // Date de création = date REELLE de soumission Meta (pas now()) pour
       // que les leads backfilles gardent leur date d'origine.

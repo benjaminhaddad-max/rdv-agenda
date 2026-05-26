@@ -610,7 +610,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 const val = allValues[f.name]
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
-                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'closer_du_contact_owner_id' || f.name === 'teleprospecteur'
+                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'closer_du_contact_owner_id' || f.name === 'teleprospecteur' || f.name === 'telepro_user_id'
                 const isOwner = f.name === 'hubspot_owner_id'
                 const displayValue = isOwnerField ? ownerLabel(val as string) : formatPropValue(val, meta)
 

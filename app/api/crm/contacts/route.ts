@@ -317,9 +317,6 @@ export async function GET(req: NextRequest) {
   //  - filtre SQL direct ILIKE pour chaque prefixe (variantes datées)
   //  - .in('hubspot_contact_id', metaOnlyIds) UNIQUEMENT pour les Meta Ads
   //    qui ne sont pas déjà couverts par les noms (typiquement quelques 100s)
-  let formEventNames: string[] | null = null
-  let formEventPrefixes: string[] | null = null
-  let formEventMetaOnlyIds: string[] | null = null
   const skipHeavyFormResolver = deferCount
   {
     // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
@@ -332,149 +329,171 @@ export async function GET(req: NextRequest) {
       // filtre hybride (Typesense ou SQL direct) sur la requête principale.
       customFilters = customFilters.filter(r => r !== formFilter)
 
-      const formEventCacheKey = `crm:form-event:v3:${crypto.createHash('sha1').update(formFilter.value).digest('hex')}`
-      const resolved = await cached(formEventCacheKey, 300, async () => {
-        const empty = {
-          formEventNames: null as string[] | null,
-          formEventPrefixes: null as string[] | null,
-          formEventMetaOnlyIds: null as string[] | null,
-          formEventContactIds: null as string[] | null,
-        }
-        const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
-        const normalizedFormNames = [...new Set(formNames)]
-        const formNamePrefixes = [...new Set(
-          normalizedFormNames
-            .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
-            .filter(prefix => prefix.length >= 6)
-        )]
-        if (formNames.length === 0) return empty
+      const filterHash = crypto.createHash('sha1').update(formFilter.value).digest('hex')
+      const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
+      const normalizedFormNames = [...new Set(formNames)]
+      const formNamePrefixes = [...new Set(
+        normalizedFormNames
+          .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
+          .filter(prefix => prefix.length >= 6)
+      )]
+      const namesSet = new Set(normalizedFormNames)
+      const distinctPrefixes = formNamePrefixes.filter(p => !namesSet.has(p))
 
-        const db2 = createServiceClient()
-        const metaFormsById = new Map<string, { form_id: string; name: string | null }>()
-        const { data: exactForms } = await db2
-          .from('meta_lead_forms')
-          .select('form_id, name')
-          .in('name', normalizedFormNames)
-        for (const mf of (exactForms ?? []) as Array<{ form_id: string; name: string | null }>) {
-          if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
+      // Cache table SQL (persiste cross-cold-start Vercel, contrairement a
+      // cached() qui retombe sur memoire si Upstash absent).
+      // TTL : 5 min. Au-dela, on recalcule.
+      const CACHE_TTL_MS = 5 * 60 * 1000
+      const sinceIso = new Date(Date.now() - CACHE_TTL_MS).toISOString()
+      let cachedIds: string[] | null = null
+      try {
+        const { data: cacheRow } = await db
+          .from('crm_form_event_cache')
+          .select('contact_ids, computed_at')
+          .eq('filter_hash', filterHash)
+          .gte('computed_at', sinceIso)
+          .maybeSingle()
+        if (cacheRow && Array.isArray(cacheRow.contact_ids)) {
+          cachedIds = cacheRow.contact_ids as string[]
         }
-        for (const prefix of formNamePrefixes) {
-          const { data: prefRows } = await db2
+      } catch {
+        // Table peut ne pas exister tant que la migration v36 n'est pas
+        // appliquee. On retombe gracefully sur le path legacy.
+      }
+
+      if (cachedIds !== null && normalizedFormNames.length > 0) {
+        formEventContactIds = cachedIds
+      } else if (formNames.length > 0) {
+        // Cache miss : on calcule via RPC (1 round-trip Postgres) si dispo,
+        // sinon fallback sur l'ancien resolver multi-requetes.
+        let resolvedIds: string[] | null = null
+        try {
+          const { data: rpcRows, error: rpcErr } = await db.rpc(
+            'crm_resolve_form_event_contact_ids_v2',
+            {
+              p_form_names_exact: normalizedFormNames,
+              p_form_name_prefixes: distinctPrefixes,
+            },
+          )
+          if (!rpcErr && Array.isArray(rpcRows)) {
+            resolvedIds = (rpcRows as Array<{ hubspot_contact_id: string | null }>)
+              .map(r => r.hubspot_contact_id)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          }
+        } catch {
+          // RPC pas dispo : fallback ci-dessous
+        }
+
+        if (resolvedIds === null) {
+          // Fallback legacy : multi-reqs paginees (lent mais marche sans
+          // migration v36).
+          const db2 = createServiceClient()
+          const metaFormsById = new Map<string, { form_id: string; name: string | null }>()
+          const { data: exactForms } = await db2
             .from('meta_lead_forms')
             .select('form_id, name')
-            .ilike('name', `${prefix}%`)
-            .limit(200)
-          for (const mf of (prefRows ?? []) as Array<{ form_id: string; name: string | null }>) {
+            .in('name', normalizedFormNames)
+          for (const mf of (exactForms ?? []) as Array<{ form_id: string; name: string | null }>) {
             if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
           }
-        }
-
-        const metaIds = new Set<string>()
-        const metaFormIds = [...metaFormsById.keys()]
-        if (metaFormIds.length > 0) {
-          let off = 0
-          const PAGE = 1000
-          while (true) {
-            const { data: ev } = await db2
-              .from('meta_lead_events')
-              .select('contact_id')
-              .in('form_id', metaFormIds)
-              .not('contact_id', 'is', null)
-              .range(off, off + PAGE - 1)
-            if (!ev || ev.length === 0) break
-            for (const r of ev) {
-              const cid = (r as { contact_id: string | null }).contact_id
-              if (cid) metaIds.add(cid)
+          await Promise.all(formNamePrefixes.map(async (prefix) => {
+            const { data: prefRows } = await db2
+              .from('meta_lead_forms')
+              .select('form_id, name')
+              .ilike('name', `${prefix}%`)
+              .limit(200)
+            for (const mf of (prefRows ?? []) as Array<{ form_id: string; name: string | null }>) {
+              if (mf?.form_id) metaFormsById.set(mf.form_id, mf)
             }
-            if (ev.length < PAGE) break
-            off += PAGE
-          }
-        }
+          }))
 
-        const namesSet = new Set(normalizedFormNames)
-        const distinctPrefixes = formNamePrefixes.filter(p => !namesSet.has(p))
-
-        // Fast path (Edumove, etc.) : pas de variantes datees hors noms exacts.
-        // L'union names ∪ meta se calcule via OR Typesense/SQL :
-        //   recent_conversion_event IN (noms) OR hubspot_contact_id IN (metaIds)
-        // Pas besoin de scanner crm_contacts (2-3 reqs lourdes évitées).
-        if (distinctPrefixes.length === 0) {
-          return {
-            formEventNames: normalizedFormNames,
-            formEventPrefixes: formNamePrefixes,
-            formEventMetaOnlyIds: [...metaIds],
-            formEventContactIds: null,
-          }
-        }
-
-        // Slow path (Linova variantes datees) : resout namesIds + metaOnlyIds.
-        const namesIds = new Set<string>()
-        let off = 0
-        const PAGE = 1000
-        while (true) {
-          const { data: rows } = await db2
-            .from('crm_contacts')
-            .select('hubspot_contact_id')
-            .in('recent_conversion_event', normalizedFormNames)
-            .range(off, off + PAGE - 1)
-          if (!rows || rows.length === 0) break
-          for (const r of rows) {
-            const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-            if (cid) namesIds.add(cid)
-          }
-          if (rows.length < PAGE) break
-          off += PAGE
-        }
-        await Promise.all(distinctPrefixes.map(async (prefix) => {
-          let pOff = 0
-          while (true) {
-            const { data: rows } = await db2
-              .from('crm_contacts')
-              .select('hubspot_contact_id')
-              .ilike('recent_conversion_event', `${prefix}%`)
-              .range(pOff, pOff + PAGE - 1)
-            if (!rows || rows.length === 0) break
-            for (const r of rows) {
-              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) namesIds.add(cid)
+          const metaIds = new Set<string>()
+          const metaFormIds = [...metaFormsById.keys()]
+          const metaTask = (async () => {
+            if (metaFormIds.length === 0) return
+            let off = 0
+            const PAGE = 1000
+            while (true) {
+              const { data: ev } = await db2
+                .from('meta_lead_events')
+                .select('contact_id')
+                .in('form_id', metaFormIds)
+                .not('contact_id', 'is', null)
+                .range(off, off + PAGE - 1)
+              if (!ev || ev.length === 0) break
+              for (const r of ev) {
+                const cid = (r as { contact_id: string | null }).contact_id
+                if (cid) metaIds.add(cid)
+              }
+              if (ev.length < PAGE) break
+              off += PAGE
             }
-            if (rows.length < PAGE) break
-            pOff += PAGE
-          }
-        }))
+          })()
 
-        const metaOnlyIds: string[] = []
-        for (const id of metaIds) {
-          if (!namesIds.has(id)) metaOnlyIds.push(id)
+          const namesIds = new Set<string>()
+          const namesEqTask = (async () => {
+            if (normalizedFormNames.length === 0) return
+            let off = 0
+            const PAGE = 1000
+            while (true) {
+              const { data: rows } = await db2
+                .from('crm_contacts')
+                .select('hubspot_contact_id')
+                .in('recent_conversion_event', normalizedFormNames)
+                .range(off, off + PAGE - 1)
+              if (!rows || rows.length === 0) break
+              for (const r of rows) {
+                const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+                if (cid) namesIds.add(cid)
+              }
+              if (rows.length < PAGE) break
+              off += PAGE
+            }
+          })()
+
+          const prefixTasks = distinctPrefixes.map(async (prefix) => {
+            let off = 0
+            const PAGE = 1000
+            while (true) {
+              const { data: rows } = await db2
+                .from('crm_contacts')
+                .select('hubspot_contact_id')
+                .ilike('recent_conversion_event', `${prefix}%`)
+                .range(off, off + PAGE - 1)
+              if (!rows || rows.length === 0) break
+              for (const r of rows) {
+                const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
+                if (cid) namesIds.add(cid)
+              }
+              if (rows.length < PAGE) break
+              off += PAGE
+            }
+          })
+
+          await Promise.all([metaTask, namesEqTask, ...prefixTasks])
+          const allIds = new Set<string>()
+          for (const id of namesIds) allIds.add(id)
+          for (const id of metaIds) allIds.add(id)
+          resolvedIds = [...allIds]
         }
 
-        const HYBRID_MAX_META_ONLY = 1500
-        const canUseHybridFilter =
-          metaOnlyIds.length <= HYBRID_MAX_META_ONLY || isTypesenseEnabled()
-        if (canUseHybridFilter) {
-          return {
-            formEventNames: normalizedFormNames,
-            formEventPrefixes: formNamePrefixes,
-            formEventMetaOnlyIds: metaOnlyIds,
-            formEventContactIds: null,
-          }
-        }
+        formEventContactIds = resolvedIds
 
-        const allIds = new Set<string>()
-        for (const id of namesIds) allIds.add(id)
-        for (const id of metaIds) allIds.add(id)
-        return {
-          formEventNames: null,
-          formEventPrefixes: null,
-          formEventMetaOnlyIds: null,
-          formEventContactIds: [...allIds],
+        // Ecrit en cache (fire-and-forget, ne bloque pas la reponse).
+        try {
+          db
+            .from('crm_form_event_cache')
+            .upsert({
+              filter_hash: filterHash,
+              filter_value: formFilter.value,
+              contact_ids: resolvedIds,
+              computed_at: new Date().toISOString(),
+            }, { onConflict: 'filter_hash' })
+            .then(() => { /* cached */ }, () => { /* table absente, ignore */ })
+        } catch {
+          // ignore
         }
-      })
-
-      formEventNames = resolved.formEventNames
-      formEventPrefixes = resolved.formEventPrefixes
-      formEventMetaOnlyIds = resolved.formEventMetaOnlyIds
-      formEventContactIds = resolved.formEventContactIds
+      }
     }
   }
 
@@ -559,10 +578,9 @@ export async function GET(req: NextRequest) {
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
-    formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
-  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null || formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null
+  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
     ? 'exact'
     : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
@@ -572,7 +590,7 @@ export async function GET(req: NextRequest) {
     stage || stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formation || formationNot || pipeline || pipelineNot || priorPreinscription || periodFilter
   )
-  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null || formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null)
+  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null)
   const canFastCountOnly = countOnly &&
     showExternal &&
     !ownerExclude &&
@@ -682,7 +700,6 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
-    formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null ||
     extraProps.length > 0 ||
     !showExternal
   )
@@ -851,18 +868,9 @@ export async function GET(req: NextRequest) {
 
   // ── Fast path Typesense (fallback auto vers SQL si indisponible) ───────────
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
-  // Le mode hybride form_event (formEventNames / formEventMetaOnlyIds) est
-  // supporté par Typesense via filterBy `recent_conversion_event:=[...] ||
-  // hubspot_contact_id:=[...]`. Les prefixes ILIKE (variantes datées Linova)
-  // ne sont en revanche pas indexables → fallback Postgres dans ce cas.
-  const hybridFormEventFitsTypesense = !!(
-    (formEventNames !== null || formEventMetaOnlyIds !== null) &&
-    formEventContactIds === null &&
-    // Si on a des préfixes qui matchent autre chose que les noms exacts,
-    // on perdrait les variantes datées avec Typesense (pas d'ILIKE filter).
-    (!formEventPrefixes ||
-      formEventPrefixes.every(p => (formEventNames ?? []).includes(p)))
-  )
+  // Avec le resolver v36, on passe directement par formEventContactIds
+  // (union complete deja resolue, supportee par Typesense via batchs
+  // hubspot_contact_id:=[...]).
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
@@ -874,10 +882,7 @@ export async function GET(req: NextRequest) {
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
-    formEventContactIds !== null || metaLeadAdsContactIds !== null ||
-    // Mode hybride form_event : supporté seulement si pas de prefix ILIKE.
-    ((formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null) &&
-      !hybridFormEventFitsTypesense)
+    metaLeadAdsContactIds !== null
   )
   const typesenseSortMap: Record<string, string> = {
     contact: 'lastname',
@@ -934,33 +939,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Mode hybride form_event : combine recent_conversion_event:=[noms] avec
-    // hubspot_contact_id:=[meta_only_ids] via OR. Permet d'utiliser Typesense
-    // (rapide, pas de limite URL) au lieu du fallback Postgres pour les vues
-    // de type Edumove (forms HubSpot + Meta Ads mixés).
-    // Backticks obligatoires pour reproduire le `eq` strict de Postgres.
-    if (formEventNames !== null || formEventMetaOnlyIds !== null) {
-      const orParts: string[] = []
-      if (formEventNames && formEventNames.length > 0) {
-        if (formEventNames.length === 1) {
-          orParts.push(`recent_conversion_event:=${escapeBack(formEventNames[0])}`)
-        } else {
-          orParts.push(`recent_conversion_event:=[${formEventNames.map(escapeBack).join(',')}]`)
-        }
-      }
-      if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
-        // Typesense filter limit (~4MB par défaut) → on batch en plusieurs OR.
+    // Resolver form_event v36 : on a deja l'union complete des contact_ids
+    // (cache SQL ou RPC). On les pousse a Typesense via hubspot_contact_id:=[].
+    if (formEventContactIds !== null) {
+      if (formEventContactIds.length === 0) {
+        filterParts.push(`hubspot_contact_id:=__no_match__`)
+      } else {
+        const orParts: string[] = []
         const BATCH = 1000
-        for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
-          const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
+        for (let i = 0; i < formEventContactIds.length; i += BATCH) {
+          const batch = formEventContactIds.slice(i, i + BATCH)
           orParts.push(`hubspot_contact_id:=[${batch.map(escapeBack).join(',')}]`)
         }
-      }
-      if (orParts.length > 0) {
-        filterParts.push(`(${orParts.join(' || ')})`)
-      } else {
-        // Filtre vide → forcer 0 résultat
-        filterParts.push(`hubspot_contact_id:=__no_match__`)
+        filterParts.push(orParts.length === 1 ? orParts[0] : `(${orParts.join(' || ')})`)
       }
     }
 
@@ -1539,42 +1530,6 @@ export async function GET(req: NextRequest) {
         }
         query = query.or(orParts.join(','))
       }
-    }
-  }
-
-  // Filtre form_event hybride (mode par défaut, URL légère).
-  // On combine via PostgREST .or() :
-  //  - recent_conversion_event.in.("name1","name2",...)
-  //  - recent_conversion_event.ilike."prefix1"*  (variantes datées)
-  //  - hubspot_contact_id.in.(metaOnlyId1,metaOnlyId2,...)
-  // Garantit count + data toujours cohérents même avec 2.7K résultats
-  // (les noms sont en SQL direct, seuls les Meta-only ~100s passent en .in).
-  if (formEventNames !== null || formEventPrefixes !== null || formEventMetaOnlyIds !== null) {
-    const orParts: string[] = []
-    // PostgREST quote: doubles quotes pour valeurs contenant , ou espaces.
-    const quoteForPg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
-    if (formEventNames && formEventNames.length > 0) {
-      orParts.push(`recent_conversion_event.in.(${formEventNames.map(quoteForPg).join(',')})`)
-    }
-    if (formEventPrefixes && formEventPrefixes.length > 0) {
-      for (const p of formEventPrefixes) {
-        // ilike prefix*: on quote la valeur pour gérer les espaces / tirets.
-        orParts.push(`recent_conversion_event.ilike.${quoteForPg(`${p}%`)}`)
-      }
-    }
-    if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
-      // Batch au cas où (devrait toujours être < HYBRID_MAX_META_ONLY = 1500).
-      const BATCH = 1500
-      for (let i = 0; i < formEventMetaOnlyIds.length; i += BATCH) {
-        const batch = formEventMetaOnlyIds.slice(i, i + BATCH)
-        orParts.push(`hubspot_contact_id.in.(${batch.map(quoteForPg).join(',')})`)
-      }
-    }
-    if (orParts.length > 0) {
-      query = query.or(orParts.join(','))
-    } else {
-      // Aucune source (filtre vide) → résultat vide.
-      query = query.eq('hubspot_contact_id', '__no_match__')
     }
   }
 

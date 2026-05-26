@@ -34,11 +34,19 @@ interface RdvUser {
   hubspot_user_id?: string
 }
 
+type CrmPropertyMeta = {
+  name: string
+  label?: string
+  type?: string
+  groupName?: string
+}
+
 interface Props {
-  ownerParam: 'telepro_hs_id' | 'telepro_owner_hs_id' | 'closer_hs_id' | 'contact_owner_hs_id'
+  ownerParam: 'telepro_id' | 'telepro_hs_id' | 'telepro_owner_hs_id' | 'closer_hs_id' | 'contact_owner_hs_id'
   ownerId: string
   mode: 'closer' | 'telepro'
   onTotalChange?: (n: number) => void
+  initialSourceFilter?: string
 }
 
 // ── Styled select helper ─────────────────────────────────────────────────────
@@ -88,7 +96,7 @@ function FilterSelect({
 }
 
 // ── Composant principal ──────────────────────────────────────────────────────
-export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }: Props) {
+export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, initialSourceFilter }: Props) {
   // ─ Contacts
   const [contacts, setContacts]   = useState<CRMContact[]>([])
   const [loading, setLoading]     = useState(false)
@@ -102,6 +110,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   const [filterStage, setFilterStage]         = useState('')
   const [filterLeadStatus, setFilterLeadStatus] = useState('')
   const [filterFormation, setFilterFormation]   = useState('')
+  const [filterSource, setFilterSource]         = useState(initialSourceFilter ?? '')
   // Filtres spécifiques contacts (mode télépro : "Mes Contacts")
   const [filterClasse, setFilterClasse]         = useState('')
   const [filterPeriod, setFilterPeriod]         = useState('')
@@ -127,6 +136,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   const [formationOpts, setFormationOpts]   = useState<string[]>([])
   const [sourceOpts, setSourceOpts]         = useState<string[]>([])
   const [zoneOpts, setZoneOpts]             = useState<string[]>([])
+  const [allCrmProps, setAllCrmProps]       = useState<CrmPropertyMeta[]>([])
+  const extraColsStorageKey = `crm-extra-columns-user-${mode}`
+  const [extraColumns, setExtraColumns] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem(extraColsStorageKey)
+      if (saved) return JSON.parse(saved) as string[]
+    } catch {
+      // ignore
+    }
+    return []
+  })
+
+  function persistExtraColumns(next: string[]) {
+    setExtraColumns(next)
+    try {
+      localStorage.setItem(extraColsStorageKey, JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+  }
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -163,8 +193,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       if (!isContactsView && filterStage) params.set('stage', filterStage)
       if (filterLeadStatus)   params.set('lead_status', filterLeadStatus)
       if (filterFormation)    params.set('formation',   filterFormation)
+      if (filterSource)       params.set('source',      filterSource)
       if (filterClasse)       params.set('classe',      filterClasse)
       if (filterPeriod)       params.set('period',      filterPeriod)
+      if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (res.ok) {
@@ -177,7 +209,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterClasse, filterPeriod, isContactsView, onTotalChange])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, isContactsView, onTotalChange, extraColumns])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
@@ -198,6 +230,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       if (!isContactsView && filterStage) params.set('stage', filterStage)
       if (filterLeadStatus) params.set('lead_status', filterLeadStatus)
       if (filterFormation) params.set('formation', filterFormation)
+      if (filterSource) params.set('source', filterSource)
       if (filterClasse) params.set('classe', filterClasse)
       if (filterPeriod) params.set('period', filterPeriod)
 
@@ -218,10 +251,16 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     filterStage,
     filterLeadStatus,
     filterFormation,
+    filterSource,
     filterClasse,
     filterPeriod,
     onTotalChange,
   ])
+
+  useEffect(() => {
+    setFilterSource(initialSourceFilter ?? '')
+    setPage(0)
+  }, [initialSourceFilter])
 
   useEffect(() => {
     if (!ownerId) return
@@ -251,6 +290,16 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
       .catch(() => {})
   }, [])
 
+  // Propriétés CRM dispo pour le picker de colonnes dynamiques.
+  useEffect(() => {
+    fetch('/api/crm/properties?object=contacts&limit=2000')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
+      })
+      .catch(() => {})
+  }, [])
+
   // Fetch field options (force-cache : profite du Cache-Control s-maxage=3600 côté CDN Vercel)
   useEffect(() => {
     fetch('/api/crm/field-options', { cache: 'force-cache' })
@@ -274,6 +323,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     setFilterStage('')
     setFilterLeadStatus('')
     setFilterFormation('')
+    setFilterSource(initialSourceFilter ?? '')
     setFilterClasse('')
     setFilterPeriod('')
     setSearch('')
@@ -281,7 +331,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
     setPage(0)
   }
 
-  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterClasse || filterPeriod || debouncedSearch)
+  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
@@ -324,7 +374,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : (ownerParam === 'telepro_hs_id' || ownerParam === 'telepro_owner_hs_id') ? '👥 Mes Contacts' : '👥 Mes Contacts'}
+              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : (ownerParam === 'telepro_id' || ownerParam === 'telepro_hs_id' || ownerParam === 'telepro_owner_hs_id') ? '👥 Mes Contacts' : '👥 Mes Contacts'}
               {total > 0 && (
                 <span style={{
                   background: 'rgba(76,171,219,0.15)',
@@ -432,6 +482,12 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
             {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
           </FilterSelect>
 
+          {/* Origine */}
+          <FilterSelect value={filterSource} onChange={v => { setFilterSource(v); setPage(0) }}>
+            <option value="">Toutes les sources</option>
+            {sourceOpts.map(v => <option key={v} value={v}>{v}</option>)}
+          </FilterSelect>
+
           {/* Période de création du contact (mode Mes Contacts) */}
           {isContactsView && (
             <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
@@ -482,6 +538,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
           sortBy={sortBy}
           sortDir={sortDir}
           onSortChange={handleSortChange}
+          allCrmProps={allCrmProps}
+          extraColumns={extraColumns}
+          onExtraColumnsChange={persistExtraColumns}
         />
       </div>
 

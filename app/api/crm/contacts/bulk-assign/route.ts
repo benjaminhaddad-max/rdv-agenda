@@ -8,12 +8,10 @@ export async function POST(req: NextRequest) {
     contact_ids,
     telepro_rdv_user_id,
     telepro_user_id,
-    teleprospecteur,
   }: {
     contact_ids: string[]
     telepro_rdv_user_id?: string | null
     telepro_user_id?: string | null
-    teleprospecteur?: string | null
   } = await req.json()
 
   if (!contact_ids?.length || (!telepro_user_id && !telepro_rdv_user_id)) {
@@ -24,8 +22,7 @@ export async function POST(req: NextRequest) {
   // Si le front ne l'a pas (nouveau user sans mapping), on le récupère depuis rdv_users
   // et on crée un identifiant local numérique de secours pour permettre l'assignation CRM.
   let teleproUserId = String(telepro_user_id ?? '').trim()
-  let teleprospecteurHsUserId = teleprospecteur ? String(teleprospecteur).trim() : teleproUserId
-  if ((!teleproUserId || !teleprospecteurHsUserId) && telepro_rdv_user_id) {
+  if (!teleproUserId && telepro_rdv_user_id) {
     const { data: rdvUser } = await db
       .from('rdv_users')
       .select('id, hubspot_user_id, hubspot_owner_id')
@@ -44,7 +41,6 @@ export async function POST(req: NextRequest) {
         .is('hubspot_user_id', null)
     }
     teleproUserId = teleproUserId || resolved
-    teleprospecteurHsUserId = teleprospecteurHsUserId || resolved
   }
 
   if (!teleproUserId) {
@@ -67,7 +63,6 @@ export async function POST(req: NextRequest) {
       .from('crm_contacts')
       .update({
         telepro_user_id: teleproUserId,
-        teleprospecteur: teleprospecteurHsUserId || null,
         synced_at: new Date().toISOString(),
       })
       .in('hubspot_contact_id', chunk)
@@ -75,22 +70,22 @@ export async function POST(req: NextRequest) {
       errors.push(`contacts chunk ${i / BATCH + 1}: ${contactUpdateError.message}`)
     }
 
-    // Update deals in Supabase
+    // Update deals in Supabase (crm_deals.teleprospecteur = HubSpot deal property)
     if (deals && deals.length > 0) {
       const { error: dealsUpdateError } = await db
         .from('crm_deals')
-        .update({ teleprospecteur: teleprospecteurHsUserId || null, synced_at: new Date().toISOString() })
+        .update({ teleprospecteur: teleproUserId || null, synced_at: new Date().toISOString() })
         .in('hubspot_contact_id', chunk)
       if (dealsUpdateError) {
         errors.push(`deals chunk ${i / BATCH + 1}: ${dealsUpdateError.message}`)
       }
 
       // Update HubSpot deals uniquement si hubspot_user_id du télépro disponible.
-      if (teleprospecteurHsUserId) {
+      if (teleproUserId) {
         await Promise.allSettled(deals.map(deal =>
           hubspotFetch(`/crm/v3/objects/deals/${deal.hubspot_deal_id}`, {
             method: 'PATCH',
-            body: JSON.stringify({ properties: { teleprospecteur: teleprospecteurHsUserId } }),
+            body: JSON.stringify({ properties: { teleprospecteur: teleproUserId } }),
           }).catch((e: Error) => errors.push(`deal ${deal.hubspot_deal_id}: ${e.message}`))
         ))
       }
