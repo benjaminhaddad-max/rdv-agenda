@@ -71,6 +71,22 @@ function normalizeLegacyFieldName(field: string): string {
   return field
 }
 
+// Flags de rollout perf (safe by default):
+// - NEXT_PUBLIC_CRM_RELAX_EXACT_COUNT=1 : favorise defer_count sur les vues
+//   filtrées pour éviter les COUNT(*) coûteux à chaque frappe.
+// - NEXT_PUBLIC_CRM_BYPASS_CACHE=1 : garde-fou de debug, désactive le cache
+//   réponse API quand nécessaire.
+const RELAX_EXACT_COUNT = process.env.NEXT_PUBLIC_CRM_RELAX_EXACT_COUNT === '1'
+const BYPASS_CRM_CACHE = process.env.NEXT_PUBLIC_CRM_BYPASS_CACHE === '1'
+const LEADS_AUTO_REFRESH_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_ADMIN_AUTO_REFRESH_MS ?? '30000')
+  return Number.isFinite(raw) && raw >= 10000 ? raw : 30000
+})()
+const SEARCH_DEBOUNCE_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_SEARCH_DEBOUNCE_MS ?? '180')
+  return Number.isFinite(raw) && raw >= 80 ? raw : 180
+})()
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface RdvUser {
@@ -383,6 +399,7 @@ export default function CRMPage() {
   const hasLoadedOnceRef = useRef(false)
   const contactsFetchSeqRef = useRef(0)
   const lastFetchSignatureRef = useRef('')
+  const contactsAbortRef = useRef<AbortController | null>(null)
   const didInitViewFromUrlRef = useRef(false)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
@@ -610,7 +627,7 @@ export default function CRMPage() {
 
   // Debounce recherche pour éviter un fetch par frappe.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [search])
 
@@ -622,6 +639,10 @@ export default function CRMPage() {
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
+    contactsAbortRef.current?.abort()
+    const requestAbort = new AbortController()
+    contactsAbortRef.current = requestAbort
+
     const currentPage = resetPage ? 0 : page
     if (resetPage) setPage(0)
     const activeView = crmViews.find(v => v.id === activeViewId)
@@ -726,10 +747,12 @@ export default function CRMPage() {
     // Hybride perf:
     // - Vue globale massive sans filtres: compteur approximatif (beaucoup plus rapide).
     // - Vues filtrées / ciblées: compteur exact pour éviter tout écart (ex. 70 leads).
-    if (shouldUseApproxCount) {
+    if (shouldUseApproxCount || RELAX_EXACT_COUNT) {
       params.set('defer_count', '1')
     } else {
       params.set('exact_count', '1')
+    }
+    if (BYPASS_CRM_CACHE) {
       params.set('no_cache', '1')
     }
     if (activeViewId) params.set('view_id', activeViewId)
@@ -794,11 +817,11 @@ export default function CRMPage() {
 
     const fetchContactsPayload = async () => {
       const start = performance.now()
-      let response = await fetch(url)
+      let response = await fetch(url, { signal: requestAbort.signal })
       // Fallback robuste: si l'URL avec `cf` casse (URL trop longue / proxy),
       // on retente automatiquement sans `cf` en conservant la vue active.
       if (!response.ok && activeViewId && activeViewId !== 'all' && customFilterParam) {
-        response = await fetch(retryUrlWithoutCf)
+        response = await fetch(retryUrlWithoutCf, { signal: requestAbort.signal })
       }
       if (!response.ok) throw new Error(`HTTP ${response.status} on ${url}`)
       let payload = await response.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
@@ -895,6 +918,7 @@ export default function CRMPage() {
   }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
+  useEffect(() => () => contactsAbortRef.current?.abort(), [])
 
   const fetchRef = useRef(fetchContacts)
   fetchRef.current = fetchContacts
@@ -915,7 +939,7 @@ export default function CRMPage() {
       timer = setInterval(() => {
         if (document.visibilityState !== 'visible') return
         fetchRef.current(false)
-      }, 12_000)
+      }, LEADS_AUTO_REFRESH_MS)
     }
     const stop = () => {
       if (!timer) return
@@ -1251,8 +1275,25 @@ export default function CRMPage() {
     return `il y a ${h}h`
   }
 
-  // Tous les filtres sont désormais côté serveur
-  const displayed = contacts
+  // Ressenti instantané: pendant que la recherche serveur (debounced) est en
+  // cours, on applique un préfiltrage local sur la page courante déjà chargée.
+  const localSearch = search.trim().toLowerCase()
+  const isSearchPreviewing = localSearch.length > 0 && localSearch !== debouncedSearch.toLowerCase()
+  const displayed = isSearchPreviewing
+    ? contacts.filter((c) => {
+      const hay = [
+        c.firstname,
+        c.lastname,
+        c.email,
+        c.phone,
+        c.recent_conversion_event,
+        c.formation_souhaitee,
+      ]
+        .map(v => String(v ?? '').toLowerCase())
+        .join(' ')
+      return hay.includes(localSearch)
+    })
+    : contacts
   const totalPages = Math.ceil(total / limit)
 
   const hasWithDeal  = contacts.filter(c => !!c.deal).length
@@ -1881,6 +1922,18 @@ export default function CRMPage() {
                 API {lastFetchClientMs}ms
                 {lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}
               </span>
+              {isSearchPreviewing && (
+                <span style={{
+                  fontSize: 10,
+                  color: '#1d5f91',
+                  border: '1px solid rgba(76,171,219,0.35)',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                  background: 'rgba(76,171,219,0.12)',
+                }}>
+                  Préfiltrage instantané…
+                </span>
+              )}
             </div>
           )}
         </div>

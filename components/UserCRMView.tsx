@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { RefreshCw, Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
@@ -14,6 +14,17 @@ const GOLD      = '#c6aa7c'      // doré charte
 const BLUE      = '#4fabdb'      // bleu Diploma
 const TEXT_DIM  = '#5b6b7a'      // texte secondaire (sur fond clair)
 const TEXT_MID  = '#12314d'      // texte principal (bleu nuit charte) — pour la lisibilité
+
+const RELAX_EXACT_COUNT = process.env.NEXT_PUBLIC_CRM_RELAX_EXACT_COUNT === '1'
+const BYPASS_CRM_CACHE = process.env.NEXT_PUBLIC_CRM_BYPASS_CACHE === '1'
+const POLL_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_USER_VIEW_POLL_MS ?? '30000')
+  return Number.isFinite(raw) && raw >= 10000 ? raw : 30000
+})()
+const SEARCH_DEBOUNCE_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_SEARCH_DEBOUNCE_MS ?? '180')
+  return Number.isFinite(raw) && raw >= 80 ? raw : 180
+})()
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444' },
@@ -160,18 +171,22 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contactsAbortRef = useRef<AbortController | null>(null)
   function handleSearchChange(v: string) {
     setSearch(v)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       setDebouncedSearch(v)
       setPage(0)
-    }, 400)
+    }, SEARCH_DEBOUNCE_MS)
   }
 
   // Fetch contacts
   const fetchContacts = useCallback(async () => {
     if (!ownerId) return
+    contactsAbortRef.current?.abort()
+    const requestAbort = new AbortController()
+    contactsAbortRef.current = requestAbort
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -180,8 +195,6 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
         page: String(page),
         sort_by: sortBy,
         sort_dir: sortDir,
-        exact_count: '1',
-        no_cache: '1',
         all_classes: '1',     // afficher tous les leads, pas seulement les classes prioritaires
         show_external: '1',   // vue personnelle "Mes Contacts/Transactions" : on
                               // ne masque pas les contacts de l'équipe externe
@@ -189,6 +202,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
                               // équipe externe sert pour la vue admin globale,
                               // pas pour la vue personnelle d'un commercial.
       })
+      if (!RELAX_EXACT_COUNT) params.set('exact_count', '1')
+      if (BYPASS_CRM_CACHE) params.set('no_cache', '1')
       if (debouncedSearch)    params.set('search',      debouncedSearch)
       if (!isContactsView && filterStage) params.set('stage', filterStage)
       if (filterLeadStatus)   params.set('lead_status', filterLeadStatus)
@@ -198,7 +213,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       if (filterPeriod)       params.set('period',      filterPeriod)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
-      const res = await fetch(`/api/crm/contacts?${params}`)
+      const res = await fetch(`/api/crm/contacts?${params}`, { signal: requestAbort.signal })
       if (res.ok) {
         const data = await res.json()
         setContacts(data.data ?? [])
@@ -206,12 +221,17 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
         setTotal(t)
         onTotalChange?.(t)
       }
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'AbortError') {
+        // garde l'etat precedent en cas d'erreur reseau
+      }
     } finally {
       setLoading(false)
     }
   }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, isContactsView, onTotalChange, extraColumns])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
+  useEffect(() => () => contactsAbortRef.current?.abort(), [])
 
   // Keep the header badge in sync automatically, even when new leads arrive
   // in the background (without a manual refresh).
@@ -220,12 +240,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     try {
       const params = new URLSearchParams({
         [ownerParam]: ownerId,
-        count_only: '1',
-        exact_count: '1',
-        no_cache: '1',
+        // Le backend utilise `limit=0` comme mode count-only natif.
+        limit: '0',
         all_classes: '1',
         show_external: '1',
       })
+      if (!RELAX_EXACT_COUNT) params.set('exact_count', '1')
+      else params.set('defer_count', '1')
+      if (BYPASS_CRM_CACHE) params.set('no_cache', '1')
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (!isContactsView && filterStage) params.set('stage', filterStage)
       if (filterLeadStatus) params.set('lead_status', filterLeadStatus)
@@ -264,7 +286,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
 
   useEffect(() => {
     if (!ownerId) return
-    const tickMs = 10000
+    const tickMs = POLL_MS
     const id = setInterval(() => { void refreshTotalOnly() }, tickMs)
     const onFocus = () => { void refreshTotalOnly() }
     const onVisible = () => {
@@ -331,6 +353,25 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     setPage(0)
   }
 
+  const localSearch = search.trim().toLowerCase()
+  const isSearchPreviewing = localSearch.length > 0 && localSearch !== debouncedSearch.trim().toLowerCase()
+  const displayedContacts = useMemo(() => {
+    if (!isSearchPreviewing) return contacts
+    return contacts.filter((c) => {
+      const hay = [
+        c.firstname,
+        c.lastname,
+        c.email,
+        c.phone,
+        c.recent_conversion_event,
+        c.formation_souhaitee,
+      ]
+        .map(v => String(v ?? '').toLowerCase())
+        .join(' ')
+      return hay.includes(localSearch)
+    })
+  }, [contacts, isSearchPreviewing, localSearch])
+
   const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -386,6 +427,19 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
                   color: BLUE,
                 }}>
                   {total}
+                </span>
+              )}
+              {isSearchPreviewing && (
+                <span style={{
+                  background: 'rgba(76,171,219,0.12)',
+                  border: '1px solid rgba(76,171,219,0.35)',
+                  borderRadius: 20,
+                  padding: '1px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#1d5f91',
+                }}>
+                  Préfiltrage instantané…
                 </span>
               )}
             </div>
@@ -526,8 +580,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       {/* ── Table ───────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         <CRMContactsTable
-          contacts={contacts}
-          loading={loading}
+          contacts={displayedContacts}
+          loading={loading && displayedContacts.length === 0}
           mode={mode}
           onRefresh={fetchContacts}
           onOpenDrawer={setDrawerContact}
