@@ -149,9 +149,17 @@ async function expandPrefixesToDistinctNames(
 }
 
 /**
- * Meta-only : leads Meta Ads dont recent_conversion_event n'est pas deja
- * un des noms exacts. On ne scanne PAS les 2.7K contacts HubSpot — Typesense
- * filtre recent_conversion_event directement pour ceux-la.
+ * Meta-only : leads Meta Ads ELIGIBLES a la vue (i.e. qui n'ont pas un
+ * recent_conversion_event appartenant a une AUTRE vue/marque).
+ *
+ * Regle : un contact Meta apparait dans la vue ssi son
+ * recent_conversion_event est :
+ *   - dans la liste des noms de la vue (mais alors deja matche par
+ *     recent_conversion_event:=[noms], pas besoin de l'ajouter ici), OU
+ *   - null/vide (lead Meta pur, jamais converti cote HubSpot).
+ *
+ * Si recent_conversion_event = "LINOVA - Form LGF - 21/05/2026", il est
+ * exclu (sa derniere interaction est une autre marque).
  */
 async function computeMetaOnlyIds(
   db: SupabaseClient,
@@ -160,7 +168,6 @@ async function computeMetaOnlyIds(
   const metaIds = await paginateMetaContactIds(db, normalizedFormNames, [])
   if (metaIds.size === 0) return []
 
-  const namesSet = new Set(normalizedFormNames)
   const metaOnly: string[] = []
   const metaList = [...metaIds]
   const BATCH = 500
@@ -170,14 +177,18 @@ async function computeMetaOnlyIds(
       .from('crm_contacts')
       .select('hubspot_contact_id, recent_conversion_event')
       .in('hubspot_contact_id', batch)
-    const covered = new Set<string>()
+    const eventByCid = new Map<string, string | null>()
     for (const r of (rows ?? []) as Array<{ hubspot_contact_id: string | null; recent_conversion_event: string | null }>) {
-      const cid = r.hubspot_contact_id
-      const ev = r.recent_conversion_event
-      if (cid && ev && namesSet.has(ev)) covered.add(cid)
+      if (r.hubspot_contact_id) eventByCid.set(r.hubspot_contact_id, r.recent_conversion_event)
     }
     for (const id of batch) {
-      if (!covered.has(id)) metaOnly.push(id)
+      const ev = eventByCid.get(id)
+      // Eligible : pas de recent_conversion_event (lead Meta pur).
+      // Si ev est non-null mais pas dans nos noms, il appartient a une
+      // autre vue → exclu de celle-ci.
+      // Si ev est dans nos noms, deja matche par le filtre Typesense
+      // recent_conversion_event:=[noms], pas besoin de l'inclure ici.
+      if (!ev) metaOnly.push(id)
     }
   }
   return metaOnly
