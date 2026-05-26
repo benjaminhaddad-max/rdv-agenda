@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 /**
  * Helpers pour l'intégration Meta Lead Ads (Facebook + Instagram).
@@ -509,25 +510,7 @@ function normalizeMetaFieldValue(name: string, value: string): { field: string; 
 }
 
 function normalizeClasseActuelleValue(value: string): string {
-  const k = normalizeMetaKey(value)
-  const map: Record<string, string> = {
-    premiere: 'Première',
-    terminale: 'Terminale',
-    seconde: 'Seconde',
-    troisieme: 'Troisième',
-    etudes_superieures: 'Etudes supérieures',
-    etude_superieure: 'Etudes supérieures',
-    etudes_sup: 'Etudes supérieures',
-    etude_sup: 'Etudes supérieures',
-    etudesup: 'Etudes supérieures',
-    etudessup: 'Etudes supérieures',
-    pass: 'PASS',
-    las: 'LAS',
-    lsps: 'LSPS',
-    autre: 'Autres',
-    autres: 'Autres',
-  }
-  return map[k] ?? value
+  return normalizeClasseActuelle(value) ?? 'Autres'
 }
 
 function buildNormalizedLeadFieldMap(fields: MetaLeadField[]): Record<string, string> {

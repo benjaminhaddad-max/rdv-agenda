@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { updateDealStage, STAGES, hubspotFetch } from '@/lib/hubspot'
+import { requireApiRole } from '@/lib/api-auth'
+import { memoryRateLimit } from '@/lib/rate-limit'
 
 // PATCH /api/crm/deals/batch
 // Met à jour l'étape de plusieurs deals en une seule requête
 export async function PATCH(req: NextRequest) {
+  const authz = await requireApiRole(['admin', 'commercial', 'closer'])
+  if (!authz.ok) return authz.response
+
+  const limiter = memoryRateLimit(`crm-deals-batch:${authz.ctx.appUserId}`, {
+    windowMs: 60_000,
+    limit: 20,
+  })
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded for batch stage updates' },
+      { status: 429 }
+    )
+  }
+
   const body = await req.json()
   const { dealIds, dealstage } = body as { dealIds: string[]; dealstage: string }
 

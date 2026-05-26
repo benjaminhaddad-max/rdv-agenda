@@ -56,7 +56,7 @@ async function ensureCollection() {
         { name: 'recent_conversion_event', type: 'string', optional: true },
         { name: 'contact_createdate', type: 'int64', optional: true },
         { name: 'recent_conversion_date', type: 'int64', optional: true },
-        { name: 'synced_at', type: 'int64', optional: true },
+        { name: 'synced_at', type: 'int64' },
         { name: 'dealstage', type: 'string', optional: true },
         { name: 'pipeline', type: 'string', optional: true },
         { name: 'formation_deal', type: 'string', optional: true },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 // Mapping champ Supabase → propriété HubSpot
 const FIELD_MAP: Record<string, string> = {
@@ -29,9 +30,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   for (const [field, hsField] of Object.entries(FIELD_MAP)) {
     if (field in contactFields) {
-      supabaseUpdates[field] = contactFields[field]
-      if (contactFields[field] != null && contactFields[field] !== '') {
-        hubspotProps[hsField] = contactFields[field]
+      const nextValue =
+        field === 'classe_actuelle'
+          ? (normalizeClasseActuelle(contactFields[field]) ?? 'Autres')
+          : contactFields[field]
+      supabaseUpdates[field] = nextValue
+      if (nextValue != null && nextValue !== '') {
+        hubspotProps[hsField] = nextValue
       }
     }
   }

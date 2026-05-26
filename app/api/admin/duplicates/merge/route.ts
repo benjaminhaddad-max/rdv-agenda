@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { mergeContacts } from '@/lib/hubspot'
+import { requireApiRole } from '@/lib/api-auth'
+import { memoryRateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
+  const limiter = memoryRateLimit(`admin-duplicates-merge:${authz.ctx.appUserId}`, {
+    windowMs: 60_000,
+    limit: 10,
+  })
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded for admin duplicate merge' },
+      { status: 429 }
+    )
+  }
+
   const { primaryContactId, secondaryContactId } = await req.json()
   if (!primaryContactId || !secondaryContactId) {
     return NextResponse.json({ error: 'primaryContactId et secondaryContactId requis' }, { status: 400 })

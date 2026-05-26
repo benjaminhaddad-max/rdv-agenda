@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { setSetting, clearSettingsCache } from '@/lib/settings'
+import { requireApiRole } from '@/lib/api-auth'
 
 /**
  * GET /api/crm/settings — liste tous les settings
@@ -8,6 +9,9 @@ import { setSetting, clearSettingsCache } from '@/lib/settings'
  */
 
 export async function GET() {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   try {
     const db = createServiceClient()
     const { data, error } = await db
@@ -25,6 +29,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   let body: { key?: string; value?: unknown }
   try {
     body = await req.json()

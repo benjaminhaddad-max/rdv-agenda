@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendBrevoEmail, renderTemplate, htmlToText } from '@/lib/brevo'
+import { requireApiRole } from '@/lib/api-auth'
+import { memoryRateLimit } from '@/lib/rate-limit'
 
 /**
  * POST /api/crm/contacts/[id]/send-email
@@ -19,6 +21,18 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authz = await requireApiRole(['admin', 'commercial', 'closer', 'telepro'])
+  if (!authz.ok) return authz.response
+
+  const limiterKey = `crm-send-email:${authz.ctx.appUserId}`
+  const limiter = memoryRateLimit(limiterKey, { windowMs: 60_000, limit: 20 })
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded for send-email' },
+      { status: 429 }
+    )
+  }
+
   const db = createServiceClient()
   const { id: contactId } = await params
   const body = await req.json().catch(() => ({}))

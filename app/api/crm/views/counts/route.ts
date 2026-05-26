@@ -183,10 +183,16 @@ export async function POST(req: Request) {
   const db = createServiceClient()
   const apiUser = await getApiUserContext()
   let forcedTeleproIds: string[] = []
-  if (
-    apiUser?.crmScope === 'brand_only' &&
-    String(apiUser.crmBrand || '').toLowerCase() === 'linova'
-  ) {
+  const shouldForceScopedTelepro = !!(
+    apiUser && (
+      apiUser.role === 'telepro' ||
+      (
+        apiUser.crmScope === 'brand_only' &&
+        String(apiUser.crmBrand || '').toLowerCase() === 'linova'
+      )
+    )
+  )
+  if (shouldForceScopedTelepro) {
     const { data: me } = await db
       .from('rdv_users')
       .select('id, email, hubspot_user_id, hubspot_owner_id')

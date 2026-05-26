@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext } from '@/lib/api-auth'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -16,8 +17,10 @@ async function getPriorPreinscStageIds(): Promise<string[]> {
 
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
+  let engine = 'sql'
   const withPerfHeader = (response: NextResponse) => {
     response.headers.set('X-Response-Time-Ms', String(Date.now() - startedAt))
+    response.headers.set('X-CRM-Engine', engine)
     return response
   }
 
@@ -91,6 +94,7 @@ export async function GET(req: NextRequest) {
   const countOnly        = searchParams.get('limit') === '0'
   const exactCountParam  = searchParams.get('exact_count') === '1'
   const deferCount       = searchParams.get('defer_count') === '1' && !countOnly && !isExport
+  const bypassCache      = searchParams.get('no_cache') === '1'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -209,11 +213,17 @@ export async function GET(req: NextRequest) {
   // Scope restreint: pour les comptes "brand_only", on force l'affichage
   // aux leads où l'utilisateur courant est le télépro assigné.
   // Important: appliqué côté serveur pour éviter tout contournement UI/URL.
-  if (
-    apiUser &&
-    apiUser.crmScope === 'brand_only' &&
-    String(apiUser.crmBrand || '').toLowerCase() === 'linova'
-  ) {
+  const shouldForceScopedTelepro = !!(
+    apiUser && (
+      apiUser.role === 'telepro' ||
+      (
+        apiUser.crmScope === 'brand_only' &&
+        String(apiUser.crmBrand || '').toLowerCase() === 'linova'
+      )
+    )
+  )
+
+  if (shouldForceScopedTelepro) {
     const { data: me } = await db
       .from('rdv_users')
       .select('id, email, hubspot_user_id, hubspot_owner_id')
@@ -279,13 +289,14 @@ export async function GET(req: NextRequest) {
   //   3. Fallback : recent_conversion_event = nom (last submission match)
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
   let formEventContactIds: string[] | null = null
+  const skipHeavyFormResolver = deferCount
   {
     // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
     const formFilter = customFilters.find(
       r => r.field === 'recent_conversion_event' &&
         (r.operator === 'is' || r.operator === 'is_any')
     )
-    if (formFilter && formFilter.value) {
+    if (formFilter && formFilter.value && !skipHeavyFormResolver) {
       const formNames = formFilter.value.split(',').map(s => s.trim()).filter(Boolean)
       const normalizedFormNames = [...new Set(formNames)]
       // Regroupe automatiquement les variantes datees d'un meme form
@@ -415,7 +426,7 @@ export async function GET(req: NextRequest) {
       if (enabled) {
         // Vue Meta ADS : on utilise un marqueur SQL direct (source) pour éviter
         // les payloads d'IDs volumineux et les erreurs 500 liées aux URL PostgREST.
-        if (viewIdParam === 'v_meta_ads_all') {
+        if (viewIdParam === 'v_meta_ads_all' || deferCount) {
           metaLeadAdsOnly = true
           metaLeadAdsContactIds = null
         } else {
@@ -600,7 +611,7 @@ export async function GET(req: NextRequest) {
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
-    formEventContactIds !== null || metaLeadAdsContactIds !== null || metaLeadAdsOnly ||
+    formEventContactIds !== null || metaLeadAdsContactIds !== null ||
     extraProps.length > 0 ||
     !showExternal
   )
@@ -661,6 +672,9 @@ export async function GET(req: NextRequest) {
         const vals = splitMultiFast(source)
         fastMvQ = vals.length > 1 ? fastMvQ.in('origine', vals) : fastMvQ.eq('origine', source)
       }
+      if (metaLeadAdsOnly) {
+        fastMvQ = fastMvQ.eq('source', 'meta_lead_ads')
+      }
       if (zone) {
         const vals = splitMultiFast(zone)
         fastMvQ = vals.length > 1 ? fastMvQ.in('zone_localite', vals) : fastMvQ.eq('zone_localite', zone)
@@ -701,6 +715,7 @@ export async function GET(req: NextRequest) {
         .range(mvOffset, mvOffset + pageFetchLimit - 1)
 
       if (!mvErr) {
+        engine = 'fast_mv'
         const rawRows = (mvRows ?? []) as Array<Record<string, unknown>>
         const hasMore = deferCount && rawRows.length > limit
         const pageRows = hasMore ? rawRows.slice(0, limit) : rawRows
@@ -759,8 +774,12 @@ export async function GET(req: NextRequest) {
           page,
           limit,
         })
-        r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
-        return r
+        if (bypassCache) {
+          r.headers.set('Cache-Control', 'no-store')
+        } else {
+          r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+        }
+        return withPerfHeader(r)
       }
     } catch {
       // vue non dispo / erreur SQL: fallback automatique sur le chemin existant
@@ -771,17 +790,16 @@ export async function GET(req: NextRequest) {
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
-    countOnly ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formationNot || pipelineNot || priorPreinscription || periodFilter ||
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
+    effectiveTeleproFilterCsv || forcedScopedOrFilter ||
     noTelepro || withTelepro ||
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
-    formEventContactIds !== null || metaLeadAdsContactIds !== null || metaLeadAdsOnly ||
-    !showExternal
+    formEventContactIds !== null || metaLeadAdsContactIds !== null
   )
   const typesenseSortMap: Record<string, string> = {
     contact: 'lastname',
@@ -814,7 +832,7 @@ export async function GET(req: NextRequest) {
       pushIn('classe_actuelle', PRIORITY_CLASSES.join(','))
     }
     if (classeFilter) pushIn('classe_actuelle', classeFilter)
-    if (teleproHsId) pushIn('telepro_user_id', teleproHsId)
+    if (effectiveTeleproFilterCsv) pushIn('telepro_user_id', effectiveTeleproFilterCsv)
     if (contactOwnerHsId) pushIn('hubspot_owner_id', contactOwnerHsId)
     if (closerContactHsId) pushIn('closer_du_contact_owner_id', closerContactHsId)
     if (leadStatus) pushIn('hs_lead_status', leadStatus)
@@ -824,6 +842,15 @@ export async function GET(req: NextRequest) {
     if (stage) pushIn('dealstage', stage)
     if (formation) pushIn('formation_deal', formation)
     if (pipeline) pushIn('pipeline', pipeline)
+    if (metaLeadAdsOnly) pushIn('source', 'meta_lead_ads')
+    if (!showExternal && excludedUserIds.length > 0) {
+      const blocked = [...new Set(excludedUserIds.map(v => String(v).trim()).filter(Boolean))]
+      if (blocked.length === 1) {
+        filterParts.push(`telepro_user_id:!=${JSON.stringify(blocked[0])}`)
+      } else if (blocked.length > 1) {
+        filterParts.push(`telepro_user_id:!=[${blocked.map(v => JSON.stringify(v)).join(',')}]`)
+      }
+    }
 
     const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
     const ts = await searchTypesenseCrmContacts({
@@ -832,10 +859,14 @@ export async function GET(req: NextRequest) {
       filterBy: filterParts.length > 0 ? filterParts.join(' && ') : undefined,
       sortBy: `${typesenseSortField}:${sortAsc ? 'asc' : 'desc'}`,
       page: page + 1,
-      perPage: limit,
+      perPage: countOnly ? 1 : limit,
     })
 
     if (ts) {
+      engine = 'typesense'
+      if (countOnly) {
+        return withPerfHeader(NextResponse.json({ data: [], total: ts.found, total_estimated: false, page: 0, limit: 0 }))
+      }
       const ids = ts.ids
       if (ids.length === 0) {
         return withPerfHeader(NextResponse.json({ data: [], total: ts.found, total_estimated: false, page, limit }))
@@ -928,7 +959,7 @@ export async function GET(req: NextRequest) {
         limit,
       })
       r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
-      return r
+      return withPerfHeader(r)
     }
   }
 
@@ -1726,7 +1757,7 @@ export async function GET(req: NextRequest) {
 
   // Cache court de la réponse finale leads: filtre/page identiques deviennent
   // quasi instantanés, même quand la route est riche en filtres.
-  const responseCacheKey = !isExport
+  const responseCacheKey = !isExport && !bypassCache
     ? `crm:contacts:response:v1:${req.nextUrl.searchParams.toString()}`
     : null
   const payload = responseCacheKey
@@ -1740,7 +1771,11 @@ export async function GET(req: NextRequest) {
   // client (lib/client-cache.ts), les retours de page sont quasi instantanes.
   // Pas de cache si on est en mode export (10000 lignes, donnees lourdes).
   if (!isExport && !countOnly) {
-    response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+    if (bypassCache) {
+      response.headers.set('Cache-Control', 'no-store')
+    } else {
+      response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+    }
   }
   return withPerfHeader(response)
 }
@@ -1761,7 +1796,8 @@ export async function POST(req: NextRequest) {
     const email        = String(body.email ?? '').trim().toLowerCase()
     const phone        = body.phone        ? String(body.phone).trim()        : null
     const departement  = body.departement  ? String(body.departement).trim()  : null
-    const classe       = body.classe_actuelle ? String(body.classe_actuelle).trim() : null
+    const classeRaw    = body.classe_actuelle ? String(body.classe_actuelle).trim() : null
+    const classe       = classeRaw ? (normalizeClasseActuelle(classeRaw) ?? 'Autres') : null
     const formation    = body.formation    ? String(body.formation).trim()    : null
 
     if (!firstname || !lastname || !email) {

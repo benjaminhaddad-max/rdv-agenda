@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getHubspotMode } from '@/lib/hubspot-mode'
+import { requireCronSecret } from '@/lib/api-auth'
 
 /**
  * Cron ultra-léger HubSpot → Supabase
@@ -27,7 +28,6 @@ import { getHubspotMode } from '@/lib/hubspot-mode'
 // avec ?days=90 qui peuvent prendre 2-4 min.
 export const maxDuration = 300
 
-const CRON_SECRET = process.env.CRON_SECRET
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 
 const PROPS = [
@@ -50,11 +50,8 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
-  const token = auth.replace('Bearer ', '')
-  if (CRON_SECRET && token !== CRON_SECRET && req.nextUrl.searchParams.get('force') !== '1') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
   if (!HUBSPOT_TOKEN) {
     return NextResponse.json({ error: 'HUBSPOT_ACCESS_TOKEN missing' }, { status: 500 })
   }
@@ -275,7 +272,11 @@ export async function GET(req: NextRequest) {
       if ((updCount ?? 0) === 0) {
         // Contact pas en base → insert (s'il y a au moins un identifiant utilisable)
         if (p.email || p.phone || p.firstname || p.lastname) {
-          const insertRow = { hubspot_contact_id: c.id, ...patch }
+          const insertRow = {
+            hubspot_contact_id: c.id,
+            hs_lead_status: (patch.hs_lead_status as string | null) || 'Nouveau',
+            ...patch,
+          }
           await db.from('crm_contacts').insert(insertRow)
         }
       }

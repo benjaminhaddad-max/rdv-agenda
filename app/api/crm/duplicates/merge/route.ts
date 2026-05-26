@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
+import { memoryRateLimit } from '@/lib/rate-limit'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 /**
  * POST /api/crm/duplicates/merge
@@ -29,6 +32,20 @@ const MERGE_FIELDS = [
 ]
 
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
+  const limiter = memoryRateLimit(`crm-merge:${authz.ctx.appUserId}`, {
+    windowMs: 60_000,
+    limit: 10,
+  })
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded for merge' },
+      { status: 429 }
+    )
+  }
+
   const db = createServiceClient()
 
   let body: { primary_id?: string; duplicate_ids?: string[] }
@@ -74,7 +91,9 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const v = (d as any)[field]
       if (v !== null && v !== undefined && String(v).trim() !== '') {
-        updates[field] = v
+        updates[field] = field === 'classe_actuelle'
+          ? (normalizeClasseActuelle(v) ?? 'Autres')
+          : v
         break
       }
     }

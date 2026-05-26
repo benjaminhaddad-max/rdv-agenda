@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
+import { requireCronSecret } from '@/lib/api-auth'
 
 // Sync Diploma Sante (plateforme de pre-inscription 2026-2027)
 // Source : https://admission.diploma-sante.fr/api/list-inscriptions
@@ -15,7 +16,6 @@ import { logger } from '@/lib/logger'
 // pour le delta latence Vercel <-> Supabase et la pagination gmail (~70k contacts).
 export const maxDuration = 300
 
-const CRON_SECRET = process.env.CRON_SECRET
 const DIPLOMA_KEY = process.env.DIPLOMA_API_KEY
 const SAISON = '2026-2027'
 
@@ -106,12 +106,8 @@ function buildNotes(ins: DiplomaInscription): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  // Auth (pattern projet : Bearer CRON_SECRET)
-  const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
-  const token = auth.replace('Bearer ', '')
-  if (CRON_SECRET && token !== CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
   if (!DIPLOMA_KEY) {
     return NextResponse.json({ error: 'DIPLOMA_API_KEY missing' }, { status: 500 })
   }

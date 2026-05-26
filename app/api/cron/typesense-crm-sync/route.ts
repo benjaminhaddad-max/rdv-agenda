@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { isTypesenseEnabled } from '@/lib/typesense'
+import { requireCronSecret } from '@/lib/api-auth'
 
 export const maxDuration = 120
-
-const CRON_SECRET = process.env.CRON_SECRET
 
 type ContactRow = {
   hubspot_contact_id: string | null
@@ -54,11 +53,8 @@ function ensureString(v: unknown): string {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
-  const token = auth.replace('Bearer ', '')
-  if (CRON_SECRET && token !== CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
 
   if (!isTypesenseEnabled()) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'Typesense disabled' })
@@ -167,7 +163,7 @@ export async function GET(req: NextRequest) {
         { name: 'recent_conversion_event', type: 'string', optional: true },
         { name: 'contact_createdate', type: 'int64', optional: true },
         { name: 'recent_conversion_date', type: 'int64', optional: true },
-        { name: 'synced_at', type: 'int64', optional: true },
+        { name: 'synced_at', type: 'int64' },
         { name: 'dealstage', type: 'string', optional: true },
         { name: 'pipeline', type: 'string', optional: true },
         { name: 'formation_deal', type: 'string', optional: true },

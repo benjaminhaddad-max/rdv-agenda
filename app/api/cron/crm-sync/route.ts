@@ -3,11 +3,10 @@ import { createServiceClient } from '@/lib/supabase'
 import { getAllDealsForSync, batchGetContacts, getContactsModifiedSince, batchGetDealContactAssociations, getContactsByClass, getAllContactsForSync, getAllPropertyNames, getAllPropertiesMeta, getContactEngagements, getContactFormSubmissions, getAllOwners, getAllDealPipelineIds } from '@/lib/hubspot'
 import { logger } from '@/lib/logger'
 import { getHubspotMode } from '@/lib/hubspot-mode'
+import { requireCronSecret } from '@/lib/api-auth'
 
 // Étend le timeout Vercel à 5 min (nécessite plan Pro)
 export const maxDuration = 300
-
-const CRON_SECRET = process.env.CRON_SECRET
 
 // Nombre de pages HubSpot (×100 contacts) max par appel
 // 50 pages = 5 000 contacts ≈ 8-10 secondes — bien en dessous du timeout
@@ -24,11 +23,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Auth
-  const auth = req.headers.get('authorization') ?? req.nextUrl.searchParams.get('Authorization') ?? ''
-  const token = auth.replace('Bearer ', '')
-  if (CRON_SECRET && token !== CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
 
   const force         = req.nextUrl.searchParams.get('force') === '1'
   const fullSync      = req.nextUrl.searchParams.get('full') === '1'

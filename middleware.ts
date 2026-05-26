@@ -39,6 +39,29 @@ export async function middleware(request: NextRequest) {
   // Refresh session (always, even on public routes)
   const { data: { user } } = await supabase.auth.getUser()
 
+  // ── API auth gates (before generic /api public bypass) ────────────────────
+  if (pathname.startsWith('/api/admin/')) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const dbUser = await getUserFromDb(user.id)
+    if (!dbUser || dbUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    return response
+  }
+
+  if (pathname.startsWith('/api/crm/')) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const dbUser = await getUserFromDb(user.id)
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    return response
+  }
+
   // ── Public routes ──────────────────────────────────────────────
   if (
     pathname.startsWith('/book/') ||

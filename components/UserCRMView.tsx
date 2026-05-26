@@ -151,6 +151,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
         sort_by: sortBy,
         sort_dir: sortDir,
         exact_count: '1',
+        no_cache: '1',
         all_classes: '1',     // afficher tous les leads, pas seulement les classes prioritaires
         show_external: '1',   // vue personnelle "Mes Contacts/Transactions" : on
                               // ne masque pas les contacts de l'équipe externe
@@ -179,6 +180,65 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange }
   }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterClasse, filterPeriod, isContactsView, onTotalChange])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
+
+  // Keep the header badge in sync automatically, even when new leads arrive
+  // in the background (without a manual refresh).
+  const refreshTotalOnly = useCallback(async () => {
+    if (!ownerId) return
+    try {
+      const params = new URLSearchParams({
+        [ownerParam]: ownerId,
+        count_only: '1',
+        exact_count: '1',
+        no_cache: '1',
+        all_classes: '1',
+        show_external: '1',
+      })
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (!isContactsView && filterStage) params.set('stage', filterStage)
+      if (filterLeadStatus) params.set('lead_status', filterLeadStatus)
+      if (filterFormation) params.set('formation', filterFormation)
+      if (filterClasse) params.set('classe', filterClasse)
+      if (filterPeriod) params.set('period', filterPeriod)
+
+      const res = await fetch(`/api/crm/contacts?${params}`)
+      if (!res.ok) return
+      const data = await res.json()
+      const t = data.total ?? 0
+      setTotal(prev => (prev === t ? prev : t))
+      onTotalChange?.(t)
+    } catch {
+      // Silent retry on next tick.
+    }
+  }, [
+    ownerParam,
+    ownerId,
+    debouncedSearch,
+    isContactsView,
+    filterStage,
+    filterLeadStatus,
+    filterFormation,
+    filterClasse,
+    filterPeriod,
+    onTotalChange,
+  ])
+
+  useEffect(() => {
+    if (!ownerId) return
+    const tickMs = 10000
+    const id = setInterval(() => { void refreshTotalOnly() }, tickMs)
+    const onFocus = () => { void refreshTotalOnly() }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshTotalOnly()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [ownerId, refreshTotalOnly])
 
   // Fetch users pour CRMEditDrawer
   useEffect(() => {

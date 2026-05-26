@@ -382,6 +382,7 @@ export default function CRMPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLoadedOnceRef = useRef(false)
   const contactsFetchSeqRef = useRef(0)
+  const lastFetchSignatureRef = useRef('')
   const didInitViewFromUrlRef = useRef(false)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
@@ -468,25 +469,29 @@ export default function CRMPage() {
       .catch(() => {})
   }, [])
 
-  const fetchViewCounts = useCallback((viewIds?: string[]) => {
+  const fetchViewCounts = useCallback(async (viewIds?: string[]) => {
     const body = viewIds && viewIds.length > 0 ? { view_ids: viewIds } : {}
-    return fetch('/api/crm/views/counts', {
+    try {
+      const res = await fetch('/api/crm/views/counts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-      .then(r => r.json())
-      .then(d => {
-        if (d?.counts && typeof d.counts === 'object') {
-          setViewCounts(prev => ({ ...prev, ...(d.counts as Record<string, number>) }))
-        }
-      })
-      .catch(() => {})
+      const d = await res.json()
+      if (d?.counts && typeof d.counts === 'object') {
+        const counts = d.counts as Record<string, number>
+        setViewCounts(prev => ({ ...prev, ...counts }))
+        return counts
+      }
+    } catch {
+      // best effort
+    }
+    return null
   }, [])
 
   // ── Pré-charger les counts : vue active d'abord, toutes les vues ensuite ──
   useEffect(() => {
-    if (!viewsLoaded || loading) return
+    if (!viewsLoaded) return
     const t1 = setTimeout(() => {
       void fetchViewCounts([activeViewId, 'all'])
     }, 300)
@@ -497,13 +502,32 @@ export default function CRMPage() {
       clearTimeout(t1)
       clearTimeout(t2)
     }
-  }, [viewsLoaded, crmViews.length, loading, activeViewId, fetchViewCounts])
+  }, [viewsLoaded, crmViews.length, activeViewId, fetchViewCounts])
+
+  // Quand on arrive sur une vue, afficher immédiatement son compteur exact
+  // (sans attendre le fetch paginé de la table).
+  useEffect(() => {
+    if (!viewsLoaded || !activeViewId) return
+    const known = viewCounts[activeViewId]
+    if (typeof known === 'number') {
+      setTotal(known)
+      setTotalEstimated(false)
+    }
+    void fetchViewCounts([activeViewId]).then((counts) => {
+      if (!counts) return
+      const next = counts[activeViewId]
+      if (typeof next === 'number') {
+        setTotal(next)
+        setTotalEstimated(false)
+      }
+    })
+  }, [viewsLoaded, activeViewId, fetchViewCounts])
 
   // Mettre à jour le count de la vue active quand total change
   useEffect(() => {
-    if (!activeViewId || loading) return
+    if (!activeViewId) return
     setViewCounts(prev => ({ ...prev, [activeViewId]: total }))
-  }, [total, activeViewId, loading])
+  }, [total, activeViewId])
 
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
@@ -601,13 +625,111 @@ export default function CRMPage() {
     const activeView = crmViews.find(v => v.id === activeViewId)
     const activeViewName = (activeView?.name ?? '').toLowerCase()
     const forceMetaAdsOnly = activeViewId === 'v_meta_ads_all' || activeViewName.includes('meta ads')
+    const requestSignature = JSON.stringify({
+      activeViewId,
+      activeViewName,
+      debouncedSearch,
+      stage,
+      closerHsId,
+      closerContactHsId,
+      closerContactNot,
+      contactOwnerHsId,
+      teleproHsId,
+      noTelepro,
+      ownerExclude,
+      recentFormMonths,
+      recentFormDays,
+      createdBeforeDays,
+      showExternal,
+      allClasses,
+      leadStatus,
+      source,
+      zoneFilter,
+      deptFilter,
+      stageNot,
+      leadStatusNot,
+      sourceNot,
+      zoneNot,
+      deptNot,
+      closerNot,
+      contactOwnerNot,
+      teleproNot,
+      formationNot,
+      pipeline,
+      pipelineNot,
+      priorPreinscription,
+      emptyFields,
+      notEmptyFields,
+      formation,
+      classe,
+      period,
+      sortBy,
+      sortDir,
+      limit,
+      extraColumns,
+      customFilterParam,
+      forceMetaAdsOnly,
+    })
+
+    // Évite une requête inutile : si les filtres changent hors page 0,
+    // on reset la pagination puis on attend le render suivant.
+    if (!resetPage && page !== 0 && requestSignature !== lastFetchSignatureRef.current) {
+      lastFetchSignatureRef.current = requestSignature
+      setPage(0)
+      return
+    }
+    lastFetchSignatureRef.current = requestSignature
+
+    const shouldUseApproxCount =
+      activeViewId === 'all' &&
+      !debouncedSearch &&
+      !stage &&
+      !closerHsId &&
+      !closerContactHsId &&
+      !closerContactNot &&
+      !contactOwnerHsId &&
+      !teleproHsId &&
+      !noTelepro &&
+      !ownerExclude &&
+      recentFormMonths <= 0 &&
+      recentFormDays <= 0 &&
+      createdBeforeDays <= 0 &&
+      !leadStatus &&
+      !source &&
+      !zoneFilter &&
+      !deptFilter &&
+      !stageNot &&
+      !leadStatusNot &&
+      !sourceNot &&
+      !zoneNot &&
+      !deptNot &&
+      !closerNot &&
+      !contactOwnerNot &&
+      !teleproNot &&
+      !formationNot &&
+      !pipeline &&
+      !pipelineNot &&
+      !priorPreinscription &&
+      !emptyFields &&
+      !notEmptyFields &&
+      !formation &&
+      !classe &&
+      !period &&
+      !customFilterParam
 
     const params = new URLSearchParams({
       limit: String(limit),
       page: String(currentPage),
     })
-    // Liste rapide d'abord: le count exact sera récupéré en arrière-plan si nécessaire.
-    params.set('defer_count', '1')
+    // Hybride perf:
+    // - Vue globale massive sans filtres: compteur approximatif (beaucoup plus rapide).
+    // - Vues filtrées / ciblées: compteur exact pour éviter tout écart (ex. 70 leads).
+    if (shouldUseApproxCount) {
+      params.set('defer_count', '1')
+    } else {
+      params.set('exact_count', '1')
+      params.set('no_cache', '1')
+    }
     if (activeViewId) params.set('view_id', activeViewId)
     if (debouncedSearch)      params.set('search', debouncedSearch)
     if (stage)                params.set('stage', stage)
@@ -679,26 +801,6 @@ export default function CRMPage() {
       }
     }
 
-    const fetchExactCount = async () => {
-      const countParams = new URLSearchParams(params)
-      countParams.set('limit', '0')
-      countParams.set('page', '0')
-      countParams.delete('defer_count')
-      const countUrl = `/api/crm/contacts?${countParams.toString()}`
-      try {
-        const res = await fetch(countUrl)
-        if (!res.ok) return
-        const json = await res.json() as { total?: number }
-        if (requestSeq !== contactsFetchSeqRef.current) return
-        if (typeof json.total === 'number') {
-          setTotal(json.total)
-          setTotalEstimated(false)
-        }
-      } catch {
-        // best effort
-      }
-    }
-
     // Cache hit (typiquement : retour sur la page apres avoir ouvert un
     // contact) → render immediat avec les anciennes donnees, puis revalidation
     // silencieuse en arriere-plan.
@@ -735,7 +837,6 @@ export default function CRMPage() {
           setTotalEstimated(payload.total_estimated === true)
           setLastFetchClientMs(clientMs)
           setLastFetchServerMs(serverMs)
-          if (payload.total_estimated === true) void fetchExactCount()
         })
         .catch(() => {})
       return
@@ -754,7 +855,6 @@ export default function CRMPage() {
       setTotalEstimated(payload.total_estimated === true)
       setLastFetchClientMs(clientMs)
       setLastFetchServerMs(serverMs)
-      if (payload.total_estimated === true) void fetchExactCount()
       hasLoadedOnceRef.current = true
     } catch {
       // garde le state precedent en cas d'erreur reseau

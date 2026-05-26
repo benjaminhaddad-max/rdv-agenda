@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
@@ -926,6 +926,7 @@ export default function CRMContactsTable({
   extraColumns,
   onExtraColumnsChange,
 }: Props) {
+  const RENDER_CHUNK = 120
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel,       setAssignPanel]        = useState<{
@@ -935,17 +936,15 @@ export default function CRMContactsTable({
   const [savingStage,       setSavingStage]        = useState<string | null>(null)
   const [savingContactField,setSavingContactField] = useState<string | null>(null)
   const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
-  const [hovered,           setHovered]            = useState<string | null>(null)
+  const [renderedCount,     setRenderedCount]      = useState(RENDER_CHUNK)
 
   // Prefetch debounce : on hover plus de 150ms → on tire la fiche en arriere-plan
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleRowEnter = useCallback((id: string) => {
-    setHovered(id)
     if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
     prefetchTimerRef.current = setTimeout(() => prefetchContactDetail(id), 150)
   }, [])
   const handleRowLeave = useCallback(() => {
-    setHovered(null)
     if (prefetchTimerRef.current) {
       clearTimeout(prefetchTimerRef.current)
       prefetchTimerRef.current = null
@@ -954,6 +953,31 @@ export default function CRMContactsTable({
   useEffect(() => () => {
     if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
   }, [])
+
+  // Progressive rendering: mount a first chunk quickly, then append rows on scroll.
+  useEffect(() => {
+    setRenderedCount(RENDER_CHUNK)
+  }, [contacts.length, RENDER_CHUNK])
+
+  const loadMoreRef = useRef<HTMLTableRowElement | null>(null)
+  useEffect(() => {
+    if (renderedCount >= contacts.length) return
+    if (!loadMoreRef.current || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0]
+      if (!entry?.isIntersecting) return
+      setRenderedCount((prev) => Math.min(prev + RENDER_CHUNK, contacts.length))
+    }, { root: null, rootMargin: '300px 0px', threshold: 0 })
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [renderedCount, contacts.length, RENDER_CHUNK])
+
+  const visibleContacts = useMemo(
+    () => contacts.slice(0, renderedCount),
+    [contacts, renderedCount]
+  )
 
   // ── Select-all page ──────────────────────────────────────────────────────
   const selectAllRef  = useRef<HTMLInputElement>(null)
@@ -1792,24 +1816,24 @@ export default function CRMContactsTable({
 
           {/* Body */}
           <tbody>
-            {contacts.map(contact => {
+            {visibleContacts.map(contact => {
               const name       = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
               const isExpanded = expanded.has(contact.hubspot_contact_id)
-              const isHovered  = hovered === contact.hubspot_contact_id
               const deal       = contact.deal
 
-              const rowBg = isExpanded
-                ? '#eaf4fd'   // HubSpot highlighted row
-                : isHovered
-                  ? '#f5f8fa' // HubSpot hover
-                  : '#ffffff' // white default
+              const rowBg = isExpanded ? '#eaf4fd' : '#ffffff'
 
               return (
-                <>
+                <React.Fragment key={contact.hubspot_contact_id}>
                   <tr
-                    key={contact.hubspot_contact_id}
-                    onMouseEnter={() => handleRowEnter(contact.hubspot_contact_id)}
-                    onMouseLeave={handleRowLeave}
+                    onMouseEnter={(e) => {
+                      handleRowEnter(contact.hubspot_contact_id)
+                      if (!isExpanded) e.currentTarget.style.background = '#f5f8fa'
+                    }}
+                    onMouseLeave={(e) => {
+                      handleRowLeave()
+                      if (!isExpanded) e.currentTarget.style.background = '#ffffff'
+                    }}
                     onClick={() => {
                       if (onOpenDrawer) onOpenDrawer(contact)
                       else toggleExpand(contact.hubspot_contact_id)
@@ -1919,9 +1943,25 @@ export default function CRMContactsTable({
                       savingStage={savingStage === deal?.hubspot_deal_id}
                     />
                   )}
-                </>
+                </React.Fragment>
               )
             })}
+            {renderedCount < contacts.length && (
+              <tr ref={loadMoreRef}>
+                <td
+                  colSpan={totalCols}
+                  style={{
+                    padding: '14px 12px',
+                    textAlign: 'center',
+                    fontSize: 12,
+                    color: '#7c98b6',
+                    background: '#ffffff',
+                  }}
+                >
+                  Chargement de lignes...
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

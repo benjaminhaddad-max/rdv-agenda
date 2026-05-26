@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 /**
  * PATCH /api/crm/contacts/[id]/prop
@@ -41,11 +42,15 @@ export async function PATCH(
 
   const col = KNOWN_COLUMNS[property]
   const now = new Date().toISOString()
+  const normalizedValue =
+    property === 'classe_actuelle'
+      ? (normalizeClasseActuelle(value) ?? 'Autres')
+      : value
 
   // ── 1. Update Supabase ─────────────────────────────────────────────
   // On met à jour la colonne individuelle si connue + hubspot_raw JSONB
   const update: Record<string, unknown> = { synced_at: now }
-  if (col) update[col] = value === '' ? null : value
+  if (col) update[col] = normalizedValue === '' ? null : normalizedValue
 
   // MAJ du JSONB hubspot_raw via expression SQL "jsonb_set"
   // (on passe par un update classique + merge côté serveur)
@@ -57,7 +62,7 @@ export async function PATCH(
 
   if (existing !== null) {
     const raw = (existing as { hubspot_raw?: Record<string, unknown> })?.hubspot_raw ?? {}
-    update.hubspot_raw = { ...raw, [property]: value }
+    update.hubspot_raw = { ...raw, [property]: normalizedValue }
   }
 
   const { error: updateErr } = await db
@@ -76,7 +81,7 @@ export async function PATCH(
     await db.from('crm_property_history').insert({
       hubspot_contact_id: contactId,
       property_name:      property,
-      value:              value === '' ? null : String(value ?? ''),
+      value:              normalizedValue === '' ? null : String(normalizedValue ?? ''),
       changed_at:         now,
       source_type:        'CRM_UI',
       source_id:          null,
@@ -97,7 +102,7 @@ export async function PATCH(
       await hubspotFetch(`/crm/v3/objects/contacts/${contactId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          properties: { [property]: value ?? '' },
+          properties: { [property]: normalizedValue ?? '' },
         }),
       })
     } catch (e) {
@@ -119,9 +124,9 @@ export async function PATCH(
       if (cfg.property && cfg.property !== property) continue
       if (cfg.to !== undefined && cfg.to !== null) {
         const expected = Array.isArray(cfg.to) ? cfg.to : [cfg.to]
-        if (!expected.includes(String(value))) continue
+        if (!expected.includes(String(normalizedValue))) continue
       }
-      await enrollContact(db, wf.id, contactId, { property, value, source: 'CRM_UI' })
+      await enrollContact(db, wf.id, contactId, { property, value: normalizedValue, source: 'CRM_UI' })
     }
   } catch (e) {
     console.warn('[crm/contacts/[id]/prop] workflow trigger failed:', e)

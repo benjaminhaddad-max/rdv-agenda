@@ -39,7 +39,7 @@ const CURRENT_STUDIES_OPTIONS = [
   'LAS 2',
   'LAS 3',
   'Etudes médicales',
-  'Etudes supérieures',
+  'Etudes Sup.',
   'Autres',
 ]
 

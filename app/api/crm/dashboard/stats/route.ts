@@ -21,6 +21,7 @@ async function awaitCount(builder: any): Promise<number> {
 }
 
 export async function GET() {
+  const startedAt = Date.now()
   const db = createServiceClient()
   const now = new Date()
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
@@ -158,5 +159,6 @@ export async function GET() {
   // Cache 30s côté navigateur + 60s sur les CDN, avec stale-while-revalidate
   // Permet de recharger la page rapidement sans re-déclencher 30+ queries DB.
   response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+  response.headers.set('X-Response-Time-Ms', String(Date.now() - startedAt))
   return response
 }

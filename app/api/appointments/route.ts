@@ -63,7 +63,24 @@ export async function GET(req: NextRequest) {
 
   const db = createServiceClient()
   let query = db.from('rdv_appointments').select(`
-    *,
+    id,
+    prospect_name,
+    prospect_email,
+    prospect_phone,
+    start_at,
+    end_at,
+    status,
+    formation_type,
+    meeting_type,
+    meeting_link,
+    report_summary,
+    report_telepro_advice,
+    hubspot_contact_id,
+    hubspot_deal_id,
+    notes,
+    source,
+    classe_actuelle,
+    departement,
     rdv_users:commercial_id (id, name, avatar_color, slug),
     telepro:telepro_id (id, name)
   `)
@@ -89,7 +106,17 @@ export async function GET(req: NextRequest) {
 
   query = query.order('start_at', { ascending: true })
 
-  const { data, error } = await query
+  // Guard anti-blocage : si la requête DB tarde trop, on retourne une erreur
+  // explicite au front au lieu de laisser le client spinner indéfiniment.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const timeoutResult = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+    setTimeout(() => resolve({
+      data: null,
+      error: { message: 'Timeout API appointments (query too slow)' },
+    }), 10000)
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await Promise.race([query as any, timeoutResult]) as any
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   // Compat : le front (WeekCalendar, AppointmentModal) lit `appt.users`
   // alors que le query alias la jointure en `rdv_users`. On expose les deux

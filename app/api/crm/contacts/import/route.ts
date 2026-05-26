@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
+import { memoryRateLimit } from '@/lib/rate-limit'
+import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 /**
  * POST /api/crm/contacts/import
@@ -33,6 +36,20 @@ const ALLOWED_FIELDS = new Set([
 const MAX_ROWS = 5000
 
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
+  const limiter = memoryRateLimit(`crm-import:${authz.ctx.appUserId}`, {
+    windowMs: 5 * 60_000,
+    limit: 5,
+  })
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded for import' },
+      { status: 429 }
+    )
+  }
+
   const db = createServiceClient()
   let body: { rows?: Array<Record<string, string>>; options?: Record<string, unknown> }
 
@@ -121,6 +138,9 @@ export async function POST(req: NextRequest) {
       const val = (v ?? '').toString().trim()
       if (val !== '') data[k] = val
     }
+    if (typeof data.classe_actuelle === 'string') {
+      data.classe_actuelle = normalizeClasseActuelle(data.classe_actuelle) ?? 'Autres'
+    }
 
     // Email/phone toujours présents si fournis
     if (email) data.email = email
@@ -146,6 +166,7 @@ export async function POST(req: NextRequest) {
       data.hubspot_contact_id = 'NATIVE_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10) + i
       data.contact_createdate = nowIso
       if (!data.origine) data.origine = 'Import CSV'
+      if (!data.hs_lead_status) data.hs_lead_status = 'Nouveau'
       toInsert.push(data)
     }
   }

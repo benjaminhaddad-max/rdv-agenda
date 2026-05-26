@@ -545,6 +545,11 @@ export default function TeleproClient({
   // ── Planning ──────────────────────────────────────────────────────────
   const [myRdvs, setMyRdvs] = useState<MyAppointment[]>([])
   const [myRdvsLoading, setMyRdvsLoading] = useState(false)
+  const [myRdvsError, setMyRdvsError] = useState<string | null>(null)
+  const [planningFirstLoadTimedOut, setPlanningFirstLoadTimedOut] = useState(false)
+  const myRdvsFetchInFlightRef = useRef(false)
+  const myRdvsFetchSeqRef = useRef(0)
+  const myRdvsLastFetchAtRef = useRef(0)
   const [expandedRdv, setExpandedRdv] = useState<string | null>(null)
   const [planningWeekStart, setPlanningWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -593,25 +598,52 @@ export default function TeleproClient({
   // ── HubSpot stats ─────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
 
-  const fetchHsStats = useCallback(async () => {
-    const now = new Date()
-    const thisMonth = myRdvs.filter(r => {
-      const d = new Date(r.start_at)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    }).length
-    const positifs = myRdvs.filter(r => r.status === 'positif' || r.status === 'preinscription').length
-    const aVenir = myRdvs.filter(r => new Date(r.start_at) > now).length
-    setHsStats({ total: myRdvs.length, thisMonth, positifs, aVenir })
-  }, [myRdvs])
-
   const fetchMyRdvs = useCallback(async () => {
     if (isAdmin) return
-    setMyRdvsLoading(true)
-    try {
-      const res = await fetch(`/api/appointments?telepro_id=${teleproUser.id}`)
-      if (res.ok) setMyRdvs(await res.json())
-    } finally {
+    if (!teleproUser.id) {
+      setMyRdvsError('Compte télépro invalide (ID manquant)')
       setMyRdvsLoading(false)
+      return
+    }
+    if (myRdvsFetchInFlightRef.current) return
+    const nowMs = Date.now()
+    if (nowMs - myRdvsLastFetchAtRef.current < 1200) return
+    myRdvsLastFetchAtRef.current = nowMs
+    myRdvsFetchInFlightRef.current = true
+    const seq = ++myRdvsFetchSeqRef.current
+    const ctrl = new AbortController()
+    let hardTimeout: ReturnType<typeof setTimeout> | null = null
+    setMyRdvsLoading(true)
+    setMyRdvsError(null)
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        hardTimeout = setTimeout(() => {
+          ctrl.abort()
+          reject(new Error('Timeout chargement planning'))
+        }, 12000)
+      })
+      const res = await Promise.race([
+        fetch(`/api/appointments?telepro_id=${teleproUser.id}`, {
+          signal: ctrl.signal,
+          cache: 'no-store',
+        }),
+        timeoutPromise,
+      ])
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const rows = await res.json()
+      // Ignore stale responses when a newer fetch has started.
+      if (seq === myRdvsFetchSeqRef.current) setMyRdvs(rows)
+    } catch (e) {
+      if (seq === myRdvsFetchSeqRef.current) {
+        const msg = e instanceof Error ? e.message : 'Erreur chargement planning'
+        setMyRdvsError(msg)
+      }
+    } finally {
+      if (hardTimeout) clearTimeout(hardTimeout)
+      myRdvsFetchInFlightRef.current = false
+      if (seq === myRdvsFetchSeqRef.current) setMyRdvsLoading(false)
     }
   }, [teleproUser.id, isAdmin])
 
@@ -683,12 +715,44 @@ export default function TeleproClient({
   }
 
   useEffect(() => {
-    if (activeTab === 'rdvs') { fetchMyRdvs(); fetchHsStats() }
-  }, [activeTab, fetchMyRdvs, fetchHsStats])
+    if (activeTab === 'rdvs' || previewMode) fetchMyRdvs()
+  }, [activeTab, previewMode, fetchMyRdvs])
+
+  // Garde-fou supplémentaire: si l'écran reste vide trop longtemps au premier
+  // affichage, on force une sortie du spinner avec message d'erreur.
+  useEffect(() => {
+    if (planningFirstLoadTimedOut) return
+    if (myRdvs.length > 0 || myRdvsError) return
+    const t = setTimeout(() => {
+      setPlanningFirstLoadTimedOut(true)
+      myRdvsFetchInFlightRef.current = false
+      setMyRdvsLoading(false)
+      setMyRdvsError('Le planning met trop de temps à charger. Clique sur actualiser.')
+    }, 9000)
+    return () => clearTimeout(t)
+  }, [myRdvs.length, myRdvsError, planningFirstLoadTimedOut, activeTab])
+
+  // Guard-fou UI: ne jamais laisser un spinner infini côté planning.
+  useEffect(() => {
+    if (!myRdvsLoading) return
+    const guard = setTimeout(() => {
+      myRdvsFetchInFlightRef.current = false
+      setMyRdvsLoading(false)
+      setMyRdvsError(prev => prev || 'Timeout chargement planning')
+    }, 15000)
+    return () => clearTimeout(guard)
+  }, [myRdvsLoading])
 
   useEffect(() => {
-    if (previewMode) { fetchMyRdvs(); fetchHsStats() }
-  }, [previewMode, fetchMyRdvs, fetchHsStats])
+    const now = new Date()
+    const thisMonth = myRdvs.filter(r => {
+      const d = new Date(r.start_at)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    }).length
+    const positifs = myRdvs.filter(r => r.status === 'positif' || r.status === 'preinscription').length
+    const aVenir = myRdvs.filter(r => new Date(r.start_at) > now).length
+    setHsStats({ total: myRdvs.length, thisMonth, positifs, aVenir })
+  }, [myRdvs])
 
   // ── Historique : fetch via HubSpot owner → Supabase hubspot_deal_id ──
   const fetchHistorique = useCallback(async () => {
@@ -1325,6 +1389,32 @@ export default function TeleproClient({
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
               <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
               <div>Chargement…</div>
+            </div>
+          ) : myRdvsError && myRdvs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#ef4444' }}>
+              <AlertCircle size={24} style={{ marginBottom: 12 }} />
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Erreur de chargement</div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>{myRdvsError}</div>
+              <button
+                onClick={() => {
+                  setPlanningFirstLoadTimedOut(false)
+                  fetchMyRdvs()
+                }}
+                style={{
+                  marginTop: 12,
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  color: '#ef4444',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Réessayer
+              </button>
             </div>
           ) : myRdvs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
@@ -2349,9 +2439,9 @@ export default function TeleproClient({
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UserCRMView
             ownerParam="telepro_hs_id"
-            // Mode CRM natif: filtre piloté depuis l'ID interne rdv_users.
-            // L'API élargit ensuite vers les identifiants historiques liés.
-            ownerId={teleproUser.id}
+            // Filtrage strict sur la propriété télépro (HubSpot user/owner id).
+            // Fallback sur l'id interne uniquement si les ids HubSpot manquent.
+            ownerId={teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || teleproUser.id}
             mode="telepro"
             onTotalChange={setCrmTotal}
           />
