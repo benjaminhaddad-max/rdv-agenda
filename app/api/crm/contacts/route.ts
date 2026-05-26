@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
   // Filtre direct sur crm_contacts.closer_du_contact_owner_id (closer du contact)
   const closerContactHsId = searchParams.get('closer_contact_hs_id') ?? ''
   const closerContactNot  = searchParams.get('closer_contact_not') ?? ''
+  // Filtre télépro natif CRM (rdv_users.id) — recommandé hors HubSpot.
+  const teleproId        = searchParams.get('telepro_id') ?? ''
   const teleproHsId      = searchParams.get('telepro_hs_id') ?? ''
   // NEW : filtre télépro par HubSpot owner id (sur deals.teleprospecteur),
   // pour matcher exactement ce qui est affiché dans la colonne TÉLÉPRO.
@@ -97,6 +99,29 @@ export async function GET(req: NextRequest) {
   const bypassCache      = searchParams.get('no_cache') === '1'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+
+  const sanitizeSearch = (raw: string): string =>
+    raw.replace(/[&|!:*()<>%]/g, ' ').trim()
+
+  // "jean jean" => tokenized search across firstname/lastname/email/phone.
+  const applySearchFilter = (q: any, rawSearch: string) => {
+    const safeSearch = sanitizeSearch(rawSearch)
+    if (!safeSearch) return q
+
+    if (process.env.CRM_FTS_ENABLED === '1') {
+      return q.textSearch('search_vector', safeSearch, { type: 'websearch', config: 'simple' })
+    }
+
+    const tokens = [...new Set(safeSearch.split(/\s+/).map(t => t.trim()).filter(Boolean))].slice(0, 6)
+    if (tokens.length === 0) return q
+
+    for (const token of tokens) {
+      q = q.or(
+        `firstname.ilike.%${token}%,lastname.ilike.%${token}%,email.ilike.%${token}%,phone.ilike.%${token}%`
+      )
+    }
+    return q
+  }
 
   // ── Filtres custom (propriétés HubSpot) — JSON dans ?cf= ─────────────────
   // Format : [{ field: 'createdate', operator: 'before', value: '2025-01-01' }, …]
@@ -254,27 +279,23 @@ export async function GET(req: NextRequest) {
     forcedScopedTeleproIds = [...new Set(scopedTeleproIds.filter(Boolean))]
   }
 
-  const expandedTeleproFilterValues = teleproHsId
-    ? await expandTeleproFilterValues(teleproHsId)
+  const teleproFilterRaw = [teleproId, teleproHsId].filter(Boolean).join(',')
+  const expandedTeleproFilterValues = teleproFilterRaw
+    ? await expandTeleproFilterValues(teleproFilterRaw)
     : []
   const effectiveTeleproFilterCsv = expandedTeleproFilterValues.length > 0
     ? expandedTeleproFilterValues.join(',')
-    : teleproHsId
+    : teleproFilterRaw
 
   const pgQuoteForScoped = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
   const buildTeleproOrFilter = (vals: string[]): string => {
     const uniq = [...new Set(vals.map(v => String(v).trim()).filter(Boolean))]
     if (uniq.length === 0) return ''
-    // telepro_user_id est bigint sur certains environnements: on n'injecte que
-    // des valeurs numeriques pour eviter les erreurs de cast.
+    // telepro_user_id est bigint sur certains environnements : on n'injecte que
+    // des valeurs numériques pour éviter les erreurs de cast.
     const numericOnly = uniq.filter(v => /^\d+$/.test(v))
-    const parts: string[] = []
-    if (numericOnly.length > 0) {
-      parts.push(`telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`)
-    }
-    // teleprospecteur est stocke en texte (historique/fallback).
-    parts.push(`teleprospecteur.in.(${uniq.map(pgQuoteForScoped).join(',')})`)
-    return parts.join(',')
+    if (numericOnly.length === 0) return ''
+    return `telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`
   }
   const forcedScopedOrFilter = buildTeleproOrFilter(forcedScopedTeleproIds)
 
@@ -289,6 +310,12 @@ export async function GET(req: NextRequest) {
   //   3. Fallback : recent_conversion_event = nom (last submission match)
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
   let formEventContactIds: string[] | null = null
+  // Si la résolution se réduit à recent_conversion_event (cas des forms
+  // HubSpot pur, ex. Edumove), on garde le filtre SQL direct sur la colonne
+  // au lieu de matérialiser une liste massive de contact_ids dans l'URL
+  // PostgREST (qui dépasse la limite et casse la liste tout en laissant
+  // passer le count).
+  let formEventNames: string[] | null = null
   const skipHeavyFormResolver = deferCount
   {
     // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
@@ -333,6 +360,7 @@ export async function GET(req: NextRequest) {
 
         // 1. Meta Lead Ads : récupère les contact_id depuis meta_lead_events
         const metaFormIds = [...metaFormsById.keys()]
+        let metaContributedCount = 0
         if (metaFormIds.length > 0) {
           // Pagine pour éviter les payloads massifs
           let off = 0
@@ -347,7 +375,10 @@ export async function GET(req: NextRequest) {
             if (!ev || ev.length === 0) break
             for (const r of ev) {
               const cid = (r as { contact_id: string | null }).contact_id
-              if (cid) contactIdsSet.add(cid)
+              if (cid) {
+                if (!contactIdsSet.has(cid)) metaContributedCount += 1
+                contactIdsSet.add(cid)
+              }
             }
             if (ev.length < PAGE) break
             off += PAGE
@@ -376,6 +407,7 @@ export async function GET(req: NextRequest) {
           }
         }
         // Fallback supplementaire : variantes datees par prefixe.
+        let prefixVariantCount = 0
         for (const prefix of formNamePrefixes) {
           let off = 0
           const PAGE = 1000
@@ -388,16 +420,36 @@ export async function GET(req: NextRequest) {
             if (!rows || rows.length === 0) break
             for (const r of rows) {
               const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) contactIdsSet.add(cid)
+              if (cid) {
+                if (!contactIdsSet.has(cid)) prefixVariantCount += 1
+                contactIdsSet.add(cid)
+              }
             }
             if (rows.length < PAGE) break
             off += PAGE
           }
         }
 
-        formEventContactIds = [...contactIdsSet]
-        // Retire le filtre form_event des customFilters pour ne pas le double-appliquer
+        // Retire le filtre form_event des customFilters dans tous les cas :
+        // on l'applique nous-même (soit via .in('hubspot_contact_id'),
+        // soit via filtre direct sur recent_conversion_event ci-dessous).
         customFilters = customFilters.filter(r => r !== formFilter)
+
+        // Garde-fou anti URL massive : quand la résolution n'apporte AUCUN
+        // contact via Meta Ads ou variantes datées (cas Edumove / forms
+        // HubSpot pur), on n'a pas besoin de matérialiser la liste de
+        // contact_ids — on applique le filtre SQL direct sur la colonne
+        // recent_conversion_event. Sinon, l'URL PostgREST dépasse la limite
+        // et la liste renvoie [] alors que le count vaut 2.7K.
+        const contactIdResolutionRequired = metaContributedCount > 0 || prefixVariantCount > 0
+        if (contactIdResolutionRequired) {
+          formEventContactIds = [...contactIdsSet]
+        } else {
+          // Filtre SQL direct sur recent_conversion_event : URL légère,
+          // count + data toujours cohérents (cas Edumove / forms HubSpot pur,
+          // sans variantes datées et sans Meta Ads).
+          formEventNames = normalizedFormNames
+        }
       }
     }
   }
@@ -472,7 +524,7 @@ export async function GET(req: NextRequest) {
   }
   const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['createdat_contact']
   const hasSelectiveFilter = !!(
-    search || teleproHsId || teleproOwnerHsId || teleproNot ||
+    search || teleproId || teleproHsId || teleproOwnerHsId || teleproNot ||
     closerHsId || closerContactHsId || closerContactNot ||
     contactOwnerHsId || stage || stageNot ||
     formation || formationNot || classeFilter || periodFilter ||
@@ -483,9 +535,10 @@ export async function GET(req: NextRequest) {
     recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
+    formEventNames !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
-  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null
+  const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null || formEventNames !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
     ? 'exact'
     : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
@@ -495,7 +548,7 @@ export async function GET(req: NextRequest) {
     stage || stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formation || formationNot || pipeline || pipelineNot || priorPreinscription || periodFilter
   )
-  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null)
+  const hasFormHeavyFilter = !!(formEvent || formEventNot || formEventContactIds !== null || metaLeadAdsContactIds !== null || formEventNames !== null)
   const canFastCountOnly = countOnly &&
     showExternal &&
     !ownerExclude &&
@@ -538,18 +591,7 @@ export async function GET(req: NextRequest) {
       const vals = fastSplit(departement)
       fastQ = vals.length > 1 ? fastQ.in('departement', vals) : fastQ.eq('departement', departement)
     }
-    if (search) {
-      const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
-      if (safeSearch) {
-        if (process.env.CRM_FTS_ENABLED === '1') {
-          fastQ = fastQ.textSearch('search_vector', safeSearch, { type: 'websearch', config: 'simple' })
-        } else {
-          fastQ = fastQ.or(
-            `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
-          )
-        }
-      }
-    }
+    if (search) fastQ = applySearchFilter(fastQ, search)
     const { count: totalCount, error } = await fastQ
     if (error) return withPerfHeader(NextResponse.json({ error: error.message }, { status: 500 }))
     return withPerfHeader(NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: false, page: 0, limit: 0 }))
@@ -604,6 +646,10 @@ export async function GET(req: NextRequest) {
   const hasUnsupportedFastMvFilter = !!(
     isExport ||
     countOnly ||
+    // La vue matérialisée contient des lignes orientées "contact+deal" et peut
+    // dupliquer un contact (plusieurs deals). En vue "Mes Contacts" télépro on
+    // veut un total strictement au niveau contact.
+    !!effectiveTeleproFilterCsv ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formationNot || pipelineNot || priorPreinscription || periodFilter ||
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
@@ -612,6 +658,7 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
+    formEventNames !== null ||
     extraProps.length > 0 ||
     !showExternal
   )
@@ -640,7 +687,7 @@ export async function GET(req: NextRequest) {
           `hubspot_contact_id, firstname, lastname, email, phone,
            departement, classe_actuelle, zone_localite,
            formation_demandee, formation_souhaitee, contact_createdate,
-           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
            hs_lead_status, origine, synced_at,
            deal_hubspot_deal_id, dealstage, pipeline, formation_deal, deal_hubspot_owner_id, deal_teleprospecteur, deal_closedate, deal_createdate, deal_supabase_appt_id`,
           deferCount ? undefined : { count: countMode }
@@ -695,14 +742,7 @@ export async function GET(req: NextRequest) {
         const vals = splitMultiFast(pipeline)
         fastMvQ = vals.length > 1 ? fastMvQ.in('pipeline', vals) : fastMvQ.eq('pipeline', pipeline)
       }
-      if (search) {
-        const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
-        if (safeSearch) {
-          fastMvQ = fastMvQ.or(
-            `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
-          )
-        }
-      }
+      if (search) fastMvQ = applySearchFilter(fastMvQ, search)
 
       fastMvQ = fastMvQ.order(mvSortCol, { ascending: sortAsc, nullsFirst: false })
       if (mvSortCol !== 'synced_at') {
@@ -745,7 +785,6 @@ export async function GET(req: NextRequest) {
             hubspot_owner_id: c.hubspot_owner_id,
             closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
             telepro_user_id: c.telepro_user_id ?? null,
-            teleprospecteur: c.teleprospecteur ?? null,
             recent_conversion_date: c.recent_conversion_date,
             recent_conversion_event: c.recent_conversion_event,
             hs_lead_status: c.hs_lead_status,
@@ -877,7 +916,7 @@ export async function GET(req: NextRequest) {
           `hubspot_contact_id, firstname, lastname, email, phone,
            departement, classe_actuelle, zone_localite,
            formation_demandee, formation_souhaitee, contact_createdate,
-           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
            hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}`
         )
         .in('hubspot_contact_id', ids)
@@ -926,7 +965,6 @@ export async function GET(req: NextRequest) {
           hubspot_owner_id: c.hubspot_owner_id,
           closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
           telepro_user_id: c.telepro_user_id ?? null,
-          teleprospecteur: c.teleprospecteur ?? null,
           extra_props: extraProps.length > 0
             ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
             : undefined,
@@ -1159,7 +1197,7 @@ export async function GET(req: NextRequest) {
         `hubspot_contact_id, firstname, lastname, email, phone,
          departement, classe_actuelle, zone_localite,
          formation_demandee, formation_souhaitee, contact_createdate,
-         hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, teleprospecteur, recent_conversion_date, recent_conversion_event,
+         hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
          hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}${sortUsesDealTable ? `,
          crm_deals (
            hubspot_deal_id, dealstage, pipeline, formation,
@@ -1341,20 +1379,7 @@ export async function GET(req: NextRequest) {
   // Active CRM_FTS_ENABLED=1 dans Vercel APRÈS avoir appliqué la migration v20
   // (search_vector + GIN index). Sinon on garde le fallback ilike + trgm de v11.
   if (search) {
-    const safeSearch = search.replace(/[&|!:*()<>%]/g, ' ').trim()
-    if (safeSearch) {
-      if (process.env.CRM_FTS_ENABLED === '1') {
-        // websearch supporte "phrase exacte", -exclusion, OR — plus robuste
-        query = query.textSearch('search_vector', safeSearch, {
-          type: 'websearch',
-          config: 'simple',
-        })
-      } else {
-        query = query.or(
-          `firstname.ilike.%${safeSearch}%,lastname.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
-        )
-      }
-    }
+    query = applySearchFilter(query, search)
   }
 
   // Filtre par propriétaire du contact (view télépro)
@@ -1441,6 +1466,19 @@ export async function GET(req: NextRequest) {
         }
         query = query.or(orParts.join(','))
       }
+    }
+  }
+
+  // Filtre form_event "léger" (cas où la résolution n'est faite que via
+  // recent_conversion_event, sans Meta Ads ni variantes datées).
+  // On filtre directement sur la colonne, ce qui évite de matérialiser une
+  // liste massive de contact_ids dans l'URL PostgREST (limite ~16K) — sinon
+  // le count fonctionne mais la liste renvoie [] (cas Edumove ~2.7K leads).
+  if (formEventNames !== null && formEventNames.length > 0) {
+    if (formEventNames.length === 1) {
+      query = query.eq('recent_conversion_event', formEventNames[0])
+    } else {
+      query = query.in('recent_conversion_event', formEventNames)
     }
   }
 
@@ -1717,7 +1755,6 @@ export async function GET(req: NextRequest) {
         hubspot_owner_id:        c.hubspot_owner_id,
         closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
         telepro_user_id:         c.telepro_user_id ?? null,
-        teleprospecteur:         c.teleprospecteur ?? null,
         extra_props:             extraProps.length > 0
           ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
           : undefined,
