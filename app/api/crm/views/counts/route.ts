@@ -1,9 +1,13 @@
 import crypto from 'crypto'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { getApiUserContext } from '@/lib/api-auth'
-import { resolveFormEventFilter, warmupFormEventCache } from '@/lib/form-event-resolver'
+import { warmupFormEventCache } from '@/lib/form-event-resolver'
+import type { CRMSavedView } from '@/lib/crm-views'
+import { viewToCountParams } from '@/lib/crm-views'
+import type { CRMFilterGroup, CRMFilterRule } from '@/lib/crm-constants'
+import { recordCrmPerfSample } from '@/lib/crm-perf'
 
 type ViewRule = { field?: string; operator?: string; value?: string }
 type ViewGroup = { rules?: ViewRule[] }
@@ -16,141 +20,71 @@ type SavedViewRow = {
   } | null
 }
 
-function splitMulti(v: string): string[] {
-  return v.split(',').map(s => s.trim()).filter(Boolean)
-}
-
-async function fetchAllMetaLeadContactIds(db: ReturnType<typeof createServiceClient>): Promise<string[]> {
-  const ids = new Set<string>()
-  const PAGE = 1000
-  for (let off = 0; off < 200000; off += PAGE) {
-    const { data, error } = await db
-      .rpc('crm_meta_lead_contact_ids')
-      .range(off, off + PAGE - 1)
-    if (error) break
-    const rows = (data ?? []) as Array<{ hubspot_contact_id: string | null }>
-    if (rows.length === 0) break
-    for (const r of rows) {
-      if (r?.hubspot_contact_id) ids.add(r.hubspot_contact_id)
-    }
-    if (rows.length < PAGE) break
-  }
-  return [...ids]
-}
-
-async function resolveScopedTeleproContactIds(
-  db: ReturnType<typeof createServiceClient>,
-  teleproIds: string[],
-): Promise<string[]> {
-  if (teleproIds.length === 0) return []
-  const out = new Set<string>()
-  const PAGE = 1000
-
-  for (let off = 0; off < 100000; off += PAGE) {
-    const { data: rows } = await db
-      .from('crm_contacts')
-      .select('hubspot_contact_id')
-      .in('telepro_user_id', teleproIds)
-      .range(off, off + PAGE - 1)
-    if (!rows || rows.length === 0) break
-    for (const r of rows) if (r.hubspot_contact_id) out.add(r.hubspot_contact_id)
-    if (rows.length < PAGE) break
-  }
-
-  return [...out]
-}
-
-async function computeCountForView(
-  db: ReturnType<typeof createServiceClient>,
-  row: SavedViewRow,
-  forcedTeleproIds: string[],
-): Promise<number> {
-  const first = row.filter_groups?.[0]
-  const rules = [...(first?.rules ?? [])]
-
-  const filters: Record<string, unknown> = { all_classes: true }
-  if (row.preset_flags?.noTelepro) filters.telepro_user_id = null
-
-  let formContactIds: string[] | null = null
-  let metaAdsOnly = false
-
-  const scopedIds = forcedTeleproIds.length > 0
-    ? await resolveScopedTeleproContactIds(db, forcedTeleproIds)
-    : null
-
-  for (const r of rules) {
-    const field = String(r.field || '')
-    const op = String(r.operator || '')
-    const value = String(r.value || '')
-    if (!value && op !== 'is_empty' && op !== 'is_not_empty') continue
-    if (op !== 'is' && op !== 'is_any') continue
-
-    if (field === 'telepro') filters.telepro_user_id = splitMulti(value)[0] ?? null
-    if (field === 'contact_owner') filters.hubspot_owner_id = splitMulti(value)[0] ?? null
-    if (field === 'closer_contact') filters.closer_du_contact_owner_id = splitMulti(value)[0] ?? null
-    if (field === 'source') filters.origine = splitMulti(value)[0] ?? null
-    if (field === 'lead_status') filters.hs_lead_status = splitMulti(value)[0] ?? null
-    if (field === 'classe') filters.classe = splitMulti(value)[0] ?? null
-    if (field === 'form_event') {
-      const resolved = await resolveFormEventFilter(db, value)
-      if (resolved.mode === 'ids') {
-        formContactIds = resolved.contactIds
-      } else {
-        const namesIds = new Set<string>()
-        if (resolved.exactNames.length > 0) {
-          const PAGE = 1000
-          let off = 0
-          while (true) {
-            const { data: rows } = await db
-              .from('crm_contacts')
-              .select('hubspot_contact_id')
-              .in('recent_conversion_event', resolved.exactNames)
-              .range(off, off + PAGE - 1)
-            if (!rows || rows.length === 0) break
-            for (const r of rows) {
-              const cid = (r as { hubspot_contact_id: string | null }).hubspot_contact_id
-              if (cid) namesIds.add(cid)
-            }
-            if (rows.length < PAGE) break
-            off += PAGE
-          }
-        }
-        for (const id of resolved.metaOnlyIds) namesIds.add(id)
-        formContactIds = [...namesIds]
-      }
-    }
-    if (field === 'custom:meta_lead_ads' || field === 'meta_lead_ads') {
-      metaAdsOnly = true
-    }
-  }
-
-  if (metaAdsOnly) {
-    const ids = await fetchAllMetaLeadContactIds(db)
-    if (!scopedIds) return ids.length
-    const scopedSet = new Set(scopedIds)
-    return ids.filter(id => scopedSet.has(id)).length
-  }
-
-  if (scopedIds !== null && formContactIds !== null) {
-    const scopedSet = new Set(scopedIds)
-    filters.form_contact_ids = formContactIds.filter(id => scopedSet.has(id))
-  } else if (scopedIds !== null) {
-    filters.form_contact_ids = scopedIds
-  } else if (formContactIds !== null) {
-    filters.form_contact_ids = formContactIds
-  }
-
-  const { data } = await db.rpc('crm_contacts_count_filtered', {
-    p_filters: filters,
-  })
-  return Number(data ?? 0)
-}
-
 type CountsRequestBody = {
   view_ids?: string[]
 }
 
-export async function POST(req: Request) {
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+
+  const worker = async () => {
+    while (cursor < items.length) {
+      const idx = cursor
+      cursor += 1
+      if (idx >= items.length) break
+      results[idx] = await mapper(items[idx])
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(concurrency, items.length))
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
+}
+
+function toSavedView(row: SavedViewRow): CRMSavedView {
+  const groups: CRMFilterGroup[] = (row.filter_groups ?? []).map((g, gIdx) => {
+    const rules: CRMFilterRule[] = (g.rules ?? []).map((r, rIdx) => ({
+      id: `rule-${row.id}-${gIdx}-${rIdx}`,
+      field: String(r.field ?? '') as CRMFilterRule['field'],
+      operator: String(r.operator ?? '') as CRMFilterRule['operator'],
+      value: String(r.value ?? ''),
+    }))
+    return {
+      id: `grp-${row.id}-${gIdx}`,
+      rules,
+    }
+  })
+
+  return {
+    id: row.id,
+    name: row.name,
+    groups,
+    presetFlags: row.preset_flags ?? undefined,
+  }
+}
+
+async function computeCountForView(req: NextRequest, row: SavedViewRow): Promise<number> {
+  const params = viewToCountParams(toSavedView(row))
+  params.set('view_id', row.id)
+
+  const url = `${req.nextUrl.origin}/api/crm/contacts?${params.toString()}`
+  const res = await fetch(url, {
+    headers: {
+      cookie: req.headers.get('cookie') ?? '',
+    },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`contacts count failed: ${res.status}`)
+  const payload = await res.json() as { total?: number }
+  return Number(payload.total ?? 0)
+}
+
+export async function POST(req: NextRequest) {
   const startedAt = Date.now()
   let body: CountsRequestBody = {}
   try {
@@ -165,42 +99,9 @@ export async function POST(req: Request) {
 
   const db = createServiceClient()
   const apiUser = await getApiUserContext()
-  let forcedTeleproIds: string[] = []
-  const shouldForceScopedTelepro = !!(
-    apiUser && (
-      apiUser.role === 'telepro' ||
-      (
-        apiUser.crmScope === 'brand_only' &&
-        String(apiUser.crmBrand || '').toLowerCase() === 'linova'
-      )
-    )
-  )
-  if (shouldForceScopedTelepro) {
-    const { data: me } = await db
-      .from('rdv_users')
-      .select('id, email, hubspot_user_id, hubspot_owner_id')
-      .eq('id', apiUser.appUserId)
-      .maybeSingle()
-    const ids = [
-      me?.hubspot_user_id ? String(me.hubspot_user_id).trim() : '',
-      me?.hubspot_owner_id ? String(me.hubspot_owner_id).trim() : '',
-      me?.id ? String(me.id).trim() : '',
-    ].filter(Boolean)
-
-    const meEmail = String(me?.email || '').trim().toLowerCase()
-    if (meEmail) {
-      const { data: sameEmailUsers } = await db
-        .from('rdv_users')
-        .select('id, hubspot_user_id, hubspot_owner_id')
-        .ilike('email', meEmail)
-      for (const u of (sameEmailUsers ?? []) as Array<{ id?: string | null; hubspot_user_id?: string | null; hubspot_owner_id?: string | null }>) {
-        if (u?.id) ids.push(String(u.id).trim())
-        if (u?.hubspot_user_id) ids.push(String(u.hubspot_user_id).trim())
-        if (u?.hubspot_owner_id) ids.push(String(u.hubspot_owner_id).trim())
-      }
-    }
-    forcedTeleproIds = [...new Set(ids.filter(Boolean))]
-  }
+  const userScopeKey = apiUser
+    ? `${apiUser.appUserId}:${apiUser.role}:${apiUser.crmScope ?? ''}:${apiUser.crmBrand ?? ''}`
+    : 'anonymous'
   const { data: rows, error } = await db
     .from('crm_saved_views')
     .select('id, name, filter_groups, preset_flags')
@@ -213,14 +114,28 @@ export async function POST(req: Request) {
       ? allViews.filter(v => requestedIds.has(v.id))
       : allViews
 
-  const entries = await Promise.all(
-    scopedViews.map(async (v) => {
-      const key = `crm:view-count:${v.id}:telepro:${forcedTeleproIds.sort().join('|') || 'all'}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
-      const count = await cached<number>(key, 30, async () => computeCountForView(db, v, forcedTeleproIds))
-      return [v.id, count] as const
-    })
+  const scopedViewsHash = crypto
+    .createHash('sha1')
+    .update(JSON.stringify(scopedViews))
+    .digest('hex')
+  const responseCacheKey = `crm:view-counts:response:${userScopeKey}:${scopedViewsHash}`
+
+  const out = await cached<Record<string, number>>(
+    responseCacheKey,
+    20,
+    async () => {
+      const entries = await mapWithConcurrency(
+        scopedViews,
+        4,
+        async (v) => {
+          const key = `crm:view-count:${v.id}:scope:${userScopeKey}:${crypto.createHash('sha1').update(JSON.stringify(v)).digest('hex')}`
+          const count = await cached<number>(key, 30, async () => computeCountForView(req, v))
+          return [v.id, count] as const
+        },
+      )
+      return Object.fromEntries(entries)
+    },
   )
-  const out: Record<string, number> = Object.fromEntries(entries)
 
   // Warmup async (fire-and-forget) du cache form_event pour toutes les vues
   // visibles ayant un filtre form_event. Quand l'utilisateur clique sur la
@@ -242,13 +157,23 @@ export async function POST(req: Request) {
     // ignore
   }
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     { counts: out },
     {
       headers: {
         'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+        'X-CRM-Count-Source': 'contacts_sql',
         'X-Response-Time-Ms': String(Date.now() - startedAt),
       },
     }
   )
+  const durationMs = Date.now() - startedAt
+  void recordCrmPerfSample({
+    endpoint: 'views_counts',
+    duration_ms: durationMs,
+    status: response.status,
+    query_len: 0,
+    sampled_at: new Date().toISOString(),
+  })
+  return response
 }

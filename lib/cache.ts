@@ -34,6 +34,11 @@ function getRedis(): Redis | null {
   }
 }
 
+/** Expose le client Redis (lecture seule côté appelant). */
+export function getRedisClient(): Redis | null {
+  return getRedis()
+}
+
 // Memory cache fallback
 const memCache = new Map<string, { value: unknown; expiresAt: number }>()
 

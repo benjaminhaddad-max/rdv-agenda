@@ -6,6 +6,7 @@ import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
+import { recordCrmPerfSample } from '@/lib/crm-perf'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -20,9 +21,21 @@ async function getPriorPreinscStageIds(): Promise<string[]> {
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   let engine = 'sql'
+  const requestQueryLen = req.nextUrl.search.length
   const withPerfHeader = (response: NextResponse) => {
-    response.headers.set('X-Response-Time-Ms', String(Date.now() - startedAt))
+    const durationMs = Date.now() - startedAt
+    response.headers.set('X-Response-Time-Ms', String(durationMs))
     response.headers.set('X-CRM-Engine', engine)
+    void recordCrmPerfSample({
+      endpoint: 'contacts',
+      duration_ms: durationMs,
+      status: response.status,
+      engine,
+      query_len: requestQueryLen,
+      has_search: req.nextUrl.searchParams.has('search'),
+      view_id: req.nextUrl.searchParams.get('view_id') ?? undefined,
+      sampled_at: new Date().toISOString(),
+    })
     return response
   }
 
