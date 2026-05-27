@@ -25,6 +25,33 @@ type PerfPayload = {
   engines: Record<string, number>
 }
 
+type HealthLevel = 'green' | 'orange' | 'red'
+
+function endpointTargetP95(endpoint: string): number {
+  if (endpoint.includes('/api/crm/views/counts')) return 500
+  return 1200
+}
+
+function getHealth(endpoint: string, row: EndpointSummary): { level: HealthLevel; label: string } {
+  const target = endpointTargetP95(endpoint)
+  const warn = Math.round(target * 1.5)
+  const errPct = row.error_rate * 100
+
+  if (row.p95_ms > warn || errPct >= 2) return { level: 'red', label: 'Rouge' }
+  if (row.p95_ms > target || errPct >= 0.5) return { level: 'orange', label: 'Orange' }
+  return { level: 'green', label: 'Vert' }
+}
+
+function healthBadgeStyle(level: HealthLevel): CSSProperties {
+  if (level === 'green') {
+    return { background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }
+  }
+  if (level === 'orange') {
+    return { background: '#ffedd5', color: '#9a3412', border: '1px solid #fdba74' }
+  }
+  return { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }
+}
+
 const cardStyle: CSSProperties = {
   border: '1px solid #d1d5db',
   borderRadius: 10,
@@ -114,6 +141,7 @@ export default function CrmPerfPage() {
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
                 <th>Endpoint</th>
+                <th>Etat</th>
                 <th>Count</th>
                 <th>Avg</th>
                 <th>P50</th>
@@ -124,9 +152,25 @@ export default function CrmPerfPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const health = getHealth(r.endpoint, r)
+                return (
                 <tr key={r.endpoint} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 0' }}>{r.endpoint}</td>
+                  <td>
+                    <span
+                      style={{
+                        ...healthBadgeStyle(health.level),
+                        fontSize: 12,
+                        fontWeight: 700,
+                        borderRadius: 999,
+                        padding: '3px 10px',
+                        display: 'inline-block',
+                      }}
+                    >
+                      {health.label}
+                    </span>
+                  </td>
                   <td>{r.count}</td>
                   <td>{r.avg_ms} ms</td>
                   <td>{r.p50_ms} ms</td>
@@ -135,10 +179,13 @@ export default function CrmPerfPage() {
                   <td>{r.max_ms} ms</td>
                   <td>{(r.error_rate * 100).toFixed(2)}%</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
+        <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: 12 }}>
+          Vert: P95 dans la cible. Orange: au-dessus de la cible. Rouge: très au-dessus ou erreurs élevées.
+        </p>
       </section>
 
       <section style={cardStyle}>
