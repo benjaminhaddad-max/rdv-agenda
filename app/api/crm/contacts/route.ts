@@ -59,6 +59,12 @@ export async function GET(req: NextRequest) {
   const formEventNot      = searchParams.get('form_event_not') ?? ''
   const showExternal     = searchParams.get('show_external') === '1'
   const allClasses       = searchParams.get('all_classes') === '1'
+  const hasNoTeleproParam = searchParams.has('no_telepro')
+  const hasRecentFormMonthsParam = searchParams.has('recent_form_months')
+  const hasRecentFormDaysParam = searchParams.has('recent_form_days')
+  const hasCreatedBeforeDaysParam = searchParams.has('created_before_days')
+  const hasShowExternalParam = searchParams.has('show_external')
+  const hasAllClassesParam = searchParams.has('all_classes')
   const leadStatus       = searchParams.get('lead_status') ?? ''
   const source           = searchParams.get('source') ?? ''
   const metaAdsOnlyParam = searchParams.get('meta_ads_only') === '1'
@@ -101,11 +107,22 @@ export async function GET(req: NextRequest) {
   const exactCountParam  = searchParams.get('exact_count') === '1'
   const deferCount       = searchParams.get('defer_count') === '1' && !countOnly && !isExport
   const bypassCache      = searchParams.get('no_cache') === '1'
+  // Garde-fou client: permet de bypass les fast paths quand un front détecte
+  // un état incohérent (total > 0 avec data vide).
+  const forceSql         = searchParams.get('force_sql') === '1'
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
   const sanitizeSearch = (raw: string): string =>
     raw.replace(/[&|!:*()<>%]/g, ' ').trim()
+
+  const toPostgrestInList = (vals: string[]): string => {
+    const escaped = vals
+      .map((v) => String(v ?? '').trim())
+      .filter(Boolean)
+      .map((v) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
+    return `(${escaped.join(',')})`
+  }
 
   // "jean jean" => tokenized search across firstname/lastname/email/phone.
   const applySearchFilter = (q: any, rawSearch: string) => {
@@ -132,6 +149,14 @@ export async function GET(req: NextRequest) {
   type CustomFilterRule = { field: string; operator: string; value: string }
   let customFilters: CustomFilterRule[] = []
   let forcedScopedTeleproIds: string[] = []
+  let effectiveNoTelepro = noTelepro
+  let effectiveRecentFormMonths = recentFormMonths
+  let effectiveRecentFormDays = recentFormDays
+  let effectiveCreatedBeforeDays = createdBeforeDays
+  // Pour une vue sauvegardée, ces flags doivent être stables même si
+  // le client omet certains params lors d'un switch.
+  let effectiveShowExternal = showExternal
+  let effectiveAllClassesInput = allClasses
   try {
     const raw = searchParams.get('cf')
     if (raw) {
@@ -167,6 +192,64 @@ export async function GET(req: NextRequest) {
     return [...ids]
   }
 
+  async function resolveFormEventContainsContactIds(rawValue: string): Promise<string[]> {
+    const tokens = rawValue.split(',').map(s => s.trim()).filter(Boolean)
+    if (tokens.length === 0) return []
+    const ids = new Set<string>()
+
+    const PAGE = 1000
+    for (const token of tokens) {
+      // 1) Contacts dont le dernier formulaire matche le prefixe/substring.
+      for (let off = 0; off < 200000; off += PAGE) {
+        const { data: rows } = await db
+          .from('crm_contacts')
+          .select('hubspot_contact_id')
+          .ilike('recent_conversion_event', `%${token}%`)
+          .range(off, off + PAGE - 1)
+        if (!rows || rows.length === 0) break
+        for (const r of rows as Array<{ hubspot_contact_id?: string | null }>) {
+          if (r.hubspot_contact_id) ids.add(String(r.hubspot_contact_id))
+        }
+        if (rows.length < PAGE) break
+      }
+
+      // 2) Historique Meta: noms de formulaires similaires -> contact_ids.
+      const formIds = new Set<string>()
+      for (let off = 0; off < 10000; off += PAGE) {
+        const { data: forms } = await db
+          .from('meta_lead_forms')
+          .select('form_id')
+          .ilike('name', `%${token}%`)
+          .range(off, off + PAGE - 1)
+        if (!forms || forms.length === 0) break
+        for (const f of forms as Array<{ form_id?: string | null }>) {
+          if (f.form_id) formIds.add(String(f.form_id))
+        }
+        if (forms.length < PAGE) break
+      }
+      const formIdList = [...formIds]
+      if (formIdList.length === 0) continue
+      for (let i = 0; i < formIdList.length; i += 200) {
+        const batchFormIds = formIdList.slice(i, i + 200)
+        for (let off = 0; off < 200000; off += PAGE) {
+          const { data: events } = await db
+            .from('meta_lead_events')
+            .select('contact_id')
+            .in('form_id', batchFormIds)
+            .not('contact_id', 'is', null)
+            .range(off, off + PAGE - 1)
+          if (!events || events.length === 0) break
+          for (const ev of events as Array<{ contact_id?: string | null }>) {
+            if (ev.contact_id) ids.add(String(ev.contact_id))
+          }
+          if (events.length < PAGE) break
+        }
+      }
+    }
+
+    return [...ids]
+  }
+
   async function expandTeleproFilterValues(rawCsv: string): Promise<string[]> {
     const base = rawCsv.split(',').map(v => v.trim()).filter(Boolean)
     if (base.length === 0) return []
@@ -195,12 +278,29 @@ export async function GET(req: NextRequest) {
   const appendCustomFiltersFromView = async (viewId: string, reset = false) => {
     const { data: viewRow } = await db
       .from('crm_saved_views')
-      .select('filter_groups')
+      .select('name, filter_groups, preset_flags')
       .eq('id', viewId)
       .maybeSingle()
     const firstGroup = (viewRow?.filter_groups as Array<{ rules?: Array<{ field?: string; operator?: string; value?: string }> }> | null)?.[0]
-    const rules = firstGroup?.rules ?? []
+    let rules = firstGroup?.rules ?? []
     if (reset) customFilters = []
+    const flags = (viewRow?.preset_flags as {
+      noTelepro?: boolean
+      recentFormMonths?: number
+      recentFormDays?: number
+      createdBeforeDays?: number
+    } | null) ?? null
+    if (!hasNoTeleproParam && flags?.noTelepro) effectiveNoTelepro = true
+    if (!hasRecentFormMonthsParam && Number(flags?.recentFormMonths || 0) > 0) {
+      effectiveRecentFormMonths = Number(flags?.recentFormMonths || 0)
+    }
+    if (!hasRecentFormDaysParam && Number(flags?.recentFormDays || 0) > 0) {
+      effectiveRecentFormDays = Number(flags?.recentFormDays || 0)
+    }
+    if (!hasCreatedBeforeDaysParam && Number(flags?.createdBeforeDays || 0) > 0) {
+      effectiveCreatedBeforeDays = Number(flags?.createdBeforeDays || 0)
+    }
+
     for (const r of rules) {
       const fieldRaw = String(r?.field ?? '')
       const op = String(r?.operator ?? '')
@@ -209,7 +309,7 @@ export async function GET(req: NextRequest) {
       if (!val && op !== 'is_empty' && op !== 'is_not_empty') continue
 
       if (fieldRaw === 'form_event') {
-        customFilters.push({ field: 'recent_conversion_event', operator: op, value: val })
+        customFilters.push({ field: 'form_event', operator: op, value: val })
         continue
       }
       if (fieldRaw === 'custom:meta_lead_ads' || fieldRaw === 'meta_lead_ads') {
@@ -230,6 +330,10 @@ export async function GET(req: NextRequest) {
   // avec des listes de formulaires contenant des virgules.
   if (viewIdParam === 'v_meta_ads_all') {
     customFilters = [{ field: 'meta_lead_ads', operator: 'is', value: '1' }]
+  }
+  if (viewIdParam && viewIdParam !== 'all') {
+    if (!hasShowExternalParam) effectiveShowExternal = true
+    if (!hasAllClassesParam) effectiveAllClassesInput = true
   }
 
   // Fallback robuste: si `cf` est absent/invalide (souvent URL trop longue),
@@ -316,6 +420,7 @@ export async function GET(req: NextRequest) {
   let formEventContactIds: string[] | null = null
   let formEventNames: string[] | null = null
   let formEventMetaOnlyIds: string[] | null = null
+  let formEventParamResolved = false
   // Pour éviter de matérialiser 2.7K contact_ids dans l'URL PostgREST (limite
   // ~16K → la liste renvoie [] alors que le count vaut 2.7K), on combine :
   //  - filtre SQL direct sur recent_conversion_event = noms exacts (URL légère)
@@ -324,9 +429,9 @@ export async function GET(req: NextRequest) {
   //    qui ne sont pas déjà couverts par les noms (typiquement quelques 100s)
   const skipHeavyFormResolver = deferCount
   {
-    // Detecte un filtre 'recent_conversion_event' op 'is' ou 'is_any' dans cf
+    // Détecte un filtre form_event op 'is' ou 'is_any' dans cf
     const formFilter = customFilters.find(
-      r => r.field === 'recent_conversion_event' &&
+      r => (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
         (r.operator === 'is' || r.operator === 'is_any')
     )
     if (formFilter && formFilter.value && !skipHeavyFormResolver) {
@@ -340,6 +445,51 @@ export async function GET(req: NextRequest) {
         formEventMetaOnlyIds = resolved.metaOnlyIds
       } else {
         formEventContactIds = resolved.contactIds
+      }
+    }
+
+    // Support robuste pour les vues de type LINOVA en contains:
+    // on résout en IDs historiques (contacts + meta events) puis on retire
+    // le filtre custom pour éviter un simple ILIKE sur "dernier formulaire".
+    const formContainsFilter = customFilters.find(
+      r => (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
+        r.operator === 'contains'
+    )
+    if (formContainsFilter && formContainsFilter.value && !skipHeavyFormResolver) {
+      customFilters = customFilters.filter(r => r !== formContainsFilter)
+      const containsIds = await resolveFormEventContainsContactIds(formContainsFilter.value)
+      if (formEventContactIds !== null) {
+        const b = new Set(containsIds)
+        formEventContactIds = formEventContactIds.filter(id => b.has(id))
+      } else {
+        formEventContactIds = containsIds
+      }
+    }
+
+    // form_event passé en param URL (cas vues sauvegardées is/is_any) :
+    // résolution historique complète pour éviter de ne matcher que le
+    // recent_conversion_event du contact.
+    if (formEvent && !skipHeavyFormResolver) {
+      const resolved = await resolveFormEventFilter(db, formEvent)
+      formEventParamResolved = true
+      if (resolved.mode === 'ids') {
+        if (formEventContactIds !== null) {
+          const b = new Set(resolved.contactIds)
+          formEventContactIds = formEventContactIds.filter(id => b.has(id))
+        } else {
+          formEventContactIds = resolved.contactIds
+        }
+      } else {
+        if (formEventNames !== null) {
+          formEventNames = [...new Set([...formEventNames, ...resolved.exactNames])]
+        } else {
+          formEventNames = resolved.exactNames
+        }
+        if (formEventMetaOnlyIds !== null) {
+          formEventMetaOnlyIds = [...new Set([...formEventMetaOnlyIds, ...resolved.metaOnlyIds])]
+        } else {
+          formEventMetaOnlyIds = resolved.metaOnlyIds
+        }
       }
     }
   }
@@ -390,7 +540,7 @@ export async function GET(req: NextRequest) {
   }
   // La vue Meta ADS doit toujours inclure toutes les classes.
   const effectiveAllClasses =
-    allClasses || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null
+    effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null
 
   // Tri dynamique
   // Défaut : dernière soumission de formulaire desc → les leads qui viennent
@@ -421,8 +571,8 @@ export async function GET(req: NextRequest) {
     leadStatus || leadStatusNot || source || sourceNot ||
     zone || zoneNot || departement || deptNot ||
     pipeline || pipelineNot || priorPreinscription ||
-    noTelepro || withTelepro ||
-    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    effectiveNoTelepro || withTelepro ||
+    effectiveRecentFormMonths > 0 || effectiveRecentFormDays > 0 || effectiveCreatedBeforeDays > 0 ||
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
     formEventNames !== null || formEventMetaOnlyIds !== null ||
@@ -444,7 +594,7 @@ export async function GET(req: NextRequest) {
     formEventNames !== null || metaLeadAdsContactIds !== null
   )
   const canFastCountOnly = countOnly &&
-    showExternal &&
+    effectiveShowExternal &&
     !ownerExclude &&
     !contactOwnerNot &&
     !teleproNot &&
@@ -462,7 +612,7 @@ export async function GET(req: NextRequest) {
       const teleproOr = buildTeleproOrFilter(vals)
       if (teleproOr) fastQ = fastQ.or(teleproOr)
     }
-    if (noTelepro) fastQ = fastQ.is('telepro_user_id', null)
+    if (effectiveNoTelepro) fastQ = fastQ.is('telepro_user_id', null)
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
     if (forcedScopedOrFilter) fastQ = fastQ.or(forcedScopedOrFilter)
     if (contactOwnerHsId) {
@@ -539,6 +689,7 @@ export async function GET(req: NextRequest) {
   // Active sans dépendance externe. Si la vue n'existe pas encore, fallback SQL.
   const hasUnsupportedFastMvFilter = !!(
     isExport ||
+    forceSql ||
     countOnly ||
     // La vue matérialisée contient des lignes orientées "contact+deal" et peut
     // dupliquer un contact (plusieurs deals). En vue "Mes Contacts" télépro on
@@ -547,13 +698,13 @@ export async function GET(req: NextRequest) {
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formationNot || pipelineNot || priorPreinscription || periodFilter ||
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
-    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    effectiveRecentFormMonths > 0 || effectiveRecentFormDays > 0 || effectiveCreatedBeforeDays > 0 ||
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
     extraProps.length > 0 ||
-    !showExternal
+    !effectiveShowExternal
   )
   const mvSortMap: Record<string, string> = {
     contact: 'lastname',
@@ -594,7 +745,7 @@ export async function GET(req: NextRequest) {
         if (teleproOr) fastMvQ = fastMvQ.or(teleproOr)
       }
       if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
-      if (noTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
+      if (effectiveNoTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
       if (forcedScopedOrFilter) fastMvQ = fastMvQ.or(forcedScopedOrFilter)
       if (contactOwnerHsId) {
         const vals = splitMultiFast(contactOwnerHsId)
@@ -724,12 +875,12 @@ export async function GET(req: NextRequest) {
   // Linova (ids) : hubspot_contact_id:=[...] en batchs.
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
+    forceSql ||
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formationNot || pipelineNot || priorPreinscription || periodFilter ||
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
-    effectiveTeleproFilterCsv || forcedScopedOrFilter ||
-    noTelepro || withTelepro ||
-    recentFormMonths > 0 || recentFormDays > 0 || createdBeforeDays > 0 ||
+    effectiveNoTelepro || withTelepro ||
+    effectiveRecentFormMonths > 0 || effectiveRecentFormDays > 0 || effectiveCreatedBeforeDays > 0 ||
     formEvent || formEventNot ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
@@ -771,6 +922,9 @@ export async function GET(req: NextRequest) {
     }
     if (classeFilter) pushIn('classe_actuelle', classeFilter)
     if (effectiveTeleproFilterCsv) pushIn('telepro_user_id', effectiveTeleproFilterCsv)
+    if (forcedScopedTeleproIds.length > 0) {
+      pushIn('telepro_user_id', forcedScopedTeleproIds.join(','))
+    }
     if (contactOwnerHsId) pushIn('hubspot_owner_id', contactOwnerHsId)
     if (closerContactHsId) pushIn('closer_du_contact_owner_id', closerContactHsId)
     if (leadStatus) pushIn('hs_lead_status', leadStatus)
@@ -781,7 +935,7 @@ export async function GET(req: NextRequest) {
     if (formation) pushIn('formation_deal', formation)
     if (pipeline) pushIn('pipeline', pipeline)
     if (metaLeadAdsOnly) pushIn('source', 'meta_lead_ads')
-    if (!showExternal && excludedUserIds.length > 0) {
+    if (!effectiveShowExternal && excludedUserIds.length > 0) {
       const blocked = [...new Set(excludedUserIds.map(v => String(v).trim()).filter(Boolean))]
       if (blocked.length === 1) {
         filterParts.push(`telepro_user_id:!=${escapeBack(blocked[0])}`)
@@ -1033,7 +1187,7 @@ export async function GET(req: NextRequest) {
         if (pipelineNot) {
           const vals = splitMulti(pipelineNot)
           if (vals.length > 1) {
-            q = q.not('pipeline', 'in', `(${vals.map((v: string) => `'${v}'`).join(',')})`)
+            q = q.not('pipeline', 'in', toPostgrestInList(vals))
           } else {
             q = q.neq('pipeline', pipelineNot)
           }
@@ -1214,7 +1368,7 @@ export async function GET(req: NextRequest) {
   if (teleproNot) {
     const vals = splitMulti(teleproNot)
     query = vals.length > 1
-      ? query.not('telepro_user_id', 'in', `(${vals.join(',')})`)
+      ? query.not('telepro_user_id', 'in', toPostgrestInList(vals))
       : query.neq('telepro_user_id', teleproNot)
   }
 
@@ -1222,7 +1376,7 @@ export async function GET(req: NextRequest) {
   if (withTelepro) query = query.not('telepro_user_id', 'is', null)
 
   // noTelepro = pas de telepro renseigne
-  if (noTelepro) query = query.is('telepro_user_id', null)
+  if (effectiveNoTelepro) query = query.is('telepro_user_id', null)
 
   // Scope serveur brand_only (linova): inclut les 2 colonnes historiques
   // de mapping télépro pour couvrir tous les cas d'assignation.
@@ -1231,8 +1385,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Exclusion equipe externe sur le telepro du contact (natif)
-  if (!showExternal && excludedUserIds.length > 0) {
-    query = query.not('telepro_user_id', 'in', `(${excludedUserIds.join(',')})`)
+  if (!effectiveShowExternal && excludedUserIds.length > 0) {
+    query = query.not('telepro_user_id', 'in', toPostgrestInList(excludedUserIds))
   }
 
   // Deal exclusion filters (stage_not, closer_not, etc.) → NOT IN (batched)
@@ -1240,7 +1394,7 @@ export async function GET(req: NextRequest) {
     const BATCH = 5000
     for (let i = 0; i < excludeByDealFilter.length; i += BATCH) {
       const batch = excludeByDealFilter.slice(i, i + BATCH)
-      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+      query = query.not('hubspot_contact_id', 'in', toPostgrestInList(batch))
     }
   }
 
@@ -1250,7 +1404,7 @@ export async function GET(req: NextRequest) {
     const BATCH = 5000
     for (let i = 0; i < emptyDealExclude.length; i += BATCH) {
       const batch = emptyDealExclude.slice(i, i + BATCH)
-      query = query.not('hubspot_contact_id', 'in', `(${batch.join(',')})`)
+      query = query.not('hubspot_contact_id', 'in', toPostgrestInList(batch))
     }
   }
 
@@ -1350,13 +1504,13 @@ export async function GET(req: NextRequest) {
   if (contactOwnerNot) {
     const vals = contactOwnerNot.split(',').filter(Boolean)
     query = vals.length > 1
-      ? query.not('hubspot_owner_id', 'in', `(${vals.join(',')})`)
+      ? query.not('hubspot_owner_id', 'in', toPostgrestInList(vals))
       : query.neq('hubspot_owner_id', contactOwnerNot)
   }
 
   // Exclusion équipe externe (owner du contact)
-  if (!showExternal && excludedOwnerIds.length > 0) {
-    query = query.not('hubspot_owner_id', 'in', `(${excludedOwnerIds.join(',')})`)
+  if (!effectiveShowExternal && excludedOwnerIds.length > 0) {
+    query = query.not('hubspot_owner_id', 'in', toPostgrestInList(excludedOwnerIds))
   }
 
   // Exclure un owner manuellement
@@ -1365,20 +1519,20 @@ export async function GET(req: NextRequest) {
   }
 
   // Formulaires récents (par mois)
-  if (recentFormMonths > 0) {
+  if (effectiveRecentFormMonths > 0) {
     const since = new Date()
-    since.setMonth(since.getMonth() - recentFormMonths)
+    since.setMonth(since.getMonth() - effectiveRecentFormMonths)
     query = query.gte('recent_conversion_date', since.toISOString())
   }
   // Formulaires récents (par jours, plus granulaire — ex 7 jours = "cette semaine")
-  if (recentFormDays > 0) {
-    const since = new Date(Date.now() - recentFormDays * 86_400_000)
+  if (effectiveRecentFormDays > 0) {
+    const since = new Date(Date.now() - effectiveRecentFormDays * 86_400_000)
     query = query.gte('recent_conversion_date', since.toISOString())
   }
 
   // Nom du dernier formulaire soumis (recent_conversion_event)
   // Match EXACT sur le nom. Multi-value via virgule (?form_event=JPO,Webinaire)
-  if (formEvent) {
+  if (formEvent && !formEventParamResolved) {
     const vals = splitMulti(formEvent)
     query = vals.length > 1
       ? query.in('recent_conversion_event', vals)
@@ -1386,12 +1540,12 @@ export async function GET(req: NextRequest) {
   }
   if (formEventNot) {
     const vals = splitMulti(formEventNot)
-    query = query.not('recent_conversion_event', 'in', `(${vals.join(',')})`)
+    query = query.not('recent_conversion_event', 'in', toPostgrestInList(vals))
   }
 
   // Contact créé il y a PLUS de X jours (= leads anciens qui re-soumettent)
-  if (createdBeforeDays > 0) {
-    const before = new Date(Date.now() - createdBeforeDays * 86_400_000)
+  if (effectiveCreatedBeforeDays > 0) {
+    const before = new Date(Date.now() - effectiveCreatedBeforeDays * 86_400_000)
     query = query.lt('contact_createdate', before.toISOString())
   }
 
@@ -1455,7 +1609,7 @@ export async function GET(req: NextRequest) {
   }
   if (leadStatusNot) {
     const vals = splitMulti(leadStatusNot)
-    query = query.not('hs_lead_status', 'in', `(${vals.join(',')})`)
+    query = query.not('hs_lead_status', 'in', toPostgrestInList(vals))
   }
 
   // Origine (multi-value support)
@@ -1468,7 +1622,7 @@ export async function GET(req: NextRequest) {
   }
   if (sourceNot) {
     const vals = splitMulti(sourceNot)
-    query = query.not('origine', 'in', `(${vals.join(',')})`)
+    query = query.not('origine', 'in', toPostgrestInList(vals))
   }
 
   // Zone / Localité (multi-value support, match exact aligné HubSpot)
@@ -1479,7 +1633,7 @@ export async function GET(req: NextRequest) {
   if (zoneNot) {
     const vals = splitMulti(zoneNot)
     query = vals.length > 1
-      ? query.not('zone_localite', 'in', `(${vals.join(',')})`)
+      ? query.not('zone_localite', 'in', toPostgrestInList(vals))
       : query.neq('zone_localite', zoneNot)
   }
 
@@ -1491,7 +1645,7 @@ export async function GET(req: NextRequest) {
   if (deptNot) {
     const vals = splitMulti(deptNot)
     query = vals.length > 1
-      ? query.not('departement', 'in', `(${vals.join(',')})`)
+      ? query.not('departement', 'in', toPostgrestInList(vals))
       : query.neq('departement', deptNot)
   }
 
@@ -1501,6 +1655,7 @@ export async function GET(req: NextRequest) {
     const COL_MAP: Record<string, string> = {
       createdate: 'contact_createdate',
       lastmodifieddate: 'synced_at',
+      form_event: 'recent_conversion_event',
     }
     // Détecte si une valeur ressemble à une date YYYY-MM-DD, pour faire des
     // comparaisons "tout le jour" sur une colonne timestamptz (sinon eq sur
@@ -1597,7 +1752,7 @@ export async function GET(req: NextRequest) {
         }
         case 'is_none': {
           const vals = val.split(',').filter(Boolean)
-          if (vals.length > 0) query = query.not(col, 'in', `(${vals.join(',')})`)
+          if (vals.length > 0) query = query.not(col, 'in', toPostgrestInList(vals))
           break
         }
       }
@@ -1615,14 +1770,17 @@ export async function GET(req: NextRequest) {
   if (closerContactNot) {
     const vals = splitMulti(closerContactNot)
     query = vals.length > 1
-      ? query.not('closer_du_contact_owner_id', 'in', `(${vals.join(',')})`)
+      ? query.not('closer_du_contact_owner_id', 'in', toPostgrestInList(vals))
       : query.neq('closer_du_contact_owner_id', closerContactNot)
   }
 
   // Count-only mode — return just the total without data
   if (countOnly) {
     const { count: totalCount, error } = await query
-    if (error) return withPerfHeader(NextResponse.json({ error: error.message }, { status: 500 }))
+    if (error) {
+      const msg = error.message || error.details || error.hint || 'contacts count query failed'
+      return withPerfHeader(NextResponse.json({ error: msg }, { status: 500 }))
+    }
     const r = NextResponse.json({ data: [], total: totalCount ?? 0, total_estimated: countMode === 'estimated', page: 0, limit: 0 })
     r.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
     return withPerfHeader(r)
@@ -1635,7 +1793,7 @@ export async function GET(req: NextRequest) {
     const pageFetchLimit = deferCount ? limit + 1 : limit
     const { data: contacts, count: totalCount, error } = await query
       .range(offset, offset + pageFetchLimit - 1)
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(error.message || error.details || error.hint || 'contacts query failed')
 
     const rawContacts = contacts ?? []
     const hasMore = deferCount && rawContacts.length > limit

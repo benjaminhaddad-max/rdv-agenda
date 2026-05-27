@@ -35,7 +35,8 @@ import {
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
-import { getCached, refetch } from '@/lib/client-cache'
+import { getCached, invalidate, refetch } from '@/lib/client-cache'
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -86,6 +87,14 @@ const SEARCH_DEBOUNCE_MS = (() => {
   const raw = Number(process.env.NEXT_PUBLIC_CRM_SEARCH_DEBOUNCE_MS ?? '180')
   return Number.isFinite(raw) && raw >= 80 ? raw : 180
 })()
+const CONTACTS_FETCH_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_FETCH_TIMEOUT_MS ?? '15000')
+  return Number.isFinite(raw) && raw >= 5000 ? raw : 15000
+})()
+const CONTACTS_TOTAL_BUDGET_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_CRM_FETCH_BUDGET_MS ?? '12000')
+  return Number.isFinite(raw) && raw >= 6000 ? raw : 12000
+})()
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +114,25 @@ interface SyncLog {
   error_message?: string | null
 }
 
+interface IngestionHealth {
+  latest_contact: {
+    id: string | null
+    source: string | null
+    origine: string | null
+    synced_at: string | null
+  } | null
+  latest_meta_event: {
+    leadgen_id: string | null
+    form_id: string | null
+    status: string | null
+    processed_at: string | null
+  } | null
+  contacts_24h: number
+  meta_events_24h: number
+  stale_minutes: number | null
+  is_stale: boolean
+}
+
 // ExportCSVModal → @/components/crm/CRMExportModal
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -117,6 +145,7 @@ export default function CRMPage() {
   const [syncing, setSyncing]         = useState(false)
   const [syncProgress, setSyncProgress] = useState<{ done: number; label: string } | null>(null)
   const [lastSync, setLastSync]       = useState<SyncLog | null>(null)
+  const [ingestionHealth, setIngestionHealth] = useState<IngestionHealth | null>(null)
 
   // Saved views
   const [crmViews, setCrmViews] = useState<CRMSavedView[]>(loadCRMViews)
@@ -155,6 +184,7 @@ export default function CRMPage() {
   const [createdBeforeDays, setCreatedBeforeDays] = useState(0)
   const [leadStatus, setLeadStatus]   = useState('')
   const [source, setSource]           = useState('')
+  const [formEvent, setFormEvent]     = useState('')
   const [zoneFilter, setZoneFilter]   = useState('')
   const [deptFilter, setDeptFilter]   = useState('')
 
@@ -162,6 +192,7 @@ export default function CRMPage() {
   const [stageNot, setStageNot]           = useState('')
   const [leadStatusNot, setLeadStatusNot] = useState('')
   const [sourceNot, setSourceNot]         = useState('')
+  const [formEventNot, setFormEventNot]   = useState('')
   const [zoneNot, setZoneNot]             = useState('')
   const [deptNot, setDeptNot]             = useState('')
   const [closerNot, setCloserNot]         = useState('')
@@ -506,47 +537,56 @@ export default function CRMPage() {
     return null
   }, [])
 
-  // ── Pré-charger les counts : vue active d'abord, toutes les vues ensuite ──
+  // ── Pré-charger les counts : vue active d'abord, puis reste en idle ──
   useEffect(() => {
     if (!viewsLoaded) return
     const t1 = setTimeout(() => {
       void fetchViewCounts([activeViewId, 'all'])
     }, 300)
+    const idleCb = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback
+    const remainingIds = crmViews
+      .map(v => v.id)
+      .filter(id => id !== activeViewId && id !== 'all')
     const t2 = setTimeout(() => {
-      void fetchViewCounts()
-    }, 1500)
+      if (remainingIds.length === 0) return
+      if (typeof idleCb === 'function') {
+        idleCb(() => { void fetchViewCounts(remainingIds) })
+      } else {
+        void fetchViewCounts(remainingIds)
+      }
+    }, 2500)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
     }
   }, [viewsLoaded, crmViews.length, activeViewId, fetchViewCounts])
 
-  // Quand on arrive sur une vue, afficher immédiatement son compteur exact
-  // (sans attendre le fetch paginé de la table).
+  // Santé ingestion (Meta + CRM): évite les faux diagnostics "plus aucun lead".
   useEffect(() => {
-    if (!viewsLoaded || !activeViewId) return
-    const known = viewCounts[activeViewId]
-    // Seed visuel uniquement au 1er affichage d'une vue vide/chargement,
-    // pour éviter un mismatch "badge non-zéro + table vide".
-    if (typeof known === 'number' && (loading || contacts.length === 0)) {
-      setTotal(known)
-      setTotalEstimated(false)
-    }
-    void fetchViewCounts([activeViewId]).then((counts) => {
-      if (!counts) return
-      const next = counts[activeViewId]
-      if (typeof next === 'number' && (loading || contacts.length === 0)) {
-        setTotal(next)
-        setTotalEstimated(false)
+    let timer: ReturnType<typeof setInterval> | null = null
+    let stopped = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/crm/ingestion-health', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json() as IngestionHealth
+        if (!stopped) setIngestionHealth(data)
+      } catch {
+        // best effort
       }
-    })
-  }, [viewsLoaded, activeViewId, fetchViewCounts, loading, contacts.length, viewCounts])
-
-  // Mettre à jour le count de la vue active quand total change
-  useEffect(() => {
-    if (!activeViewId) return
-    setViewCounts(prev => ({ ...prev, [activeViewId]: total }))
-  }, [total, activeViewId])
+    }
+    void load()
+    timer = setInterval(() => { void load() }, 60_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      stopped = true
+      if (timer) clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [])
 
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
@@ -634,7 +674,7 @@ export default function CRMPage() {
   // Quand la recherche change, revenir sur la première page.
   useEffect(() => {
     if (page !== 0) setPage(0)
-  }, [debouncedSearch, page])
+  }, [debouncedSearch])
 
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
@@ -667,11 +707,13 @@ export default function CRMPage() {
       allClasses,
       leadStatus,
       source,
+      formEvent,
       zoneFilter,
       deptFilter,
       stageNot,
       leadStatusNot,
       sourceNot,
+      formEventNot,
       zoneNot,
       deptNot,
       closerNot,
@@ -703,7 +745,9 @@ export default function CRMPage() {
     }
     lastFetchSignatureRef.current = requestSignature
 
+    const preferFastFirstPaint = activeViewName.includes('linova')
     const shouldUseApproxCount =
+      preferFastFirstPaint ||
       activeViewId === 'all' &&
       !debouncedSearch &&
       !stage &&
@@ -719,11 +763,13 @@ export default function CRMPage() {
       createdBeforeDays <= 0 &&
       !leadStatus &&
       !source &&
+      !formEvent &&
       !zoneFilter &&
       !deptFilter &&
       !stageNot &&
       !leadStatusNot &&
       !sourceNot &&
+      !formEventNot &&
       !zoneNot &&
       !deptNot &&
       !closerNot &&
@@ -768,10 +814,12 @@ export default function CRMPage() {
     if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
     if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
     if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
-    if (showExternal)         params.set('show_external', '1')
-    if (allClasses || forceMetaAdsOnly) params.set('all_classes', '1')
+    const forceStableViewScope = !!activeViewId && activeViewId !== 'all'
+    if (showExternal || forceStableViewScope) params.set('show_external', '1')
+    if (allClasses || forceMetaAdsOnly || forceStableViewScope) params.set('all_classes', '1')
     if (leadStatus)           params.set('lead_status', leadStatus)
     if (source)               params.set('source', source)
+    if (formEvent)            params.set('form_event', formEvent)
     if (zoneFilter)           params.set('zone', zoneFilter)
     if (deptFilter)           params.set('departement', deptFilter)
 
@@ -779,6 +827,7 @@ export default function CRMPage() {
     if (stageNot)             params.set('stage_not', stageNot)
     if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
     if (sourceNot)            params.set('source_not', sourceNot)
+    if (formEventNot)         params.set('form_event_not', formEventNot)
     if (zoneNot)              params.set('zone_not', zoneNot)
     if (deptNot)              params.set('departement_not', deptNot)
     if (closerNot)            params.set('closer_not', closerNot)
@@ -817,16 +866,45 @@ export default function CRMPage() {
     strictRetryParams.delete('defer_count')
     strictRetryParams.set('exact_count', '1')
     strictRetryParams.set('no_cache', '1')
+    // Ne pas forcer SQL ici: on veut laisser Typesense servir le fallback
+    // rapide/stable quand il est disponible.
+    strictRetryParams.delete('force_sql')
     const strictRetryUrl = `/api/crm/contacts?${strictRetryParams.toString()}`
+    const totalOnlyParams = new URLSearchParams(retryParams.toString())
+    totalOnlyParams.delete('defer_count')
+    totalOnlyParams.set('exact_count', '1')
+    totalOnlyParams.set('limit', '0')
+    totalOnlyParams.set('page', '0')
+    const totalOnlyUrl = `/api/crm/contacts?${totalOnlyParams.toString()}`
     const requestSeq = ++contactsFetchSeqRef.current
+
+    const refreshExactTotal = async () => {
+      try {
+        const totalRes = await fetchWithTimeout(totalOnlyUrl, 6000, { signal: requestAbort.signal })
+        if (!totalRes.ok) return
+        const totalPayload = await totalRes.json() as { total?: number; total_estimated?: boolean }
+        if (requestSeq !== contactsFetchSeqRef.current) return
+        if (typeof totalPayload.total === 'number') setTotal(totalPayload.total)
+        setTotalEstimated(totalPayload.total_estimated === true)
+      } catch {
+        // Best effort: ne pas perturber l'affichage principal.
+      }
+    }
 
     const fetchContactsPayload = async () => {
       const start = performance.now()
-      let response = await fetch(url, { signal: requestAbort.signal })
+      const deadline = Date.now() + CONTACTS_TOTAL_BUDGET_MS
+      const timeoutForStep = (requestedMs: number) => {
+        const left = deadline - Date.now()
+        if (left <= 0) throw new Error('contacts fetch budget exceeded')
+        return Math.max(1500, Math.min(requestedMs, left))
+      }
+
+      let response = await fetchWithTimeout(url, timeoutForStep(CONTACTS_FETCH_TIMEOUT_MS), { signal: requestAbort.signal })
       // Fallback robuste: si l'URL avec `cf` casse (URL trop longue / proxy),
       // on retente automatiquement sans `cf` en conservant la vue active.
       if (!response.ok && activeViewId && activeViewId !== 'all' && customFilterParam) {
-        response = await fetch(retryUrlWithoutCf, { signal: requestAbort.signal })
+        response = await fetchWithTimeout(retryUrlWithoutCf, timeoutForStep(5000), { signal: requestAbort.signal })
       }
       if (!response.ok) throw new Error(`HTTP ${response.status} on ${url}`)
       let payload = await response.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
@@ -844,15 +922,35 @@ export default function CRMPage() {
         (payload.data?.length ?? 0) === 0
       )
       if (shouldRetryWithoutCf) {
-        const retryRes = await fetch(retryUrlWithoutCf, { signal: requestAbort.signal })
+        const retryRes = await fetchWithTimeout(retryUrlWithoutCf, timeoutForStep(4500), { signal: requestAbort.signal })
         if (retryRes.ok) {
           payload = await retryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
         }
       }
-      if ((payload.total ?? 0) > 0 && (payload.data?.length ?? 0) === 0) {
-        const strictRetryRes = await fetch(strictRetryUrl, { signal: requestAbort.signal })
-        if (strictRetryRes.ok) {
-          payload = await strictRetryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+      if (currentPage === 0 && (payload.total ?? 0) > 0 && (payload.data?.length ?? 0) === 0) {
+        try {
+          const strictRetryRes = await fetchWithTimeout(strictRetryUrl, timeoutForStep(4000), { signal: requestAbort.signal })
+          if (strictRetryRes.ok) {
+            payload = await strictRetryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+          }
+        } catch {
+          // Le fallback strict est best-effort: ne pas bloquer l'UI si la
+          // requête SQL de secours est lente.
+        }
+      }
+      if (currentPage === 0 && (payload.total ?? 0) > 0 && (payload.data?.length ?? 0) === 0) {
+        try {
+          const hardParams = new URLSearchParams(strictRetryParams.toString())
+          hardParams.delete('cf')
+          hardParams.set('no_cache', '1')
+          hardParams.set('exact_count', '1')
+          const hardRetryUrl = `/api/crm/contacts?${hardParams.toString()}`
+          const hardRetryRes = await fetchWithTimeout(hardRetryUrl, timeoutForStep(3500), { signal: requestAbort.signal })
+          if (hardRetryRes.ok) {
+            payload = await hardRetryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+          }
+        } catch {
+          // Best effort.
         }
       }
 
@@ -881,6 +979,18 @@ export default function CRMPage() {
         ('payload' in cached && cached.payload)
           ? cached.payload
           : (cached as { data?: CRMContact[]; total?: number; total_estimated?: boolean })
+      const cachedRows = cachedPayload.data?.length ?? 0
+      const cachedTotal = cachedPayload.total ?? 0
+      if (currentPage === 0 && cachedTotal > 0 && cachedRows === 0) {
+        // Ne pas réutiliser une entrée cache incohérente en page 0.
+        invalidate(url)
+      } else {
+      if (currentPage > 0 && cachedTotal > 0 && cachedRows === 0) {
+        // Page hors plage: on revient immédiatement à la page 0.
+        if (requestSeq === contactsFetchSeqRef.current) setPage(0)
+        setLoading(false)
+        return
+      }
       if (requestSeq === contactsFetchSeqRef.current) {
         setContacts(cachedPayload.data ?? [])
         setTotal(cachedPayload.total ?? 0)
@@ -896,14 +1006,22 @@ export default function CRMPage() {
       }>(url, fetchContactsPayload, 30_000)
         .then(({ payload, clientMs, serverMs }) => {
           if (requestSeq !== contactsFetchSeqRef.current) return
+          const rows = payload.data?.length ?? 0
+          const nextTotal = payload.total ?? 0
+          if (currentPage > 0 && nextTotal > 0 && rows === 0) {
+            setPage(0)
+            return
+          }
           setContacts(payload.data ?? [])
-          setTotal(payload.total ?? 0)
+          setTotal(nextTotal)
           setTotalEstimated(payload.total_estimated === true)
           setLastFetchClientMs(clientMs)
           setLastFetchServerMs(serverMs)
+          if (payload.total_estimated === true) void refreshExactTotal()
         })
         .catch(() => {})
       return
+      }
     }
 
     if (!hasLoadedOnceRef.current) setLoading(true)
@@ -914,19 +1032,26 @@ export default function CRMPage() {
         serverMs: number | null
       }>(url, fetchContactsPayload, 30_000)
       if (requestSeq !== contactsFetchSeqRef.current) return
+      const rows = payload.data?.length ?? 0
+      const nextTotal = payload.total ?? 0
+      if (currentPage > 0 && nextTotal > 0 && rows === 0) {
+        setPage(0)
+        return
+      }
       setContacts(payload.data ?? [])
-      setTotal(payload.total ?? 0)
+      setTotal(nextTotal)
       setTotalEstimated(payload.total_estimated === true)
       setLastFetchClientMs(clientMs)
       setLastFetchServerMs(serverMs)
       hasLoadedOnceRef.current = true
+      if (payload.total_estimated === true) void refreshExactTotal()
     } catch {
       // garde le state precedent en cas d'erreur reseau
     } finally {
       if (requestSeq === contactsFetchSeqRef.current) setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
+  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, formEvent, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, formEventNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -993,10 +1118,10 @@ export default function CRMPage() {
   function applyGroupsToFilters(groups: CRMFilterGroup[], flags?: CRMSavedView['presetFlags']) {
     // Reset all positive filters
     setSearch(''); setStage(''); setCloserHsId(''); setCloserContactHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
-    setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource('')
+    setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource(''); setFormEvent('')
     setZoneFilter(''); setDeptFilter('')
     // Reset all exclusion filters
-    setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setZoneNot(''); setDeptNot('')
+    setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setFormEventNot(''); setZoneNot(''); setDeptNot('')
     setCloserNot(''); setCloserContactNot(''); setContactOwnerNot(''); setTeleproNot(''); setFormationNot('')
     setPipeline(''); setPipelineNot('')
     setPriorPreinscription(false)
@@ -1025,14 +1150,21 @@ export default function CRMPage() {
           })
           continue
         }
-        // form_event → route via le mecanisme `cf` (custom filters) sur la
-        // colonne `recent_conversion_event`. Supporte tous les operateurs.
+        // form_event :
+        // - is / is_any utilisent les params dédiés (resolver hybride API)
+        // - contains / not_contains restent en custom filter (ILIKE SQL)
+        //   pour éviter les écarts count/list sur les vues de type LINOVA.
         if (ruleField === 'form_event') {
-          customFilters.push({
-            field: 'recent_conversion_event',
-            operator: rule.operator,
-            value: val,
-          })
+          if (rule.operator === 'is' || rule.operator === 'is_any') {
+            setFormEvent(val)
+            continue
+          }
+          if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+            setFormEventNot(val)
+            continue
+          }
+          // Fallback pour opérateurs non couverts par params dédiés.
+          customFilters.push({ field: 'recent_conversion_event', operator: rule.operator, value: val })
           continue
         }
         // Positive filters: is, is_any, contains
@@ -1085,10 +1217,21 @@ export default function CRMPage() {
   }
 
   function applyCRMView(view: CRMSavedView) {
+    // Evite l'affichage transitoire des données de la vue précédente.
+    setLoading(true)
+    setContacts([])
+    setTotal(0)
+    setTotalEstimated(false)
+    setSelectedIds(new Set())
+    // Evite qu'un ancien état UI (classes/externe) réduise silencieusement
+    // les résultats d'une vue sauvegardée.
+    setShowExternal(true)
+    setAllClasses(true)
     syncViewIdInUrl(view.id, 'push')
     setActiveViewId(view.id)
     setFilterGroups(view.groups)
     applyGroupsToFilters(view.groups, view.presetFlags)
+    setPage(0)
     scheduleRefetch()
   }
 
@@ -1286,6 +1429,16 @@ export default function CRMPage() {
     return `il y a ${h}h`
   }
 
+  function formatSignalTime(isoDate: string | null | undefined) {
+    if (!isoDate) return 'inconnu'
+    const diff = Date.now() - new Date(isoDate).getTime()
+    const min = Math.max(0, Math.round(diff / 60000))
+    if (min < 1) return "à l'instant"
+    if (min < 60) return `il y a ${min} min`
+    const h = Math.round(min / 60)
+    return `il y a ${h}h`
+  }
+
   const displayed = contacts
   const totalPages = Math.ceil(total / limit)
 
@@ -1297,7 +1450,8 @@ export default function CRMPage() {
   const hasActiveFilters = (
     search || stage || closerHsId || closerContactHsId || contactOwnerHsId || teleproHsId ||
     formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 ||
-    recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || zoneFilter || deptFilter ||
+    recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || formEvent ||
+    zoneFilter || deptFilter || formEventNot ||
     totalFilterRules > 0
   )
 
@@ -1310,6 +1464,7 @@ export default function CRMPage() {
   function resetAll() {
     setSearch(''); setStage(''); setCloserHsId(''); setCloserContactHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod('')
+    setFormEvent(''); setFormEventNot('')
     setNoTelepro(false); setOwnerExclude(''); setRecentFormMonths(0)
     setLeadStatus(''); setSource(''); setZoneFilter(''); setDeptFilter('')
     setFilterGroups([])
@@ -1319,6 +1474,8 @@ export default function CRMPage() {
 
   function clearAdvancedFilters() {
     setFilterGroups([])
+    setFormEvent('')
+    setFormEventNot('')
     setCustomFilterParam('')
     setPage(0)
   }
@@ -1518,6 +1675,20 @@ export default function CRMPage() {
                 ? `⚠ ${lastSync.error_message}`
                 : `✓ ${formatSyncTime(lastSync.synced_at)} · ${lastSync.contacts_upserted.toLocaleString('fr')} contacts · ${lastSync.deals_upserted} deals`
               }
+            </span>
+          )}
+          {ingestionHealth && (
+            <span
+              title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
+              style={{
+                fontSize: 11,
+                color: ingestionHealth.is_stale ? '#b45309' : '#3a5070',
+                fontWeight: ingestionHealth.is_stale ? 700 : 500,
+              }}
+            >
+              {ingestionHealth.is_stale ? '⚠' : '●'} Dernier lead {formatSignalTime(
+                ingestionHealth.latest_meta_event?.processed_at ?? ingestionHealth.latest_contact?.synced_at,
+              )} · 24h: {ingestionHealth.meta_events_24h} events Meta / {ingestionHealth.contacts_24h} contacts MAJ
             </span>
           )}
         </div>
@@ -1841,6 +2012,8 @@ export default function CRMPage() {
             {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
             {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
+            {formEvent && <FilterPill label={formEvent.includes(',') ? `${formEvent.split(',').length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
+            {formEventNot && <FilterPill label={`Formulaire ≠ ${formEventNot.includes(',') ? `${formEventNot.split(',').length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
             {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
@@ -2482,8 +2655,9 @@ export default function CRMPage() {
             if (noTelepro)            p.set('no_telepro', '1')
             if (ownerExclude)         p.set('owner_exclude', ownerExclude)
             if (recentFormMonths > 0) p.set('recent_form_months', String(recentFormMonths))
-            if (showExternal)         p.set('show_external', '1')
-            if (allClasses)           p.set('all_classes', '1')
+            const forceStableViewScope = !!activeViewId && activeViewId !== 'all'
+            if (showExternal || forceStableViewScope) p.set('show_external', '1')
+            if (allClasses || forceStableViewScope)   p.set('all_classes', '1')
             if (leadStatus)           p.set('lead_status', leadStatus)
             if (source)               p.set('source', source)
             if (zoneFilter)           p.set('zone', zoneFilter)
@@ -2516,8 +2690,9 @@ export default function CRMPage() {
               if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
       if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
       if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
-              if (showExternal)         params.set('show_external', '1')
-              if (allClasses)           params.set('all_classes', '1')
+              const forceStableViewScope = !!activeViewId && activeViewId !== 'all'
+              if (showExternal || forceStableViewScope) params.set('show_external', '1')
+              if (allClasses || forceStableViewScope)   params.set('all_classes', '1')
               if (leadStatus)           params.set('lead_status', leadStatus)
               if (source)               params.set('source', source)
               if (zoneFilter)           params.set('zone', zoneFilter)
