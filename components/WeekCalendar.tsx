@@ -91,7 +91,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const weekKey = format(currentWeekStart, 'yyyy-MM-dd')
 
   // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
-  const closers = commerciaux.filter(c => c.role === 'commercial' || c.role === 'admin')
+  const closers = commerciaux.filter(
+    c => c.role === 'commercial' || c.role === 'closer' || c.role === 'admin'
+  )
 
   // Compteurs semaine (hors annulés et non-assignés)
   const rdvCount = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne').length
@@ -462,6 +464,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     const height = durationToPercent(appt.start_at, appt.end_at, day)
                     const color = getColorForCommercial(appt.users?.id || '')
                     const isCancelled = appt.status === 'annule'
+                    const formation = (appt.formation_type || '').trim()
+                    const classe = (appt.classe_actuelle || '').trim()
+                    const closerAssigned = (appt.users?.name || 'Non assigné').trim()
 
                     return (
                       <div
@@ -500,9 +505,19 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           {appt.meeting_type === 'visio' && <span style={{ fontSize: 9 }}>📹</span>}
                           {format(new Date(appt.start_at), 'HH:mm')} {appt.prospect_name}
                         </div>
-                        {height > 8 && appt.users && (
-                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
-                            {appt.users.name}
+                        {height > 6 && (
+                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {formation || 'Formation non renseignée'}
+                          </div>
+                        )}
+                        {height > 10 && (
+                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Classe: {classe || 'Non renseignée'}
+                          </div>
+                        )}
+                        {height > 14 && (
+                          <div style={{ fontSize: 10, color: '#475569', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Closer: {closerAssigned}
                           </div>
                         )}
                       </div>
