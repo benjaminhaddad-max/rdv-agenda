@@ -41,9 +41,15 @@ export async function readCrmPerfSamples(limit: number): Promise<CrmPerfSample[]
   const redis = getRedisClient()
   if (!redis || limit <= 0) return []
   try {
-    const rows = await redis.lrange<string>(CRM_PERF_SAMPLES_KEY, 0, Math.max(0, limit - 1))
+    const rows = await redis.lrange<unknown>(CRM_PERF_SAMPLES_KEY, 0, Math.max(0, limit - 1))
     return rows
       .map((raw) => {
+        if (raw && typeof raw === 'object') {
+          return raw as CrmPerfSample
+        }
+        if (typeof raw !== 'string') {
+          return null
+        }
         try {
           return JSON.parse(raw) as CrmPerfSample
         } catch {
