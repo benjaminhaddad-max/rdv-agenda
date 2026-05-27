@@ -53,15 +53,20 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         })
         continue
       }
-      // form_event : route via le mecanisme `cf` (custom filters) pour supporter
-      // tous les operateurs (contains / is / is_any / is_empty / etc.) sur la
-      // colonne `recent_conversion_event`. Plus flexible que les dedicated params.
+      // form_event : on privilégie les paramètres dédiés pour activer le
+      // resolver hybride côté API (noms + Meta-only IDs), plus robuste que le
+      // simple filtre sur recent_conversion_event.
       if (rule.field === 'form_event') {
-        customFilters.push({
-          field: 'recent_conversion_event',
-          operator: rule.operator,
-          value: val,
-        })
+        if (rule.operator === 'is' || rule.operator === 'is_any') {
+          p.set('form_event', val)
+          continue
+        }
+        if (rule.operator === 'is_not' || rule.operator === 'is_none') {
+          p.set('form_event_not', val)
+          continue
+        }
+        // contains / not_contains doivent rester en cf pour matcher en ILIKE.
+        customFilters.push({ field: 'recent_conversion_event', operator: rule.operator, value: val })
         continue
       }
 
@@ -103,6 +108,20 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
   if (customFilters.length > 0) {
     p.set('cf', JSON.stringify(customFilters))
   }
+  return p
+}
+
+/**
+ * Paramètres standards pour obtenir un count fiable via /api/crm/contacts.
+ * Utilise la même traduction de filtres qu'une vue classique, puis verrouille
+ * les options count-only SQL exactes pour la parité badge/table.
+ */
+export function viewToCountParams(view: CRMSavedView): URLSearchParams {
+  const p = viewToParams(view)
+  p.set('limit', '0')
+  p.set('exact_count', '1')
+  p.set('force_sql', '1')
+  p.delete('defer_count')
   return p
 }
 
