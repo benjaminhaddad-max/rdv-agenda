@@ -687,6 +687,7 @@ export default function CRMPage() {
     if (resetPage) setPage(0)
     const activeView = crmViews.find(v => v.id === activeViewId)
     const activeViewName = (activeView?.name ?? '').toLowerCase()
+    const isLinovaView = activeViewName.includes('linova')
     const forceMetaAdsOnly = activeViewId === 'v_meta_ads_all' || activeViewName.includes('meta ads')
     const requestSignature = JSON.stringify({
       activeViewId,
@@ -884,7 +885,12 @@ export default function CRMPage() {
         if (!totalRes.ok) return
         const totalPayload = await totalRes.json() as { total?: number; total_estimated?: boolean }
         if (requestSeq !== contactsFetchSeqRef.current) return
-        if (typeof totalPayload.total === 'number') setTotal(totalPayload.total)
+        if (typeof totalPayload.total === 'number') {
+          setTotal(totalPayload.total)
+          if (isLinovaView && activeViewId) {
+            setViewCounts(prev => ({ ...prev, [activeViewId]: totalPayload.total as number }))
+          }
+        }
         setTotalEstimated(totalPayload.total_estimated === true)
       } catch {
         // Best effort: ne pas perturber l'affichage principal.
@@ -993,7 +999,11 @@ export default function CRMPage() {
       }
       if (requestSeq === contactsFetchSeqRef.current) {
         setContacts(cachedPayload.data ?? [])
-        setTotal(cachedPayload.total ?? 0)
+        const nextTotal = cachedPayload.total ?? 0
+        setTotal(nextTotal)
+        if (isLinovaView && activeViewId) {
+          setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
+        }
         setTotalEstimated(cachedPayload.total_estimated === true)
         if ('clientMs' in cached && typeof cached.clientMs === 'number') setLastFetchClientMs(cached.clientMs)
         if ('serverMs' in cached && typeof cached.serverMs === 'number') setLastFetchServerMs(cached.serverMs)
@@ -1014,6 +1024,9 @@ export default function CRMPage() {
           }
           setContacts(payload.data ?? [])
           setTotal(nextTotal)
+          if (isLinovaView && activeViewId) {
+            setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
+          }
           setTotalEstimated(payload.total_estimated === true)
           setLastFetchClientMs(clientMs)
           setLastFetchServerMs(serverMs)
@@ -1040,6 +1053,9 @@ export default function CRMPage() {
       }
       setContacts(payload.data ?? [])
       setTotal(nextTotal)
+      if (isLinovaView && activeViewId) {
+        setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
+      }
       setTotalEstimated(payload.total_estimated === true)
       setLastFetchClientMs(clientMs)
       setLastFetchServerMs(serverMs)
