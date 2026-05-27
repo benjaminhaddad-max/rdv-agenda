@@ -467,6 +467,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     const formation = (appt.formation_type || '').trim()
                     const classe = (appt.classe_actuelle || '').trim()
                     const closerAssigned = (appt.users?.name || 'Non assigné').trim()
+                    const details = `${formation || 'Formation NR'} · ${classe || 'Classe NR'} · ${closerAssigned}`
 
                     return (
                       <div
@@ -481,11 +482,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.3)' : `${color}50`}`,
                           borderLeft: `3px solid ${isCancelled ? '#6b7280' : color}`,
                           borderRadius: 6,
-                          padding: '3px 6px',
+                          padding: '4px 6px',
                           cursor: 'pointer',
                           overflow: 'hidden',
                           zIndex: 1,
                           transition: 'background 0.1s',
+                          minHeight: 34,
                         }}
                         onMouseEnter={e => {
                           const el = e.currentTarget as HTMLDivElement
@@ -497,7 +499,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                         }}
                       >
                         <div style={{
-                          fontSize: 11, fontWeight: 700,
+                          fontSize: 10, fontWeight: 700,
                           color: isCancelled ? '#6b7280' : color,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           display: 'flex', alignItems: 'center', gap: 3,
@@ -505,21 +507,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           {appt.meeting_type === 'visio' && <span style={{ fontSize: 9 }}>📹</span>}
                           {format(new Date(appt.start_at), 'HH:mm')} {appt.prospect_name}
                         </div>
-                        {height > 6 && (
-                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {formation || 'Formation non renseignée'}
-                          </div>
-                        )}
-                        {height > 10 && (
-                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Classe: {classe || 'Non renseignée'}
-                          </div>
-                        )}
-                        {height > 14 && (
-                          <div style={{ fontSize: 10, color: '#475569', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Closer: {closerAssigned}
-                          </div>
-                        )}
+                        <div style={{ fontSize: 9, color: '#475569', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {details}
+                        </div>
                       </div>
                     )
                   })}
