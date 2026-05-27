@@ -417,6 +417,10 @@ export default function CRMPage() {
 
   // Counts pré-chargés par vue
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
+  const linovaViewIds = useMemo(
+    () => new Set(crmViews.filter(v => (v.name ?? '').toLowerCase().includes('linova')).map(v => v.id)),
+    [crmViews],
+  )
   const [fieldOptionsLoaded, setFieldOptionsLoaded] = useState(false)
 
   // Sélection en masse + drawer
@@ -528,14 +532,21 @@ export default function CRMPage() {
       const d = await res.json()
       if (d?.counts && typeof d.counts === 'object') {
         const counts = d.counts as Record<string, number>
-        setViewCounts(prev => ({ ...prev, ...counts }))
+        // Linova est isolée: son badge est alimenté par la même requête
+        // que la liste active pour éviter les écarts avec le tableau visible.
+        const sanitized = Object.fromEntries(
+          Object.entries(counts).filter(([id]) => !linovaViewIds.has(id)),
+        ) as Record<string, number>
+        if (Object.keys(sanitized).length > 0) {
+          setViewCounts(prev => ({ ...prev, ...sanitized }))
+        }
         return counts
       }
     } catch {
       // best effort
     }
     return null
-  }, [])
+  }, [linovaViewIds])
 
   // ── Pré-charger les counts : vue active d'abord, puis reste en idle ──
   useEffect(() => {
