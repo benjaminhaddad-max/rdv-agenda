@@ -901,6 +901,19 @@ export async function GET(req: NextRequest) {
   // Objectif: accélérer drastiquement le chargement des leads "classiques".
   // Edumove (hybrid) : recent_conversion_event:=[noms] || hubspot_contact_id:=[meta].
   // Linova (ids) : hubspot_contact_id:=[...] en batchs.
+  const splitMultiLocal = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+  const formEventValues = splitMultiLocal(formEvent)
+  const formEventNotValues = splitMultiLocal(formEventNot)
+  const isLinovaFormEventFilter =
+    formEventValues.length > 0 &&
+    formEventValues.every(v => /linova/i.test(v))
+  const isLinovaFormEventNotFilter =
+    formEventNotValues.length > 0 &&
+    formEventNotValues.every(v => /linova/i.test(v))
+  const allowLinovaFormEventInTypesense =
+    isLinovaFormEventFilter &&
+    (formEventNotValues.length === 0 || isLinovaFormEventNotFilter)
+
   const hasUnsupportedTypesenseFilter = !!(
     isExport ||
     forceSql ||
@@ -909,7 +922,7 @@ export async function GET(req: NextRequest) {
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
     effectiveNoTelepro || withTelepro ||
     effectiveRecentFormMonths > 0 || effectiveRecentFormDays > 0 || effectiveCreatedBeforeDays > 0 ||
-    formEvent || formEventNot ||
+    ((formEvent || formEventNot) && !allowLinovaFormEventInTypesense) ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     metaLeadAdsContactIds !== null
@@ -930,7 +943,6 @@ export async function GET(req: NextRequest) {
   }
   const typesenseSortField = typesenseSortMap[sortBy]
   if (!hasUnsupportedTypesenseFilter && typesenseSortField && isTypesenseEnabled()) {
-    const splitMultiLocal = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
     const filterParts: string[] = []
     // Typesense `:=` fait du token-match par défaut (ex: `:=` sur "EDUMOVE -
     // CONTACT" matche aussi "...EDUMOVE - CONTACT"). Pour reproduire le
