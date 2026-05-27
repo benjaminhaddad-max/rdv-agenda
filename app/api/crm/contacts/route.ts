@@ -736,6 +736,21 @@ export async function GET(req: NextRequest) {
   const mvSortCol = mvSortMap[sortBy]
   if (!hasUnsupportedFastMvFilter && mvSortCol) {
     try {
+      // Garde-fou: si la vue matérialisée est en retard, on bascule
+      // automatiquement sur SQL pour éviter d'afficher des leads obsolètes.
+      const { data: mvFreshnessRow } = await db
+        .from('crm_contacts_fast_mv')
+        .select('synced_at')
+        .order('synced_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
+      const mvLastSyncedAt = mvFreshnessRow?.synced_at ? new Date(String(mvFreshnessRow.synced_at)).getTime() : NaN
+      const mvFreshnessLagMs = Number.isFinite(mvLastSyncedAt) ? (Date.now() - mvLastSyncedAt) : Number.POSITIVE_INFINITY
+      const FAST_MV_MAX_LAG_MS = 20 * 60 * 1000
+      if (!Number.isFinite(mvFreshnessLagMs) || mvFreshnessLagMs > FAST_MV_MAX_LAG_MS) {
+        throw new Error('fast_mv_stale')
+      }
+
       const splitMultiFast = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let fastMvQ: any = db
