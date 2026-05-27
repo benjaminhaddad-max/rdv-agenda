@@ -847,96 +847,115 @@ export async function GET(req: NextRequest) {
       }
       const ids = ts.ids
       if (ids.length === 0) {
-        return withPerfHeader(NextResponse.json({ data: [], total: ts.found, total_estimated: false, page, limit }))
-      }
-      const { data: rows } = await db
-        .from('crm_contacts')
-        .select(
-          `hubspot_contact_id, firstname, lastname, email, phone,
-           departement, classe_actuelle, zone_localite,
-           formation_demandee, formation_souhaitee, contact_createdate,
-           hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
-           hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}`
-        )
-        .in('hubspot_contact_id', ids)
-
-      const byId: Record<string, Record<string, unknown>> = {}
-      for (const r of (rows ?? []) as unknown as Array<Record<string, unknown>>) {
-        const id = r.hubspot_contact_id
-        if (typeof id === 'string') byId[id] = r
-      }
-      const ordered = ids.map(id => byId[id]).filter((r): r is Record<string, unknown> => !!r)
-
-      const { data: dealRows } = await db
-        .from('crm_deals')
-        .select('hubspot_contact_id, hubspot_deal_id, dealstage, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, supabase_appt_id')
-        .in('hubspot_contact_id', ids)
-        .order('createdate', { ascending: false, nullsFirst: false })
-
-      const dealByContactId: Record<string, Record<string, unknown>> = {}
-      for (const row of (dealRows ?? []) as Array<Record<string, unknown>>) {
-        const cid = row.hubspot_contact_id
-        if (typeof cid !== 'string') continue
-        if (!dealByContactId[cid]) dealByContactId[cid] = row
-      }
-
-      const enriched = ordered.map((c) => {
-        const contactId = c.hubspot_contact_id as string
-        const deal = dealByContactId[contactId] ?? null
-        const dealOwnerId = typeof deal?.hubspot_owner_id === 'string' ? deal.hubspot_owner_id : null
-        const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
-        const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
-        const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
-        const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
-        const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
-        return {
-          hubspot_contact_id: c.hubspot_contact_id,
-          firstname: c.firstname,
-          lastname: c.lastname,
-          email: c.email,
-          phone: c.phone,
-          departement: c.departement,
-          classe_actuelle: c.classe_actuelle,
-          zone_localite: c.zone_localite,
-          formation_demandee: c.formation_demandee,
-          formation_souhaitee: c.formation_souhaitee,
-          contact_createdate: c.contact_createdate,
-          hubspot_owner_id: c.hubspot_owner_id,
-          closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
-          telepro_user_id: c.telepro_user_id ?? null,
-          extra_props: extraProps.length > 0
-            ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
-            : undefined,
-          recent_conversion_date: c.recent_conversion_date,
-          recent_conversion_event: c.recent_conversion_event,
-          hs_lead_status: c.hs_lead_status,
-          origine: c.origine,
-          contact_owner: contactOwner,
-          telepro,
-          deal: deal ? {
-            hubspot_deal_id: deal.hubspot_deal_id,
-            dealstage: deal.dealstage,
-            formation: deal.formation,
-            closedate: deal.closedate,
-            createdate: deal.createdate,
-            supabase_appt_id: deal.supabase_appt_id,
-            hubspot_owner_id: deal.hubspot_owner_id,
-            teleprospecteur: deal.teleprospecteur,
-            closer,
-            telepro,
-          } : null,
+        // Garde-fou: certains environnements peuvent renvoyer found>0 avec
+        // hits vides (index/transient mismatch). Dans ce cas on repasse sur
+        // le chemin SQL natif au lieu d'afficher une table vide.
+        if (ts.found === 0) {
+          return withPerfHeader(NextResponse.json({ data: [], total: 0, total_estimated: false, page, limit }))
         }
-      })
+        engine = 'sql'
+      } else {
+        const { data: rows, error: rowsError } = await db
+          .from('crm_contacts')
+          .select(
+            `hubspot_contact_id, firstname, lastname, email, phone,
+             departement, classe_actuelle, zone_localite,
+             formation_demandee, formation_souhaitee, contact_createdate,
+             hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id, recent_conversion_date, recent_conversion_event,
+             hs_lead_status, origine${extraProps.length > 0 ? ', ' + extraProps.join(', ') : ''}`
+          )
+          .in('hubspot_contact_id', ids)
 
-      const r = NextResponse.json({
-        data: enriched,
-        total: ts.found,
-        total_estimated: false,
-        page,
-        limit,
-      })
-      r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
-      return withPerfHeader(r)
+        if (rowsError) {
+          // Sur erreur d'hydratation (ex: cast sur types hétérogènes), on
+          // évite le faux "total>0 / data=[]" et on fallback SQL complet.
+          engine = 'sql'
+        } else {
+          const byId: Record<string, Record<string, unknown>> = {}
+          for (const r of (rows ?? []) as unknown as Array<Record<string, unknown>>) {
+            const id = r.hubspot_contact_id
+            if (typeof id === 'string') byId[id] = r
+          }
+          const ordered = ids.map(id => byId[id]).filter((r): r is Record<string, unknown> => !!r)
+
+          // Si Typesense annonce des résultats mais que l'hydratation ne
+          // retrouve aucune ligne, on re-bascule SQL pour garantir la liste.
+          if (ordered.length === 0 && ts.found > 0) {
+            engine = 'sql'
+          } else {
+            const { data: dealRows } = await db
+              .from('crm_deals')
+              .select('hubspot_contact_id, hubspot_deal_id, dealstage, formation, hubspot_owner_id, teleprospecteur, closedate, createdate, supabase_appt_id')
+              .in('hubspot_contact_id', ids)
+              .order('createdate', { ascending: false, nullsFirst: false })
+
+            const dealByContactId: Record<string, Record<string, unknown>> = {}
+            for (const row of (dealRows ?? []) as Array<Record<string, unknown>>) {
+              const cid = row.hubspot_contact_id
+              if (typeof cid !== 'string') continue
+              if (!dealByContactId[cid]) dealByContactId[cid] = row
+            }
+
+            const enriched = ordered.map((c) => {
+              const contactId = c.hubspot_contact_id as string
+              const deal = dealByContactId[contactId] ?? null
+              const dealOwnerId = typeof deal?.hubspot_owner_id === 'string' ? deal.hubspot_owner_id : null
+              const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
+              const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
+              const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
+              const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
+              const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
+              return {
+                hubspot_contact_id: c.hubspot_contact_id,
+                firstname: c.firstname,
+                lastname: c.lastname,
+                email: c.email,
+                phone: c.phone,
+                departement: c.departement,
+                classe_actuelle: c.classe_actuelle,
+                zone_localite: c.zone_localite,
+                formation_demandee: c.formation_demandee,
+                formation_souhaitee: c.formation_souhaitee,
+                contact_createdate: c.contact_createdate,
+                hubspot_owner_id: c.hubspot_owner_id,
+                closer_du_contact_owner_id: c.closer_du_contact_owner_id ?? null,
+                telepro_user_id: c.telepro_user_id ?? null,
+                extra_props: extraProps.length > 0
+                  ? Object.fromEntries(extraProps.map(p => [p, c[p] ?? null]))
+                  : undefined,
+                recent_conversion_date: c.recent_conversion_date,
+                recent_conversion_event: c.recent_conversion_event,
+                hs_lead_status: c.hs_lead_status,
+                origine: c.origine,
+                contact_owner: contactOwner,
+                telepro,
+                deal: deal ? {
+                  hubspot_deal_id: deal.hubspot_deal_id,
+                  dealstage: deal.dealstage,
+                  formation: deal.formation,
+                  closedate: deal.closedate,
+                  createdate: deal.createdate,
+                  supabase_appt_id: deal.supabase_appt_id,
+                  hubspot_owner_id: deal.hubspot_owner_id,
+                  teleprospecteur: deal.teleprospecteur,
+                  closer,
+                  telepro,
+                } : null,
+              }
+            })
+
+            const r = NextResponse.json({
+              data: enriched,
+              total: ts.found,
+              total_estimated: false,
+              page,
+              limit,
+            })
+            r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+            return withPerfHeader(r)
+          }
+        }
+      }
     }
   }
 

@@ -744,10 +744,10 @@ export default function CRMPage() {
       limit: String(limit),
       page: String(currentPage),
     })
-    // Hybride perf:
-    // - Vue globale massive sans filtres: compteur approximatif (beaucoup plus rapide).
-    // - Vues filtrées / ciblées: compteur exact pour éviter tout écart (ex. 70 leads).
-    if (shouldUseApproxCount || RELAX_EXACT_COUNT) {
+    // Stabilité d'abord:
+    // - Compteur exact par défaut pour éviter les faux totaux (ex: "~100").
+    // - Approximation uniquement en opt-in explicite via env.
+    if (RELAX_EXACT_COUNT && shouldUseApproxCount) {
       params.set('defer_count', '1')
     } else {
       params.set('exact_count', '1')
@@ -813,6 +813,11 @@ export default function CRMPage() {
     const retryParams = new URLSearchParams(params.toString())
     retryParams.delete('cf')
     const retryUrlWithoutCf = `/api/crm/contacts?${retryParams.toString()}`
+    const strictRetryParams = new URLSearchParams(retryParams.toString())
+    strictRetryParams.delete('defer_count')
+    strictRetryParams.set('exact_count', '1')
+    strictRetryParams.set('no_cache', '1')
+    const strictRetryUrl = `/api/crm/contacts?${strictRetryParams.toString()}`
     const requestSeq = ++contactsFetchSeqRef.current
 
     const fetchContactsPayload = async () => {
@@ -839,9 +844,15 @@ export default function CRMPage() {
         (payload.data?.length ?? 0) === 0
       )
       if (shouldRetryWithoutCf) {
-        const retryRes = await fetch(retryUrlWithoutCf)
+        const retryRes = await fetch(retryUrlWithoutCf, { signal: requestAbort.signal })
         if (retryRes.ok) {
           payload = await retryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
+        }
+      }
+      if ((payload.total ?? 0) > 0 && (payload.data?.length ?? 0) === 0) {
+        const strictRetryRes = await fetch(strictRetryUrl, { signal: requestAbort.signal })
+        if (strictRetryRes.ok) {
+          payload = await strictRetryRes.json() as { data?: CRMContact[]; total?: number; total_estimated?: boolean }
         }
       }
 
@@ -1275,25 +1286,7 @@ export default function CRMPage() {
     return `il y a ${h}h`
   }
 
-  // Ressenti instantané: pendant que la recherche serveur (debounced) est en
-  // cours, on applique un préfiltrage local sur la page courante déjà chargée.
-  const localSearch = search.trim().toLowerCase()
-  const isSearchPreviewing = localSearch.length > 0 && localSearch !== debouncedSearch.toLowerCase()
-  const displayed = isSearchPreviewing
-    ? contacts.filter((c) => {
-      const hay = [
-        c.firstname,
-        c.lastname,
-        c.email,
-        c.phone,
-        c.recent_conversion_event,
-        c.formation_souhaitee,
-      ]
-        .map(v => String(v ?? '').toLowerCase())
-        .join(' ')
-      return hay.includes(localSearch)
-    })
-    : contacts
+  const displayed = contacts
   const totalPages = Math.ceil(total / limit)
 
   const hasWithDeal  = contacts.filter(c => !!c.deal).length
@@ -1922,18 +1915,6 @@ export default function CRMPage() {
                 API {lastFetchClientMs}ms
                 {lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}
               </span>
-              {isSearchPreviewing && (
-                <span style={{
-                  fontSize: 10,
-                  color: '#1d5f91',
-                  border: '1px solid rgba(76,171,219,0.35)',
-                  borderRadius: 999,
-                  padding: '2px 8px',
-                  background: 'rgba(76,171,219,0.12)',
-                }}>
-                  Préfiltrage instantané…
-                </span>
-              )}
             </div>
           )}
         </div>
