@@ -1062,7 +1062,10 @@ export default function CRMPage() {
   const shouldAutoRefreshLeads = useMemo(() => {
     const active = crmViews.find(v => v.id === activeViewId)
     const activeName = (active?.name ?? '').toLowerCase()
-    return activeName.includes('linova') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
+    // "Tous les leads" doit aussi se rafraîchir automatiquement pour afficher
+    // les nouveaux formulaires sans action manuelle.
+    const isAllLeadsView = activeViewId === 'all'
+    return isAllLeadsView || activeName.includes('linova') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
   }, [crmViews, activeViewId, source, customFilterParam])
 
   // Rafraichit la liste en continu pour refléter les leads Meta quasi en temps réel.
