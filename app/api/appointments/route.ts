@@ -65,10 +65,12 @@ export async function GET(req: NextRequest) {
   const scopedLimit = Math.min(Math.max(parseInt(searchParams.get('limit') || '2000', 10) || 2000, 1), 5000)
 
   // Safety net: avoid accidental full-table scans that can stall the UI.
-  // This endpoint is expected to be scoped by telepro/commercial/unassigned.
-  if (!teleproId && !commercialId && !unassigned) {
+  // Accepts week-scoped reads for the global agenda, but still blocks
+  // completely unscoped queries.
+  if (!teleproId && !commercialId && !unassigned && !week) {
     return NextResponse.json([], {
       headers: {
+        'Cache-Control': 'no-store',
         'X-Response-Time-Ms': String(Date.now() - startedAt),
         'X-Appointments-Guard': 'missing_scope_filter',
       },
@@ -132,7 +134,12 @@ export async function GET(req: NextRequest) {
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await Promise.race([query as any, timeoutResult]) as any
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    )
+  }
   // Compat : le front (WeekCalendar, AppointmentModal) lit `appt.users`
   // alors que le query alias la jointure en `rdv_users`. On expose les deux
   // pour ne pas casser TeleproClient qui utilise `rdv_users`.
@@ -140,6 +147,7 @@ export async function GET(req: NextRequest) {
   const enriched = (data ?? []).map((r: any) => ({ ...r, users: r.rdv_users ?? null }))
   return NextResponse.json(enriched, {
     headers: {
+      'Cache-Control': 'no-store',
       'X-Response-Time-Ms': String(Date.now() - startedAt),
     },
   })

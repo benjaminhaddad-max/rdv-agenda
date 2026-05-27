@@ -102,7 +102,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     try {
       const params = new URLSearchParams({ week: weekKey })
       if (selectedCommercial !== 'all') params.set('commercial_id', selectedCommercial)
-      const res = await fetch(`/api/appointments?${params}`)
+      const res = await fetch(`/api/appointments?${params}`, { cache: 'no-store' })
       if (res.ok) setAppointments(await res.json())
     } finally {
       setLoading(false)
@@ -110,7 +110,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }, [weekKey, selectedCommercial])
 
   useEffect(() => {
-    fetch('/api/users').then(r => r.json()).then(setCommerciaux)
+    fetch('/api/users', { cache: 'no-store' }).then(r => r.json()).then(setCommerciaux)
   }, [])
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
