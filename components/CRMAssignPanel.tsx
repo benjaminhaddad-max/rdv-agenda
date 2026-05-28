@@ -38,7 +38,7 @@ export default function CRMAssignPanel({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const role = mode === 'closer' ? 'commercial' : 'telepro'
+    const role = mode === 'closer' ? 'closer' : 'telepro'
     fetch(`/api/users?role=${role}`)
       .then(r => r.json())
       .then(data => setUsers(Array.isArray(data) ? data : []))

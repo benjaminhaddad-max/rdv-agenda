@@ -10,7 +10,7 @@ interface User {
   email: string
   slug: string
   avatar_color: string
-  role: 'admin' | 'commercial' | 'manager' | 'telepro'
+  role: 'admin' | 'closer' | 'manager' | 'telepro'
   hubspot_owner_id: string | null
   hubspot_user_id: string | null
   auth_id: string | null
@@ -20,19 +20,19 @@ interface User {
   is_default_brand_telepro: boolean
 }
 
-const ROLES: Array<User['role']> = ['admin', 'manager', 'commercial', 'telepro']
+const ROLES: Array<User['role']> = ['admin', 'manager', 'closer', 'telepro']
 
 const ROLE_LABELS: Record<User['role'], string> = {
   admin:      'Admin',
   manager:    'Manager',
-  commercial: 'Commercial',
+  closer:     'Closer',
   telepro:    'Téléprospecteur',
 }
 
 const ROLE_BADGE: Record<User['role'], string> = {
   admin:      'bg-amber-100 text-amber-800 border-amber-200',
   manager:    'bg-indigo-100 text-indigo-800 border-indigo-200',
-  commercial: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  closer:     'bg-emerald-100 text-emerald-800 border-emerald-200',
   telepro:    'bg-blue-100 text-blue-800 border-blue-200',
 }
 
@@ -52,7 +52,7 @@ export default function UsersPage() {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    role: 'commercial' as User['role'],
+    role: 'closer' as User['role'],
     hubspot_owner_id: '',
     crm_brand: '',
     is_default_brand_telepro: false,
@@ -108,7 +108,7 @@ export default function UsersPage() {
       setForm({
         name: '',
         email: '',
-        role: 'commercial',
+        role: 'closer',
         hubspot_owner_id: '',
         crm_brand: '',
         is_default_brand_telepro: false,
@@ -238,7 +238,7 @@ export default function UsersPage() {
                     <select
                       value={u.role}
                       onChange={e => handleRoleChange(u, e.target.value as User['role'])}
-                      className={`text-xs font-bold px-2.5 py-1 rounded-full border cursor-pointer ${ROLE_BADGE[u.role] ?? ROLE_BADGE.commercial}`}
+                      className={`text-xs font-bold px-2.5 py-1 rounded-full border cursor-pointer ${ROLE_BADGE[u.role] ?? ROLE_BADGE.closer}`}
                     >
                       {ROLES.map(r => (
                         <option key={r} value={r}>{ROLE_LABELS[r]}</option>

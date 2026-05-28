@@ -86,7 +86,7 @@ export default function CheckRdvCloserPanel({ onClose }: { onClose: () => void }
       const res = await fetch('/api/users')
       if (res.ok) {
         const users: Closer[] = await res.json()
-        setClosers(users.filter(u => u.role === 'commercial' || u.role === 'admin'))
+        setClosers(users.filter(u => u.role === 'closer' || u.role === 'admin'))
       }
     }
   }

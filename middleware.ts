@@ -115,7 +115,7 @@ export async function middleware(request: NextRequest) {
     if (dbUser.role === 'admin') {
       return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))
     }
-    if (dbUser.role === 'commercial' || dbUser.role === 'closer') {
+    if (dbUser.role === 'closer') {
       return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))
     }
     return redirectByRole(dbUser, request)
@@ -161,7 +161,7 @@ function redirectByRole(
   if (dbUser.role === 'admin') {
     return NextResponse.redirect(new URL('/admin', request.url))
   }
-  if (dbUser.role === 'commercial' || dbUser.role === 'closer') {
+  if (dbUser.role === 'closer') {
     return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))
   }
   if (dbUser.role === 'telepro') {

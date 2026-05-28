@@ -59,7 +59,20 @@ export async function GET(req: NextRequest) {
   const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
   const formation        = searchParams.get('formation') ?? ''
   const classeFilter     = searchParams.get('classe') ?? ''
-  const periodFilter     = searchParams.get('period') ?? ''
+  const periodFilterRaw  = (searchParams.get('period') ?? '').trim().toLowerCase()
+  // Compat: le front historique envoie 7d/30d/90d/365d.
+  // On normalise ici pour garder un seul moteur de filtre côté API.
+  const periodFilter     = (() => {
+    if (!periodFilterRaw) return ''
+    if (periodFilterRaw === 'today' || periodFilterRaw === 'week' || periodFilterRaw === 'month') {
+      return periodFilterRaw
+    }
+    if (periodFilterRaw === '7d') return '7d'
+    if (periodFilterRaw === '30d') return '30d'
+    if (periodFilterRaw === '90d') return '90d'
+    if (periodFilterRaw === '365d') return '365d'
+    return ''
+  })()
   const noTelepro        = searchParams.get('no_telepro') === '1'
   const withTelepro      = searchParams.get('with_telepro') === '1'
   const ownerExclude     = searchParams.get('owner_exclude') ?? ''
@@ -1521,6 +1534,14 @@ export async function GET(req: NextRequest) {
       periodSince = new Date(now); periodSince.setDate(now.getDate() - 7)
     } else if (periodFilter === 'month') {
       periodSince = new Date(now.getFullYear(), now.getMonth(), 1); periodExact = true
+    } else if (periodFilter === '7d') {
+      periodSince = new Date(now); periodSince.setDate(now.getDate() - 7)
+    } else if (periodFilter === '30d') {
+      periodSince = new Date(now); periodSince.setDate(now.getDate() - 30)
+    } else if (periodFilter === '90d') {
+      periodSince = new Date(now); periodSince.setDate(now.getDate() - 90)
+    } else if (periodFilter === '365d') {
+      periodSince = new Date(now); periodSince.setDate(now.getDate() - 365)
     }
     if (periodSince) {
       const periodEnd = (() => {

@@ -92,7 +92,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
 
   // Closers uniquement (pas managers, pas télépros) + admin (Pascal)
   const closers = commerciaux.filter(
-    c => c.role === 'commercial' || c.role === 'closer' || c.role === 'admin'
+    c => c.role === 'closer' || c.role === 'admin'
   )
 
   // Compteurs semaine (hors annulés et non-assignés)

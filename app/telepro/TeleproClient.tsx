@@ -2466,7 +2466,7 @@ export default function TeleproClient({
       {activeTab === 'transactions' && !isAdmin && (
         <div style={{ width: '100%' }}>
           <iframe
-            src={`/admin/crm/transactions?telepro=${encodeURIComponent(teleproDealsFilterId)}&embed=1`}
+            src={`/telepro/transactions?telepro=${encodeURIComponent(teleproDealsFilterId)}&embed=1`}
             style={{ width: '100%', height: 'calc(100vh - 180px)', border: 'none', display: 'block' }}
             title="Kanban Mes Transactions"
           />

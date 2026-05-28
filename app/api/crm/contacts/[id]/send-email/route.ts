@@ -21,7 +21,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authz = await requireApiRole(['admin', 'commercial', 'closer', 'telepro'])
+  const authz = await requireApiRole(['admin', 'closer', 'telepro'])
   if (!authz.ok) return authz.response
 
   const limiterKey = `crm-send-email:${authz.ctx.appUserId}`

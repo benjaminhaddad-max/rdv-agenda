@@ -1467,7 +1467,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             </div>
           ) : (
             <iframe
-              src={`/admin/crm/transactions?contact_owner=${encodeURIComponent(user.hubspot_owner_id)}&embed=1`}
+              src={`/closer/${encodeURIComponent(user.slug)}/transactions?contact_owner=${encodeURIComponent(user.hubspot_owner_id)}&embed=1`}
               style={{ width: '100%', height: 'calc(100vh - 180px)', border: 'none', display: 'block' }}
               title="Kanban Mes Transactions"
             />

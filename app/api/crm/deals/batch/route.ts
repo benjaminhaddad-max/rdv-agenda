@@ -7,7 +7,7 @@ import { memoryRateLimit } from '@/lib/rate-limit'
 // PATCH /api/crm/deals/batch
 // Met à jour l'étape de plusieurs deals en une seule requête
 export async function PATCH(req: NextRequest) {
-  const authz = await requireApiRole(['admin', 'commercial', 'closer'])
+  const authz = await requireApiRole(['admin', 'closer'])
   if (!authz.ok) return authz.response
 
   const limiter = memoryRateLimit(`crm-deals-batch:${authz.ctx.appUserId}`, {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
-const ROLES = new Set(['admin', 'commercial', 'manager', 'telepro'])
+const ROLES = new Set(['admin', 'closer', 'manager', 'telepro'])
 const CRM_SCOPES = new Set(['all', 'brand_only'])
 
 function slugify(s: string): string {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   if (!name?.trim() || !email?.trim() || !role || !ROLES.has(role)) {
     return NextResponse.json(
-      { error: 'name, email et role (admin|commercial|manager|telepro) requis' },
+      { error: 'name, email et role (admin|closer|manager|telepro) requis' },
       { status: 400 }
     )
   }

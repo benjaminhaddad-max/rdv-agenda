@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 
-export type ApiRole = 'admin' | 'telepro' | 'closer' | 'commercial' | 'manager'
+export type ApiRole = 'admin' | 'telepro' | 'closer' | 'manager'
 
 export type ApiUserContext = {
   authUserId: string
@@ -18,7 +18,6 @@ const roleAliases: Record<string, ApiRole> = {
   admin: 'admin',
   telepro: 'telepro',
   closer: 'closer',
-  commercial: 'commercial',
   manager: 'manager',
 }
 

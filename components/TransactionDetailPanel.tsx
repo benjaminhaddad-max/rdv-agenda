@@ -114,7 +114,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
   const [telepros, setTelepros] = useState<User[]>([])
 
   useEffect(() => {
-    fetch('/api/users?role=commercial').then(r => r.json()).then(d => setClosers(Array.isArray(d) ? d : []))
+    fetch('/api/users?role=closer').then(r => r.json()).then(d => setClosers(Array.isArray(d) ? d : []))
     fetch('/api/users?role=telepro').then(r => r.json()).then(d => setTelepros(Array.isArray(d) ? d : []))
   }, [])
 

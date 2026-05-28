@@ -38,7 +38,7 @@ export function createServiceClient() {
 }
 
 export type AppointmentStatus = 'non_assigne' | 'confirme' | 'va_reflechir' | 'no_show' | 'annule' | 'preinscription'
-export type UserRole = 'admin' | 'commercial' | 'manager' | 'telepro'
+export type UserRole = 'admin' | 'closer' | 'manager' | 'telepro'
 export type AppointmentSource = 'telepro' | 'prospect' | 'admin'
 
 export type Database = {
