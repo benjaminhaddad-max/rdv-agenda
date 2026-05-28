@@ -164,9 +164,16 @@ export async function GET(req: NextRequest) {
       if (contactTeleproId !== teleproHsId && dealTeleproId !== teleproHsId) return false
     }
     if (contactOwnerHsId) {
-      // Closer portal scope must follow the closer stored on contacts.
       const contactCloserId = String(contact?.closer_du_contact_owner_id ?? '').trim()
-      if (contactCloserId !== contactOwnerHsId) return false
+      const contactTeleproId = String(contact?.telepro_user_id ?? '').trim()
+      const dealTeleproId = String(d.teleprospecteur ?? '').trim()
+      // Closer workspace scope: include contacts where user is either closer
+      // or teleprospecteur (with legacy deal fallback).
+      if (
+        contactCloserId !== contactOwnerHsId &&
+        contactTeleproId !== contactOwnerHsId &&
+        dealTeleproId !== contactOwnerHsId
+      ) return false
     }
     if (classe     && contact?.classe_actuelle !== classe)     return false
 

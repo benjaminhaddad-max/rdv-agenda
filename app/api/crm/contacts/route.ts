@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
   const bypassCache      = searchParams.get('no_cache') === '1'
   // Garde-fou client: permet de bypass les fast paths quand un front détecte
   // un état incohérent (total > 0 avec data vide).
-  const forceSql         = searchParams.get('force_sql') === '1'
+  const forceSql         = searchParams.get('force_sql') === '1' || !!contactOwnerHsId
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -419,6 +419,30 @@ export async function GET(req: NextRequest) {
     return `telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`
   }
   const forcedScopedOrFilter = buildTeleproOrFilter(forcedScopedTeleproIds)
+  const expandedOwnerScopeValues = contactOwnerHsId
+    ? await expandTeleproFilterValues(contactOwnerHsId)
+    : []
+  const effectiveOwnerScopeCsv = expandedOwnerScopeValues.length > 0
+    ? expandedOwnerScopeValues.join(',')
+    : contactOwnerHsId
+  const buildOwnerScopeOrFilter = (vals: string[]): string => {
+    const uniq = [...new Set(vals.map(v => String(v).trim()).filter(Boolean))]
+    if (uniq.length === 0) return ''
+    const escaped = uniq.map(pgQuoteForScoped)
+    const clauses = [
+      `hubspot_owner_id.in.(${escaped.join(',')})`,
+      `closer_du_contact_owner_id.in.(${escaped.join(',')})`,
+    ]
+    const numericOnly = uniq.filter(v => /^\d+$/.test(v))
+    if (numericOnly.length > 0) {
+      clauses.push(`telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`)
+    }
+    return clauses.join(',')
+  }
+  const ownerScopeValues = effectiveOwnerScopeCsv
+    ? effectiveOwnerScopeCsv.split(',').map(v => v.trim()).filter(Boolean)
+    : []
+  const ownerScopeOrFilter = buildOwnerScopeOrFilter(ownerScopeValues)
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
   // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
@@ -628,10 +652,7 @@ export async function GET(req: NextRequest) {
     if (effectiveNoTelepro) fastQ = fastQ.is('telepro_user_id', null)
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
     if (forcedScopedOrFilter) fastQ = fastQ.or(forcedScopedOrFilter)
-    if (contactOwnerHsId) {
-      const vals = fastSplit(contactOwnerHsId)
-      fastQ = vals.length > 1 ? fastQ.in('hubspot_owner_id', vals) : fastQ.eq('hubspot_owner_id', contactOwnerHsId)
-    }
+    if (ownerScopeOrFilter) fastQ = fastQ.or(ownerScopeOrFilter)
     if (leadStatus) {
       const vals = fastSplit(leadStatus)
       fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
@@ -775,10 +796,7 @@ export async function GET(req: NextRequest) {
       if (withTelepro) fastMvQ = fastMvQ.not('telepro_user_id', 'is', null)
       if (effectiveNoTelepro) fastMvQ = fastMvQ.is('telepro_user_id', null)
       if (forcedScopedOrFilter) fastMvQ = fastMvQ.or(forcedScopedOrFilter)
-      if (contactOwnerHsId) {
-        const vals = splitMultiFast(contactOwnerHsId)
-        fastMvQ = vals.length > 1 ? fastMvQ.in('hubspot_owner_id', vals) : fastMvQ.eq('hubspot_owner_id', contactOwnerHsId)
-      }
+      if (ownerScopeOrFilter) fastMvQ = fastMvQ.or(ownerScopeOrFilter)
       if (closerContactHsId) {
         const vals = splitMultiFast(closerContactHsId)
         fastMvQ = vals.length > 1 ? fastMvQ.in('closer_du_contact_owner_id', vals) : fastMvQ.eq('closer_du_contact_owner_id', closerContactHsId)
@@ -1535,10 +1553,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Filtre par propriétaire du contact (view télépro)
-  if (contactOwnerHsId) {
-    const vals = contactOwnerHsId.split(',').filter(Boolean)
-    query = vals.length > 1 ? query.in('hubspot_owner_id', vals) : query.eq('hubspot_owner_id', contactOwnerHsId)
-  }
+  if (ownerScopeOrFilter) query = query.or(ownerScopeOrFilter)
 
   // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
   if (contactOwnerNot) {
