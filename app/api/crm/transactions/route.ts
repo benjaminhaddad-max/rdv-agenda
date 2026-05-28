@@ -29,11 +29,10 @@ export async function GET(req: NextRequest) {
   const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
   // Pipeline (saison). Defaut: 2026-2027. 'all' = toutes saisons.
   const pipelineParam = searchParams.get('pipeline') ?? '2313043166'
-  // Cache les deals "zombies" : ceux qui croupissent depuis 90+ jours dans
-  // un stage passif (À Replanifier, Délai Réflexion). Aligne le kanban
-  // sur HubSpot (qui filtre déjà ce genre de deals dans sa vue par défaut).
-  // Désactivable via ?hide_stale=0 si on veut tout voir.
-  const hideStale = searchParams.get('hide_stale') !== '0'
+  // Par défaut on affiche TOUT (notamment après imports/backfills) pour éviter
+  // l'effet "transactions manquantes". Le filtre stale devient opt-in via
+  // ?hide_stale=1 quand on veut volontairement épurer le kanban.
+  const hideStale = searchParams.get('hide_stale') === '1'
   const STALE_PASSIVE_STAGES = new Set([
     '3165428979', // A Replanifier
     '3165428981', // Delai Reflexion
