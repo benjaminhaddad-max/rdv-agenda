@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       const batch = contactIds.slice(i, i + BATCH)
       const { data: contacts } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle, zone_localite, hubspot_owner_id, telepro_user_id')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle, zone_localite, hubspot_owner_id, telepro_user_id, closer_du_contact_owner_id')
         .in('hubspot_contact_id', batch)
       for (const c of contacts ?? []) {
         contactMap[c.hubspot_contact_id] = c
@@ -151,7 +151,11 @@ export async function GET(req: NextRequest) {
 
     if (stage      && d.dealstage !== stage)                   return false
     if (formation  && d.formation !== formation)               return false
-    if (closerHsId && d.hubspot_owner_id !== closerHsId)       return false
+    if (closerHsId) {
+      const dealCloserId = String(d.hubspot_owner_id ?? '').trim()
+      const contactCloserId = String(contact?.closer_du_contact_owner_id ?? '').trim()
+      if (dealCloserId !== closerHsId && contactCloserId !== closerHsId) return false
+    }
     if (teleproHsId) {
       const dealTeleproId = String(d.teleprospecteur ?? '').trim()
       const contactTeleproId = String(contact?.telepro_user_id ?? '').trim()
@@ -159,7 +163,11 @@ export async function GET(req: NextRequest) {
       // Keep deal teleprospecteur fallback for legacy rows.
       if (contactTeleproId !== teleproHsId && dealTeleproId !== teleproHsId) return false
     }
-    if (contactOwnerHsId && contact?.hubspot_owner_id !== contactOwnerHsId) return false
+    if (contactOwnerHsId) {
+      // Closer portal scope must follow the closer stored on contacts.
+      const contactCloserId = String(contact?.closer_du_contact_owner_id ?? '').trim()
+      if (contactCloserId !== contactOwnerHsId) return false
+    }
     if (classe     && contact?.classe_actuelle !== classe)     return false
 
     // Filtre "zombie" : deal en stage passif (À Replanifier / Délai Réflexion)
@@ -249,7 +257,8 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function enrichDeal(d: any) {
     const contact = d._contact
-    const closer  = d.hubspot_owner_id ? userByOwnerId[d.hubspot_owner_id] ?? null : null
+    const closerRef = String(contact?.closer_du_contact_owner_id ?? d.hubspot_owner_id ?? '').trim()
+    const closer  = closerRef ? userByOwnerId[closerRef] ?? null : null
     const teleproRef = String(d.teleprospecteur ?? contact?.telepro_user_id ?? '').trim()
     const telepro = teleproRef
       ? (userByUserId[teleproRef] ?? userByOwnerId[teleproRef] ?? null)
