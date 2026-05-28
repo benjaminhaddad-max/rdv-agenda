@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       const batch = contactIds.slice(i, i + BATCH)
       const { data: contacts } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle, zone_localite, hubspot_owner_id')
+        .select('hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle, zone_localite, hubspot_owner_id, telepro_user_id')
         .in('hubspot_contact_id', batch)
       for (const c of contacts ?? []) {
         contactMap[c.hubspot_contact_id] = c
@@ -152,7 +152,13 @@ export async function GET(req: NextRequest) {
     if (stage      && d.dealstage !== stage)                   return false
     if (formation  && d.formation !== formation)               return false
     if (closerHsId && d.hubspot_owner_id !== closerHsId)       return false
-    if (teleproHsId && d.teleprospecteur !== teleproHsId)      return false
+    if (teleproHsId) {
+      const dealTeleproId = String(d.teleprospecteur ?? '').trim()
+      const contactTeleproId = String(contact?.telepro_user_id ?? '').trim()
+      // Primary source of truth: crm_contacts.telepro_user_id.
+      // Keep deal teleprospecteur fallback for legacy rows.
+      if (contactTeleproId !== teleproHsId && dealTeleproId !== teleproHsId) return false
+    }
     if (contactOwnerHsId && contact?.hubspot_owner_id !== contactOwnerHsId) return false
     if (classe     && contact?.classe_actuelle !== classe)     return false
 
@@ -187,16 +193,22 @@ export async function GET(req: NextRequest) {
     const keep: any[] = []
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function rankDeal(d: any): [number, number, string] {
+    function rankDeal(d: any): [number, number, number, string] {
+      // Règle métier:
+      // si un contact a du "Fermé Perdu" + une transaction active aval
+      // (Pré-inscription / Finalisation / Inscription Confirmée),
+      // on privilégie toujours la transaction active.
+      const isActiveDownstream = d.dealstage === '3165428982' || d.dealstage === '3165428983' || d.dealstage === '3165428984' ? 1 : 0
       const isDpl = String(d.hubspot_deal_id || '').startsWith('dpl_') ? 1 : 0
       const t = Date.parse(d.createdate || d.closedate || d.synced_at || '') || 0
-      return [isDpl, t, String(d.hubspot_deal_id || '')]
+      return [isActiveDownstream, isDpl, t, String(d.hubspot_deal_id || '')]
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function isBetter(candidate: any, current: any): boolean {
-      const [cDpl, cTime, cId] = rankDeal(candidate)
-      const [xDpl, xTime, xId] = rankDeal(current)
+      const [cActive, cDpl, cTime, cId] = rankDeal(candidate)
+      const [xActive, xDpl, xTime, xId] = rankDeal(current)
+      if (cActive !== xActive) return cActive > xActive
       if (cDpl !== xDpl) return cDpl > xDpl
       if (cTime !== xTime) return cTime > xTime
       return cId > xId
@@ -238,7 +250,10 @@ export async function GET(req: NextRequest) {
   function enrichDeal(d: any) {
     const contact = d._contact
     const closer  = d.hubspot_owner_id ? userByOwnerId[d.hubspot_owner_id] ?? null : null
-    const telepro = d.teleprospecteur  ? userByUserId[d.teleprospecteur]   ?? null : null
+    const teleproRef = String(d.teleprospecteur ?? contact?.telepro_user_id ?? '').trim()
+    const telepro = teleproRef
+      ? (userByUserId[teleproRef] ?? userByOwnerId[teleproRef] ?? null)
+      : null
     return {
       hubspot_deal_id: d.hubspot_deal_id,
       dealname:        d.dealname,
@@ -248,7 +263,7 @@ export async function GET(req: NextRequest) {
       createdate:      d.createdate,
       description:     d.description,
       hubspot_owner_id: d.hubspot_owner_id,
-      teleprospecteur: d.teleprospecteur,
+      teleprospecteur: d.teleprospecteur ?? contact?.telepro_user_id ?? null,
       closer,
       telepro,
       contact: contact ? {
