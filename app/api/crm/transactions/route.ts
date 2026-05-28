@@ -170,6 +170,55 @@ export async function GET(req: NextRequest) {
     return true
   })
 
+  // ── Dédoublonnage métier (1 contact = 1 transaction) ──────────────────────
+  // Dans les colonnes aval gérées par Diploma, un même contact ne doit pas
+  // apparaître plusieurs fois. On garde une transaction canonique par contact.
+  {
+    const DEDUP_STAGES = new Set([
+      '3165428982', // Pré-inscription
+      '3165428983', // Finalisation
+      '3165428984', // Inscription Confirmée
+      '3165428985', // Fermé Perdu
+    ])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chosenByContact = new Map<string, any>()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const keep: any[] = []
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function rankDeal(d: any): [number, number, string] {
+      const isDpl = String(d.hubspot_deal_id || '').startsWith('dpl_') ? 1 : 0
+      const t = Date.parse(d.createdate || d.closedate || d.synced_at || '') || 0
+      return [isDpl, t, String(d.hubspot_deal_id || '')]
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function isBetter(candidate: any, current: any): boolean {
+      const [cDpl, cTime, cId] = rankDeal(candidate)
+      const [xDpl, xTime, xId] = rankDeal(current)
+      if (cDpl !== xDpl) return cDpl > xDpl
+      if (cTime !== xTime) return cTime > xTime
+      return cId > xId
+    }
+
+    for (const d of rows) {
+      const inDedupStage = d.dealstage && DEDUP_STAGES.has(d.dealstage)
+      const cid = d.hubspot_contact_id ? String(d.hubspot_contact_id).trim() : ''
+      if (!inDedupStage || !cid) {
+        keep.push(d)
+        continue
+      }
+
+      const existing = chosenByContact.get(cid)
+      if (!existing || isBetter(d, existing)) {
+        chosenByContact.set(cid, d)
+      }
+    }
+
+    rows = [...keep, ...chosenByContact.values()]
+  }
+
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stageStats: Record<string, number> = {}
   const formationStats: Record<string, number> = {}
