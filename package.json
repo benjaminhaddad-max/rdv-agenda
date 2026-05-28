@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "benchmark:crm": "node scripts/benchmark-crm.mjs",
+    "parity:crm": "node scripts/check-crm-parity.mjs",
+    "sync:crm:deals:2026:dry": "node scripts/sync-deals-2026-one-shot.mjs --dry-run",
+    "sync:crm:deals:2026:run": "node scripts/sync-deals-2026-one-shot.mjs --execute",
     "typesense:reindex:crm": "node scripts/typesense-reindex-crm.mjs"
   },
   "dependencies": {
