@@ -12,6 +12,23 @@ import { logger } from '@/lib/logger'
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || ''
 const APP_SECRET = process.env.META_APP_SECRET || ''
 
+function metaFieldDataToValues(raw: unknown): Record<string, unknown> {
+  if (!Array.isArray(raw)) return {}
+  const out: Record<string, unknown> = {}
+  for (const item of raw as Array<Record<string, unknown>>) {
+    const name = String(item?.name ?? '').trim()
+    if (!name) continue
+    const values = item?.values
+    if (Array.isArray(values)) {
+      const cleaned = values.map(v => String(v)).filter(Boolean)
+      out[name] = cleaned.length <= 1 ? (cleaned[0] ?? '') : cleaned.join(', ')
+    } else if (values !== null && values !== undefined) {
+      out[name] = String(values)
+    }
+  }
+  return out
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const mode = searchParams.get('hub.mode')
@@ -154,6 +171,20 @@ export async function POST(req: NextRequest) {
         error: result.error || null,
         processed_at: new Date().toISOString(),
       })
+
+      // Mirror vers la timeline CRM pour affichage immédiat des formulaires
+      // soumis sur la fiche contact.
+      if (result.contactId) {
+        await db.from('crm_form_submissions').upsert([{
+          hubspot_contact_id: result.contactId,
+          form_id: String(lead.form_id || v.form_id || ''),
+          form_title: formMeta?.name || String(lead.form_id || v.form_id || 'Meta Lead Ads'),
+          form_type: 'meta_lead_ads',
+          page_url: null,
+          values: metaFieldDataToValues(lead.field_data),
+          submitted_at: lead.created_time || new Date().toISOString(),
+        }], { onConflict: 'hubspot_contact_id,form_id,submitted_at' })
+      }
     }
   }
 
