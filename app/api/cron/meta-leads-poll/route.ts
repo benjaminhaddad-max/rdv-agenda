@@ -17,6 +17,23 @@ import { requireCronSecret } from '@/lib/api-auth'
 
 export const maxDuration = 300
 
+function metaFieldDataToValues(raw: unknown): Record<string, unknown> {
+  if (!Array.isArray(raw)) return {}
+  const out: Record<string, unknown> = {}
+  for (const item of raw as Array<Record<string, unknown>>) {
+    const name = String(item?.name ?? '').trim()
+    if (!name) continue
+    const values = item?.values
+    if (Array.isArray(values)) {
+      const cleaned = values.map(v => String(v)).filter(Boolean)
+      out[name] = cleaned.length <= 1 ? (cleaned[0] ?? '') : cleaned.join(', ')
+    } else if (values !== null && values !== undefined) {
+      out[name] = String(values)
+    }
+  }
+  return out
+}
+
 function isFormProcessable(status: string | null | undefined): boolean {
   // Meta renvoie parfois "ACTIVE", "active" ou null selon le contexte.
   // On traite par defaut sauf si le form est explicitement archive/disabled.
@@ -124,6 +141,20 @@ export async function GET(req: NextRequest) {
             error: result.error || null,
             processed_at: new Date().toISOString(),
           })
+          // Hydrate directement la timeline CRM pour que l'activite "Formulaire"
+          // apparaisse sans dépendre des fallbacks API.
+          if (result.contactId) {
+            const submittedAt = new Date().toISOString()
+            await db.from('crm_form_submissions').upsert([{
+              hubspot_contact_id: result.contactId,
+              form_id: String(lead.form_id || form.form_id || ''),
+              form_title: form.name || String(lead.form_id || form.form_id || 'Meta Lead Ads'),
+              form_type: 'meta_lead_ads',
+              page_url: null,
+              values: metaFieldDataToValues(lead.field_data),
+              submitted_at: submittedAt,
+            }], { onConflict: 'hubspot_contact_id,form_id,submitted_at' })
+          }
           if (result.error) errors++
           else processed++
         } catch (e) {
