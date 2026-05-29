@@ -192,8 +192,19 @@ export async function GET(
   // On les remonte ici pour éviter une timeline vide.
   let normalizedFormSubmissions = [...(formSubmissions ?? [])]
   if (wantCore) {
+    const hasRenderableValues = (raw: unknown): boolean => {
+      if (!raw || typeof raw !== 'object') return false
+      return Object.entries(raw as Record<string, unknown>).some(([k, v]) => {
+        if (!k || k.startsWith('_') || k === 'hp') return false
+        if (v === null || v === undefined) return false
+        return String(v).trim().length > 0
+      })
+    }
     const hasCrmFormRows = normalizedFormSubmissions.length > 0
-    if (!hasCrmFormRows) {
+    const crmRowsHaveValues = normalizedFormSubmissions.some((r) => hasRenderableValues((r as Record<string, unknown>)?.values))
+    const shouldHydrateWithFallback = !hasCrmFormRows || !crmRowsHaveValues
+
+    if (shouldHydrateWithFallback) {
       const fallbackRows: Array<Record<string, unknown>> = []
       for (const cid of linkedContactIds) {
         const rows = await safeRows(
@@ -297,7 +308,7 @@ export async function GET(
           )
         }
 
-        normalizedFormSubmissions = fallbackRows.map((r) => {
+        const fallbackNormalized = fallbackRows.map((r) => {
           const fid = String(r.form_id ?? '')
           const submittedAt = String(r.submitted_at ?? '')
           const resolvedTitle = String((r._meta_form_title ?? formNameById.get(fid) ?? fid ?? 'Formulaire web'))
@@ -311,6 +322,47 @@ export async function GET(
             submitted_at: submittedAt,
           }
         })
+
+        if (!hasCrmFormRows) {
+          normalizedFormSubmissions = fallbackNormalized
+        } else {
+          const byKey = new Map<string, Record<string, unknown>>()
+          const makeKey = (row: Record<string, unknown>) =>
+            `${String(row.form_id ?? '')}|${String(row.submitted_at ?? '')}`
+
+          for (const row of normalizedFormSubmissions as Array<Record<string, unknown>>) {
+            byKey.set(makeKey(row), row)
+          }
+
+          for (const fb of fallbackNormalized) {
+            const key = makeKey(fb)
+            const existing = byKey.get(key)
+            if (!existing) {
+              byKey.set(key, fb)
+              continue
+            }
+
+            const existingValues = existing.values
+            const fallbackValues = fb.values
+            const existingHasValues = hasRenderableValues(existingValues)
+            const fallbackHasValues = hasRenderableValues(fallbackValues)
+
+            if (!existingHasValues && fallbackHasValues) {
+              byKey.set(key, {
+                ...existing,
+                values: fallbackValues,
+                page_url: existing.page_url ?? fb.page_url,
+                form_title: existing.form_title ?? fb.form_title,
+              })
+            } else if (!existing.page_url && fb.page_url) {
+              byKey.set(key, { ...existing, page_url: fb.page_url })
+            }
+          }
+
+          normalizedFormSubmissions = [...byKey.values()].sort((a, b) =>
+            String(b.submitted_at ?? '').localeCompare(String(a.submitted_at ?? ''))
+          )
+        }
       }
     }
   }
