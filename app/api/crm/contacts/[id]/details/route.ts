@@ -300,10 +300,11 @@ export async function GET(
         normalizedFormSubmissions = fallbackRows.map((r) => {
           const fid = String(r.form_id ?? '')
           const submittedAt = String(r.submitted_at ?? '')
+          const resolvedTitle = String((r._meta_form_title ?? formNameById.get(fid) ?? fid ?? 'Formulaire web'))
           return {
             id: `fallback_${String(r.id ?? '')}`,
             form_id: fid,
-            form_title: String(r._meta_form_title ?? formNameById.get(fid) || fid || 'Formulaire web'),
+            form_title: resolvedTitle,
             form_type: String(r._fallback_type ?? 'form_submissions_fallback'),
             page_url: r.source_url ?? null,
             values: r.data ?? {},

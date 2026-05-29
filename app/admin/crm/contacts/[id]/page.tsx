@@ -795,13 +795,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div key={month} className="mb-6">
                       <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
                       <ul className="space-y-3">
-                        {items.map(t => (
+                        {items.map(t => {
+                          const isForm = t.type === 'form'
+                          const formFields = isForm ? getFormFields(t.formValues) : []
+                          const isExpanded = expandedTimelineIds.has(t.id)
+                          return (
                           <li key={t.id} className="relative">
-                            {(() => {
-                              const isForm = t.type === 'form'
-                              const formFields = isForm ? getFormFields(t.formValues) : []
-                              const isExpanded = expandedTimelineIds.has(t.id)
-                              return (
                             <div className="absolute -left-[22px] top-3">
                               <TypeDot type={t.type} />
                             </div>
@@ -867,10 +866,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                 <EmailLinksSection links={t.emailCampaign.links} />
                               )}
                             </div>
-                              )
-                            })()}
                           </li>
-                        ))}
+                          )
+                        })}
                       </ul>
                     </div>
                   ))}
