@@ -110,7 +110,7 @@ export default function ParametresPage() {
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>
             Paramètres CRM
           </h1>
-          <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
             Réglages dynamiques modifiables sans redéploiement.
           </p>
           <div style={{ marginTop: 12 }}>
@@ -182,7 +182,7 @@ export default function ParametresPage() {
                 <div
                   key={s.key}
                   style={{
-                    background: '#fff', border: '1px solid ' + (justDone ? '#86efac' : '#cbd6e2'),
+                    background: '#fff', border: '1px solid ' + (justDone ? '#86efac' : '#e5ddc8'),
                     borderRadius: 12, padding: 16, transition: 'border-color .3s',
                   }}
                 >
@@ -193,7 +193,7 @@ export default function ParametresPage() {
                         {justDone && <CheckCircle2 size={16} style={{ color: '#22c55e' }} />}
                       </div>
                       {s.description && (
-                        <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 12, color: '#4a6070', lineHeight: 1.5 }}>
                           {s.description}
                         </div>
                       )}
@@ -207,7 +207,7 @@ export default function ParametresPage() {
                         width: 50, height: 28,
                         borderRadius: 999,
                         border: 'none',
-                        background: isOn ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#cbd6e2',
+                        background: isOn ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#e5ddc8',
                         cursor: isSaving ? 'wait' : 'pointer',
                         flexShrink: 0,
                         transition: 'background .2s',

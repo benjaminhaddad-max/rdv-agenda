@@ -61,7 +61,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
                 Bien cordialement,<br>
                 <strong>L'équipe Diploma Santé</strong>
               </p>
-              <a href="https://diploma-sante.fr" style="display:inline-block;background:#ccac71;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:600;">
+              <a href="https://diploma-sante.fr" style="display:inline-block;background:#E8C97B;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:600;">
                 En savoir plus
               </a>
             </td>
@@ -220,7 +220,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading || !campaign) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#516f90', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#4a6070', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         Chargement…
       </div>
     )
@@ -229,16 +229,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const statusMeta = STATUS_META[campaign.status] || STATUS_META.draft
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#33475b', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#516f90', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <ChevronLeft size={14} /> Campagnes
           </a>
-          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
+          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Mail size={16} style={{ color: '#ccac71', flexShrink: 0 }} />
+            <Mail size={16} style={{ color: '#E8C97B', flexShrink: 0 }} />
             <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</span>
             <span style={{ fontSize: 10, fontWeight: 600, color: statusMeta.color, background: statusMeta.bg, padding: '3px 8px', borderRadius: 999 }}>
               {statusMeta.label}
@@ -252,7 +252,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <button
             onClick={save}
             disabled={!dirty || saving}
-            style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8, padding: '6px 14px', color: '#33475b', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}
+            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 14px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1 }}
           >
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
@@ -261,7 +261,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #cbd6e2', display: 'flex', gap: 4 }}>
+      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4 }}>
         <Tab active={tab === 'content'} onClick={() => setTab('content')} icon={FileText} label="Contenu" />
         <Tab active={tab === 'preview'} onClick={() => setTab('preview')} icon={Eye} label="Prévisualisation" />
         <Tab active={tab === 'recipients'} onClick={() => setTab('recipients')} icon={Users} label="Destinataires" />
@@ -371,14 +371,14 @@ function SendConfirmModal({
         </div>
         <div style={{ padding: 20 }}>
           {loading ? (
-            <div style={{ textAlign: 'center', color: '#516f90', fontSize: 13, padding: '20px 0' }}>Calcul de l&apos;audience…</div>
+            <div style={{ textAlign: 'center', color: '#4a6070', fontSize: 13, padding: '20px 0' }}>Calcul de l&apos;audience…</div>
           ) : (
             <>
               <div style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.25)', borderRadius: 8, padding: 14, textAlign: 'center', marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: '#0038f0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Destinataires uniques</div>
                 <div style={{ fontSize: 32, fontWeight: 700, color: '#0038f0' }}>{expected.toLocaleString('fr-FR')}</div>
                 {preview && preview.sample.length > 0 && (
-                  <div style={{ fontSize: 11, color: '#516f90', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
                     Premiers : {preview.sample.map(s => s.email).slice(0, 3).join(', ')}{preview.sample.length > 3 && '…'}
                   </div>
                 )}
@@ -392,7 +392,7 @@ function SendConfirmModal({
                   <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#a16207', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
                     ⚠️ Cette action est <strong>irréversible</strong>. La campagne sera envoyée par batches de 200 toutes les minutes via le cron.
                   </div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 6 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: '#4a6070', fontWeight: 600, marginBottom: 6 }}>
                     Pour confirmer, tape le nombre de destinataires : <strong>{expected}</strong>
                   </label>
                   <input
@@ -400,7 +400,7 @@ function SendConfirmModal({
                     value={confirmText}
                     onChange={e => setConfirmText(e.target.value)}
                     placeholder={String(expected)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 14 }}
                   />
                 </>
               )}
@@ -408,7 +408,7 @@ function SendConfirmModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  style={{ flex: 1, padding: 10, border: '1px solid #cbd6e2', background: '#fff', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#33475b' }}
+                  style={{ flex: 1, padding: 10, border: '1px solid #e5ddc8', background: '#fff', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#0e1e35' }}
                 >Annuler</button>
                 <button
                   type="button"
@@ -416,7 +416,7 @@ function SendConfirmModal({
                   onClick={onConfirm}
                   style={{
                     flex: 1, padding: 10, border: 'none',
-                    background: canConfirm ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#cbd6e2',
+                    background: canConfirm ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#e5ddc8',
                     color: '#fff', borderRadius: 8, fontSize: 13,
                     cursor: canConfirm ? 'pointer' : 'not-allowed',
                     fontFamily: 'inherit', fontWeight: 600,
@@ -432,12 +432,12 @@ function SendConfirmModal({
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Brouillon',  color: '#516f90', bg: '#ffffff' },
+  draft:     { label: 'Brouillon',  color: '#4a6070', bg: '#ffffff' },
   scheduled: { label: 'Programmée', color: '#06b6d4', bg: 'rgba(6,182,212,0.15)' },
   sending:   { label: 'Envoi…',     color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   sent:      { label: 'Envoyée',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
   failed:    { label: 'Échec',      color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  archived:  { label: 'Archivée',   color: '#516f90', bg: 'rgba(139,143,168,0.15)' },
+  archived:  { label: 'Archivée',   color: '#4a6070', bg: 'rgba(139,143,168,0.15)' },
 }
 
 // ─── Tab : Contenu ───────────────────────────────────────────────────────
@@ -466,8 +466,8 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           </Field>
           <Field label="Sujet de l'email">
             <input value={campaign.subject} onChange={e => update({ subject: e.target.value })} style={inputStyle} />
-            <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>
-              Variables : <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>
+            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>
+              Variables : <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code>
             </div>
           </Field>
           <Field label="Preheader (aperçu dans la boîte mail)">
@@ -498,10 +498,10 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
 
         <Card title="Design de l'email" icon={Palette}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-            <div style={{ fontSize: 11, color: '#516f90', lineHeight: 1.5, flex: 1 }}>
+            <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, flex: 1 }}>
               Drag & drop des blocs depuis la palette à gauche :
               <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
-              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code>, <code style={{ color: '#ccac71' }}>{'{{email}}'}</code>.
+              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code>, <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code>, <code style={{ color: '#E8C97B' }}>{'{{email}}'}</code>.
             </div>
             <BrevoImportButton
               onImport={(html) => {
@@ -534,7 +534,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
       {/* Panneau droite */}
       <div>
         <Card title="Envoi de test" icon={TestTube2}>
-          <div style={{ fontSize: 12, color: '#516f90', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 8 }}>
             Envoie-toi un email de test avant d&apos;envoyer à tes prospects.
           </div>
           <input
@@ -547,7 +547,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           <button
             onClick={sendTest}
             disabled={!testEmail.trim() || testSending}
-            style={{ marginTop: 10, width: '100%', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#ccac71', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !testEmail.trim() || testSending ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            style={{ marginTop: 10, width: '100%', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !testEmail.trim() || testSending ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
           >
             <Send size={13} /> {testSending ? 'Envoi…' : 'Envoyer le test'}
           </button>
@@ -570,7 +570,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
             const inProgress = campaign.status === 'sending'
             return (
               <>
-                <div style={{ fontSize: 12, color: '#516f90', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 12 }}>
                   {sent ? 'Cette campagne a déjà été envoyée.' : inProgress ? 'Envoi en cours…' : 'Avant l\'envoi vérifie que :'}
                 </div>
                 {!sent && (
@@ -587,8 +587,8 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
                     marginTop: 12,
                     width: '100%',
                     background: ready && !sent ? 'linear-gradient(135deg,#0038f0,#2ea3f2)' : '#ffffff',
-                    border: ready && !sent ? 'none' : '1px solid #cbd6e2',
-                    color: ready && !sent ? '#fff' : '#516f90',
+                    border: ready && !sent ? 'none' : '1px solid #e5ddc8',
+                    color: ready && !sent ? '#fff' : '#4a6070',
                     padding: '10px',
                     borderRadius: 8,
                     cursor: ready && !sent ? 'pointer' : 'not-allowed',
@@ -626,11 +626,11 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Aide" icon={AlertCircle}>
-          <div style={{ fontSize: 12, color: '#516f90', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: '#4a6070', lineHeight: 1.5 }}>
             💡 <strong>Variables disponibles :</strong><br />
-            <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
-            <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code> — nom<br />
-            <code style={{ color: '#ccac71' }}>{'{{email}}'}</code> — email<br /><br />
+            <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
+            <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code> — nom<br />
+            <code style={{ color: '#E8C97B' }}>{'{{email}}'}</code> — email<br /><br />
             Les variables sont remplacées automatiquement à l&apos;envoi.
           </div>
         </Card>
@@ -674,7 +674,7 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
         <BigStat label="Taux de bounce" value={`${bounceRate}%`} color="#ef4444" sub={`${campaign.total_bounces} emails`} />
       </div>
       <Card title="Résumé">
-        <div style={{ fontSize: 13, color: '#516f90', lineHeight: 1.8 }}>
+        <div style={{ fontSize: 13, color: '#4a6070', lineHeight: 1.8 }}>
           📅 <strong>Envoi :</strong> {campaign.sent_at ? new Date(campaign.sent_at).toLocaleString('fr-FR') : '–'}<br />
           👥 <strong>Destinataires ciblés :</strong> {campaign.total_recipients}<br />
           ✉️ <strong>Emails envoyés :</strong> {campaign.total_sent}<br />
@@ -690,10 +690,10 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
 
 function BigStat({ label, value, color, sub }: { label: string; value: number | string; color: string; sub?: string }) {
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20 }}>
-      <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{label}</div>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20 }}>
+      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#516f90', marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>{sub}</div>}
     </div>
   )
 }
@@ -706,9 +706,9 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
       style={{
         background: 'transparent',
         border: 'none',
-        borderBottom: `2px solid ${active ? '#ccac71' : 'transparent'}`,
+        borderBottom: `2px solid ${active ? '#E8C97B' : 'transparent'}`,
         padding: '12px 16px',
-        color: active ? '#ccac71' : '#516f90',
+        color: active ? '#E8C97B' : '#4a6070',
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
@@ -725,10 +725,10 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
 
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Mail; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        {Icon && <Icon size={14} style={{ color: '#ccac71' }} />}
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#33475b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
+        {Icon && <Icon size={14} style={{ color: '#E8C97B' }} />}
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
       </div>
       {children}
     </div>
@@ -738,7 +738,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Ma
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   )
@@ -748,7 +748,7 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {items.map((it, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: it.done ? '#33475b' : '#516f90' }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: it.done ? '#0e1e35' : '#4a6070' }}>
           {it.done ? <CheckCircle2 size={12} style={{ color: '#22c55e' }} /> : <Clock size={12} />}
           {it.text}
         </div>
@@ -759,11 +759,11 @@ function Checklist({ items }: { items: Array<{ done: boolean; text: string }> })
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#f5f8fa',
-  border: '1px solid #cbd6e2',
+  background: '#f7f4ee',
+  border: '1px solid #e5ddc8',
   borderRadius: 8,
   padding: '8px 12px',
-  color: '#33475b',
+  color: '#0e1e35',
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',
@@ -789,10 +789,10 @@ function BrevoImportButton({ onImport }: { onImport: (html: string) => void }) {
         onClick={() => setOpen(true)}
         style={{
           background: '#ffffff',
-          border: '1px solid #cbd6e2',
+          border: '1px solid #e5ddc8',
           borderRadius: 8,
           padding: '6px 12px',
-          color: '#33475b',
+          color: '#0e1e35',
           fontSize: 12,
           fontWeight: 600,
           cursor: 'pointer',
@@ -865,16 +865,16 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 80 }} />
-      <div style={{ position: 'fixed', top: '5vh', left: '5vw', right: '5vw', bottom: '5vh', background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', top: '5vh', left: '5vw', right: '5vw', bottom: '5vh', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #cbd6e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#33475b' }}>⚡ Templates Brevo</h3>
-            <div style={{ fontSize: 11, color: '#516f90', marginTop: 2 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>⚡ Templates Brevo</h3>
+            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>
               Choisis un template depuis ton compte Brevo. Il sera importé dans l&apos;éditeur visuel ci-dessous.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#516f90', cursor: 'pointer', padding: 6 }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 6 }}>
             <X size={18} />
           </button>
         </div>
@@ -882,15 +882,15 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
         {/* Body */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', minHeight: 0 }}>
           {/* Liste à gauche */}
-          <div style={{ borderRight: '1px solid #cbd6e2', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: 12, borderBottom: '1px solid #cbd6e2' }}>
+          <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: 12, borderBottom: '1px solid #e5ddc8' }}>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Rechercher un template…"
                 style={{ ...inputStyle, fontSize: 12 }}
               />
-              <div style={{ fontSize: 11, color: '#516f90', marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6 }}>
                 {loading ? 'Chargement…' : `${filtered.length} template${filtered.length > 1 ? 's' : ''}`}
               </div>
             </div>
@@ -899,9 +899,9 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
               {error ? (
                 <div style={{ padding: 16, color: '#ef4444', fontSize: 12 }}>❌ {error}</div>
               ) : loading ? (
-                <div style={{ padding: 20, color: '#516f90', fontSize: 12, textAlign: 'center' }}>Chargement…</div>
+                <div style={{ padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Chargement…</div>
               ) : filtered.length === 0 ? (
-                <div style={{ padding: 20, color: '#516f90', fontSize: 12, textAlign: 'center' }}>Aucun template</div>
+                <div style={{ padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucun template</div>
               ) : (
                 filtered.map(t => {
                   const active = selectedId === t.id
@@ -920,16 +920,16 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                       }}
-                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f5f8fa' }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f7f4ee' }}
                       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {t.name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {t.subject || '(pas de sujet)'}
                       </div>
-                      <div style={{ fontSize: 10, color: '#7c98b6', marginTop: 3, display: 'flex', gap: 8 }}>
+                      <div style={{ fontSize: 10, color: '#4a6070', marginTop: 3, display: 'flex', gap: 8 }}>
                         {t.isActive && <span style={{ color: '#22c55e' }}>● Actif</span>}
                         {t.tag && <span>🏷 {t.tag}</span>}
                       </div>
@@ -942,8 +942,8 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
 
           {/* Preview à droite */}
           <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid #cbd6e2', background: '#f5f8fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b' }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid #e5ddc8', background: '#f7f4ee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>
                 {selectedId ? `Aperçu : ${templates.find(t => t.id === selectedId)?.name}` : 'Sélectionne un template pour le prévisualiser'}
               </div>
               {selectedId && previewHtml && (
@@ -955,7 +955,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                     border: '1px solid rgba(204,172,113,0.3)',
                     borderRadius: 8,
                     padding: '8px 16px',
-                    color: '#ccac71',
+                    color: '#E8C97B',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -967,9 +967,9 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                 </button>
               )}
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#f5f8fa' }}>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#f7f4ee' }}>
               {loadingPreview ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#516f90' }}>Chargement du template…</div>
+                <div style={{ padding: 40, textAlign: 'center', color: '#4a6070' }}>Chargement du template…</div>
               ) : previewHtml ? (
                 <iframe
                   srcDoc={previewHtml}
@@ -978,7 +978,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                   style={{ width: '100%', height: '100%', border: 'none', background: '#ffffff' }}
                 />
               ) : (
-                <div style={{ padding: 40, textAlign: 'center', color: '#7c98b6', fontSize: 13 }}>
+                <div style={{ padding: 40, textAlign: 'center', color: '#4a6070', fontSize: 13 }}>
                   Clique sur un template dans la liste pour voir l&apos;aperçu
                 </div>
               )}
@@ -987,8 +987,8 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
         </div>
 
         {/* Footer note */}
-        <div style={{ padding: '10px 20px', borderTop: '1px solid #cbd6e2', background: '#f5f8fa', fontSize: 11, color: '#516f90' }}>
-          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#ccac71' }}>app.brevo.com</a> puis cliquer ici pour les importer.
+        <div style={{ padding: '10px 20px', borderTop: '1px solid #e5ddc8', background: '#f7f4ee', fontSize: 11, color: '#4a6070' }}>
+          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#E8C97B' }}>app.brevo.com</a> puis cliquer ici pour les importer.
         </div>
       </div>
     </>

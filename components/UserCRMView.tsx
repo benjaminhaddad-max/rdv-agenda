@@ -9,7 +9,7 @@ import CRMEditDrawer from './CRMEditDrawer'
 // Charte Diploma Santé 2026
 const NAVY      = '#ffffff'      // bg page
 const NAVY_BG   = '#f6f9fc'      // bg champs (bleu pâle charte) — ne PAS utiliser le bleu nuit pour le fond des inputs
-const NAVY_BDR  = '#cbd6e2'      // bordures
+const NAVY_BDR  = '#e5ddc8'      // bordures
 const GOLD      = '#c6aa7c'      // doré charte
 const BLUE      = '#4fabdb'      // bleu Diploma
 const TEXT_DIM  = '#5b6b7a'      // texte secondaire (sur fond clair)
@@ -31,7 +31,7 @@ const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070' },
 }
 
 interface RdvUser {
@@ -391,7 +391,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
               {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : (ownerParam === 'telepro_id' || ownerParam === 'telepro_hs_id' || ownerParam === 'telepro_owner_hs_id') ? '👥 Mes Contacts' : '👥 Mes Contacts'}
               {total > 0 && (
                 <span style={{
@@ -450,7 +450,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
                 border: `1px solid ${search ? BLUE : NAVY_BDR}`,
                 borderRadius: 8,
                 padding: '7px 28px 7px 28px',
-                color: '#33475b',
+                color: '#0e1e35',
                 fontSize: 12,
                 fontFamily: 'inherit',
                 outline: 'none',
@@ -595,7 +595,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
         {/* Navigation pages */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: TEXT_MID }}>
-            Page <strong style={{ color: '#33475b' }}>{page + 1}</strong> / {totalPages}
+            Page <strong style={{ color: '#0e1e35' }}>{page + 1}</strong> / {totalPages}
             <span style={{ color: TEXT_DIM, marginLeft: 8 }}>({total} contacts)</span>
           </span>
           <div style={{ display: 'flex', gap: 4 }}>

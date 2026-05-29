@@ -45,7 +45,7 @@ const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: strin
   send_email:      { label: 'Envoyer un email',         icon: Mail,         color: '#2ea3f2' },
   send_sms:        { label: 'Envoyer un SMS',           icon: MessageSquare,color: '#0ea5e9' },
   create_task:     { label: 'Créer une tâche',          icon: CheckSquare,  color: '#22c55e' },
-  wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#ccac71' },
+  wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#E8C97B' },
   wait_until:      { label: 'Attendre (heure du jour)', icon: CalendarClock,color: '#f59e0b' },
   update_property: { label: 'Modifier une propriété',   icon: Edit3,        color: '#a855f7' },
   webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#ef4444' },
@@ -138,43 +138,43 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading || !wf) {
-    return <div style={{ padding: 40, color: '#516f90' }}>Chargement…</div>
+    return <div style={{ padding: 40, color: '#4a6070' }}>Chargement…</div>
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f8fa', fontFamily: 'Inter, system-ui, sans-serif', color: '#33475b' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 24px', height: 52, background: '#fff', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '0 24px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Link href="/admin/crm/workflows" style={{ color: '#516f90', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Link href="/admin/crm/workflows" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
             <ChevronLeft size={14} /> Workflows
           </Link>
-          <div style={{ width: 1, height: 22, background: '#cbd6e2' }} />
+          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <Workflow size={16} style={{ color: '#0038f0' }} />
           <input
             value={wf.name}
             onChange={e => update({ name: e.target.value })}
-            style={{ fontSize: 14, fontWeight: 600, border: 'none', outline: 'none', background: 'transparent', minWidth: 200, fontFamily: 'inherit', color: '#33475b' }}
+            style={{ fontSize: 14, fontWeight: 600, border: 'none', outline: 'none', background: 'transparent', minWidth: 200, fontFamily: 'inherit', color: '#0e1e35' }}
           />
-          <span style={{ fontSize: 11, color: wf.status === 'active' ? '#22c55e' : '#516f90', background: wf.status === 'active' ? 'rgba(34,197,94,0.12)' : '#f5f8fa', padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: wf.status === 'active' ? '#22c55e' : '#4a6070', background: wf.status === 'active' ? 'rgba(34,197,94,0.12)' : '#f7f4ee', padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>
             {wf.status}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {dirty && <span style={{ fontSize: 11, color: '#f59e0b' }}>● Modifié</span>}
-          <button onClick={save} disabled={!dirty || saving} style={{ background: '#fff', border: '1px solid #cbd6e2', padding: '6px 12px', borderRadius: 6, cursor: !dirty || saving ? 'not-allowed' : 'pointer', fontSize: 12, opacity: !dirty || saving ? 0.5 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button onClick={save} disabled={!dirty || saving} style={{ background: '#fff', border: '1px solid #e5ddc8', padding: '6px 12px', borderRadius: 6, cursor: !dirty || saving ? 'not-allowed' : 'pointer', fontSize: 12, opacity: !dirty || saving ? 0.5 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
           <button
             onClick={() => setShowTestModal(true)}
-            style={{ background: '#fff', border: '1px solid #cbd6e2', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, color: '#a855f7' }}
+            style={{ background: '#fff', border: '1px solid #e5ddc8', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, color: '#a855f7' }}
             title="Tester le workflow sur un contact"
           >
             <FlaskConical size={12} /> Tester
           </button>
           <button
             onClick={toggleActive}
-            style={{ background: wf.status === 'active' ? '#ccac71' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
+            style={{ background: wf.status === 'active' ? '#E8C97B' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
           >
             {wf.status === 'active' ? <><Pause size={12} /> Mettre en pause</> : <><Play size={12} /> Activer</>}
           </button>
@@ -183,7 +183,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', maxWidth: 1400, margin: '0 auto', gap: 20, padding: 24 }}>
         {/* Builder — flowchart vertical */}
-        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #cbd6e2 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #cbd6e2', padding: '24px 0' }}>
+        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #e5ddc8 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #e5ddc8', padding: '24px 0' }}>
           <div style={{ maxWidth: 540, margin: '0 auto', position: 'relative' }}>
             {/* Trigger */}
             <FlowTrigger wf={wf} update={update} forms={forms} />
@@ -255,7 +255,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
           <Card title="Stats" icon={Activity}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 12 }}>
               <Stat label="Entrés" value={wf.total_enrolled} color="#0038f0" />
-              <Stat label="En cours" value={wf.running_executions} color="#ccac71" />
+              <Stat label="En cours" value={wf.running_executions} color="#E8C97B" />
               <Stat label="Complétés" value={wf.total_completed} color="#22c55e" />
               <Stat label="Échecs" value={wf.total_failed} color="#ef4444" />
             </div>
@@ -266,7 +266,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
               <input type="checkbox" checked={wf.re_enroll} onChange={e => update({ re_enroll: e.target.checked })} />
               <div>
                 <div style={{ fontWeight: 600 }}>Re-inscription possible</div>
-                <div style={{ color: '#516f90' }}>Un même contact peut entrer plusieurs fois dans le workflow</div>
+                <div style={{ color: '#4a6070' }}>Un même contact peut entrer plusieurs fois dans le workflow</div>
               </div>
             </label>
             <textarea
@@ -274,7 +274,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
               onChange={e => update({ description: e.target.value })}
               placeholder="Description (interne)"
               rows={3}
-              style={{ width: '100%', marginTop: 12, padding: 8, border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }}
+              style={{ width: '100%', marginTop: 12, padding: 8, border: '1px solid #e5ddc8', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }}
             />
           </Card>
 
@@ -331,13 +331,13 @@ function ActiveHoursEditor({ hours, onChange }: { hours: Record<string, unknown>
         />
         <div>
           <div style={{ fontWeight: 600 }}>Restreindre les envois</div>
-          <div style={{ color: '#516f90' }}>Pas de mail/SMS hors plage</div>
+          <div style={{ color: '#4a6070' }}>Pas de mail/SMS hors plage</div>
         </div>
       </label>
 
       {enabled && (
         <>
-          <div style={{ fontSize: 10, color: '#516f90', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Jours</div>
+          <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Jours</div>
           <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
             {dayLabels.map((label, i) => (
               <button
@@ -345,9 +345,9 @@ function ActiveHoursEditor({ hours, onChange }: { hours: Record<string, unknown>
                 type="button"
                 onClick={() => toggleDay(i)}
                 style={{
-                  flex: 1, padding: '6px 0', border: '1px solid #cbd6e2',
+                  flex: 1, padding: '6px 0', border: '1px solid #e5ddc8',
                   background: days.includes(i) ? '#0038f0' : '#fff',
-                  color: days.includes(i) ? '#fff' : '#33475b',
+                  color: days.includes(i) ? '#fff' : '#0e1e35',
                   borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >{label}</button>
@@ -387,7 +387,7 @@ function GoalEditor({ filters, onChange }: { filters: Record<string, unknown>; o
   const lead = filters?.lead_status as string | undefined
   return (
     <div>
-      <div style={{ fontSize: 11, color: '#516f90', marginBottom: 8, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 8, lineHeight: 1.5 }}>
         Quand le contact atteint cet objectif, il sort automatiquement du workflow.
       </div>
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, cursor: 'pointer', marginBottom: 8 }}>
@@ -439,16 +439,16 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: 12, maxWidth: 520, width: '100%', overflow: 'hidden', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbd6e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, color: '#a855f7' }}>
             <FlaskConical size={14} /> Tester le workflow
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#516f90' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070' }}>✕</button>
         </div>
         <div style={{ padding: 20, overflowY: 'auto' }}>
           <label style={labelStyle}>HubSpot contact ID (ou ID natif)</label>
           <input value={contactId} onChange={e => setContactId(e.target.value)} placeholder="ex: 10000" style={inputStyle} autoFocus />
-          <div style={{ fontSize: 11, color: '#516f90', marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>
             Le workflow sera exécuté immédiatement pour ce contact (max 20 étapes inline). Les vraies actions s&apos;exécutent (email, SMS, tâche…) — utilise un de tes propres comptes pour tester.
           </div>
           <button
@@ -460,13 +460,13 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
           </button>
 
           {result && (
-            <div style={{ marginTop: 16, padding: 12, background: '#f5f8fa', borderRadius: 8, fontSize: 11 }}>
+            <div style={{ marginTop: 16, padding: 12, background: '#f7f4ee', borderRadius: 8, fontSize: 11 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>
                 {result.ok ? '✓ Test exécuté' : '✗ Erreur'}
               </div>
               {result.error && <div style={{ color: '#ef4444', marginBottom: 6 }}>{result.error}</div>}
               {result.execution && (
-                <div style={{ color: '#516f90', marginBottom: 8 }}>
+                <div style={{ color: '#4a6070', marginBottom: 8 }}>
                   Status : <strong>{result.execution.status}</strong>
                   {result.execution.next_run_at && <> · Prochain run : {new Date(result.execution.next_run_at).toLocaleString('fr-FR')}</>}
                 </div>
@@ -477,8 +477,8 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {result.logs.map((log: any, i: number) => (
-                      <li key={i} style={{ padding: '6px 8px', background: '#fff', border: '1px solid #cbd6e2', borderRadius: 4 }}>
-                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#ccac71' }}>
+                      <li key={i} style={{ padding: '6px 8px', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 4 }}>
+                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#E8C97B' }}>
                           {log.status === 'success' ? '✓' : log.status === 'failed' ? '✗' : '○'}
                         </span>{' '}
                         <span>{log.step_type}</span>
@@ -502,7 +502,7 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
-        <label style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>Type</label>
+        <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Type</label>
         <select
           value={wf.trigger_type}
           onChange={e => update({ trigger_type: e.target.value, trigger_config: {} })}
@@ -516,7 +516,7 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
       </div>
       {wf.trigger_type === 'form_submitted' && (
         <div>
-          <label style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>Formulaire</label>
+          <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Formulaire</label>
           <select value={wf.trigger_config?.form_id || ''} onChange={e => setCfg({ form_id: e.target.value || undefined, form_slug: undefined })} style={selectStyle}>
             <option value="">— N&apos;importe quel formulaire —</option>
             {forms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -526,11 +526,11 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
       {wf.trigger_type === 'property_changed' && (
         <>
           <div>
-            <label style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>Propriété (nom interne)</label>
+            <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Propriété (nom interne)</label>
             <input value={wf.trigger_config?.property || ''} onChange={e => setCfg({ property: e.target.value })} placeholder="ex: hs_lead_status" style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>Nouvelle valeur attendue (optionnel)</label>
+            <label style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Nouvelle valeur attendue (optionnel)</label>
             <input value={wf.trigger_config?.to || ''} onChange={e => setCfg({ to: e.target.value || undefined })} placeholder="ex: Pré-inscrit" style={inputStyle} />
           </div>
         </>
@@ -542,7 +542,7 @@ function TriggerEditor({ wf, update, forms }: { wf: Wf; update: (patch: Partial<
 // ─── FlowConnector ──────────────────────────────────────────────────────
 // Trait vertical qui relie deux noeuds du flowchart
 function FlowConnector() {
-  return <div style={{ width: 2, height: 24, background: '#cbd6e2', margin: '0 auto' }} />
+  return <div style={{ width: 2, height: 24, background: '#e5ddc8', margin: '0 auto' }} />
 }
 
 // ─── FlowEndMarker ──────────────────────────────────────────────────────
@@ -550,8 +550,8 @@ function FlowEndMarker() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <div style={{
-        background: '#fff', border: '1px solid #cbd6e2', borderRadius: 999,
-        padding: '6px 16px', fontSize: 11, fontWeight: 600, color: '#516f90',
+        background: '#fff', border: '1px solid #e5ddc8', borderRadius: 999,
+        padding: '6px 16px', fontSize: 11, fontWeight: 600, color: '#4a6070',
         textTransform: 'uppercase', letterSpacing: 0.5,
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
@@ -572,7 +572,7 @@ function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
         style={{
           width: 28, height: 28, borderRadius: 999,
           background: open ? 'linear-gradient(135deg,#2ea3f2,#0038f0)' : '#fff',
-          border: open ? 'none' : '1px solid #cbd6e2',
+          border: open ? 'none' : '1px solid #e5ddc8',
           color: open ? '#fff' : '#0038f0',
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: open ? '0 4px 12px rgba(0,56,240,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
@@ -583,7 +583,7 @@ function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
       {open && (
         <div style={{
           position: 'absolute', top: '120%', left: '50%', transform: 'translateX(-50%)',
-          background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, padding: 6,
+          background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 6,
           display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4,
           minWidth: 360, zIndex: 30, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
         }}>
@@ -596,9 +596,9 @@ function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
                 style={{
                   background: '#fff', border: '1px solid #f0f0f5', borderRadius: 6,
                   padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                  fontSize: 12, fontFamily: 'inherit', color: '#33475b', textAlign: 'left',
+                  fontSize: 12, fontFamily: 'inherit', color: '#0e1e35', textAlign: 'left',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f8fa')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f4ee')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
               >
                 <div style={{ width: 28, height: 28, borderRadius: 6, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -635,10 +635,10 @@ function FlowTrigger({ wf, update, forms }: { wf: Wf; update: (patch: Partial<Wf
             <Play size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Déclencheur</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#33475b' }}>{triggerLabel}</div>
+            <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Déclencheur</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35' }}>{triggerLabel}</div>
           </div>
-          <div style={{ color: '#516f90' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
+          <div style={{ color: '#4a6070' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
         </div>
         {open && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f5' }}>
@@ -665,7 +665,7 @@ function FlowStepCard({
   onDuplicate: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: '#516f90' }
+  const def = STEP_DEFS[step.step_type] || { label: step.step_type, icon: AlertCircle, color: '#4a6070' }
   const Icon = def.icon
 
   const setCfg = (patch: Record<string, unknown>) => onChange({ config: { ...step.config, ...patch } })
@@ -685,7 +685,7 @@ function FlowStepCard({
 
   return (
     <div style={{
-      background: '#fff', border: `1px solid ${open ? def.color : '#cbd6e2'}`,
+      background: '#fff', border: `1px solid ${open ? def.color : '#e5ddc8'}`,
       borderRadius: 12, overflow: 'hidden', position: 'relative',
       boxShadow: open ? `0 4px 16px ${def.color}22` : '0 1px 3px rgba(0,0,0,0.04)',
       transition: 'all 0.15s',
@@ -700,11 +700,11 @@ function FlowStepCard({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ background: '#f5f8fa', color: '#516f90', fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>#{index + 1}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#33475b' }}>{def.label}</span>
+            <span style={{ background: '#f7f4ee', color: '#4a6070', fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4 }}>#{index + 1}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{def.label}</span>
           </div>
           {summary && (
-            <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {summary}
             </div>
           )}
@@ -713,7 +713,7 @@ function FlowStepCard({
         <button onClick={(e) => { e.stopPropagation(); onMoveDown() }} disabled={index === total - 1} style={iconBtnStyle(index === total - 1)} title="Descendre"><ChevronDown size={13} /></button>
         <button onClick={(e) => { e.stopPropagation(); onDuplicate() }} style={iconBtnStyle(false)} title="Dupliquer"><Copy size={13} /></button>
         <button onClick={(e) => { e.stopPropagation(); onRemove() }} style={{ ...iconBtnStyle(false), color: '#ef4444' }} title="Supprimer"><Trash2 size={13} /></button>
-        <div style={{ color: '#516f90' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
+        <div style={{ color: '#4a6070' }}>{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</div>
       </div>
 
       {/* Body éditable (replié par défaut) */}
@@ -782,7 +782,7 @@ function FlowStepCard({
                   />
                 )}
               </div>
-              <div style={{ fontSize: 10, color: '#516f90', marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: '#4a6070', marginTop: 4 }}>
                 Le sender doit être préalablement validé sur le dashboard SMS Factor.
               </div>
             </div>
@@ -795,8 +795,8 @@ function FlowStepCard({
                 placeholder="Bonjour {{prenom}}, ..."
                 style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }}
               />
-              <div style={{ fontSize: 10, color: text.length > limit * 2 ? '#ef4444' : '#516f90', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Variables : <code style={{ color: '#ccac71' }}>{'{{prenom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{nom}}'}</code> <code style={{ color: '#ccac71' }}>{'{{classe}}'}</code></span>
+              <div style={{ fontSize: 10, color: text.length > limit * 2 ? '#ef4444' : '#4a6070', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Variables : <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{classe}}'}</code></span>
                 <span>{text.length} car. · {segments} SMS{segments > 1 ? 's' : ''}{hasUnicode ? ' (accents)' : ''}</span>
               </div>
             </div>
@@ -874,7 +874,7 @@ function FlowStepCard({
               style={inputStyle}
             />
           </div>
-          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#516f90' }}>
+          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#4a6070' }}>
             Ex : 9h, décalage 1 = demain 9h. 0 = aujourd&apos;hui (ou demain si l&apos;heure est passée).
           </div>
         </div>
@@ -957,19 +957,19 @@ function AddStepButton({ onAdd }: { onAdd: (type: string) => void }) {
     <div style={{ position: 'relative', marginTop: 8 }}>
       <button
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', padding: 12, background: '#fff', border: '2px dashed #cbd6e2', borderRadius: 10, color: '#0038f0', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
+        style={{ width: '100%', padding: 12, background: '#fff', border: '2px dashed #e5ddc8', borderRadius: 10, color: '#0038f0', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit' }}
       >
         <Plus size={14} /> Ajouter une étape
       </button>
       {open && (
-        <div style={{ marginTop: 8, background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+        <div style={{ marginTop: 8, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
           {Object.entries(STEP_DEFS).map(([type, def]) => {
             const Icon = def.icon
             return (
               <button
                 key={type}
                 onClick={() => { onAdd(type); setOpen(false) }}
-                style={{ background: 'transparent', border: '1px solid #f0f0f5', borderRadius: 6, padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: 'inherit', color: '#33475b', textAlign: 'left' }}
+                style={{ background: 'transparent', border: '1px solid #f0f0f5', borderRadius: 6, padding: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: 'inherit', color: '#0e1e35', textAlign: 'left' }}
               >
                 <div style={{ width: 24, height: 24, borderRadius: 4, background: def.color + '22', color: def.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={12} />
@@ -1006,9 +1006,9 @@ function divisorOf(unit: string): number {
 
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Mail; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#33475b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={12} style={{ color: '#ccac71' }} />}
+    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {Icon && <Icon size={12} style={{ color: '#E8C97B' }} />}
         {title}
       </div>
       {children}
@@ -1018,23 +1018,23 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Ma
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div style={{ background: '#f5f8fa', borderRadius: 6, padding: 10 }}>
-      <div style={{ fontSize: 10, color: '#516f90', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+    <div style={{ background: '#f7f4ee', borderRadius: 6, padding: 10 }}>
+      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color }}>{value.toLocaleString('fr-FR')}</div>
     </div>
   )
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 8px', border: '1px solid #cbd6e2', borderRadius: 4, fontSize: 12, fontFamily: 'inherit',
+  width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit',
 }
 const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 8px', border: '1px solid #cbd6e2', borderRadius: 4, fontSize: 12, fontFamily: 'inherit', background: '#fff',
+  width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit', background: '#fff',
 }
 const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 10, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3,
+  display: 'block', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3,
 }
 const iconBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  background: 'transparent', border: 'none', color: '#516f90', cursor: disabled ? 'not-allowed' : 'pointer',
+  background: 'transparent', border: 'none', color: '#4a6070', cursor: disabled ? 'not-allowed' : 'pointer',
   padding: 4, opacity: disabled ? 0.3 : 1,
 })

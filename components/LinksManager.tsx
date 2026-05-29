@@ -5,7 +5,7 @@ import { Copy, Check, Link, Plus, Trash2, ExternalLink } from 'lucide-react'
 
 const RDV_TYPES = [
   { key: 'parcoursup',   label: 'Accompagnement Parcoursup',       icon: '🎓', color: '#4cabdb' },
-  { key: 'medecine',     label: 'Coaching Orientation Médecine',    icon: '🩺', color: '#ccac71' },
+  { key: 'medecine',     label: 'Coaching Orientation Médecine',    icon: '🩺', color: '#E8C97B' },
   { key: 'information',  label: "Rendez-vous d'information",        icon: '💡', color: '#22c55e' },
   { key: 'inscription',  label: "Rendez-vous d'inscription",        icon: '✍️', color: '#a78bfa' },
 ]
@@ -147,7 +147,7 @@ export default function LinksManager({ onClose }: { onClose: () => void }) {
           {/* ── Générateur ── */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} style={{ color: '#ccac71' }} /> Générer un lien tracké
+              <Plus size={14} style={{ color: '#E8C97B' }} /> Générer un lien tracké
             </div>
 
             {/* Type de RDV */}
@@ -186,7 +186,7 @@ export default function LinksManager({ onClose }: { onClose: () => void }) {
                       background: selectedChannel === c.key ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
                       border: `1px solid ${selectedChannel === c.key ? 'rgba(204,172,113,0.4)' : 'rgba(255,255,255,0.1)'}`,
                       borderRadius: 7, padding: '5px 11px',
-                      color: selectedChannel === c.key ? '#ccac71' : '#8b8fa8',
+                      color: selectedChannel === c.key ? '#E8C97B' : '#8b8fa8',
                       fontSize: 12, fontWeight: selectedChannel === c.key ? 700 : 400,
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
@@ -232,7 +232,7 @@ export default function LinksManager({ onClose }: { onClose: () => void }) {
               <button
                 onClick={addLink}
                 disabled={!campaign.trim()}
-                style={{ background: campaign.trim() ? '#ccac71' : '#243d5c', color: campaign.trim() ? '#0b1624' : '#555870', border: 'none', borderRadius: 9, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: campaign.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: campaign.trim() ? '#E8C97B' : '#243d5c', color: campaign.trim() ? '#0b1624' : '#555870', border: 'none', borderRadius: 9, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: campaign.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Plus size={13} /> Sauvegarder le lien
               </button>
@@ -311,7 +311,7 @@ export default function LinksManager({ onClose }: { onClose: () => void }) {
           )}
 
           {savedLinks.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: '#3a5070', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: '24px 0', color: '#0e1e35', fontSize: 13 }}>
               Aucun lien sauvegardé. Générez votre premier lien de campagne ci-dessus.
             </div>
           )}

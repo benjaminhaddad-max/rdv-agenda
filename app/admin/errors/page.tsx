@@ -81,7 +81,7 @@ export default function AdminErrorsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Radar erreurs</h1>
-            <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Toutes les erreurs runtime du CRM, stockées en local dans Supabase. Aucune dépendance externe.
             </p>
           </div>
@@ -107,14 +107,14 @@ export default function AdminErrorsPage() {
                   style={{
                     ...card({ padding: 10, textAlign: 'left' }),
                     cursor: 'pointer',
-                    borderColor: filter.label === s.label ? '#0038f0' : '#cbd6e2',
+                    borderColor: filter.label === s.label ? '#0038f0' : '#e5ddc8',
                   }}
                 >
                   <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>{s.label}</div>
                   <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
                     {s.error > 0 && <span style={{ color: '#dc2626' }}>{s.error} err</span>}
                     {s.warn > 0 && <span style={{ color: '#f59e0b' }}>{s.warn} warn</span>}
-                    {s.info > 0 && <span style={{ color: '#64748b' }}>{s.info} info</span>}
+                    {s.info > 0 && <span style={{ color: '#4a6070' }}>{s.info} info</span>}
                   </div>
                 </button>
               ))}
@@ -145,7 +145,7 @@ export default function AdminErrorsPage() {
           {filter.label && (
             <button onClick={() => setFilter(f => ({ ...f, label: '' }))} style={btn('secondary')}>Effacer</button>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#4a6070' }}>
             {total} entrée{total > 1 ? 's' : ''}
           </span>
         </div>
@@ -157,7 +157,7 @@ export default function AdminErrorsPage() {
           <div style={card({ padding: 40, textAlign: 'center' })}>
             <CheckCircle2 size={36} style={{ color: '#22c55e', margin: '0 auto 10px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune erreur</div>
-            <div style={{ fontSize: 13, color: '#64748b' }}>
+            <div style={{ fontSize: 13, color: '#4a6070' }}>
               {filter.resolved === '0' ? 'Aucune erreur non résolue.' : 'Aucune erreur ne correspond aux filtres.'}
             </div>
           </div>
@@ -170,7 +170,7 @@ export default function AdminErrorsPage() {
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                     <button
                       onClick={() => toggleExpand(log.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748b', flexShrink: 0 }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#4a6070', flexShrink: 0 }}
                     >
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </button>
@@ -192,13 +192,13 @@ export default function AdminErrorsPage() {
                         <div style={{ marginTop: 8, fontSize: 11 }}>
                           {log.context && Object.keys(log.context).length > 0 && (
                             <div style={{ marginBottom: 6 }}>
-                              <div style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Context</div>
+                              <div style={{ fontWeight: 600, color: '#4a6070', marginBottom: 4 }}>Context</div>
                               <pre style={preStyle}>{JSON.stringify(log.context, null, 2)}</pre>
                             </div>
                           )}
                           {log.stack && (
                             <div>
-                              <div style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Stack</div>
+                              <div style={{ fontWeight: 600, color: '#4a6070', marginBottom: 4 }}>Stack</div>
                               <pre style={preStyle}>{log.stack}</pre>
                             </div>
                           )}
@@ -236,14 +236,14 @@ function LevelIcon({ level }: { level: LogLevel }) {
 function levelColor(level: LogLevel): string {
   if (level === 'error') return '#dc2626'
   if (level === 'warn') return '#f59e0b'
-  return '#64748b'
+  return '#4a6070'
 }
 
 const sectionTitle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginTop: 0, marginBottom: 10,
+  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginTop: 0, marginBottom: 10,
 }
 function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, ...extra }
+  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, ...extra }
 }
 function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   const base: React.CSSProperties = {
@@ -252,7 +252,7 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#516f90', border: '1px solid #cbd6e2' }
+  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
 function badge(color: string): React.CSSProperties {
   return {
@@ -261,10 +261,10 @@ function badge(color: string): React.CSSProperties {
   }
 }
 const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 140,
+  padding: '6px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 140,
 }
 const preStyle: React.CSSProperties = {
-  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: 8,
+  background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: 8,
   fontSize: 10, overflow: 'auto', maxHeight: 300, margin: 0,
   fontFamily: 'ui-monospace, monospace',
 }

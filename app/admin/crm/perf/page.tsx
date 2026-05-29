@@ -94,7 +94,7 @@ export default function CrmPerfPage() {
   }, [payload])
 
   return (
-    <main style={{ padding: 24, display: 'grid', gap: 16, background: '#f8fafc', minHeight: '100vh' }}>
+    <main style={{ padding: 24, display: 'grid', gap: 16, background: '#f7f4ee', minHeight: '100vh' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 24 }}>CRM Performance</h1>
@@ -103,7 +103,7 @@ export default function CrmPerfPage() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label htmlFor="wm" style={{ fontSize: 13, color: '#334155' }}>Fenetre</label>
+          <label htmlFor="wm" style={{ fontSize: 13, color: '#0e1e35' }}>Fenetre</label>
           <select
             id="wm"
             value={windowMinutes}
@@ -121,15 +121,15 @@ export default function CrmPerfPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         <section style={cardStyle}>
-          <div style={{ color: '#64748b', fontSize: 12 }}>Samples</div>
+          <div style={{ color: '#4a6070', fontSize: 12 }}>Samples</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{payload?.sample_count ?? 0}</div>
         </section>
         <section style={cardStyle}>
-          <div style={{ color: '#64748b', fontSize: 12 }}>Redis cache</div>
+          <div style={{ color: '#4a6070', fontSize: 12 }}>Redis cache</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{payload?.cache_enabled ? 'ON' : 'OFF'}</div>
         </section>
         <section style={cardStyle}>
-          <div style={{ color: '#64748b', fontSize: 12 }}>Etat</div>
+          <div style={{ color: '#4a6070', fontSize: 12 }}>Etat</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{loading ? 'Chargement' : 'Live'}</div>
         </section>
       </div>
@@ -139,7 +139,7 @@ export default function CrmPerfPage() {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5ddc8' }}>
                 <th>Endpoint</th>
                 <th>Etat</th>
                 <th>Count</th>
@@ -183,7 +183,7 @@ export default function CrmPerfPage() {
             </tbody>
           </table>
         </div>
-        <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: 12 }}>
+        <p style={{ margin: '10px 0 0', color: '#4a6070', fontSize: 12 }}>
           Vert: P95 dans la cible. Orange: au-dessus de la cible. Rouge: très au-dessus ou erreurs élevées.
         </p>
       </section>
@@ -198,7 +198,7 @@ export default function CrmPerfPage() {
                 border: '1px solid #cbd5e1',
                 borderRadius: 20,
                 padding: '4px 10px',
-                background: '#f8fafc',
+                background: '#f7f4ee',
                 fontSize: 12,
               }}
             >
@@ -206,7 +206,7 @@ export default function CrmPerfPage() {
             </span>
           ))}
           {Object.keys(payload?.engines ?? {}).length === 0 && (
-            <span style={{ color: '#64748b', fontSize: 13 }}>
+            <span style={{ color: '#4a6070', fontSize: 13 }}>
               Aucun sample engine pour l'instant.
             </span>
           )}

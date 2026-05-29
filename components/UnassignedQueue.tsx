@@ -21,9 +21,9 @@ type Appointment = {
 }
 
 const SOURCE_LABEL: Record<string, { label: string; color: string }> = {
-  telepro:  { label: 'Télépro', color: '#ccac71' },
+  telepro:  { label: 'Télépro', color: '#E8C97B' },
   prospect: { label: 'En ligne', color: '#22c55e' },
-  admin:    { label: 'Admin',    color: '#ccac71' },
+  admin:    { label: 'Admin',    color: '#E8C97B' },
 }
 
 export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => void }) {
@@ -58,16 +58,16 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
       {/* Header */}
       <div style={{
         padding: '16px 24px',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid #e5ddc8',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#0e1e35' }}>
               File d&apos;attente
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 1 }}>
               {rdvs.length} RDV non assigné{rdvs.length > 1 ? 's' : ''}
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
             <div style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 20, padding: '2px 12px',
-              fontSize: 13, fontWeight: 700, color: '#ccac71',
+              fontSize: 13, fontWeight: 700, color: '#E8C97B',
             }}>
               {rdvs.length}
             </div>
@@ -88,8 +88,8 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
             value={filterSource}
             onChange={e => setFilterSource(e.target.value)}
             style={{
-              background: '#f1f5f9', border: '1px solid #e2e8f0',
-              borderRadius: 8, padding: '6px 10px', color: '#1e293b',
+              background: '#f1f5f9', border: '1px solid #e5ddc8',
+              borderRadius: 8, padding: '6px 10px', color: '#0e1e35',
               fontSize: 12, cursor: 'pointer', outline: 'none',
             }}
           >
@@ -101,10 +101,10 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
           <button
             onClick={fetchUnassigned}
             style={{
-              background: '#f1f5f9', border: '1px solid #e2e8f0',
+              background: '#f1f5f9', border: '1px solid #e5ddc8',
               borderRadius: 8, width: 34, height: 34,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#64748b',
+              cursor: 'pointer', color: '#4a6070',
             }}
           >
             <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
@@ -115,19 +115,19 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
       {/* Liste */}
       <div style={{ overflow: 'auto', maxHeight: 420 }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 24px', color: '#64748b' }}>
+          <div style={{ textAlign: 'center', padding: '40px 24px', color: '#4a6070' }}>
             {loading ? 'Chargement…' : rdvs.length === 0 ? '✅ Aucun RDV en attente d\'assignation' : 'Aucun résultat pour ce filtre'}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {filtered.map((rdv) => {
-              const sourceInfo = SOURCE_LABEL[rdv.source || 'telepro'] || { label: rdv.source || '', color: '#64748b' }
+              const sourceInfo = SOURCE_LABEL[rdv.source || 'telepro'] || { label: rdv.source || '', color: '#4a6070' }
               return (
                 <div
                   key={rdv.id}
                   style={{
                     padding: '14px 24px',
-                    borderBottom: '1px solid #e2e8f0',
+                    borderBottom: '1px solid #e5ddc8',
                     display: 'flex', alignItems: 'center', gap: 16,
                     transition: 'background 0.15s',
                   }}
@@ -137,26 +137,26 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                   {/* Urgency indicator */}
                   <div style={{
                     width: 4, height: 40, borderRadius: 2,
-                    background: new Date(rdv.start_at) < new Date() ? '#ef4444' : '#ccac71',
+                    background: new Date(rdv.start_at) < new Date() ? '#ef4444' : '#E8C97B',
                     flexShrink: 0,
                   }} />
 
                   {/* Info prospect */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35' }}>
                       {rdv.prospect_name}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#64748b' }}>
-                        <Clock size={12} style={{ color: '#ccac71' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4a6070' }}>
+                        <Clock size={12} style={{ color: '#E8C97B' }} />
                         <span>{format(new Date(rdv.start_at), 'E d MMM · HH:mm', { locale: fr })}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#64748b' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4a6070' }}>
                         <Mail size={12} />
                         <span>{rdv.prospect_email}</span>
                       </div>
                       {rdv.prospect_phone && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#64748b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4a6070' }}>
                           <Phone size={12} />
                           <span>{rdv.prospect_phone}</span>
                         </div>
@@ -167,7 +167,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                           background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.2)',
-                          color: '#ccac71', fontSize: 11, fontWeight: 600,
+                          color: '#E8C97B', fontSize: 11, fontWeight: 600,
                           padding: '2px 8px', borderRadius: 6,
                         }}>
                           <Tag size={10} />
@@ -190,7 +190,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                   <button
                     onClick={() => setAssigningRdv(rdv)}
                     style={{
-                      background: '#b89450', color: 'white',
+                      background: '#C9A84C', color: 'white',
                       border: 'none', borderRadius: 10,
                       padding: '8px 16px', cursor: 'pointer',
                       fontSize: 13, fontWeight: 700,

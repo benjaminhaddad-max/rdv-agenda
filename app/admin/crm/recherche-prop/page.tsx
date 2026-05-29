@@ -147,7 +147,7 @@ export default function RecherchePropPage() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 80px' }}>
         <div style={{ marginBottom: 20 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Recherche par propriété</h1>
-          <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
             Filtre tes contacts sur n&apos;importe laquelle des {properties.length || 829} propriétés. Utile pour vérifier des données
             ou trouver des contacts avec une valeur précise.
           </p>
@@ -218,7 +218,7 @@ export default function RecherchePropPage() {
               disabled={!pickedProp || loading || (opNeedsValue && !value)}
               style={{
                 padding: '8px 16px', borderRadius: 8, border: 'none',
-                background: (!pickedProp || (opNeedsValue && !value)) ? '#cbd6e2' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+                background: (!pickedProp || (opNeedsValue && !value)) ? '#e5ddc8' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
                 color: '#fff', fontSize: 13, fontWeight: 600,
                 cursor: (!pickedProp || (opNeedsValue && !value)) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6, height: 36,
@@ -242,9 +242,9 @@ export default function RecherchePropPage() {
         {/* Résultats */}
         {!pickedProp ? null : (
           <div style={card({ padding: 0, overflow: 'hidden' })}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
-                Résultats {total > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
+                Résultats {total > 0 && <span style={{ color: '#4a6070', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
                 {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#94a3b8' }}>(via hubspot_raw)</span>}
               </div>
               {results.length > 0 && (
@@ -263,7 +263,7 @@ export default function RecherchePropPage() {
             ) : (
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
+                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
                     <th style={th}>Nom</th>
                     <th style={th}>Email / Téléphone</th>
                     <th style={th}>Classe / Formation</th>
@@ -281,11 +281,11 @@ export default function RecherchePropPage() {
                       </td>
                       <td style={td}>
                         <div>{c.email || '—'}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{c.phone || ''}</div>
+                        <div style={{ fontSize: 11, color: '#4a6070' }}>{c.phone || ''}</div>
                       </td>
                       <td style={td}>
                         <div>{c.classe_actuelle || '—'}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{c.formation_souhaitee || ''}</div>
+                        <div style={{ fontSize: 11, color: '#4a6070' }}>{c.formation_souhaitee || ''}</div>
                       </td>
                       <td style={{ ...td, maxWidth: 240, overflow: 'hidden' }}>
                         {c.matched_value ? (
@@ -295,7 +295,7 @@ export default function RecherchePropPage() {
                               <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{c.matched_value}</div>
                             </>
                           ) : (
-                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#516f90' }}>{c.matched_value}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#4a6070' }}>{c.matched_value}</span>
                           )
                         ) : (
                           <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>
@@ -375,11 +375,11 @@ function PropertyPicker({
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-            background: '#fff', border: '1px solid #cbd6e2', borderRadius: 8,
+            background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
             zIndex: 100, maxHeight: 400, overflowY: 'auto',
             boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           }}>
-            <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff' }}>
+            <div style={{ padding: 8, borderBottom: '1px solid #e5ddc8', position: 'sticky', top: 0, background: '#fff' }}>
               <input
                 type="text"
                 value={search}
@@ -395,7 +395,7 @@ function PropertyPicker({
               </div>
             ) : grouped.map(([group, items]) => (
               <div key={group}>
-                <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#fafbfc' }}>
+                <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', background: '#fafbfc' }}>
                   {group} ({items.length})
                 </div>
                 {items.map(p => (
@@ -406,9 +406,9 @@ function PropertyPicker({
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 12px', background: 'transparent', border: 'none',
                       cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      borderTop: '1px solid #f8fafc',
+                      borderTop: '1px solid #f7f4ee',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ fontWeight: 500, color: '#1a2f4b' }}>{p.label}</div>
@@ -420,7 +420,7 @@ function PropertyPicker({
               </div>
             ))}
             {properties.length > 200 && (
-              <div style={{ padding: 10, textAlign: 'center', fontSize: 10, color: '#94a3b8', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ padding: 10, textAlign: 'center', fontSize: 10, color: '#94a3b8', borderTop: '1px solid #e5ddc8' }}>
                 {properties.length - 200} autres propriétés masquées. Affine ta recherche.
               </div>
             )}
@@ -434,15 +434,15 @@ function PropertyPicker({
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, ...extra }
+  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
 }
 const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 600, color: '#64748b',
+  display: 'block', fontSize: 11, fontWeight: 600, color: '#4a6070',
   textTransform: 'uppercase', marginBottom: 4,
 }
 const input: React.CSSProperties = {
-  padding: '8px 10px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 13,
+  padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13,
   width: '100%', boxSizing: 'border-box', background: '#fff', height: 36,
 }
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
 const td: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'top' }

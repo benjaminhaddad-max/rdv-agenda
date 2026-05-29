@@ -151,7 +151,7 @@ export default function BookingPublic() {
           {(formation || selectedDate || selectedSlot) && (
             <div style={{ marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
               <div style={{ fontSize: 12, color: '#555870', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Votre sélection</div>
-              {formation && <div style={{ fontSize: 12, color: '#ccac71', marginBottom: 5 }}>🎓 {formation}</div>}
+              {formation && <div style={{ fontSize: 12, color: '#E8C97B', marginBottom: 5 }}>🎓 {formation}</div>}
               {selectedDate && selectedSlot && (
                 <div style={{ fontSize: 12, color: '#4cabdb', marginBottom: 5 }}>
                   📅 {format(new Date(selectedSlot.start), 'EEE d MMM · HH:mm', { locale: fr })}
@@ -370,7 +370,7 @@ export default function BookingPublic() {
                     {submitting ? '⏳ Envoi en cours…' : '✅ Confirmer ma demande de RDV'}
                   </button>
 
-                  <div style={{ textAlign: 'center', fontSize: 11, color: '#3a5070', lineHeight: 1.6 }}>
+                  <div style={{ textAlign: 'center', fontSize: 11, color: '#0e1e35', lineHeight: 1.6 }}>
                     En soumettant ce formulaire, vous acceptez d&apos;être recontacté par un conseiller Diploma Santé.<br />
                     Vos données sont traitées conformément au RGPD.
                   </div>

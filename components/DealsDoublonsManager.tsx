@@ -24,13 +24,13 @@ interface ScanResult {
 
 const STAGE_COLOR: Record<string, string> = {
   'Pré-inscription effectuée': '#22c55e',
-  'Délai de réflexion':        '#ccac71',
-  'À Replanifier':             '#ccac71',
-  'RDV découverte pris':       '#ccac71',
+  'Délai de réflexion':        '#E8C97B',
+  'À Replanifier':             '#E8C97B',
+  'RDV découverte pris':       '#E8C97B',
 }
 
 function stageBadge(stage: string) {
-  const color = STAGE_COLOR[stage] ?? '#516f90'
+  const color = STAGE_COLOR[stage] ?? '#4a6070'
   return (
     <span style={{
       background: `${color}22`,
@@ -127,32 +127,32 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
       style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 780, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
+      <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 780, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#33475b' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#0e1e35' }}>
               🔁 Doublons transactions — Pipeline 2026-2027
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7c98b6' }}>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#4a6070' }}>
               Identifie les contacts avec plusieurs deals et garde le plus avancé
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', padding: 4, borderRadius: 8 }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', padding: 4, borderRadius: 8 }}>
             <X size={18} />
           </button>
         </div>
 
         {/* Règles de priorité */}
-        <div style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
-          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#7c98b6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Règles de priorité</p>
+        <div style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Règles de priorité</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               { label: '🥇 Pré-inscription effectuée', color: '#22c55e' },
-              { label: '🥈 Délai de réflexion', color: '#ccac71' },
-              { label: '🥉 À Replanifier', color: '#ccac71' },
-              { label: '4️⃣ RDV découverte pris', color: '#ccac71' },
+              { label: '🥈 Délai de réflexion', color: '#E8C97B' },
+              { label: '🥉 À Replanifier', color: '#E8C97B' },
+              { label: '4️⃣ RDV découverte pris', color: '#E8C97B' },
             ].map(({ label, color }) => (
               <span key={label} style={{ background: `${color}18`, border: `1px solid ${color}44`, color, borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
                 {label}
@@ -168,7 +168,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
             disabled={loading}
             style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8, padding: '8px 18px', color: '#ccac71',
+              borderRadius: 8, padding: '8px 18px', color: '#E8C97B',
               fontSize: 13, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
               opacity: loading ? 0.6 : 1,
@@ -215,14 +215,14 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {result && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             {[
-              { label: 'Deals scannés', value: result.total_deals, color: '#ccac71' },
-              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#ccac71' },
+              { label: 'Deals scannés', value: result.total_deals, color: '#E8C97B' },
+              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#E8C97B' },
               { label: 'À archiver', value: result.deals_to_archive - archivedIds.size, color: '#ef4444' },
               { label: 'Archivés', value: archivedIds.size, color: '#22c55e' },
             ].map(({ label, value, color }) => (
-              <div key={label} style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 10, padding: '10px 16px', minWidth: 110 }}>
+              <div key={label} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 10, padding: '10px 16px', minWidth: 110 }}>
                 <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-                <div style={{ fontSize: 11, color: '#7c98b6', marginTop: 2 }}>{label}</div>
+                <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>{label}</div>
               </div>
             ))}
           </div>
@@ -230,7 +230,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
 
         {/* Pas de doublons */}
         {result && visibleGroups.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#7c98b6' }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#4a6070' }}>
             <CheckCircle size={40} style={{ color: '#22c55e', marginBottom: 12 }} />
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#22c55e' }}>Aucun doublon trouvé !</p>
             <p style={{ margin: '6px 0 0', fontSize: 12 }}>Tous les contacts ont un seul deal actif.</p>
@@ -240,14 +240,14 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {/* Liste des groupes */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {visibleGroups.map(group => (
-            <div key={group.contactId} style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 12, padding: '14px 16px' }}>
+            <div key={group.contactId} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 12, padding: '14px 16px' }}>
               {/* Contact ID */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 11, color: '#7c98b6' }}>Contact HubSpot</span>
+                <span style={{ fontSize: 11, color: '#4a6070' }}>Contact HubSpot</span>
                 <a
                   href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/contact/${group.contactId}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: '#ccac71', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
+                  style={{ fontSize: 11, color: '#E8C97B', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
                 >
                   #{group.contactId} <ExternalLink size={10} />
                 </a>
@@ -257,7 +257,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, marginBottom: 8 }}>
                 <CheckCircle size={14} style={{ color: '#22c55e', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {group.winner.name}
                   </div>
                 </div>
@@ -266,7 +266,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                 <a
                   href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/deal/${group.winner.id}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ color: '#7c98b6', display: 'flex' }}
+                  style={{ color: '#4a6070', display: 'flex' }}
                 >
                   <ExternalLink size={12} />
                 </a>
@@ -277,7 +277,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                 <div key={loser.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 8, marginBottom: 6 }}>
                   <Trash2 size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {loser.name}
                     </div>
                   </div>
@@ -295,7 +295,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                   <a
                     href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/deal/${loser.id}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ color: '#7c98b6', display: 'flex' }}
+                    style={{ color: '#4a6070', display: 'flex' }}
                   >
                     <ExternalLink size={12} />
                   </a>

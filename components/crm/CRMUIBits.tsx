@@ -20,7 +20,7 @@ export function StatChip({ value, label, color }: { value: number; label: string
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
       <span style={{ fontSize: 14, fontWeight: 700, color }}>{value.toLocaleString('fr-FR')}</span>
-      <span style={{ fontSize: 11, color: '#3a5070' }}>{label}</span>
+      <span style={{ fontSize: 11, color: '#0e1e35' }}>{label}</span>
     </div>
   )
 }
@@ -37,13 +37,13 @@ export function FilterPill({ label, onRemove }: { label: string; onRemove: () =>
       borderRadius: 20,
       padding: '2px 8px 2px 10px',
       fontSize: 11,
-      color: '#ccac71',
+      color: '#E8C97B',
       fontWeight: 600,
     }}>
       {label}
       <button
         onClick={onRemove}
-        style={{ background: 'none', border: 'none', color: '#ccac71', cursor: 'pointer', padding: 0, display: 'flex', opacity: 0.7, lineHeight: 1 }}
+        style={{ background: 'none', border: 'none', color: '#E8C97B', cursor: 'pointer', padding: 0, display: 'flex', opacity: 0.7, lineHeight: 1 }}
       >
         <X size={10} />
       </button>
@@ -56,7 +56,7 @@ export function CRMToolBtn({ icon, label, onClick, color = 'gold' }: {
   icon: React.ReactNode; label: string; onClick: () => void; color?: 'gold' | 'green' | 'red' | 'blue'
 }) {
   const p = {
-    gold:  { bg: 'rgba(204,172,113,0.08)', border: 'rgba(204,172,113,0.2)', text: '#ccac71' },
+    gold:  { bg: 'rgba(204,172,113,0.08)', border: 'rgba(204,172,113,0.2)', text: '#E8C97B' },
     green: { bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.2)',   text: '#22c55e' },
     red:   { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: '#ef4444' },
     blue:  { bg: 'rgba(76,171,219,0.08)',  border: 'rgba(76,171,219,0.2)',  text: '#4cabdb' },

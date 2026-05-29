@@ -208,7 +208,7 @@ export default function ImportPage() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a2f4b' }}>Import de contacts</h1>
-        <p className="text-sm" style={{ color: '#516f90' }}>
+        <p className="text-sm" style={{ color: '#4a6070' }}>
           Importe une liste de leads (CSV / Excel collé). Le département est auto-normalisé,
           la zone est calculée automatiquement, les doublons par email/téléphone sont détectés.
         </p>

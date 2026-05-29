@@ -121,7 +121,7 @@ export default function OrigineMatchesManager() {
             onClick={load}
             disabled={loading}
             style={{
-              background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8,
+              background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 8,
               padding: '6px 12px', color: '#5b6b7a', fontSize: 12, cursor: loading ? 'wait' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 5,
             }}
@@ -151,7 +151,7 @@ export default function OrigineMatchesManager() {
             const isApplied = appliedIds.has(m.contact.hubspot_contact_id)
             return (
               <div key={m.contact.hubspot_contact_id} style={{
-                border: '1px solid #e2e8f0', borderRadius: 12, padding: 14,
+                border: '1px solid #e5ddc8', borderRadius: 12, padding: 14,
                 background: isApplied ? '#f0fdf4' : '#ffffff',
                 opacity: isApplied ? 0.7 : 1, transition: 'all 0.2s',
               }}>

@@ -210,15 +210,15 @@ export default function CRMFilterBuilder({
         <div key={group.id}>
           {gi > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
-              <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#7c98b6', background: '#ffffff', padding: '2px 10px', border: '1px solid #cbd6e2', borderRadius: 4 }}>ou</span>
-              <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
+              <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', background: '#ffffff', padding: '2px 10px', border: '1px solid #e5ddc8', borderRadius: 4 }}>ou</span>
+              <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
             </div>
           )}
 
-          <div style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 10, padding: '12px' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#516f90' }}>Groupe {gi + 1}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#4a6070' }}>Groupe {gi + 1}</span>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button type="button" onClick={() => duplicateFilterGroup(group.id)} title="Dupliquer" style={iconBtn}><Copy size={13} /></button>
                 <button type="button" onClick={() => deleteFilterGroup(group.id)} title="Supprimer" style={{ ...iconBtn, color: '#ef4444' }}><Trash2 size={13} /></button>
@@ -276,29 +276,29 @@ export default function CRMFilterBuilder({
                   if (isRange) {
                     return (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <input type={inputType} value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
-                        <input type={inputType} value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                        <input type={inputType} value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} style={{ ...selectStyle, color: '#0e1e35', cursor: 'text', flex: 1 }} />
+                        <input type={inputType} value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} style={{ ...selectStyle, color: '#0e1e35', cursor: 'text', flex: 1 }} />
                       </div>
                     )
                   }
-                  return <input type={inputType} value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+                  return <input type={inputType} value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: '#0e1e35', cursor: 'text' }} />
                 }
                 // ── NUMBER ───────────────────────────────────────────────────
                 if (kind === 'number') {
                   if (isRange) {
                     return (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="number" value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} placeholder="Min" style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
-                        <input type="number" value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} placeholder="Max" style={{ ...selectStyle, color: '#33475b', cursor: 'text', flex: 1 }} />
+                        <input type="number" value={v1} onChange={e => updateRule(group.id, rule.id, { value: `${e.target.value}|${v2}` })} placeholder="Min" style={{ ...selectStyle, color: '#0e1e35', cursor: 'text', flex: 1 }} />
+                        <input type="number" value={v2} onChange={e => updateRule(group.id, rule.id, { value: `${v1}|${e.target.value}` })} placeholder="Max" style={{ ...selectStyle, color: '#0e1e35', cursor: 'text', flex: 1 }} />
                       </div>
                     )
                   }
-                  return <input type="number" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+                  return <input type="number" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#0e1e35', cursor: 'text' }} />
                 }
                 // ── BOOL ─────────────────────────────────────────────────────
                 if (kind === 'bool') {
                   return (
-                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#ccac71' : '#7c98b6' }}>
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#E8C97B' : '#4a6070' }}>
                       <option value="">Rechercher…</option>
                       <option value="true">Oui</option>
                       <option value="false">Non</option>
@@ -317,21 +317,21 @@ export default function CRMFilterBuilder({
                     )
                   }
                   return (
-                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#ccac71' : '#7c98b6' }}>
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#E8C97B' : '#4a6070' }}>
                       <option value="">Rechercher…</option>
                       {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                     </select>
                   )
                 }
                 // ── TEXT (fallback) ──────────────────────────────────────────
-                return <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#33475b', cursor: 'text' }} />
+                return <input type="text" value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} placeholder="Valeur…" style={{ ...selectStyle, color: '#0e1e35', cursor: 'text' }} />
               }
 
               return (
                 <div key={rule.id}>
-                  {ri > 0 && <div style={{ fontSize: 11, color: '#3a5070', padding: '4px 0 4px 4px' }}>et</div>}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
-                    <button type="button" onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
+                  {ri > 0 && <div style={{ fontSize: 11, color: '#0e1e35', padding: '4px 0 4px 4px' }}>et</div>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
+                    <button type="button" onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
                     <CRMFieldPicker
                       value={rule.field}
                       onChange={(field) => {
@@ -356,7 +356,7 @@ export default function CRMFilterBuilder({
               )
             })}
 
-            <button type="button" onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button type="button" onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Plus size={11} /> Ajouter un filtre
             </button>
           </div>
@@ -366,8 +366,8 @@ export default function CRMFilterBuilder({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: groups.length > 0 ? 12 : 0 }}>
         {groups.length > 0 && (
           <>
-            <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#7c98b6' }}>ou</span>
+            <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#4a6070' }}>ou</span>
           </>
         )}
         <button type="button" onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
@@ -379,10 +379,10 @@ export default function CRMFilterBuilder({
 }
 
 const iconBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#3a5070', cursor: 'pointer', display: 'flex', padding: 3,
+  background: 'none', border: 'none', color: '#0e1e35', cursor: 'pointer', display: 'flex', padding: 3,
 }
 
 const selectStyle: React.CSSProperties = {
-  background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6, padding: '6px 8px',
-  color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
+  background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px',
+  color: '#4a6070', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%',
 }

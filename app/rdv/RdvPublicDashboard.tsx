@@ -8,7 +8,7 @@ import { Clock, ChevronLeft, ChevronRight, CheckCircle, MapPin, Video, Phone, Bu
 // ─── Brand ────────────────────────────────────────────────────────────────────
 const NAVY  = '#1d2f4b'
 const BLUE  = '#4cabdb'
-const GOLD  = '#ccac71'
+const GOLD  = '#E8C97B'
 
 // ─── Type DB → local ──────────────────────────────────────────────────────────
 type RdvTypeDB = {

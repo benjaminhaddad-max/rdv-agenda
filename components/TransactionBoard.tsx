@@ -56,7 +56,7 @@ function DealCard({
         if (dragCount > 1) {
           const badge = document.createElement('div')
           badge.textContent = `${dragCount} transactions`
-          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#ccac71;color:#f5f8fa;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#E8C97B;color:#f7f4ee;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
           document.body.appendChild(badge)
           e.dataTransfer.setDragImage(badge, 0, 0)
           setTimeout(() => document.body.removeChild(badge), 0)
@@ -74,8 +74,8 @@ function DealCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: isSelected ? '#f5f8fa' : '#ffffff',
-        border: `1px solid ${isSelected ? '#ccac71' : '#cbd6e2'}`,
+        background: isSelected ? '#f7f4ee' : '#ffffff',
+        border: `1px solid ${isSelected ? '#E8C97B' : '#e5ddc8'}`,
         borderRadius: 8,
         padding: '10px 12px',
         cursor: 'grab',
@@ -90,22 +90,22 @@ function DealCard({
           style={{
             position: 'absolute', top: 6, right: 6, width: 18, height: 18,
             borderRadius: 4,
-            border: `2px solid ${isSelected ? '#ccac71' : '#3a5a7a'}`,
-            background: isSelected ? '#ccac71' : '#ffffff',
+            border: `2px solid ${isSelected ? '#E8C97B' : '#3a5a7a'}`,
+            background: isSelected ? '#E8C97B' : '#ffffff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'all 0.12s', zIndex: 2,
           }}
         >
           {isSelected && (
             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-              <path d="M1 4L3.5 6.5L9 1" stroke="#f5f8fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 4L3.5 6.5L9 1" stroke="#f7f4ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}
         </div>
       )}
 
       <div style={{
-        fontSize: 12, fontWeight: 600, color: '#33475b',
+        fontSize: 12, fontWeight: 600, color: '#0e1e35',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         marginBottom: 4, paddingRight: showCheckbox ? 22 : 0,
       }}>
@@ -113,7 +113,7 @@ function DealCard({
       </div>
 
       {contactName && (
-        <div style={{ fontSize: 11, color: '#6b7a90', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {contactName}
         </div>
       )}
@@ -124,12 +124,12 @@ function DealCard({
         (deal.contact?.classe_actuelle || deal.contact?.phone) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
           {deal.contact?.classe_actuelle && (
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#3a5070', background: '#eef3f8', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#0e1e35', background: '#eef3f8', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
               {deal.contact.classe_actuelle}
             </span>
           )}
           {deal.contact?.phone && (
-            <span style={{ fontSize: 10, color: '#516f90', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+            <span style={{ fontSize: 10, color: '#4a6070', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
               {deal.contact.phone}
             </span>
           )}
@@ -140,7 +140,7 @@ function DealCard({
         {deal.formation ? (
           <span style={{
             background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.25)',
-            borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#ccac71',
+            borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#E8C97B',
             whiteSpace: 'nowrap',
           }}>
             {deal.formation}
@@ -161,7 +161,7 @@ function DealCard({
             </div>
           )}
           {deal.closedate && (
-            <span style={{ fontSize: 10, color: '#3a5070' }}>
+            <span style={{ fontSize: 10, color: '#0e1e35' }}>
               {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
             </span>
           )}
@@ -296,7 +296,7 @@ function BoardColumn({
         flexDirection: 'column',
         background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
         borderRadius: 10,
-        border: `2px solid ${isOver ? '#ccac71' : '#cbd6e2'}`,
+        border: `2px solid ${isOver ? '#E8C97B' : '#e5ddc8'}`,
         transition: 'all 0.15s',
         overflow: 'hidden',
         opacity: isDraggingColumn ? 0.5 : 1,
@@ -331,15 +331,15 @@ function BoardColumn({
               draggable={false}
               style={{
                 width: 16, height: 16, borderRadius: 3,
-                border: `2px solid ${allInColumnSelected ? '#ccac71' : '#3a5a7a'}`,
-                background: allInColumnSelected ? '#ccac71' : '#ffffff',
+                border: `2px solid ${allInColumnSelected ? '#E8C97B' : '#3a5a7a'}`,
+                background: allInColumnSelected ? '#E8C97B' : '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', flexShrink: 0,
               }}
             >
               {allInColumnSelected && (
                 <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4L3.5 6.5L9 1" stroke="#f5f8fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1 4L3.5 6.5L9 1" stroke="#f7f4ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               )}
             </div>
@@ -349,7 +349,7 @@ function BoardColumn({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {headerHovered && (
-            <span style={{ fontSize: 9, color: '#7c98b6', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 9, color: '#4a6070', whiteSpace: 'nowrap' }}>
               ⇄ glisser
             </span>
           )}
@@ -370,7 +370,7 @@ function BoardColumn({
       {isOver && (
         <div style={{
           padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
-          color: '#ccac71', background: 'rgba(204,172,113,0.06)',
+          color: '#E8C97B', background: 'rgba(204,172,113,0.06)',
           borderBottom: '1px solid rgba(204,172,113,0.15)',
         }}>
           ↓ Déposer ici
@@ -383,7 +383,7 @@ function BoardColumn({
         display: 'flex', flexDirection: 'column', gap: 6,
       }}>
         {deals.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#cbd6e2', fontSize: 11 }}>
+          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#e5ddc8', fontSize: 11 }}>
             Aucune transaction
           </div>
         ) : (
@@ -577,10 +577,10 @@ export default function TransactionBoard({
           borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#ccac71' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B' }}>
               {selectedDeals.size} transaction{selectedDeals.size > 1 ? 's' : ''} sélectionnée{selectedDeals.size > 1 ? 's' : ''}
             </span>
-            <span style={{ fontSize: 11, color: '#6b7a90' }}>
+            <span style={{ fontSize: 11, color: '#4a6070' }}>
               Glissez une carte sélectionnée pour déplacer le groupe
             </span>
           </div>

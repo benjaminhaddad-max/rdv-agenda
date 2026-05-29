@@ -68,7 +68,7 @@ export default function AgendaPage() {
             </button>
             <a
               href="/telepro"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-[#ccac71] hover:bg-[#b89a5e] text-white transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-[#E8C97B] hover:bg-[#b89a5e] text-white transition-colors"
             >
               <Plus size={13} /> Nouveau RDV
             </a>
@@ -126,8 +126,8 @@ export default function AgendaPage() {
           onClick={e => { if (e.target === e.currentTarget) setShowQueue(false) }}
         >
           <div className="w-full max-w-2xl bg-white border-l border-slate-200 h-full overflow-auto flex flex-col">
-            <div className="px-5 py-4 border-b-2 border-[#ccac71] flex items-center justify-between flex-shrink-0">
-              <span className="font-bold text-sm text-[#ccac71]">📥 File d&apos;attente — RDV non assignés</span>
+            <div className="px-5 py-4 border-b-2 border-[#E8C97B] flex items-center justify-between flex-shrink-0">
+              <span className="font-bold text-sm text-[#E8C97B]">📥 File d&apos;attente — RDV non assignés</span>
               <button
                 onClick={() => setShowQueue(false)}
                 className="text-slate-400 hover:text-slate-600 text-lg leading-none px-1.5"

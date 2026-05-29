@@ -122,8 +122,8 @@ export function CRMFieldPicker({
         type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
-          padding: '6px 8px', color: '#516f90', fontSize: 12, fontFamily: 'inherit',
+          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
+          padding: '6px 8px', color: '#4a6070', fontSize: 12, fontFamily: 'inherit',
           cursor: 'pointer', width: '100%', textAlign: 'left',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         }}
@@ -136,13 +136,13 @@ export function CRMFieldPicker({
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-          background: '#fff', border: '1px solid #cbd6e2', borderRadius: 6,
+          background: '#fff', border: '1px solid #e5ddc8', borderRadius: 6,
           marginTop: 2, maxHeight: 380, overflowY: 'auto',
           boxShadow: '0 8px 24px rgba(0,0,0,.18)',
           minWidth: 280,
         }}>
           {/* Search */}
-          <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+          <div style={{ padding: 8, borderBottom: '1px solid #e5ddc8', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
             <div style={{ position: 'relative' }}>
               <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
               <input
@@ -153,7 +153,7 @@ export function CRMFieldPicker({
                 onChange={e => setSearch(e.target.value)}
                 style={{
                   width: '100%', boxSizing: 'border-box',
-                  padding: '6px 8px 6px 26px', border: '1px solid #cbd6e2', borderRadius: 6,
+                  padding: '6px 8px 6px 26px', border: '1px solid #e5ddc8', borderRadius: 6,
                   fontSize: 11, fontFamily: 'inherit',
                 }}
               />
@@ -176,10 +176,10 @@ export function CRMFieldPicker({
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 10px', background: value === f.key ? 'rgba(204,172,113,0.12)' : 'transparent',
                       border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      color: value === f.key ? '#ccac71' : '#1a2f4b',
+                      color: value === f.key ? '#E8C97B' : '#1a2f4b',
                       fontWeight: value === f.key ? 600 : 400,
                     }}
-                    onMouseEnter={e => { if (value !== f.key) e.currentTarget.style.background = '#f5f8fa' }}
+                    onMouseEnter={e => { if (value !== f.key) e.currentTarget.style.background = '#f7f4ee' }}
                     onMouseLeave={e => { if (value !== f.key) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div>{f.label}</div>
@@ -197,7 +197,7 @@ export function CRMFieldPicker({
           {/* Custom props groupées */}
           {otherProps.map(([group, items]) => (
             <div key={group}>
-              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', background: '#fafbfc', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', background: '#fafbfc', borderTop: '1px solid #e5ddc8' }}>
                 {group} ({items.length})
               </div>
               {items.slice(0, 50).map(p => {
@@ -211,11 +211,11 @@ export function CRMFieldPicker({
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 10px', background: isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
                       border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      color: isActive ? '#ccac71' : '#1a2f4b',
+                      color: isActive ? '#E8C97B' : '#1a2f4b',
                       fontWeight: isActive ? 600 : 400,
-                      borderTop: '1px solid #f8fafc',
+                      borderTop: '1px solid #f7f4ee',
                     }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f8fa' }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f7f4ee' }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div>{p.label}</div>

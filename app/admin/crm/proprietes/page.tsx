@@ -114,7 +114,7 @@ export default function ProprietesPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Propriétés CRM</h1>
-            <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Toutes les propriétés (contacts / deals) — synchronisées depuis HubSpot ou créées en interne.
             </p>
           </div>
@@ -123,8 +123,8 @@ export default function ProprietesPage() {
               onClick={resyncFromHubSpot}
               disabled={syncing}
               style={{
-                padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd6e2',
-                background: '#fff', color: '#516f90', fontSize: 13, fontWeight: 600,
+                padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8',
+                background: '#fff', color: '#4a6070', fontSize: 13, fontWeight: 600,
                 cursor: syncing ? 'wait' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
@@ -154,9 +154,9 @@ export default function ProprietesPage() {
                 onClick={() => setObject(o)}
                 style={{
                   padding: '7px 14px', borderRadius: 8,
-                  border: '1px solid ' + (o === object ? '#2ea3f2' : '#cbd6e2'),
+                  border: '1px solid ' + (o === object ? '#2ea3f2' : '#e5ddc8'),
                   background: o === object ? '#2ea3f2' : '#fff',
-                  color: o === object ? '#fff' : '#516f90',
+                  color: o === object ? '#fff' : '#4a6070',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   textTransform: 'capitalize',
                 }}
@@ -175,12 +175,12 @@ export default function ProprietesPage() {
               style={{
                 width: '100%',
                 padding: '7px 10px 7px 32px',
-                border: '1px solid #cbd6e2', borderRadius: 8,
+                border: '1px solid #e5ddc8', borderRadius: 8,
                 fontSize: 13, outline: 'none', background: '#fff',
               }}
             />
           </div>
-          <span style={{ fontSize: 12, color: '#64748b' }}>
+          <span style={{ fontSize: 12, color: '#4a6070' }}>
             {filtered.length} / {properties.length} propriétés
           </span>
         </div>
@@ -202,17 +202,17 @@ export default function ProprietesPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {grouped.map(([groupName, props]) => (
               <div key={groupName}>
-                <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: 8, marginTop: 0 }}>
-                  {groupName} <span style={{ color: '#cbd6e2' }}>({props.length})</span>
+                <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginBottom: 8, marginTop: 0 }}>
+                  {groupName} <span style={{ color: '#e5ddc8' }}>({props.length})</span>
                 </h2>
-                <div style={{ background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
                   <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
-                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Label</th>
-                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Nom technique</th>
-                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Type</th>
-                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Options / Source</th>
+                      <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Label</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Nom technique</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Type</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Options / Source</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -223,7 +223,7 @@ export default function ProprietesPage() {
                             key={p.name}
                             onClick={() => setDetail(p)}
                             style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .12s' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
                             <td style={{ padding: '8px 12px' }}>
@@ -232,7 +232,7 @@ export default function ProprietesPage() {
                                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{p.description}</div>
                               )}
                             </td>
-                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12, color: '#516f90' }}>
+                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12, color: '#4a6070' }}>
                               {p.name}
                             </td>
                             <td style={{ padding: '8px 12px' }}>
@@ -240,16 +240,16 @@ export default function ProprietesPage() {
                                 <Icon size={11} /> {p.field_type}
                               </span>
                             </td>
-                            <td style={{ padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+                            <td style={{ padding: '8px 12px', fontSize: 12, color: '#4a6070' }}>
                               {p.options && Array.isArray(p.options) && p.options.length > 0 ? (
                                 <span>
                                   {p.options.slice(0, 4).map(o => o.label).join(', ')}
                                   {p.options.length > 4 && <span style={{ color: '#94a3b8' }}> +{p.options.length - 4}</span>}
                                 </span>
                               ) : p.hubspot_defined ? (
-                                <span style={{ fontSize: 11, color: '#cbd6e2' }}>— HubSpot natif —</span>
+                                <span style={{ fontSize: 11, color: '#e5ddc8' }}>— HubSpot natif —</span>
                               ) : (
-                                <span style={{ fontSize: 11, color: '#cbd6e2' }}>—</span>
+                                <span style={{ fontSize: 11, color: '#e5ddc8' }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -261,7 +261,7 @@ export default function ProprietesPage() {
               </div>
             ))}
             {grouped.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12 }}>
+              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12 }}>
                 Aucune propriété ne correspond à ta recherche.
               </div>
             )}
@@ -339,7 +339,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
       }}>
         {/* Header */}
         <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e2e8f0',
+          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
           background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
           color: '#fff', borderRadius: '12px 12px 0 0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
@@ -366,7 +366,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
           </div>
 
           {property.description && (
-            <div style={{ padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#516f90', marginBottom: 16 }}>
+            <div style={{ padding: 12, background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13, color: '#4a6070', marginBottom: 16 }}>
               {property.description}
             </div>
           )}
@@ -374,22 +374,22 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
           {/* Options prédéfinies (si enumeration et synchro HubSpot a chargé les options) */}
           {property.options && property.options.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
                 Valeurs prédéfinies ({property.options.length})
               </div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ border: '1px solid #e5ddc8', borderRadius: 8, overflow: 'hidden' }}>
                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: '50%' }}>Label affiché</th>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Valeur stockée</th>
+                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', width: '50%' }}>Label affiché</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Valeur stockée</th>
                     </tr>
                   </thead>
                   <tbody>
                     {property.options.map((opt, i) => (
                       <tr key={i} style={{ borderBottom: i < property.options!.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 500 }}>{opt.label}</td>
-                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#516f90' }}>{opt.value}</td>
+                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#4a6070' }}>{opt.value}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -400,7 +400,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
 
           {/* Valeurs réellement utilisées en base */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
               Valeurs utilisées dans la base
               {actualValues && actualValues.length > 0 && (
                 <span style={{ marginLeft: 6, fontWeight: 500, textTransform: 'none', color: '#94a3b8' }}>
@@ -412,18 +412,18 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
             {valuesLoading ? (
               <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Chargement…</div>
             ) : !actualValues || actualValues.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #cbd6e2', borderRadius: 8 }}>
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #e5ddc8', borderRadius: 8 }}>
                 Aucune valeur trouvée. La propriété est peut-être vide partout, ou la migration v23
                 (RPC d&apos;extraction) n&apos;a pas été appliquée.
               </div>
             ) : (
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 360, overflowY: 'auto' }}>
+              <div style={{ border: '1px solid #e5ddc8', borderRadius: 8, overflow: 'hidden', maxHeight: 360, overflowY: 'auto' }}>
                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                   <thead style={{ position: 'sticky', top: 0, background: '#fafbfc' }}>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Valeur</th>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: 110 }}>Nb {property.object_type === 'deals' ? 'deals' : 'contacts'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', width: 60 }}>%</th>
+                    <tr style={{ borderBottom: '1px solid #e5ddc8' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Valeur</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', width: 110 }}>Nb {property.object_type === 'deals' ? 'deals' : 'contacts'}</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', width: 60 }}>%</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -476,10 +476,10 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #e5ddc8', display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{
-            padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd6e2',
-            background: '#fff', color: '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            padding: '8px 16px', borderRadius: 8, border: '1px solid #e5ddc8',
+            background: '#fff', color: '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
             Fermer
           </button>
@@ -593,7 +593,7 @@ function CreateModal({ objectType, onClose, onCreated }: {
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, marginBottom: 4 }}>
           Nouvelle propriété ({objectType})
         </h2>
-        <p style={{ fontSize: 12, color: '#64748b', margin: 0, marginBottom: 20 }}>
+        <p style={{ fontSize: 12, color: '#4a6070', margin: 0, marginBottom: 20 }}>
           Visible immédiatement dans les fiches contact, les forms et les workflows.
         </p>
 
@@ -656,7 +656,7 @@ function CreateModal({ objectType, onClose, onCreated }: {
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd6e2', background: '#fff', color: '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={onClose} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e5ddc8', background: '#fff', color: '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             Annuler
           </button>
           <button onClick={submit} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
@@ -680,6 +680,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  padding: '8px 10px', border: '1px solid #cbd6e2', borderRadius: 8,
+  padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8,
   fontSize: 13, outline: 'none', background: '#fff', color: '#1a2f4b',
 }

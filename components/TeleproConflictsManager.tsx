@@ -74,7 +74,7 @@ export default function TeleproConflictsManager() {
           onClick={load}
           disabled={loading}
           style={{
-            background: 'transparent', border: '1px solid #cbd6e2', borderRadius: 8,
+            background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 8,
             padding: '6px 12px', color: '#5b6b7a', fontSize: 12, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 5,
           }}
@@ -115,7 +115,7 @@ export default function TeleproConflictsManager() {
                     onClick={() => c.existing_telepro && resolve(c.id, c.existing_telepro.id)}
                     disabled={resolving === c.id || !c.existing_telepro}
                     style={{
-                      background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 8,
+                      background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
                       padding: '10px 12px', fontSize: 13, cursor: 'pointer', textAlign: 'left',
                       color: '#12314d', display: 'flex', flexDirection: 'column', gap: 2,
                       opacity: resolving === c.id ? 0.5 : 1,

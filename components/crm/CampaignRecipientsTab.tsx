@@ -171,7 +171,7 @@ export default function CampaignRecipientsTab({
         {/* Segments enregistrés */}
         <Card title="Segments" icon={Users}>
           {segments.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#516f90', padding: '8px 0' }}>
+            <div style={{ fontSize: 12, color: '#4a6070', padding: '8px 0' }}>
               Aucun segment enregistré. Tu peux créer un segment depuis le CRM ou utiliser les filtres ad-hoc ci-dessous.
             </div>
           ) : (
@@ -187,7 +187,7 @@ export default function CampaignRecipientsTab({
                       textAlign: 'left',
                       padding: '10px 12px',
                       borderRadius: 8,
-                      border: `1px solid ${sel ? '#0038f0' : '#cbd6e2'}`,
+                      border: `1px solid ${sel ? '#0038f0' : '#e5ddc8'}`,
                       background: sel ? 'rgba(46,163,242,0.08)' : '#fff',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
@@ -198,13 +198,13 @@ export default function CampaignRecipientsTab({
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#33475b' }}>{s.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{s.name}</div>
                       {s.description && (
-                        <div style={{ fontSize: 11, color: '#516f90', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
+                        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
                       )}
                     </div>
                     {typeof s.contact_count === 'number' && (
-                      <span style={{ fontSize: 11, color: '#516f90', flexShrink: 0 }}>~{s.contact_count.toLocaleString('fr-FR')}</span>
+                      <span style={{ fontSize: 11, color: '#4a6070', flexShrink: 0 }}>~{s.contact_count.toLocaleString('fr-FR')}</span>
                     )}
                   </button>
                 )
@@ -217,7 +217,7 @@ export default function CampaignRecipientsTab({
         <Card title="Filtres" icon={FilterIcon}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {activeFilterKeys.length === 0 && (
-              <div style={{ fontSize: 12, color: '#516f90', padding: '4px 0' }}>
+              <div style={{ fontSize: 12, color: '#4a6070', padding: '4px 0' }}>
                 Aucun filtre. Ajoute-en pour restreindre l&apos;audience.
               </div>
             )}
@@ -243,7 +243,7 @@ export default function CampaignRecipientsTab({
               style={{
                 fontSize: 12,
                 background: '#fff',
-                border: '1px dashed #cbd6e2',
+                border: '1px dashed #e5ddc8',
                 color: '#0038f0',
                 padding: '6px 12px',
                 borderRadius: 6,
@@ -257,7 +257,7 @@ export default function CampaignRecipientsTab({
               <Plus size={11} /> Ajouter un filtre
             </button>
             {showFilterMenu && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #cbd6e2', borderRadius: 8, padding: 4, minWidth: 220, zIndex: 10, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 4, minWidth: 220, zIndex: 10, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
                 {FILTER_FIELDS.filter(f => !activeFilterKeys.includes(f.key as string)).map(f => (
                   <button
                     key={f.key as string}
@@ -272,7 +272,7 @@ export default function CampaignRecipientsTab({
                       border: 'none',
                       cursor: 'pointer',
                       fontSize: 12,
-                      color: '#33475b',
+                      color: '#0e1e35',
                       borderRadius: 4,
                     }}
                   >
@@ -321,12 +321,12 @@ export default function CampaignRecipientsTab({
               </div>
               {preview.sample.length > 0 && (
                 <>
-                  <div style={{ fontSize: 11, color: '#516f90', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Échantillon</div>
+                  <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Échantillon</div>
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {preview.sample.map(s => (
-                      <li key={s.contact_id} style={{ fontSize: 11, color: '#33475b', padding: '6px 8px', background: '#f5f8fa', borderRadius: 4 }}>
+                      <li key={s.contact_id} style={{ fontSize: 11, color: '#0e1e35', padding: '6px 8px', background: '#f7f4ee', borderRadius: 4 }}>
                         <div style={{ fontWeight: 600 }}>{[s.first_name, s.last_name].filter(Boolean).join(' ') || '—'}</div>
-                        <div style={{ color: '#516f90' }}>{s.email}</div>
+                        <div style={{ color: '#4a6070' }}>{s.email}</div>
                       </li>
                     ))}
                   </ul>
@@ -334,7 +334,7 @@ export default function CampaignRecipientsTab({
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12, color: '#516f90', textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 12, color: '#4a6070', textAlign: 'center', padding: '12px 0' }}>
               Clique pour voir le nombre de destinataires.
             </div>
           )}
@@ -417,7 +417,7 @@ function FilterPill({
         ><X size={11} /></span>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #cbd6e2', borderRadius: 8, padding: 8, minWidth: 200, zIndex: 20, boxShadow: '0 8px 20px rgba(0,0,0,0.1)', maxHeight: 320, overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: 8, minWidth: 200, zIndex: 20, boxShadow: '0 8px 20px rgba(0,0,0,0.1)', maxHeight: 320, overflowY: 'auto' }}>
           {field.type === 'bool' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: 4 }}>
               <input
@@ -434,7 +434,7 @@ function FilterPill({
               value={value || ''}
               onChange={e => onChange(e.target.value)}
               placeholder={field.label}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd6e2', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
             />
           )}
           {field.type === 'date' && (
@@ -442,7 +442,7 @@ function FilterPill({
               type="date"
               value={value || ''}
               onChange={e => onChange(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd6e2', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 12, fontFamily: 'inherit' }}
             />
           )}
           {field.type === 'enum' && options && (
@@ -482,9 +482,9 @@ function FilterPill({
 // ─── Card local (légère copie pour autonomie du composant) ──────────────
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Users; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#33475b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={13} style={{ color: '#ccac71' }} />}
+    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {Icon && <Icon size={13} style={{ color: '#E8C97B' }} />}
         {title}
       </div>
       {children}

@@ -8,7 +8,7 @@ import type { EditorRef, EmailEditorProps } from 'react-email-editor'
 const EmailEditor = dynamic(() => import('react-email-editor'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, color: '#516f90', fontSize: 13 }}>
+    <div style={{ height: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, color: '#4a6070', fontSize: 13 }}>
       Chargement de l&apos;éditeur visuel…
     </div>
   ),
@@ -72,7 +72,7 @@ const EmailEditorVisual = forwardRef<EmailEditorVisualRef, Props>(function Email
   }
 
   return (
-    <div style={{ position: 'relative', border: '1px solid #cbd6e2', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
+    <div style={{ position: 'relative', border: '1px solid #e5ddc8', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
       <EmailEditor
         ref={editorRef}
         onReady={onReady}
@@ -119,7 +119,7 @@ const EmailEditorVisual = forwardRef<EmailEditorVisualRef, Props>(function Email
         }}
       />
       {!ready && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f8fa', color: '#516f90', fontSize: 13, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f4ee', color: '#4a6070', fontSize: 13, pointerEvents: 'none' }}>
           Chargement de l&apos;éditeur visuel…
         </div>
       )}

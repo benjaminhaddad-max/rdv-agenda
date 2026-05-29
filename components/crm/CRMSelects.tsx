@@ -53,8 +53,8 @@ export function MultiSelectDropdown({ options, value, onChange }: {
         type="button"
         onClick={() => setOpen(!open)}
         style={{
-          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
-          padding: '6px 8px', color: selected.length > 0 ? '#ccac71' : '#7c98b6',
+          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
+          padding: '6px 8px', color: selected.length > 0 ? '#E8C97B' : '#4a6070',
           fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
@@ -71,11 +71,11 @@ export function MultiSelectDropdown({ options, value, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
+          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
           marginTop: 2, maxHeight: 260, display: 'flex', flexDirection: 'column',
           boxShadow: '0 8px 24px rgba(0,0,0,.5)',
         }}>
-          <div style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ padding: 6, borderBottom: '1px solid #e5ddc8' }}>
             <input
               autoFocus
               type="text"
@@ -83,15 +83,15 @@ export function MultiSelectDropdown({ options, value, onChange }: {
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: '100%', border: '1px solid #cbd6e2', borderRadius: 4,
-                padding: '4px 8px', fontSize: 12, color: '#33475b', outline: 'none',
+                width: '100%', border: '1px solid #e5ddc8', borderRadius: 4,
+                padding: '4px 8px', fontSize: 12, color: '#0e1e35', outline: 'none',
                 fontFamily: 'inherit',
               }}
             />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '8px 10px', fontSize: 12, color: '#7c98b6' }}>Aucun résultat</div>
+              <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>Aucun résultat</div>
             )}
             {filtered.map(opt => (
               <label
@@ -99,7 +99,7 @@ export function MultiSelectDropdown({ options, value, onChange }: {
                 onClick={() => toggle(opt.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#516f90',
+                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#4a6070',
                   background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
@@ -107,8 +107,8 @@ export function MultiSelectDropdown({ options, value, onChange }: {
               >
                 <span style={{
                   width: 16, height: 16, borderRadius: 3,
-                  border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
-                  background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
+                  border: selected.includes(opt.id) ? '2px solid #E8C97B' : '2px solid #0e1e35',
+                  background: selected.includes(opt.id) ? '#E8C97B' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   {selected.includes(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
@@ -154,8 +154,8 @@ export function SearchableSelect({ options, value, onChange }: {
         type="button"
         onClick={() => setOpen(!open)}
         style={{
-          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
-          padding: '6px 8px', color: value ? '#ccac71' : '#7c98b6',
+          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
+          padding: '6px 8px', color: value ? '#E8C97B' : '#4a6070',
           fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
@@ -168,11 +168,11 @@ export function SearchableSelect({ options, value, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-          background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 6,
+          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
           marginTop: 2, maxHeight: 260, display: 'flex', flexDirection: 'column',
           boxShadow: '0 8px 24px rgba(0,0,0,.5)',
         }}>
-          <div style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ padding: 6, borderBottom: '1px solid #e5ddc8' }}>
             <input
               autoFocus
               type="text"
@@ -180,22 +180,22 @@ export function SearchableSelect({ options, value, onChange }: {
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: '100%', border: '1px solid #cbd6e2', borderRadius: 4,
-                padding: '4px 8px', fontSize: 12, color: '#33475b', outline: 'none',
+                width: '100%', border: '1px solid #e5ddc8', borderRadius: 4,
+                padding: '4px 8px', fontSize: 12, color: '#0e1e35', outline: 'none',
                 fontFamily: 'inherit',
               }}
             />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '8px 10px', fontSize: 12, color: '#7c98b6' }}>Aucun résultat</div>
+              <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>Aucun résultat</div>
             )}
             {filtered.map(opt => (
               <div
                 key={opt.id}
                 onClick={() => { onChange(opt.id); setOpen(false); setQuery('') }}
                 style={{
-                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#516f90',
+                  padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#4a6070',
                   background: value === opt.id ? 'rgba(204,172,113,0.08)' : 'transparent',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
@@ -243,11 +243,11 @@ export function FilterSelect({
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          background: isActive ? 'rgba(204,172,113,0.12)' : '#f5f8fa',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#cbd6e2'}`,
+          background: isActive ? 'rgba(204,172,113,0.12)' : '#f7f4ee',
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#ccac71' : '#516f90',
+          color: isActive ? '#E8C97B' : '#4a6070',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -272,7 +272,7 @@ export function FilterSelect({
           left: 0,
           marginTop: 4,
           background: '#ffffff',
-          border: '1px solid #cbd6e2',
+          border: '1px solid #e5ddc8',
           borderRadius: 10,
           zIndex: 200,
           minWidth: '100%',
@@ -291,7 +291,7 @@ export function FilterSelect({
                 background: value === opt.id ? 'rgba(204,172,113,0.12)' : 'transparent',
                 border: 'none',
                 padding: '8px 14px',
-                color: value === opt.id ? '#ccac71' : '#516f90',
+                color: value === opt.id ? '#E8C97B' : '#4a6070',
                 fontSize: 12,
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -354,11 +354,11 @@ export function FilterMultiSelect({
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          background: isActive ? 'rgba(204,172,113,0.12)' : '#f5f8fa',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#cbd6e2'}`,
+          background: isActive ? 'rgba(204,172,113,0.12)' : '#f7f4ee',
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#ccac71' : '#516f90',
+          color: isActive ? '#E8C97B' : '#4a6070',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -383,7 +383,7 @@ export function FilterMultiSelect({
           left: 0,
           marginTop: 4,
           background: '#ffffff',
-          border: '1px solid #cbd6e2',
+          border: '1px solid #e5ddc8',
           borderRadius: 10,
           zIndex: 200,
           minWidth: '100%',
@@ -401,7 +401,7 @@ export function FilterMultiSelect({
               background: !isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
               border: 'none',
               padding: '8px 14px',
-              color: !isActive ? '#ccac71' : '#516f90',
+              color: !isActive ? '#E8C97B' : '#4a6070',
               fontSize: 12,
               cursor: 'pointer',
               textAlign: 'left',
@@ -412,7 +412,7 @@ export function FilterMultiSelect({
           >
             {allLabel}
           </button>
-          <div style={{ height: 1, background: '#cbd6e2', margin: '2px 8px' }} />
+          <div style={{ height: 1, background: '#e5ddc8', margin: '2px 8px' }} />
           {selectableOptions.map(opt => (
             <button
               key={opt.id}
@@ -420,7 +420,7 @@ export function FilterMultiSelect({
               onClick={() => toggle(opt.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                padding: '7px 14px', cursor: 'pointer', fontSize: 12, color: '#516f90',
+                padding: '7px 14px', cursor: 'pointer', fontSize: 12, color: '#4a6070',
                 background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
                 fontWeight: selected.includes(opt.id) ? 600 : 400,
                 border: 'none', textAlign: 'left', fontFamily: 'inherit',
@@ -430,8 +430,8 @@ export function FilterMultiSelect({
             >
               <span style={{
                 width: 15, height: 15, borderRadius: 3, flexShrink: 0,
-                border: selected.includes(opt.id) ? '2px solid #ccac71' : '2px solid #3a5070',
-                background: selected.includes(opt.id) ? '#ccac71' : 'transparent',
+                border: selected.includes(opt.id) ? '2px solid #E8C97B' : '2px solid #0e1e35',
+                background: selected.includes(opt.id) ? '#E8C97B' : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {selected.includes(opt.id) && <Check size={9} color="#ffffff" strokeWidth={3} />}

@@ -198,7 +198,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
   return (
-    <div className="min-h-screen bg-[#f5f8fa] text-[#33475b]">
+    <div className="min-h-screen bg-[#f7f4ee] text-[#0e1e35]">
       <div className="bg-white border-b px-5 py-2 flex items-center gap-3 text-sm">
         <Link href="/admin/crm" className="text-[#506e91] hover:text-[#0070e0]">← Transactions</Link>
       </div>
@@ -212,7 +212,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight break-words">{deal.dealname || '(sans nom)'}</h1>
-              {deal.formation && <div className="text-sm text-[#516f90] mt-0.5">{deal.formation as string}</div>}
+              {deal.formation && <div className="text-sm text-[#4a6070] mt-0.5">{deal.formation as string}</div>}
             </div>
           </div>
 
@@ -238,7 +238,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                 const opts = isOwnerField ? ownerOptions : (meta?.field_type === 'select' || meta?.field_type === 'radio' ? meta.options : null)
                 return (
                   <div key={f.name} className="py-2">
-                    <dt className="text-xs text-[#7c98b6] mb-0.5">{f.label}</dt>
+                    <dt className="text-xs text-[#4a6070] mb-0.5">{f.label}</dt>
                     <dd className="text-sm">
                       {isEditing ? (
                         <div className="flex gap-1">
@@ -285,7 +285,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         </aside>
 
         {/* ══ Centre ══ */}
-        <section className="col-span-6 bg-[#f5f8fa] p-5 overflow-y-auto">
+        <section className="col-span-6 bg-[#f7f4ee] p-5 overflow-y-auto">
           <div className="bg-white rounded-lg border">
             <div className="flex border-b px-2 overflow-x-auto">
               <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes les activités" count={counts.all} />
@@ -315,7 +315,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
               ) : (
                 Object.entries(grouped).map(([month, items]) => (
                   <div key={month} className="mb-5">
-                    <div className="text-xs text-[#7c98b6] uppercase tracking-wide mb-2 capitalize">{month}</div>
+                    <div className="text-xs text-[#4a6070] uppercase tracking-wide mb-2 capitalize">{month}</div>
                     <ul className="space-y-3">
                       {items.map(t => (
                         <li key={t.id} className="bg-white border rounded-md p-3 hover:shadow-sm">
@@ -324,14 +324,14 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="text-sm font-medium">{t.title}</div>
-                                <div className="text-xs text-[#7c98b6] whitespace-nowrap">
+                                <div className="text-xs text-[#4a6070] whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
                                 </div>
                               </div>
-                              {t.subtitle && <div className="text-xs text-[#516f90] mt-0.5">{t.subtitle}</div>}
+                              {t.subtitle && <div className="text-xs text-[#4a6070] mt-0.5">{t.subtitle}</div>}
                               {t.body && (
                                 <div
-                                  className="text-sm text-[#33475b] mt-1.5 whitespace-pre-wrap"
+                                  className="text-sm text-[#0e1e35] mt-1.5 whitespace-pre-wrap"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
                               )}
@@ -355,13 +355,13 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
             ) : (
               <Link
                 href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
-                className="block border rounded p-3 hover:bg-[#f5f8fa]"
+                className="block border rounded p-3 hover:bg-[#f7f4ee]"
               >
                 <div className="text-sm font-medium text-[#0038f0]">
                   {[contact.firstname, contact.lastname].filter(Boolean).join(' ') || '—'}
                 </div>
-                {contact.email && <div className="text-xs text-[#7c98b6] mt-0.5">{contact.email as string}</div>}
-                {contact.phone && <div className="text-xs text-[#7c98b6]">{contact.phone as string}</div>}
+                {contact.email && <div className="text-xs text-[#4a6070] mt-0.5">{contact.email as string}</div>}
+                {contact.phone && <div className="text-xs text-[#4a6070]">{contact.phone as string}</div>}
               </Link>
             )}
           </Section>
@@ -372,7 +372,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
             ) : (
               <div className="border rounded p-3 text-sm">
                 <div>{appointment.start_at ? format(new Date(appointment.start_at as string), 'PPp', { locale: fr }) : '—'}</div>
-                <div className="text-xs text-[#7c98b6]">{appointment.status as string}</div>
+                <div className="text-xs text-[#4a6070]">{appointment.status as string}</div>
                 {appointment.notes !== undefined && appointment.notes !== null && appointment.notes !== '' && (
                   <div className="text-sm mt-2 whitespace-pre-wrap">{appointment.notes as string}</div>
                 )}
@@ -400,7 +400,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h2 className="text-lg font-semibold">Toutes les propriétés ({properties.length})</h2>
-              <button onClick={() => setShowAllProps(false)} className="text-[#7c98b6] hover:text-black">✕</button>
+              <button onClick={() => setShowAllProps(false)} className="text-[#4a6070] hover:text-black">✕</button>
             </div>
             <div className="px-5 py-3 border-b">
               <input
@@ -421,7 +421,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                 <div key={group} className="mb-3 border rounded">
                   <button
                     onClick={() => toggleGroup(group)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-[#f5f8fa] text-sm font-medium"
+                    className="w-full flex items-center justify-between px-3 py-2 bg-[#f7f4ee] text-sm font-medium"
                   >
                     <span>{formatGroup(group)} ({props.length})</span>
                     {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -433,7 +433,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                         const isEditing = editing === p.name
                         return (
                           <div key={p.name} className="px-3 py-2 grid grid-cols-5 gap-2">
-                            <dt className="col-span-2 text-xs text-[#7c98b6]">{p.label || p.name}</dt>
+                            <dt className="col-span-2 text-xs text-[#4a6070]">{p.label || p.name}</dt>
                             <dd className="col-span-3 text-xs">
                               {isEditing ? (
                                 <div className="flex gap-1">
@@ -476,10 +476,10 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f5f8fa] text-[#506e91] w-full cursor-pointer"
+      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f7f4ee] text-[#506e91] w-full cursor-pointer"
       title={label}
     >
-      <div className="w-7 h-7 rounded-full border-2 border-[#cbd6e2] flex items-center justify-center">{icon}</div>
+      <div className="w-7 h-7 rounded-full border-2 border-[#e5ddc8] flex items-center justify-center">{icon}</div>
       <span className="text-[10px]">{label}</span>
     </button>
   )
@@ -490,10 +490,10 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
     <button
       onClick={onClick}
       className={`px-3 py-2.5 text-sm border-b-2 whitespace-nowrap ${
-        active ? 'border-[#0038f0] text-[#33475b] font-semibold' : 'border-transparent text-[#516f90] hover:text-[#33475b]'
+        active ? 'border-[#0038f0] text-[#0e1e35] font-semibold' : 'border-transparent text-[#4a6070] hover:text-[#0e1e35]'
       }`}
     >
-      {label} {count > 0 && <span className="text-xs text-[#7c98b6]">({count})</span>}
+      {label} {count > 0 && <span className="text-xs text-[#4a6070]">({count})</span>}
     </button>
   )
 }
@@ -516,14 +516,14 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   const [open, setOpen] = useState(true)
   return (
     <div className="mb-3">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between py-1.5 text-sm font-semibold hover:bg-[#f5f8fa] px-1 rounded">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between py-1.5 text-sm font-semibold hover:bg-[#f7f4ee] px-1 rounded">
         <div className="flex items-center gap-1">
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span>{title}{count !== undefined && ` (${count})`}</span>
         </div>
         <div className="flex gap-1 items-center">
           <span className="text-[#0038f0]"><Plus size={14} /></span>
-          <span className="text-[#7c98b6]"><Settings size={13} /></span>
+          <span className="text-[#4a6070]"><Settings size={13} /></span>
         </div>
       </button>
       {open && <div className="mt-1">{children}</div>}
@@ -532,7 +532,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 }
 
 function EmptySection({ text }: { text: string }) {
-  return <div className="text-xs text-[#7c98b6] text-center py-3 px-2 border border-dashed rounded">{text}</div>
+  return <div className="text-xs text-[#4a6070] text-center py-3 px-2 border border-dashed rounded">{text}</div>
 }
 
 function labelForType(t: string) {

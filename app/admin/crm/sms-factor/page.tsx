@@ -90,7 +90,7 @@ export default function SMSFactorPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>SMS Factor</h1>
-            <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Lance des campagnes SMS depuis le CRM. Senders pré-validés, variables dynamiques, tracking par destinataire.
             </p>
           </div>
@@ -130,7 +130,7 @@ export default function SMSFactorPage() {
           <div style={card({ padding: 40, textAlign: 'center' })}>
             <MessageSquare size={36} style={{ color: '#94a3b8', margin: '0 auto 10px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune campagne SMS</div>
-            <div style={{ fontSize: 13, color: '#64748b' }}>
+            <div style={{ fontSize: 13, color: '#4a6070' }}>
               Clique sur « Nouvelle campagne SMS » pour démarrer.
             </div>
           </div>
@@ -235,7 +235,7 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
               {new Date(campaign.created_at).toLocaleString('fr-FR')}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 6, lineHeight: 1.5 }}>
             {expanded ? campaign.message : (campaign.message.length > 140 ? campaign.message.slice(0, 140) + '…' : campaign.message)}
             {campaign.message.length > 140 && (
               <button onClick={() => setExpanded(e => !e)} style={{ marginLeft: 6, background: 'none', border: 'none', color: '#2ea3f2', cursor: 'pointer', fontSize: 11, padding: 0 }}>
@@ -243,7 +243,7 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#64748b', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#4a6070', flexWrap: 'wrap' }}>
             <span><strong>Sender:</strong> {campaign.sender}</span>
             {campaign.status === 'sent' ? (
               <>
@@ -297,7 +297,7 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; label: string }> = {
-    draft:     { color: '#64748b', label: 'Brouillon' },
+    draft:     { color: '#4a6070', label: 'Brouillon' },
     scheduled: { color: '#f59e0b', label: 'Programmée' },
     sending:   { color: '#2ea3f2', label: 'En cours…' },
     sent:      { color: '#22c55e', label: 'Envoyée' },
@@ -602,7 +602,7 @@ function NewCampaignModal({ onClose, onCreated }: {
       >
         {/* Header */}
         <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e2e8f0',
+          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
           background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
           color: '#fff', borderRadius: '12px 12px 0 0',
         }}>
@@ -660,7 +660,7 @@ function NewCampaignModal({ onClose, onCreated }: {
               rows={5}
               style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
             />
-            <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#64748b', marginTop: 4, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#4a6070', marginTop: 4, flexWrap: 'wrap' }}>
               <span>{charCount} caractères</span>
               <span>{segments} segment{segments > 1 ? 's' : ''} facturé{segments > 1 ? 's' : ''}</span>
               {segments > 3 && <span style={{ color: '#f59e0b' }}>Coût élevé</span>}
@@ -682,13 +682,13 @@ function NewCampaignModal({ onClose, onCreated }: {
                 type="button"
                 onClick={() => setLinkFormOpen(o => !o)}
                 style={{
-                  background: linkFormOpen ? '#eaf4fd' : '#f8fafc',
-                  border: `1px solid ${linkFormOpen ? '#2ea3f2' : '#e2e8f0'}`,
+                  background: linkFormOpen ? '#f0e9da' : '#f7f4ee',
+                  border: `1px solid ${linkFormOpen ? '#2ea3f2' : '#e5ddc8'}`,
                   borderRadius: 6,
                   padding: '6px 10px',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: '#1e293b',
+                  color: '#0e1e35',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -705,7 +705,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                 padding: 12,
                 border: '1px dashed #cbd5e1',
                 borderRadius: 8,
-                background: '#f8fafc',
+                background: '#f7f4ee',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
@@ -739,7 +739,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1e293b', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0e1e35', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={linkFormTracked}
@@ -774,7 +774,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                     </button>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5 }}>
                   Le lien sera inséré dans le message sous forme de tag (ex: <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3 }}>{'{lien1}'}</code>).
                   Au moment de l'envoi, chaque destinataire reçoit une URL courte unique
                   qui redirige vers ta destination. {linkFormTracked
@@ -797,7 +797,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                         alignItems: 'center',
                         gap: 8,
                         padding: '6px 10px',
-                        border: `1px solid ${isInMessage ? '#e2e8f0' : '#fde68a'}`,
+                        border: `1px solid ${isInMessage ? '#e5ddc8' : '#fde68a'}`,
                         background: isInMessage ? '#fff' : '#fffbeb',
                         borderRadius: 6,
                         fontSize: 12,
@@ -806,7 +806,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                       <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, color: '#7c3aed', fontWeight: 600 }}>
                         {l.placeholder}
                       </code>
-                      <span style={{ color: '#64748b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
+                      <span style={{ color: '#4a6070', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
                         {l.url}
                       </span>
                       {l.label && <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>({l.label})</span>}
@@ -816,7 +816,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                         padding: '2px 6px',
                         borderRadius: 999,
                         background: l.tracked ? '#dbeafe' : '#f1f5f9',
-                        color: l.tracked ? '#1d4ed8' : '#64748b',
+                        color: l.tracked ? '#1d4ed8' : '#4a6070',
                       }}>
                         {l.tracked ? 'tracké' : 'brut'}
                       </span>
@@ -840,7 +840,7 @@ function NewCampaignModal({ onClose, onCreated }: {
             )}
 
             {detectedUrls.length > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#1e293b', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#0e1e35', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={shortenLinks}
@@ -852,8 +852,8 @@ function NewCampaignModal({ onClose, onCreated }: {
           </Field>
 
           {/* Planification */}
-          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ borderTop: '1px solid #e5ddc8', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
               Planification
             </div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
@@ -884,15 +884,15 @@ function NewCampaignModal({ onClose, onCreated }: {
               </Field>
             )}
             {scheduleMode === 'now' && (
-              <div style={{ fontSize: 11, color: '#64748b' }}>
+              <div style={{ fontSize: 11, color: '#4a6070' }}>
                 La campagne sera créée en brouillon. Clique « Envoyer » dans la liste pour déclencher l&apos;envoi.
               </div>
             )}
           </div>
 
           {/* Ciblage */}
-          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ borderTop: '1px solid #e5ddc8', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
               Ciblage
             </div>
 
@@ -956,7 +956,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                   )}
                 </div>
 
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
                   <strong style={{ color: '#22c55e' }}>{phonesParsed.valid.length}</strong> numéros valides
                   {phonesParsed.invalid > 0 && <> · <strong style={{ color: '#dc2626' }}>{phonesParsed.invalid}</strong> invalides ignorés</>}
                   {phonesParsed.duplicates > 0 && <> · <strong style={{ color: '#94a3b8' }}>{phonesParsed.duplicates}</strong> doublons</>}
@@ -987,7 +987,7 @@ function NewCampaignModal({ onClose, onCreated }: {
 
         {/* Footer */}
         <div style={{
-          padding: '12px 20px', borderTop: '1px solid #e2e8f0',
+          padding: '12px 20px', borderTop: '1px solid #e5ddc8',
           display: 'flex', justifyContent: 'flex-end', gap: 8,
         }}>
           <button onClick={onClose} style={btn('secondary')} disabled={submitting}>
@@ -1011,7 +1011,7 @@ function NewCampaignModal({ onClose, onCreated }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 4 }}>
         {label}
       </label>
       {children}
@@ -1035,7 +1035,7 @@ function ModeTab({ active, onClick, icon, children }: {
         background: active ? '#fff' : 'transparent',
         border: 'none',
         borderRadius: 6,
-        color: active ? '#0038f0' : '#64748b',
+        color: active ? '#0038f0' : '#4a6070',
         fontWeight: active ? 600 : 500,
         fontSize: 12,
         cursor: 'pointer',
@@ -1057,9 +1057,9 @@ function TypePill({ active, onClick, label }: { active: boolean; onClick: () => 
         flex: 1,
         padding: '8px 10px',
         borderRadius: 8,
-        border: `1px solid ${active ? '#0038f0' : '#cbd6e2'}`,
+        border: `1px solid ${active ? '#0038f0' : '#e5ddc8'}`,
         background: active ? '#eff6ff' : '#fff',
-        color: active ? '#0038f0' : '#64748b',
+        color: active ? '#0038f0' : '#4a6070',
         fontSize: 12,
         fontWeight: active ? 600 : 500,
         cursor: 'pointer',
@@ -1090,7 +1090,7 @@ function formatPhoneClient(phone: string): string | null {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #cbd6e2', borderRadius: 10, ...extra }
+  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, ...extra }
 }
 function banner(kind: 'error' | 'success'): React.CSSProperties {
   return {
@@ -1110,9 +1110,9 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#516f90', border: '1px solid #cbd6e2' }
+  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
 const input: React.CSSProperties = {
-  padding: '8px 10px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 13,
+  padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13,
   width: '100%', boxSizing: 'border-box', background: '#fff',
 }

@@ -183,7 +183,7 @@ function MetaAdsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Meta Lead Ads</h1>
-            <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Connecte tes pages Facebook / Instagram pour recevoir les leads de tes pubs en temps réel.
             </p>
           </div>
@@ -217,7 +217,7 @@ function MetaAdsPage() {
           <div style={card({ padding: 40, textAlign: 'center' })}>
             <Facebook size={36} style={{ color: '#1877F2', margin: '0 auto 10px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune page connectée</div>
-            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16 }}>
               Clique sur « Connecter une page Facebook » pour démarrer.
             </div>
           </div>
@@ -244,17 +244,17 @@ function MetaAdsPage() {
                         onClick={() => toggleExpanded(p.page_id)}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none' }}
                       >
-                        {isExpanded ? <ChevronDown size={14} style={{ color: '#64748b' }} /> : <ChevronRight size={14} style={{ color: '#64748b' }} />}
+                        {isExpanded ? <ChevronDown size={14} style={{ color: '#4a6070' }} /> : <ChevronRight size={14} style={{ color: '#4a6070' }} />}
                         <Facebook size={14} style={{ color: '#1877F2' }} />
                         <strong>{p.page_name}</strong>
                         <span style={{ fontSize: 10, color: '#94a3b8' }}>· {p.page_id}</span>
                         {pageFormCount > 0 && (
-                          <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: 999 }}>
+                          <span style={{ fontSize: 10, color: '#4a6070', background: '#f1f5f9', padding: '2px 6px', borderRadius: 999 }}>
                             {pageFormCount} form{pageFormCount > 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         <span>Connectée par {p.user_name || '?'}</span>
                         <span>{p.total_leads} lead{p.total_leads > 1 ? 's' : ''} reçus</span>
                         {p.last_lead_at && <span>Dernier : {new Date(p.last_lead_at).toLocaleString('fr-FR')}</span>}
@@ -288,7 +288,7 @@ function MetaAdsPage() {
                   {isExpanded && (() => {
                     const pageForms = forms.filter(f => f.page_id === p.page_id)
                     if (pageForms.length === 0) return (
-                      <div style={{ marginTop: 12, padding: 10, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                      <div style={{ marginTop: 12, padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
                         Aucun formulaire trouvé. Clique sur « Refresh forms » pour les charger.
                       </div>
                     )
@@ -301,9 +301,9 @@ function MetaAdsPage() {
                         )
                       : pageForms
                     return (
-                      <div style={{ marginTop: 12, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+                      <div style={{ marginTop: 12, borderTop: '1px solid #e5ddc8', paddingTop: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase' }}>
                             Formulaires ({filteredForms.length}{search && filteredForms.length !== pageForms.length ? ` / ${pageForms.length}` : ''})
                           </div>
                           <div style={{ position: 'relative', flex: '0 1 280px' }}>
@@ -318,7 +318,7 @@ function MetaAdsPage() {
                           </div>
                         </div>
                         {filteredForms.length === 0 ? (
-                          <div style={{ padding: 10, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                          <div style={{ padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
                             Aucun formulaire ne correspond à « {search} »
                           </div>
                         ) : (
@@ -402,7 +402,7 @@ function MetaAdsPage() {
             <div style={card({ padding: 0, overflow: 'hidden' })}>
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
+                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
                     <th style={th}>Reçu</th>
                     <th style={th}>Form</th>
                     <th style={th}>Statut</th>
@@ -478,10 +478,10 @@ function MetaAdsPage() {
 }
 
 const sectionTitle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginTop: 0, marginBottom: 10,
+  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginTop: 0, marginBottom: 10,
 }
 function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, ...extra }
+  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
 }
 function banner(kind: 'error' | 'success'): React.CSSProperties {
   return {
@@ -507,11 +507,11 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#516f90', border: '1px solid #cbd6e2' }
+  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
-const th: React.CSSProperties = { textAlign: 'left', padding: '6px 10px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }
+const th: React.CSSProperties = { textAlign: 'left', padding: '6px 10px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' }
-const input: React.CSSProperties = { padding: '4px 8px', border: '1px solid #cbd6e2', borderRadius: 6, fontSize: 12, width: '100%', maxWidth: 200 }
+const input: React.CSSProperties = { padding: '4px 8px', border: '1px solid #e5ddc8', borderRadius: 6, fontSize: 12, width: '100%', maxWidth: 200 }
 
 // ─── Helpers de mapping ─────────────────────────────────────────────────────
 
@@ -692,7 +692,7 @@ function MappingModal({
       >
         {/* Header */}
         <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e2e8f0',
+          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
           background: 'linear-gradient(135deg, #2ea3f2, #0038f0)',
           color: '#fff', borderRadius: '12px 12px 0 0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -707,7 +707,7 @@ function MappingModal({
         </div>
 
         {/* Search */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e5ddc8' }}>
           <div style={{ position: 'relative' }}>
             <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
@@ -760,7 +760,7 @@ function MappingModal({
                             ))}
                           </select>
                           {crmProp && (
-                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                            <div style={{ fontSize: 10, color: '#4a6070', marginTop: 4 }}>
                               {crmProp.label} · {crmProp.field_type || crmProp.type}
                             </div>
                           )}
@@ -769,7 +769,7 @@ function MappingModal({
                       {isEnum && (
                         <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td colSpan={2} style={{ padding: '8px 10px 14px', background: '#fafbfc' }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 6 }}>
                               Mappage des valeurs
                             </div>
                             <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
@@ -808,7 +808,7 @@ function MappingModal({
 
         {/* Footer */}
         <div style={{
-          padding: '12px 20px', borderTop: '1px solid #e2e8f0',
+          padding: '12px 20px', borderTop: '1px solid #e5ddc8',
           display: 'flex', justifyContent: 'flex-end', gap: 8,
         }}>
           <button onClick={onClose} style={btn('secondary')} disabled={saving}>

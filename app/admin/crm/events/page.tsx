@@ -9,22 +9,22 @@ export default function EventsPage() {
   const [loaded, setLoaded] = useState(false)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f8fa', color: '#33475b', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       {/* Topbar */}
       <div style={{
         padding: '0 20px',
         height: 52,
         background: '#ffffff',
-        borderBottom: '1px solid #cbd6e2',
+        borderBottom: '1px solid #e5ddc8',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CalendarDays size={16} style={{ color: '#ccac71' }} />
+          <CalendarDays size={16} style={{ color: '#E8C97B' }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>Événements</span>
-          <span style={{ fontSize: 11, color: '#516f90' }}>
+          <span style={{ fontSize: 11, color: '#4a6070' }}>
             Gestionnaire d&apos;événements Diploma Santé
           </span>
         </div>
@@ -35,10 +35,10 @@ export default function EventsPage() {
             rel="noopener noreferrer"
             style={{
               background: '#ffffff',
-              border: '1px solid #cbd6e2',
+              border: '1px solid #e5ddc8',
               borderRadius: 8,
               padding: '6px 12px',
-              color: '#516f90',
+              color: '#4a6070',
               fontSize: 12,
               textDecoration: 'none',
               display: 'flex',
@@ -59,7 +59,7 @@ export default function EventsPage() {
               border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 8,
               padding: '6px 12px',
-              color: '#ccac71',
+              color: '#E8C97B',
               fontSize: 12,
               cursor: 'pointer',
               display: 'flex',
@@ -83,8 +83,8 @@ export default function EventsPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#f5f8fa',
-            color: '#516f90',
+            background: '#f7f4ee',
+            color: '#4a6070',
             fontSize: 13,
           }}>
             Chargement du gestionnaire d&apos;événements…

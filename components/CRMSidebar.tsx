@@ -70,12 +70,12 @@ const NAV_SECTIONS: NavSection[] = [
 // ─── Charte HubSpot ────────────────────────────────────────────────────────
 const COLORS = {
   bg:           '#ffffff',   // fond sidebar
-  bgAlt:        '#f5f8fa',   // fond hover/section
-  border:       '#cbd6e2',   // bordures
-  textPrimary:  '#33475b',   // texte principal
-  textMuted:    '#516f90',   // texte secondaire
-  textLight:    '#7c98b6',   // icônes
-  accent:       '#ccac71',   // doré Diploma Santé (accent)
+  bgAlt:        '#f7f4ee',   // fond hover/section
+  border:       '#e5ddc8',   // bordures
+  textPrimary:  '#0e1e35',   // texte principal
+  textMuted:    '#4a6070',   // texte secondaire
+  textLight:    '#4a6070',   // icônes
+  accent:       '#E8C97B',   // doré Diploma Santé (accent)
   accentBg:     'rgba(204, 172, 113, 0.12)',
   danger:       '#ef6b51',   // rouge HubSpot-style
 }

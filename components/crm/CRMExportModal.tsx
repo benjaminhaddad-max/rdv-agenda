@@ -58,16 +58,16 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
       onClick={onClose}
     >
       <div
-        style={{ background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 14, width: 440, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 14, width: 440, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #cbd6e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#33475b' }}>Exporter en CSV</div>
-            <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{exportCount !== null ? `${exportCount.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels` : 'Calcul en cours…'}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35' }}>Exporter en CSV</div>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{exportCount !== null ? `${exportCount.toLocaleString('fr-FR')} contacts correspondent aux filtres actuels` : 'Calcul en cours…'}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7c98b6', cursor: 'pointer', display: 'flex', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', display: 'flex', padding: 4 }}>
             <X size={16} />
           </button>
         </div>
@@ -75,7 +75,7 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
         {/* Body */}
         <div style={{ overflow: 'auto', padding: '16px 20px', flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#516f90' }}>Colonnes à exporter</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4a6070' }}>Colonnes à exporter</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setSelected(EXPORT_COLUMNS.map(c => c.key))} style={{ background: 'none', border: 'none', color: '#4cabdb', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
                 Tout cocher
@@ -97,13 +97,13 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
                   padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
                   background: selected.includes(col.key) ? 'rgba(204,172,113,0.06)' : 'transparent',
                   border: '1px solid', borderColor: selected.includes(col.key) ? 'rgba(204,172,113,0.2)' : 'transparent',
-                  fontFamily: 'inherit', fontSize: 13, color: '#516f90', textAlign: 'left',
+                  fontFamily: 'inherit', fontSize: 13, color: '#4a6070', textAlign: 'left',
                 }}
               >
                 <span style={{
                   width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                  border: selected.includes(col.key) ? '2px solid #ccac71' : '2px solid #3a5070',
-                  background: selected.includes(col.key) ? '#ccac71' : 'transparent',
+                  border: selected.includes(col.key) ? '2px solid #E8C97B' : '2px solid #0e1e35',
+                  background: selected.includes(col.key) ? '#E8C97B' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {selected.includes(col.key) && <Check size={11} color="#ffffff" strokeWidth={3} />}
@@ -115,8 +115,8 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #cbd6e2', display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, color: '#516f90', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid #e5ddc8', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, color: '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Annuler
           </button>
           <button
@@ -124,9 +124,9 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
             disabled={selected.length === 0 || exporting}
             style={{
               flex: 1, padding: '10px',
-              background: selected.length > 0 ? 'rgba(204,172,113,0.15)' : '#f5f8fa',
-              border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#cbd6e2',
-              borderRadius: 8, color: selected.length > 0 ? '#ccac71' : '#7c98b6',
+              background: selected.length > 0 ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
+              border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#e5ddc8',
+              borderRadius: 8, color: selected.length > 0 ? '#E8C97B' : '#4a6070',
               fontSize: 13, fontWeight: 700, cursor: selected.length > 0 ? 'pointer' : 'default',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               opacity: exporting ? 0.6 : 1,

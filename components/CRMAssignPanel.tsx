@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Users, Briefcase } from 'lucide-react'
 
 const NAVY = '#ffffff'
-const GOLD = '#ccac71'
+const GOLD = '#E8C97B'
 const BLUE = '#4cabdb'
 
 interface RdvUser {
@@ -87,16 +87,16 @@ export default function CRMAssignPanel({
       style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: NAVY, border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 420, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: NAVY, border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 420, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
               {mode === 'closer' ? <Briefcase size={16} style={{ color: GOLD }} /> : <Users size={16} style={{ color: BLUE }} />}
               {mode === 'closer' ? 'Assigner un closer' : 'Assigner un télépro'}
             </div>
-            <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{contactName}</div>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{contactName}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', fontSize: 20, padding: '2px 6px' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', fontSize: 20, padding: '2px 6px' }}>✕</button>
         </div>
 
         {currentUser && (
@@ -112,7 +112,7 @@ export default function CRMAssignPanel({
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#7c98b6', fontSize: 13 }}>Chargement…</div>
+          <div style={{ textAlign: 'center', padding: '20px 0', color: '#4a6070', fontSize: 13 }}>Chargement…</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto', marginBottom: 16 }}>
             {users.map(user => {
@@ -126,8 +126,8 @@ export default function CRMAssignPanel({
                   onClick={() => setSelected(user.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    background: isSelected ? 'rgba(204,172,113,0.15)' : '#f5f8fa',
-                    border: `1px solid ${isSelected ? GOLD : '#cbd6e2'}`,
+                    background: isSelected ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
+                    border: `1px solid ${isSelected ? GOLD : '#e5ddc8'}`,
                     borderRadius: 10, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
                     transition: 'all 0.15s', fontFamily: 'inherit',
                   }}
@@ -136,7 +136,7 @@ export default function CRMAssignPanel({
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? GOLD : '#33475b' }}>{user.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? GOLD : '#0e1e35' }}>{user.name}</div>
                     {isCurrent && <div style={{ fontSize: 10, color: BLUE, fontWeight: 700 }}>Actuellement assigné</div>}
                   </div>
                   {isSelected && <div style={{ fontSize: 16, color: GOLD }}>✓</div>}
@@ -147,13 +147,13 @@ export default function CRMAssignPanel({
         )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '7px 16px', color: '#7c98b6', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+          <button onClick={onClose} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '7px 16px', color: '#4a6070', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
             Annuler
           </button>
           <button
             onClick={handleAssign}
             disabled={!selected || saving}
-            style={{ background: selected ? GOLD : 'rgba(204,172,113,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: selected ? NAVY : '#3a5070', cursor: selected ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+            style={{ background: selected ? GOLD : 'rgba(204,172,113,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: selected ? NAVY : '#0e1e35', cursor: selected ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
           >
             {saving ? 'Assignation…' : 'Assigner'}
           </button>

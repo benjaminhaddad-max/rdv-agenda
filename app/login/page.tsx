@@ -32,32 +32,51 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0b1624',
+      background: '#f7f4ee',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
     }}>
       <form onSubmit={handleLogin} style={{
-        background: '#152438',
-        border: '1px solid #2d4a6b',
+        background: '#ffffff',
+        border: '1px solid #e5ddc8',
         borderRadius: 16,
         padding: '40px 36px',
         width: 380,
+        boxShadow: '0 4px 24px -8px rgba(11, 22, 40, 0.1)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#e8eaf0' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 48, height: 48,
+            borderRadius: 12,
+            background: 'linear-gradient(168deg, #0e1e35 0%, #1a3350 100%)',
+            marginBottom: 14,
+            boxShadow: '0 4px 12px rgba(14, 30, 53, 0.25)',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#0e1e35', letterSpacing: '-0.3px' }}>
             Diploma Santé
           </div>
-          <div style={{ fontSize: 13, color: '#555870', marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: '#7d8c9e', marginTop: 4 }}>
             Outil de gestion des RDV
           </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <label style={{
-            fontSize: 12, fontWeight: 600, color: '#8b8fa8',
+            fontSize: 11, fontWeight: 700, color: '#4a6070',
             marginBottom: 6, display: 'block',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             Email
           </label>
@@ -69,24 +88,27 @@ export default function LoginPage() {
             autoFocus
             style={{
               width: '100%',
-              background: '#243d5c',
-              border: '1px solid #2d4a6b',
+              background: '#fbf8f1',
+              border: '1.5px solid #e5ddc8',
               borderRadius: 10,
-              padding: '12px 14px',
-              color: '#e8eaf0',
+              padding: '11px 14px',
+              color: '#0e1e35',
               fontSize: 14,
               outline: 'none',
               boxSizing: 'border-box',
               fontFamily: 'inherit',
             }}
             placeholder="votre@email.com"
+            onFocus={e => { e.currentTarget.style.borderColor = '#C9A84C' }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#e5ddc8' }}
           />
         </div>
 
         <div style={{ marginBottom: 24 }}>
           <label style={{
-            fontSize: 12, fontWeight: 600, color: '#8b8fa8',
+            fontSize: 11, fontWeight: 700, color: '#4a6070',
             marginBottom: 6, display: 'block',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             Mot de passe
           </label>
@@ -97,27 +119,29 @@ export default function LoginPage() {
             required
             style={{
               width: '100%',
-              background: '#243d5c',
-              border: '1px solid #2d4a6b',
+              background: '#fbf8f1',
+              border: '1.5px solid #e5ddc8',
               borderRadius: 10,
-              padding: '12px 14px',
-              color: '#e8eaf0',
+              padding: '11px 14px',
+              color: '#0e1e35',
               fontSize: 14,
               outline: 'none',
               boxSizing: 'border-box',
               fontFamily: 'inherit',
             }}
             placeholder="••••••••"
+            onFocus={e => { e.currentTarget.style.borderColor = '#C9A84C' }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#e5ddc8' }}
           />
         </div>
 
         {error && (
           <div style={{
-            background: 'rgba(239,68,68,0.08)',
-            border: '1px solid rgba(239,68,68,0.2)',
+            background: 'rgba(239,68,68,0.06)',
+            border: '1px solid rgba(239,68,68,0.22)',
             borderRadius: 8,
             padding: '10px 14px',
-            color: '#ef4444',
+            color: '#dc2626',
             fontSize: 13,
             marginBottom: 16,
           }}>
@@ -130,8 +154,8 @@ export default function LoginPage() {
           disabled={loading}
           style={{
             width: '100%',
-            background: '#b89450',
-            color: 'white',
+            background: 'linear-gradient(168deg, #0e1e35 0%, #1a3350 100%)',
+            color: '#f7f4ee',
             border: 'none',
             borderRadius: 10,
             padding: '13px',
@@ -140,10 +164,23 @@ export default function LoginPage() {
             cursor: loading ? 'wait' : 'pointer',
             opacity: loading ? 0.7 : 1,
             fontFamily: 'inherit',
+            letterSpacing: '0.02em',
+            boxShadow: '0 4px 14px rgba(14, 30, 53, 0.22)',
           }}
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
+
+        <div style={{
+          marginTop: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
+          <span style={{ fontSize: 10, color: '#a89e8a', fontWeight: 600, letterSpacing: '0.1em' }}>DIPLOMA SANTÉ</span>
+          <div style={{ flex: 1, height: 1, background: '#e5ddc8' }} />
+        </div>
       </form>
     </div>
   )

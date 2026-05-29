@@ -87,7 +87,7 @@ function InlineCellSelect({
         ref={btnRef}
         onClick={handleToggle}
         style={{
-          background: open ? '#eaf4fd' : 'transparent',
+          background: open ? '#f0e9da' : 'transparent',
           border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
           borderRadius: 4,
           padding: '5px 10px',
@@ -116,11 +116,11 @@ function InlineCellSelect({
         }}
       >
         {saving ? (
-          <span style={{ fontSize: 11, color: '#7c98b6' }}>…</span>
+          <span style={{ fontSize: 11, color: '#4a6070' }}>…</span>
         ) : renderValue ? (
           renderValue(value)
         ) : (
-          <span style={{ fontSize: 11, color: value ? '#516f90' : '#3a5070' }}>
+          <span style={{ fontSize: 11, color: value ? '#4a6070' : '#0e1e35' }}>
             {displayValue || currentOpt?.label || value || '—'}
           </span>
         )}
@@ -136,7 +136,7 @@ function InlineCellSelect({
             left: pos.left,
             zIndex: 9999,
             background: '#ffffff',
-            border: '1px solid #e0e4eb',
+            border: '1px solid #e5ddc8',
             borderRadius: 10,
             boxShadow: '0 4px 28px rgba(0,0,0,0.15)',
             minWidth: 230,
@@ -146,15 +146,15 @@ function InlineCellSelect({
         >
           {/* Valeur actuelle */}
           {currentOpt && (
-            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #f0f2f5' }}>
-              <div style={{ fontSize: 10, color: '#aab0bc', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #f0e9da' }}>
+              <div style={{ fontSize: 10, color: '#7d8c9e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>
                 Valeur actuelle
               </div>
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 7,
-                background: '#e8f3fb',
+                background: '#f0e9da',
                 border: '1px solid rgba(76,171,219,0.3)',
                 borderRadius: 6,
                 padding: '4px 10px',
@@ -172,17 +172,17 @@ function InlineCellSelect({
           )}
 
           {/* Barre de recherche */}
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0f2f5' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0e9da' }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              background: '#f5f7fa',
+              background: '#fbf8f1',
               borderRadius: 6,
               padding: '5px 9px',
-              border: '1px solid #e8eaed',
+              border: '1px solid #e5ddc8',
             }}>
-              <Search size={12} style={{ color: '#aab0bc', flexShrink: 0 }} />
+              <Search size={12} style={{ color: '#7d8c9e', flexShrink: 0 }} />
               <input
                 ref={searchRef}
                 value={search}
@@ -206,7 +206,7 @@ function InlineCellSelect({
           {/* Liste des options */}
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0 ? (
-              <div style={{ padding: '14px', fontSize: 12, color: '#aab0bc', textAlign: 'center' }}>
+              <div style={{ padding: '14px', fontSize: 12, color: '#7d8c9e', textAlign: 'center' }}>
                 {options.length === 0 ? 'Chargement…' : 'Aucun résultat'}
               </div>
             ) : (
@@ -218,7 +218,7 @@ function InlineCellSelect({
                     display: 'flex',
                     alignItems: 'center',
                     width: '100%',
-                    background: value === o.id ? '#e8f3fb' : 'transparent',
+                    background: value === o.id ? '#f0e9da' : 'transparent',
                     border: 'none',
                     padding: '8px 14px',
                     cursor: 'pointer',
@@ -226,7 +226,7 @@ function InlineCellSelect({
                     textAlign: 'left',
                     gap: 9,
                   }}
-                  onMouseEnter={e => { if (value !== o.id) e.currentTarget.style.background = '#f5f7fa' }}
+                  onMouseEnter={e => { if (value !== o.id) e.currentTarget.style.background = '#fbf8f1' }}
                   onMouseLeave={e => { if (value !== o.id) e.currentTarget.style.background = 'transparent' }}
                 >
                   {/* Dot de couleur */}
@@ -239,7 +239,7 @@ function InlineCellSelect({
                   }} />
                   <span style={{
                     fontSize: 12,
-                    color: value === o.id ? '#1a6ca8' : '#334155',
+                    color: value === o.id ? '#1a6ca8' : '#0e1e35',
                     fontWeight: value === o.id ? 600 : 400,
                     flex: 1,
                     overflow: 'hidden',
@@ -301,7 +301,7 @@ function InlineCellText({
           border: '1px solid rgba(76,171,219,0.5)',
           borderRadius: 5,
           padding: '2px 6px',
-          color: '#33475b',
+          color: '#0e1e35',
           fontSize: 11,
           fontFamily: 'inherit',
           outline: 'none',
@@ -317,7 +317,7 @@ function InlineCellText({
       onClick={e => { e.stopPropagation(); setEditing(true) }}
       style={{
         fontSize: 11,
-        color: value ? '#7a8ba0' : '#cbd6e2',
+        color: value ? '#7a8ba0' : '#e5ddc8',
         cursor: saving ? 'not-allowed' : 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
@@ -352,10 +352,10 @@ const CLASSE_OPTIONS = [
   'Etudes médicales', 'Etudes Sup.', 'Autre',
 ]
 
-const NAVY_BG     = '#f5f8fa'
+const NAVY_BG     = '#f7f4ee'
 const NAVY_ROW    = '#ffffff'
-const NAVY_BORDER = '#cbd6e2'
-const GOLD        = '#ccac71'
+const NAVY_BORDER = '#e5ddc8'
+const GOLD        = '#E8C97B'
 const BLUE        = '#4cabdb'
 
 // ── Stage mapping ──────────────────────────────────────────────────────────────
@@ -366,12 +366,12 @@ const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = 
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', bg: 'rgba(85,88,112,0.12)' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070', bg: 'rgba(85,88,112,0.12)' },
 }
 
 function StageBadge({ stageId }: { stageId?: string | null }) {
-  if (!stageId) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
-  const s = STAGE_MAP[stageId] ?? { label: stageId, color: '#7c98b6', bg: 'rgba(85,88,112,0.12)' }
+  if (!stageId) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
+  const s = STAGE_MAP[stageId] ?? { label: stageId, color: '#4a6070', bg: 'rgba(85,88,112,0.12)' }
   return (
     <span style={{
       background: s.bg,
@@ -517,13 +517,13 @@ function formatPhone(raw: string): string {
 // Sans cast, 78337826 !== "78337826" et la colonne TÉLÉPRO affichait "—".
 function renderUserOption(v: string | number | null | undefined, opts?: { id: string; label: string }[]) {
   const sv = v == null ? '' : String(v)
-  if (!sv) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
+  if (!sv) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
   const opt = (opts ?? []).find(o => String(o.id) === sv)
-  if (!opt) return <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
+  if (!opt) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <ContactAvatar name={opt.label} size={22} />
-      <span style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+      <span style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
     </div>
   )
 }
@@ -571,7 +571,7 @@ function ActionsMenu({
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          color: '#516f90',
+          color: '#4a6070',
           transition: 'all 0.15s',
         }}
       >
@@ -594,7 +594,7 @@ function ActionsMenu({
           {deal && (
             <button
               onClick={e => { e.stopPropagation(); setOpen(false); onNote() }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
             >
               <StickyNote size={13} /><span>Ajouter une note</span>
             </button>
@@ -603,13 +603,13 @@ function ActionsMenu({
             <>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onCloser() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
                 <User size={13} /><span>Assigner un closer</span>
               </button>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onTelepro() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
                 <PhoneCall size={13} /><span>Assigner un télépro</span>
               </button>
@@ -671,8 +671,8 @@ function ExpandedDetail({
         <div style={{ padding: '18px 24px' }}>
           {/* Info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Contact</div>
+            <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Contact</div>
               {contact.email && (
                 <a href={`mailto:${contact.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, color: BLUE, fontSize: 12, textDecoration: 'none', marginBottom: 6 }}>
                   <Mail size={11} />{contact.email}
@@ -684,22 +684,22 @@ function ExpandedDetail({
                 </a>
               )}
               {contact.classe_actuelle && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 4 }}>
                   <BookOpen size={11} />{contact.classe_actuelle}
                 </div>
               )}
             </div>
 
             {(contact.departement || contact.zone_localite) && (
-              <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Localisation</div>
+              <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Localisation</div>
                 {contact.departement && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 6 }}>
                     <MapPin size={11} />Dép. {contact.departement}
                   </div>
                 )}
                 {contact.zone_localite && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12 }}>
                     <MapPin size={11} />{contact.zone_localite}
                   </div>
                 )}
@@ -707,18 +707,18 @@ function ExpandedDetail({
             )}
 
             {deal && (
-              <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Transaction</div>
+              <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Transaction</div>
                 {deal.formation && (
                   <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginBottom: 6 }}>{deal.formation}</div>
                 )}
                 {deal.createdate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#7c98b6', fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 4 }}>
                     <Calendar size={11} />Créé le {new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
                 {deal.closedate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12 }}>
                     <Calendar size={11} />RDV: {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
@@ -734,11 +734,11 @@ function ExpandedDetail({
                   onClick={() => setStagePickerOpen(o => !o)}
                   disabled={savingStage}
                   style={{
-                    background: '#f5f8fa',
+                    background: '#f7f4ee',
                     border: `1px solid ${NAVY_BORDER}`,
                     borderRadius: 8,
                     padding: '6px 12px',
-                    color: '#516f90',
+                    color: '#4a6070',
                     fontSize: 12,
                     cursor: savingStage ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
@@ -749,7 +749,7 @@ function ExpandedDetail({
                   }}
                 >
                   {savingStage ? (
-                    <span style={{ color: '#7c98b6' }}>Enregistrement…</span>
+                    <span style={{ color: '#4a6070' }}>Enregistrement…</span>
                   ) : (
                     <><StageBadge stageId={deal.dealstage} /><ChevronDown size={11} /></>
                   )}
@@ -793,7 +793,7 @@ function ExpandedDetail({
                     <div style={{ height: 1, background: '#1e3350', margin: '4px 0' }} />
                     <button
                       onClick={() => setStagePickerOpen(false)}
-                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#7c98b6', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#4a6070', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Fermer
                     </button>
@@ -805,7 +805,7 @@ function ExpandedDetail({
             {deal && (
               <button
                 onClick={onNote}
-                style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '6px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '6px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <StickyNote size={13} /> Note
               </button>
@@ -1316,13 +1316,13 @@ export default function CRMContactsTable({
               <a
                 href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                 onClick={e => e.stopPropagation()}
-                style={{ fontSize: 13, fontWeight: 600, color: '#33475b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', display: 'block' }}
+                style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', display: 'block' }}
                 title="Ouvrir la fiche détaillée"
               >
                 {name}
               </a>
               {contact.email && (
-                <div style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {contact.email}
                 </div>
               )}
@@ -1335,12 +1335,12 @@ export default function CRMContactsTable({
           <a href={`tel:${contact.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Phone size={11} />{formatPhone(contact.phone)}
           </a>
-        ) : <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
+        ) : <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
 
       case 'formation_souhaitee':
         return contact.formation_souhaitee
           ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{contact.formation_souhaitee}</span>
-          : <span style={{ color: '#cbd6e2', fontSize: 12 }}>—</span>
+          : <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
 
       case 'classe':
         return (
@@ -1380,7 +1380,7 @@ export default function CRMContactsTable({
             saving={savingStage === deal.hubspot_deal_id}
             renderValue={v => <StageBadge stageId={v} />}
           />
-        ) : <span style={{ color: '#7c98b6', fontSize: 11 }}>—</span>
+        ) : <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
 
       case 'lead_status':
         return (
@@ -1461,16 +1461,16 @@ export default function CRMContactsTable({
       }
 
       case 'createdat_contact': {
-        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.contact_createdate)}</span>
+        return <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.contact_createdate)}</span>
       }
 
       case 'createdat_deal': {
-        return <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
+        return <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
       }
 
       case 'form_submission': {
         const raw = contact.recent_conversion_date
-        if (!raw) return <span style={{ fontSize: 11, color: '#516f90' }}>—</span>
+        if (!raw) return <span style={{ fontSize: 11, color: '#4a6070' }}>—</span>
         const d = new Date(raw)
         const now = new Date()
         const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
@@ -1495,7 +1495,7 @@ export default function CRMContactsTable({
             {formName && (
               <span style={{
                 fontSize: 10,
-                color: '#516f90',
+                color: '#4a6070',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -1506,8 +1506,8 @@ export default function CRMContactsTable({
               </span>
             )}
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 11, color: '#516f90', whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</span>
-              <span style={{ fontSize: 10, color: '#7c98b6' }}>· {timeStr}</span>
+              <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</span>
+              <span style={{ fontSize: 10, color: '#4a6070' }}>· {timeStr}</span>
             </span>
           </div>
         )
@@ -1520,7 +1520,7 @@ export default function CRMContactsTable({
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6', fontSize: 13 }}>
+      <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070', fontSize: 13 }}>
         <div style={{ display: 'inline-block', width: 20, height: 20, border: `2px solid ${NAVY_BORDER}`, borderTopColor: BLUE, borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12 }} />
         <div>Chargement des contacts…</div>
       </div>
@@ -1529,9 +1529,9 @@ export default function CRMContactsTable({
 
   if (contacts.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#7c98b6', fontSize: 13 }}>
+      <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070', fontSize: 13 }}>
         <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>🔍</div>
-        <div style={{ fontWeight: 600, marginBottom: 4, color: '#516f90' }}>Aucun contact trouvé</div>
+        <div style={{ fontWeight: 600, marginBottom: 4, color: '#4a6070' }}>Aucun contact trouvé</div>
         <div style={{ fontSize: 12 }}>Essayez de modifier vos filtres</div>
       </div>
     )
@@ -1548,7 +1548,7 @@ export default function CRMContactsTable({
             border: `1px solid ${colMenuOpen ? BLUE : NAVY_BORDER}`,
             borderRadius: 8,
             padding: '5px 12px',
-            color: colMenuOpen ? BLUE : '#3a5070',
+            color: colMenuOpen ? BLUE : '#0e1e35',
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
@@ -1577,7 +1577,7 @@ export default function CRMContactsTable({
             overflowY: 'auto',
             boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
           }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
               Afficher les colonnes
             </div>
             {colOrder.map(key => {
@@ -1592,10 +1592,10 @@ export default function CRMContactsTable({
                   padding: '6px 4px',
                   cursor: 'pointer',
                   fontSize: 13,
-                  color: '#1e293b',
+                  color: '#0e1e35',
                   borderRadius: 4,
                 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <input
@@ -1612,7 +1612,7 @@ export default function CRMContactsTable({
             {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
             {allCrmProps && allCrmProps.length > 0 && onExtraColumnsChange && (
               <>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#3a5070', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
                   Propriétés du contact
                 </div>
                 {/* Liste des extra columns actives + bouton retirer */}
@@ -1621,7 +1621,7 @@ export default function CRMContactsTable({
                   return (
                     <div key={propName} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 4px', fontSize: 13, color: '#1e293b',
+                      padding: '6px 4px', fontSize: 13, color: '#0e1e35',
                     }}>
                       <input type="checkbox" checked readOnly style={{ accentColor: BLUE }} />
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1711,7 +1711,7 @@ export default function CRMContactsTable({
                     textAlign: 'left',
                     fontSize: 10,
                     fontWeight: 700,
-                    color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#3a5070',
+                    color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#0e1e35',
                     textTransform: 'uppercase',
                     letterSpacing: '0.08em',
                     background: dragOverIdx === idx && dragIdx !== idx
@@ -1733,7 +1733,7 @@ export default function CRMContactsTable({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
-                    <GripVertical size={10} style={{ color: '#cbd6e2', flexShrink: 0, opacity: 0.6 }} />
+                    <GripVertical size={10} style={{ color: '#e5ddc8', flexShrink: 0, opacity: 0.6 }} />
                     <span style={{ flex: 1 }}>{COL_LABELS[key]}</span>
                     {isSortable && (
                       <span style={{
@@ -1787,7 +1787,7 @@ export default function CRMContactsTable({
                   textAlign: 'left',
                   fontSize: 10,
                   fontWeight: 700,
-                  color: '#3a5070',
+                  color: '#0e1e35',
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
                   background: '#ffffff',
@@ -1821,14 +1821,14 @@ export default function CRMContactsTable({
               const isExpanded = expanded.has(contact.hubspot_contact_id)
               const deal       = contact.deal
 
-              const rowBg = isExpanded ? '#eaf4fd' : '#ffffff'
+              const rowBg = isExpanded ? '#f0e9da' : '#ffffff'
 
               return (
                 <React.Fragment key={contact.hubspot_contact_id}>
                   <tr
                     onMouseEnter={(e) => {
                       handleRowEnter(contact.hubspot_contact_id)
-                      if (!isExpanded) e.currentTarget.style.background = '#f5f8fa'
+                      if (!isExpanded) e.currentTarget.style.background = '#f7f4ee'
                     }}
                     onMouseLeave={(e) => {
                       handleRowLeave()
@@ -1900,7 +1900,7 @@ export default function CRMContactsTable({
                         <td key={`dyn-${propName}`} style={{
                           padding: '10px 12px',
                           fontSize: 13,
-                          color: '#1e293b',
+                          color: '#0e1e35',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -1989,7 +1989,7 @@ export default function CRMContactsTable({
                     padding: '14px 12px',
                     textAlign: 'center',
                     fontSize: 12,
-                    color: '#7c98b6',
+                    color: '#4a6070',
                     background: '#ffffff',
                   }}
                 >
@@ -2071,7 +2071,7 @@ function PropertyPicker({
         style={{
           width: '100%',
           padding: '6px 10px',
-          border: '1px solid #cbd6e2',
+          border: '1px solid #e5ddc8',
           borderRadius: 6,
           fontSize: 12,
           fontFamily: 'inherit',
@@ -2081,7 +2081,7 @@ function PropertyPicker({
       />
       <div style={{
         maxHeight: 200, overflowY: 'auto', marginTop: 6,
-        border: '1px solid #e2e8f0', borderRadius: 6,
+        border: '1px solid #e5ddc8', borderRadius: 6,
       }}>
         {canAddManualProp && !allProps.some(p => p.name === normalizedQuery) && (
           <button
@@ -2090,7 +2090,7 @@ function PropertyPicker({
               display: 'block', width: '100%', textAlign: 'left',
               padding: '8px 10px', fontSize: 12,
               background: '#eff6ff', border: 'none',
-              borderBottom: '1px solid #e2e8f0',
+              borderBottom: '1px solid #e5ddc8',
               cursor: 'pointer', color: '#1d4ed8', fontFamily: 'inherit',
               fontWeight: 600,
             }}
@@ -2114,9 +2114,9 @@ function PropertyPicker({
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '6px 10px', fontSize: 12,
                 background: 'transparent', border: 'none',
-                cursor: 'pointer', color: '#1e293b', fontFamily: 'inherit',
+                cursor: 'pointer', color: '#0e1e35', fontFamily: 'inherit',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               title={p.name}
             >

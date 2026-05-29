@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { StickyNote } from 'lucide-react'
 
 const NAVY = '#ffffff'
-const GOLD = '#ccac71'
+const GOLD = '#E8C97B'
 const BLUE = '#4cabdb'
 
 interface Props {
@@ -49,13 +49,13 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
       style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: NAVY, border: '1px solid #cbd6e2', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: NAVY, border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#33475b', display: 'flex', alignItems: 'center', gap: 6 }}><StickyNote size={15} /> Ajouter une note</div>
-            <div style={{ fontSize: 12, color: '#7c98b6', marginTop: 2 }}>{contactName}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 6 }}><StickyNote size={15} /> Ajouter une note</div>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{contactName}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#7c98b6', fontSize: 20, padding: '2px 6px' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', fontSize: 20, padding: '2px 6px' }}>✕</button>
         </div>
 
         {error && (
@@ -77,22 +77,22 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
               rows={5}
               autoFocus
               style={{
-                width: '100%', background: '#ffffff', border: '1px solid #cbd6e2',
-                borderRadius: 8, padding: '10px 12px', color: '#33475b', fontSize: 13,
+                width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
+                borderRadius: 8, padding: '10px 12px', color: '#0e1e35', fontSize: 13,
                 outline: 'none', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.6,
                 boxSizing: 'border-box', transition: 'border-color 0.15s',
               }}
               onFocus={e => e.currentTarget.style.borderColor = GOLD}
-              onBlur={e => e.currentTarget.style.borderColor = '#cbd6e2'}
+              onBlur={e => e.currentTarget.style.borderColor = '#e5ddc8'}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ background: '#f5f8fa', border: '1px solid #cbd6e2', borderRadius: 8, padding: '7px 16px', color: '#7c98b6', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+              <button onClick={onClose} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '7px 16px', color: '#4a6070', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
                 Annuler
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !note.trim()}
-                style={{ background: note.trim() ? BLUE : 'rgba(76,171,219,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: note.trim() ? '#fff' : '#cbd6e2', cursor: note.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+                style={{ background: note.trim() ? BLUE : 'rgba(76,171,219,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: note.trim() ? '#fff' : '#e5ddc8', cursor: note.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
               >
                 {saving ? 'Envoi…' : 'Ajouter'}
               </button>

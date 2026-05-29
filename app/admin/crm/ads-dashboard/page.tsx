@@ -115,7 +115,7 @@ export default function AdsDashboardPage() {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 80px' }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Ads Dashboard</h1>
-          <p style={{ fontSize: 13, color: '#516f90', margin: 0 }}>
+          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
             Performances de tes campagnes Meta et Google Ads en temps réel.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function AdsDashboardPage() {
             <div style={card({ padding: 40, textAlign: 'center' })}>
               <Facebook size={36} style={{ color: '#1877F2', margin: '0 auto 10px' }} />
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucun compte publicitaire connecté</div>
-              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16 }}>
                 Reconnecte-toi à Facebook depuis la page <a href="/admin/crm/meta-ads" style={{ color: '#2ea3f2' }}>Meta Lead Ads</a> pour autoriser l&apos;accès aux ad accounts.
               </div>
               <a href="/api/meta/oauth/start" style={{
@@ -182,8 +182,8 @@ export default function AdsDashboardPage() {
                   </select>
                 </div>
                 <button onClick={() => loadInsights(true)} disabled={loading} style={{
-                  marginLeft: 'auto', padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd6e2',
-                  background: '#fff', color: '#516f90', fontSize: 12, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
+                  marginLeft: 'auto', padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8',
+                  background: '#fff', color: '#4a6070', fontSize: 12, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
@@ -215,7 +215,7 @@ export default function AdsDashboardPage() {
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
+                        <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
                           <th style={th}>{level === 'campaign' ? 'Campagne' : level === 'adset' ? 'Adset' : 'Ad'}</th>
                           <th style={thNum}>Impressions</th>
                           <th style={thNum}>Clics</th>
@@ -289,7 +289,7 @@ export default function AdsDashboardPage() {
           <div style={card({ padding: 32, textAlign: 'center' })}>
             <GoogleAdsIcon size={36} style={{ margin: '0 auto 10px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Bientôt disponible</div>
-            <div style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto' }}>
+            <div style={{ fontSize: 13, color: '#4a6070', maxWidth: 480, margin: '0 auto' }}>
               L&apos;intégration Google Ads nécessite un Developer Token approuvé par Google.
               Cette section sera ajoutée dans un prochain chunk une fois le token obtenu.
             </div>
@@ -319,7 +319,7 @@ function KpiCard({ label, value, sub, highlight }: { label: string; value: strin
     <div style={{
       background: highlight ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#fff',
       color: highlight ? '#fff' : '#1a2f4b',
-      border: highlight ? 'none' : '1px solid #cbd6e2',
+      border: highlight ? 'none' : '1px solid #e5ddc8',
       borderRadius: 12, padding: 14,
     }}>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', opacity: highlight ? 0.85 : 0.65, marginBottom: 4 }}>
@@ -361,7 +361,7 @@ function fmtCurrency(n: number, currency: string): string {
 // ─── Styles ────────────────────────────────────────────────────────────────
 
 function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12, ...extra }
+  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
 }
 function banner(kind: 'error' | 'success'): React.CSSProperties {
   return {
@@ -374,11 +374,11 @@ function banner(kind: 'error' | 'success'): React.CSSProperties {
     display: 'flex', alignItems: 'center', gap: 8,
   }
 }
-const labelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }
+const labelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase' }
 const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid #cbd6e2', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 160,
+  padding: '6px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 160,
 }
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
 const thNum: React.CSSProperties = { ...th, textAlign: 'right' }
 const td: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'top' }
 const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }

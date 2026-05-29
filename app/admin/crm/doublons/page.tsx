@@ -114,7 +114,7 @@ export default function DoublonsPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a2f4b' }}>Doublons à fusionner</h1>
-        <p className="text-sm" style={{ color: '#516f90' }}>
+        <p className="text-sm" style={{ color: '#4a6070' }}>
           Détection native dans Supabase. Fusionne ou supprime les contacts en double, les deals/tâches/activités sont automatiquement re-liés au contact gardé.
         </p>
       </div>
@@ -131,9 +131,9 @@ export default function DoublonsPage() {
               style={{
                 padding: '8px 16px',
                 borderRadius: 8,
-                border: '1px solid ' + (active ? '#2ea3f2' : '#cbd6e2'),
+                border: '1px solid ' + (active ? '#2ea3f2' : '#e5ddc8'),
                 background: active ? '#2ea3f2' : '#fff',
-                color: active ? '#fff' : '#516f90',
+                color: active ? '#fff' : '#4a6070',
                 fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
@@ -146,8 +146,8 @@ export default function DoublonsPage() {
           onClick={load}
           disabled={loading}
           style={{
-            padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd6e2',
-            background: '#fff', color: '#516f90', fontSize: 13, cursor: 'pointer',
+            padding: '8px 12px', borderRadius: 8, border: '1px solid #e5ddc8',
+            background: '#fff', color: '#4a6070', fontSize: 13, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto',
           }}
         >
@@ -155,7 +155,7 @@ export default function DoublonsPage() {
         </button>
       </div>
 
-      <p style={{ color: '#7c98b6', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <p style={{ color: '#4a6070', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
         <TabIcon size={14} /> {TAB_INFO[tab].help}
       </p>
 
@@ -179,7 +179,7 @@ export default function DoublonsPage() {
       )}
 
       {loading && (
-        <div style={{ padding: 60, textAlign: 'center', color: '#7c98b6' }}>
+        <div style={{ padding: 60, textAlign: 'center', color: '#4a6070' }}>
           <RefreshCw className="animate-spin" size={28} style={{ marginBottom: 12 }} />
           <div>Détection des doublons en cours…</div>
         </div>
@@ -187,8 +187,8 @@ export default function DoublonsPage() {
 
       {!loading && groups.length === 0 && (
         <div style={{
-          padding: 60, textAlign: 'center', color: '#7c98b6',
-          background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12,
+          padding: 60, textAlign: 'center', color: '#4a6070',
+          background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12,
         }}>
           <CheckCircle2 size={40} style={{ color: '#22c55e', margin: '0 auto 12px' }} />
           <div style={{ fontSize: 16, fontWeight: 600, color: '#1a2f4b', marginBottom: 4 }}>
@@ -202,18 +202,18 @@ export default function DoublonsPage() {
 
       {!loading && groups.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 13, color: '#516f90' }}>
+          <div style={{ fontSize: 13, color: '#4a6070' }}>
             <strong style={{ color: '#1a2f4b' }}>{groups.length}</strong> groupe{groups.length > 1 ? 's' : ''} de doublons détecté{groups.length > 1 ? 's' : ''}
           </div>
           {groups.map(g => {
             const primaryId = primarySelections[g.key]
             return (
               <div key={g.key} style={{
-                background: '#fff', border: '1px solid #cbd6e2', borderRadius: 12,
+                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12,
                 overflow: 'hidden',
               }}>
                 <div style={{
-                  padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
+                  padding: '10px 16px', background: '#f7f4ee', borderBottom: '1px solid #e5ddc8',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   flexWrap: 'wrap', gap: 8,
                 }}>
@@ -225,7 +225,7 @@ export default function DoublonsPage() {
                     disabled={merging === g.key || !primaryId}
                     style={{
                       padding: '6px 14px', borderRadius: 8, border: 'none',
-                      background: merging === g.key ? '#cbd6e2' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
+                      background: merging === g.key ? '#e5ddc8' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
                       color: '#fff', fontSize: 13, fontWeight: 600, cursor: merging === g.key ? 'wait' : 'pointer',
                       display: 'flex', alignItems: 'center', gap: 6,
                     }}
@@ -235,15 +235,15 @@ export default function DoublonsPage() {
                 </div>
                 <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Garder ?</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Contact</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Email</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Téléphone</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Classe / Zone</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Statut du lead</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Créé</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Dernière soumission</th>
+                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Garder ?</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Contact</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Email</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Téléphone</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Classe / Zone</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Statut du lead</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Créé</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Dernière soumission</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -293,10 +293,10 @@ export default function DoublonsPage() {
                                 padding: '2px 8px', borderRadius: 999, background: '#eef2f7',
                                 color: '#1a2f4b', fontSize: 11, fontWeight: 600,
                               }}>{c.hs_lead_status}</span>
-                            ) : <span style={{ color: '#cbd6e2' }}>—</span>}
+                            ) : <span style={{ color: '#e5ddc8' }}>—</span>}
                           </td>
-                          <td style={{ padding: '10px 12px', color: '#64748b' }}>{fmtDate(c.contact_createdate)}</td>
-                          <td style={{ padding: '10px 12px', color: '#64748b' }}>{fmtDate(c.recent_conversion_date)}</td>
+                          <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.contact_createdate)}</td>
+                          <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.recent_conversion_date)}</td>
                         </tr>
                       )
                     })}

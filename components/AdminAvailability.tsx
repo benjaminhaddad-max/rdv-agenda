@@ -52,10 +52,10 @@ for (let h = 7; h <= 22; h++) {
 
 const selectStyle: React.CSSProperties = {
   background: '#f1f5f9',
-  border: '1px solid #e2e8f0',
+  border: '1px solid #e5ddc8',
   borderRadius: 6,
   padding: '5px 8px',
-  color: '#1e293b',
+  color: '#0e1e35',
   fontSize: 12,
   outline: 'none',
   cursor: 'pointer',
@@ -341,7 +341,7 @@ function CloserAvailabilityCard({
   return (
     <div style={{
       background: '#ffffff',
-      border: `1px solid ${expanded ? 'rgba(204,172,113,0.4)' : '#e2e8f0'}`,
+      border: `1px solid ${expanded ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
       borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.2s',
     }}>
       <div
@@ -357,8 +357,8 @@ function CloserAvailabilityCard({
           {closer.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{closer.name}</div>
-          <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35' }}>{closer.name}</div>
+          <div style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {summary}
           </div>
         </div>
@@ -366,13 +366,13 @@ function CloserAvailabilityCard({
       </div>
 
       {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #e2e8f0' }}>
+        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #e5ddc8' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
             <button
               onClick={copyFromPreviousWeek}
               style={{
                 background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8,
-                padding: '5px 10px', fontSize: 12, color: '#1e293b', cursor: 'pointer',
+                padding: '5px 10px', fontSize: 12, color: '#0e1e35', cursor: 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 5,
               }}
             >
@@ -390,7 +390,7 @@ function CloserAvailabilityCard({
             </button>
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
             Planning {weekLabel(weekStart)}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -399,17 +399,17 @@ function CloserAvailabilityCard({
               return (
                 <div key={day.value} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', background: rule.is_active ? '#f8fafc' : '#fafbfc',
-                  borderRadius: 8, border: '1px solid #e2e8f0',
+                  padding: '8px 10px', background: rule.is_active ? '#f7f4ee' : '#fafbfc',
+                  borderRadius: 8, border: '1px solid #e5ddc8',
                 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', minWidth: 70 }}>
                     <input
                       type="checkbox"
                       checked={rule.is_active}
                       onChange={e => updateRule(day.value, 'is_active', e.target.checked)}
-                      style={{ accentColor: '#b89450', cursor: 'pointer' }}
+                      style={{ accentColor: '#C9A84C', cursor: 'pointer' }}
                     />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{day.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{day.label}</span>
                   </label>
                   {rule.is_active ? (
                     <>
@@ -442,7 +442,7 @@ function CloserAvailabilityCard({
               onClick={saveRules}
               disabled={saving}
               style={{
-                background: '#b89450', color: '#fff', border: 'none', borderRadius: 8,
+                background: '#C9A84C', color: '#fff', border: 'none', borderRadius: 8,
                 padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
@@ -453,8 +453,8 @@ function CloserAvailabilityCard({
             {error && <span style={{ color: '#dc2626', fontSize: 12 }}>{error}</span>}
           </div>
 
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #e5ddc8' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
               Jours bloqués (vacances, indispo ponctuelle)
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
@@ -468,7 +468,7 @@ function CloserAvailabilityCard({
                 onClick={addBlockedDate}
                 disabled={!blockDate}
                 style={{
-                  background: blockDate ? '#1e293b' : '#cbd5e1', color: '#fff',
+                  background: blockDate ? '#0e1e35' : '#cbd5e1', color: '#fff',
                   border: 'none', borderRadius: 8, padding: '5px 10px',
                   fontSize: 12, fontWeight: 600, cursor: blockDate ? 'pointer' : 'not-allowed',
                   display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -559,32 +559,32 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#ffffff', border: '1px solid #e2e8f0',
+        background: '#ffffff', border: '1px solid #e5ddc8',
         borderRadius: 16, width: '100%', maxWidth: 720,
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
       }}>
         <div style={{
-          padding: '18px 24px', borderBottom: '1px solid #e2e8f0',
+          padding: '18px 24px', borderBottom: '1px solid #e5ddc8',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 2, background: '#ffffff',
           borderTopLeftRadius: 16, borderTopRightRadius: 16,
         }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock size={18} style={{ color: '#b89450' }} />
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Clock size={18} style={{ color: '#C9A84C' }} />
               Disponibilités des closers
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 4 }}>
               Définis le planning de chaque closer, semaine par semaine.
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8,
+              background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 8,
               width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#64748b',
+              cursor: 'pointer', color: '#4a6070',
             }}
           >
             <X size={16} />
@@ -595,22 +595,22 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
 
         {!migrationNeeded && (
           <div style={{
-            padding: '12px 24px', borderBottom: '1px solid #e2e8f0',
+            padding: '12px 24px', borderBottom: '1px solid #e5ddc8',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
             background: '#fafbfc',
           }}>
             <button
               onClick={() => setWeekStart(addWeeksISO(weekStart, -1))}
               style={{
-                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
                 padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 12, color: '#1e293b', fontFamily: 'inherit', fontWeight: 600,
+                fontSize: 12, color: '#0e1e35', fontFamily: 'inherit', fontWeight: 600,
               }}
             >
               <ChevronLeft size={14} /> Sem. précédente
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35' }}>
                 {weekLabel(weekStart)}
               </div>
               {weekStart !== todayWeek && (
@@ -619,7 +619,7 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
                   style={{
                     background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
                     borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600,
-                    color: '#b89450', cursor: 'pointer', fontFamily: 'inherit',
+                    color: '#C9A84C', cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
                   Aujourd&apos;hui
@@ -629,9 +629,9 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
             <button
               onClick={() => setWeekStart(addWeeksISO(weekStart, 1))}
               style={{
-                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
                 padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 12, color: '#1e293b', fontFamily: 'inherit', fontWeight: 600,
+                fontSize: 12, color: '#0e1e35', fontFamily: 'inherit', fontWeight: 600,
               }}
             >
               Sem. suivante <ChevronRight size={14} />
@@ -641,12 +641,12 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {!loaded && (
-            <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', color: '#4a6070', padding: '24px 0', fontSize: 13 }}>
               Chargement…
             </div>
           )}
           {loaded && closers.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', color: '#4a6070', padding: '24px 0', fontSize: 13 }}>
               Aucun closer trouvé. Va dans Utilisateurs pour en créer.
             </div>
           )}

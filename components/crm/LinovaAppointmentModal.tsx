@@ -141,7 +141,7 @@ export default function LinovaAppointmentModal({ contact, onClose, onSaved }: Pr
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-[#ccac71]/10 text-[#ccac71] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-md bg-[#E8C97B]/10 text-[#E8C97B] flex items-center justify-center">
               <Calendar size={16} />
             </div>
             <h2 className="text-base font-semibold text-slate-800">Programmer RDV admission Linova</h2>
@@ -261,7 +261,7 @@ export default function LinovaAppointmentModal({ contact, onClose, onSaved }: Pr
           <button
             onClick={handleSubmit}
             disabled={saving || slotsLoading || !selectedSlot}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#ccac71] text-white disabled:opacity-60"
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#E8C97B] text-white disabled:opacity-60"
           >
             {saving ? 'Création...' : 'Confirmer'}
           </button>

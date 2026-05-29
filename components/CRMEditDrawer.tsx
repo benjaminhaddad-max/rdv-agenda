@@ -7,8 +7,8 @@ import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 // Constantes
-const NAVY_BORDER = '#cbd6e2'
-const GOLD = '#ccac71'
+const NAVY_BORDER = '#e5ddc8'
+const GOLD = '#E8C97B'
 const BLUE = '#4cabdb'
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
@@ -18,7 +18,7 @@ const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070' },
 }
 
 const FORMATIONS: { value: string; label: string }[] = [
@@ -234,7 +234,7 @@ function EditField({
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
       {editing ? (
         <div style={{ display: 'flex', gap: 6 }}>
           <input
@@ -245,7 +245,7 @@ function EditField({
             onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') { setEditing(false); setVal(value) } }}
             style={{
               flex: 1,
-              background: '#f5f8fa',
+              background: '#f7f4ee',
               border: `1px solid ${BLUE}`,
               borderRadius: 6,
               padding: '6px 10px',
@@ -264,7 +264,7 @@ function EditField({
           </button>
           <button
             onClick={() => { setEditing(false); setVal(value) }}
-            style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#516f90', fontSize: 12, cursor: 'pointer' }}
+            style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#4a6070', fontSize: 12, cursor: 'pointer' }}
           >
             <X size={12} />
           </button>
@@ -274,10 +274,10 @@ function EditField({
           onClick={() => setEditing(true)}
           style={{
             padding: '7px 10px',
-            background: '#f5f8fa',
+            background: '#f7f4ee',
             border: `1px solid ${NAVY_BORDER}`,
             borderRadius: 6,
-            color: value ? '#516f90' : '#3a5070',
+            color: value ? '#4a6070' : '#0e1e35',
             fontSize: 13,
             cursor: 'pointer',
             display: 'flex',
@@ -289,7 +289,7 @@ function EditField({
           onMouseLeave={e => (e.currentTarget.style.borderColor = NAVY_BORDER)}
         >
           <span>{value || '—'}</span>
-          <span style={{ fontSize: 10, color: '#3a5070' }}>✎</span>
+          <span style={{ fontSize: 10, color: '#0e1e35' }}>✎</span>
         </div>
       )}
     </div>
@@ -397,7 +397,7 @@ function SelectField({
             background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
             border: 'none',
             borderBottom: '1px solid #eaf0f6',
-            color: colorMap?.[o.id] || (o.id === value ? '#ccac71' : '#516f90'),
+            color: colorMap?.[o.id] || (o.id === value ? '#E8C97B' : '#4a6070'),
             fontSize: 13,
             fontFamily: 'inherit',
             cursor: 'pointer',
@@ -416,7 +416,7 @@ function SelectField({
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
       <button
         ref={triggerRef}
         type="button"
@@ -424,11 +424,11 @@ function SelectField({
         disabled={saving}
         style={{
           width: '100%',
-          background: '#f5f8fa',
+          background: '#f7f4ee',
           border: `1px solid ${open ? BLUE : NAVY_BORDER}`,
           borderRadius: 6,
           padding: '7px 10px',
-          color: colorMap?.[value] || (value ? '#516f90' : '#7c98b6'),
+          color: colorMap?.[value] || (value ? '#4a6070' : '#4a6070'),
           fontSize: 13,
           fontFamily: 'inherit',
           cursor: 'pointer',
@@ -441,7 +441,7 @@ function SelectField({
         }}
       >
         <span>{selectedLabel}</span>
-        <ChevronDown size={12} style={{ color: '#3a5070', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        <ChevronDown size={12} style={{ color: '#0e1e35', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
       </button>
       {saving && <div style={{ fontSize: 10, color: BLUE, marginTop: 3 }}>Enregistrement…</div>}
       {dropdown}
@@ -566,7 +566,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
       }}>
         <CheckCircle size={32} color="#22c55e" style={{ marginBottom: 8 }} />
         <div style={{ color: '#22c55e', fontSize: 14, fontWeight: 700 }}>RDV confirmé !</div>
-        <div style={{ color: '#516f90', fontSize: 12, marginTop: 4 }}>
+        <div style={{ color: '#4a6070', fontSize: 12, marginTop: 4 }}>
           {selectedSlot && new Date(selectedSlot.start).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           {' à '}
           {selectedSlot && new Date(selectedSlot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
@@ -580,13 +580,13 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
       {/* ── Étape 1 : Calendrier semaine ─────────────────────────────────── */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: 'none', border: 'none', color: '#516f90', cursor: 'pointer', padding: 4 }}>
+          <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 4 }}>
             <ChevronLeft size={16} />
           </button>
-          <span style={{ fontSize: 11, color: '#516f90', fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>
             {weekDays[0].toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {weekDays[6].toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
           </span>
-          <button onClick={() => setWeekOffset(w => w + 1)} style={{ background: 'none', border: 'none', color: '#516f90', cursor: 'pointer', padding: 4 }}>
+          <button onClick={() => setWeekOffset(w => w + 1)} style={{ background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 4 }}>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -603,10 +603,10 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                 disabled={disabled}
                 style={{
                   padding: '6px 2px',
-                  background: isSelected ? GOLD : '#f5f8fa',
+                  background: isSelected ? GOLD : '#f7f4ee',
                   border: `1px solid ${isSelected ? GOLD : NAVY_BORDER}`,
                   borderRadius: 8,
-                  color: isSelected ? '#ffffff' : disabled ? '#2a3a50' : '#516f90',
+                  color: isSelected ? '#ffffff' : disabled ? '#2a3a50' : '#4a6070',
                   fontSize: 11,
                   fontWeight: isSelected ? 700 : 500,
                   cursor: disabled ? 'default' : 'pointer',
@@ -626,12 +626,12 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
       {/* ── Étape 2 : Créneaux ───────────────────────────────────────────── */}
       {selectedDate && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
             <Clock size={10} style={{ marginRight: 4, verticalAlign: 'middle' }} />
             Créneaux disponibles
           </div>
           {slotsLoading ? (
-            <div style={{ color: '#7c98b6', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
+            <div style={{ color: '#4a6070', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
           ) : slots.length === 0 ? (
             <div style={{ color: '#ef4444', fontSize: 12, padding: '8px 0' }}>Aucun créneau disponible ce jour</div>
           ) : (
@@ -651,10 +651,10 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                     onClick={() => setSelectedSlot(slot)}
                     style={{
                       padding: '6px 4px',
-                      background: isSelected ? GOLD : '#f5f8fa',
+                      background: isSelected ? GOLD : '#f7f4ee',
                       border: `1px solid ${isSelected ? GOLD : NAVY_BORDER}`,
                       borderRadius: 6,
-                      color: isSelected ? '#ffffff' : '#516f90',
+                      color: isSelected ? '#ffffff' : '#4a6070',
                       fontSize: 12,
                       fontWeight: isSelected ? 700 : 400,
                       cursor: 'pointer',
@@ -675,13 +675,13 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
         <div style={{ marginBottom: 14 }}>
           {/* Formation */}
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Formation *</div>
+            <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Formation *</div>
             <select
               value={formation}
               onChange={e => setFormation(e.target.value)}
               style={{
-                width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`,
-                borderRadius: 6, padding: '7px 10px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`,
+                borderRadius: 6, padding: '7px 10px', color: '#4a6070', fontSize: 12, fontFamily: 'inherit', outline: 'none',
                 appearance: 'none', WebkitAppearance: 'none',
               }}
             >
@@ -693,30 +693,30 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           {/* Phone + Dept row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <div>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Téléphone *</div>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Téléphone *</div>
               <input
                 type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#1e293b', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#0e1e35', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
             <div>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Département *</div>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Département *</div>
               <input
                 value={departement} onChange={e => setDepartement(e.target.value)}
-                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#1e293b', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#0e1e35', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
           </div>
 
           {/* Classe */}
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Classe actuelle *</div>
+            <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Classe actuelle *</div>
             <select
               value={classeActuelle}
               onChange={e => setClasseActuelle(e.target.value)}
               style={{
-                width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`,
-                borderRadius: 6, padding: '7px 10px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`,
+                borderRadius: 6, padding: '7px 10px', color: '#4a6070', fontSize: 12, fontFamily: 'inherit', outline: 'none',
                 appearance: 'none', WebkitAppearance: 'none',
               }}
             >
@@ -727,7 +727,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 
           {/* Type de RDV */}
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Type de RDV</div>
+            <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Type de RDV</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {MEETING_TYPES.map(mt => {
                 const Icon = mt.icon
@@ -742,9 +742,9 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
                     }}
                     style={{
                       flex: 1, padding: '6px 8px',
-                      background: active ? 'rgba(204,172,113,0.15)' : '#f5f8fa',
+                      background: active ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
                       border: `1px solid ${active ? GOLD : NAVY_BORDER}`,
-                      borderRadius: 6, color: active ? GOLD : '#516f90',
+                      borderRadius: 6, color: active ? GOLD : '#4a6070',
                       fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                     }}
@@ -759,15 +759,15 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           {/* Campus présentiel */}
           {meetingType === 'presentiel' && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
                 Campus (présentiel)
               </div>
               <select
                 value={meetingCampus}
                 onChange={e => setMeetingCampus(e.target.value)}
                 style={{
-                  width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`,
-                  borderRadius: 6, padding: '7px 10px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                  width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`,
+                  borderRadius: 6, padding: '7px 10px', color: '#4a6070', fontSize: 12, fontFamily: 'inherit', outline: 'none',
                   appearance: 'none', WebkitAppearance: 'none',
                 }}
               >
@@ -779,20 +779,20 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           {/* Lien visio */}
           {meetingType === 'visio' && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Lien visio</div>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Lien visio</div>
               <input
                 value={meetingLink} onChange={e => setMeetingLink(e.target.value)}
-                style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#4cabdb', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#4cabdb', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
           )}
 
           {/* Notes */}
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Notes (optionnel)</div>
+            <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Notes (optionnel)</div>
             <textarea
               value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              style={{ width: '100%', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 12, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 12, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
           </div>
 
@@ -804,9 +804,9 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
             disabled={submitting || !canSubmit}
             style={{
               width: '100%', padding: '10px',
-              background: canSubmit ? `linear-gradient(135deg, ${GOLD}, #b8963f)` : '#f5f8fa',
+              background: canSubmit ? `linear-gradient(135deg, ${GOLD}, #b8963f)` : '#f7f4ee',
               border: 'none', borderRadius: 8,
-              color: canSubmit ? '#ffffff' : '#7c98b6',
+              color: canSubmit ? '#ffffff' : '#4a6070',
               fontSize: 13, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default',
               fontFamily: 'inherit',
               opacity: submitting ? 0.6 : 1,
@@ -1073,7 +1073,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
             </a>
             <button
               onClick={onClose}
-              style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#516f90' }}
+              style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}
             >
               <X size={14} />
             </button>
@@ -1096,7 +1096,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                 <Calendar size={14} color="#22c55e" />
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#22c55e' }}>Rendez-vous planifié</span>
               </div>
-              <div style={{ fontSize: 14, color: '#33475b', fontWeight: 600, marginBottom: 4 }}>
+              <div style={{ fontSize: 14, color: '#0e1e35', fontWeight: 600, marginBottom: 4 }}>
                 {new Date(deal!.closedate!).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1122,8 +1122,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                   )
                   if (closerUser) {
                     return (
-                      <span style={{ fontSize: 11, color: '#516f90' }}>
-                        Closer : <span style={{ color: '#516f90', fontWeight: 600 }}>{closerUser.name}</span>
+                      <span style={{ fontSize: 11, color: '#4a6070' }}>
+                        Closer : <span style={{ color: '#4a6070', fontWeight: 600 }}>{closerUser.name}</span>
                       </span>
                     )
                   }
@@ -1133,8 +1133,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                   )
                   if (teleproUser) {
                     return (
-                      <span style={{ fontSize: 11, color: '#516f90' }}>
-                        Télépro : <span style={{ color: '#516f90', fontWeight: 600 }}>{teleproUser.name}</span>
+                      <span style={{ fontSize: 11, color: '#4a6070' }}>
+                        Télépro : <span style={{ color: '#4a6070', fontWeight: 600 }}>{teleproUser.name}</span>
                       </span>
                     )
                   }
@@ -1205,7 +1205,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
 
           {/* Section : Identité */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#ccac71', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, borderBottom: '1px solid rgba(204,172,113,0.2)', paddingBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#E8C97B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, borderBottom: '1px solid rgba(204,172,113,0.2)', paddingBottom: 6 }}>
               Identité
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1247,8 +1247,8 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
             />
             {/* Date de création (read-only) */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date de création</div>
-              <div style={{ padding: '7px 10px', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#7c98b6', fontSize: 13 }}>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date de création</div>
+              <div style={{ padding: '7px 10px', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#4a6070', fontSize: 13 }}>
                 {(deal?.createdate ?? c.contact_createdate)
                   ? new Date((deal?.createdate ?? c.contact_createdate)!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
                   : '—'}
@@ -1262,19 +1262,19 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
             />
             {/* Soumission de formulaire (read-only) */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Soumission formulaire</div>
-              <div style={{ padding: '7px 10px', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, fontSize: 12 }}>
+              <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Soumission formulaire</div>
+              <div style={{ padding: '7px 10px', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, fontSize: 12 }}>
                 {c.recent_conversion_event ? (
                   <div>
-                    <div style={{ color: '#516f90' }}>{c.recent_conversion_event}</div>
+                    <div style={{ color: '#4a6070' }}>{c.recent_conversion_event}</div>
                     {c.recent_conversion_date && (
-                      <div style={{ color: '#7c98b6', fontSize: 11, marginTop: 2 }}>
+                      <div style={{ color: '#4a6070', fontSize: 11, marginTop: 2 }}>
                         {new Date(c.recent_conversion_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <span style={{ color: '#3a5070' }}>—</span>
+                  <span style={{ color: '#0e1e35' }}>—</span>
                 )}
               </div>
             </div>
@@ -1345,14 +1345,14 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
               />
               {deal.formation && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Formation</div>
-                  <div style={{ padding: '7px 10px', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: GOLD, fontSize: 13, fontWeight: 700 }}>{deal.formation}</div>
+                  <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Formation</div>
+                  <div style={{ padding: '7px 10px', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: GOLD, fontSize: 13, fontWeight: 700 }}>{deal.formation}</div>
                 </div>
               )}
               {deal.closedate && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, color: '#3a5070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date RDV</div>
-                  <div style={{ padding: '7px 10px', background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#516f90', fontSize: 13 }}>
+                  <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Date RDV</div>
+                  <div style={{ padding: '7px 10px', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, color: '#4a6070', fontSize: 13 }}>
                     {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 </div>

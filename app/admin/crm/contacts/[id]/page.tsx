@@ -565,7 +565,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             label="Statut du lead"
             value={leadStatusLabel || '—'}
             pillColor={leadStatusColor}
-            color="bg-gradient-to-br from-[#ccac71] to-[#b08f50]"
+            color="bg-gradient-to-br from-[#E8C97B] to-[#b08f50]"
           />
           <KpiCard
             icon={<Clock size={18} />}
@@ -806,7 +806,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             ) : (
               <ul className="space-y-2">
                 {appointments.map(a => (
-                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-[#ccac71]/5">
+                  <li key={a.id as string} className="border rounded-lg p-3 text-sm bg-[#E8C97B]/5">
                     <div className="font-medium">
                       {a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}
                     </div>
@@ -1393,7 +1393,7 @@ function RightSection({ icon, title, count, accent, children }: {
   }
   const accentColor = {
     brand: 'text-[#0038f0] bg-[#2ea3f2]/10',
-    gold:  'text-[#ccac71] bg-[#ccac71]/10',
+    gold:  'text-[#E8C97B] bg-[#E8C97B]/10',
     dark:  'text-[#333] bg-slate-100',
   }[accent]
   return (
