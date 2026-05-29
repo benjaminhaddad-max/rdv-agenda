@@ -46,7 +46,7 @@ interface Activity {
 }
 
 interface FormSubmission {
-  id: number
+  id: number | string
   form_id: string
   form_title?: string
   form_type?: string
@@ -430,6 +430,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     emailCampaign?: EmailCampaign
   }
   const timeline: TimelineItem[] = []
+  const formatFormValuesPreview = (values: unknown): string | undefined => {
+    if (!values || typeof values !== 'object') return undefined
+    const entries = Object.entries(values as Record<string, unknown>)
+      .filter(([k, v]) => {
+        if (!k || k.startsWith('_') || k === 'hp') return false
+        if (v === null || v === undefined) return false
+        const s = String(v).trim()
+        return s.length > 0
+      })
+      .slice(0, 8)
+      .map(([k, v]) => `${k}: ${String(v)}`)
+    return entries.length > 0 ? entries.join('\n') : undefined
+  }
   for (const a of activities) {
     const t = a.activity_type.toLowerCase()
     const valid: TimelineItem['type'][] = ['note', 'call', 'email', 'meeting', 'task']
@@ -449,12 +462,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     })
   }
   for (const f of formSubmissions) {
+    const valuesPreview = formatFormValuesPreview(f.values)
+    const utmSource = f.values?.utm_source || f.values?.utmSource || null
+    const utmMedium = f.values?.utm_medium || f.values?.utmMedium || null
+    const utmCampaign = f.values?.utm_campaign || f.values?.utmCampaign || null
+    const utmBits = [utmSource, utmMedium, utmCampaign].filter(Boolean).join(' / ')
+    const subParts = [f.page_url, utmBits].filter(Boolean)
     timeline.push({
       id: `form-${f.id}`,
       type: 'form',
       timestamp: new Date(f.submitted_at).getTime(),
       title: f.form_title || f.form_id,
-      subtitle: f.page_url,
+      subtitle: subParts.length > 0 ? subParts.join(' · ') : undefined,
+      body: valuesPreview,
     })
   }
   if (recentConversionFallback) {
@@ -881,6 +901,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div className="text-xs text-slate-500 mt-0.5">
                       {format(new Date(f.submitted_at), 'PP', { locale: fr })}
                     </div>
+                    {f.page_url && (
+                      <div className="text-[11px] text-slate-500 mt-1 break-all">{f.page_url}</div>
+                    )}
                   </li>
                 ))}
                 {formSubmissions.length === 0 && recentConversionFallback && (

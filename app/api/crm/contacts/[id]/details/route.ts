@@ -186,6 +186,74 @@ export async function GET(
 
   const deals = dealsRes.data ?? []
 
+  // Fallback robuste:
+  // certains contacts natifs (NATIVE_*) ont leurs soumissions dans `form_submissions`
+  // (data._contact_id) mais pas encore répliquées dans `crm_form_submissions`.
+  // On les remonte ici pour éviter une timeline vide.
+  let normalizedFormSubmissions = [...(formSubmissions ?? [])]
+  if (wantCore) {
+    const hasCrmFormRows = normalizedFormSubmissions.length > 0
+    if (!hasCrmFormRows) {
+      const fallbackRows: Array<Record<string, unknown>> = []
+      for (const cid of linkedContactIds) {
+        const rows = await safeRows(
+          db.from('form_submissions')
+            .select('id, form_id, data, source_url, utm_source, utm_medium, utm_campaign, submitted_at')
+            .filter('data->>_contact_id', 'eq', cid)
+            .order('submitted_at', { ascending: false })
+            .limit(80)
+        )
+        fallbackRows.push(...rows)
+      }
+
+      // Extra fallback: certains anciens forms ne stockent pas _contact_id
+      // (ou l'ont perdu), on tente un match email exact en best-effort.
+      if (fallbackRows.length === 0 && contact.email) {
+        const byEmailRows = await safeRows(
+          db.from('form_submissions')
+            .select('id, form_id, data, source_url, utm_source, utm_medium, utm_campaign, submitted_at')
+            .filter('data->>email', 'eq', String(contact.email).toLowerCase())
+            .order('submitted_at', { ascending: false })
+            .limit(50)
+        )
+        fallbackRows.push(...byEmailRows)
+      }
+
+      if (fallbackRows.length > 0) {
+        const formIds = [...new Set(
+          fallbackRows
+            .map(r => String(r.form_id ?? ''))
+            .filter(Boolean)
+        )]
+        let formNameById = new Map<string, string>()
+        if (formIds.length > 0) {
+          const formsMeta = await safeRows(
+            db.from('forms')
+              .select('id, name')
+              .in('id', formIds)
+          )
+          formNameById = new Map(
+            formsMeta.map(f => [String(f.id), String(f.name ?? '')])
+          )
+        }
+
+        normalizedFormSubmissions = fallbackRows.map((r) => {
+          const fid = String(r.form_id ?? '')
+          const submittedAt = String(r.submitted_at ?? '')
+          return {
+            id: `fallback_${String(r.id ?? '')}`,
+            form_id: fid,
+            form_title: formNameById.get(fid) || fid || 'Formulaire web',
+            form_type: 'form_submissions_fallback',
+            page_url: r.source_url ?? null,
+            values: r.data ?? {},
+            submitted_at: submittedAt,
+          }
+        })
+      }
+    }
+  }
+
   // 2-bis. SMS history : pour chaque message envoye au contact, on rapatrie
   // la campagne (nom, sender, type) + les liens trackes du destinataire avec
   // leurs clics (compteur agrege + log brut).
@@ -444,7 +512,7 @@ export async function GET(
     payload.deals = deals
     payload.appointments = appointments
     payload.activities = activities
-    payload.formSubmissions = formSubmissions
+    payload.formSubmissions = normalizedFormSubmissions
     payload.tasks = tasks
     payload.preInscriptions = dedupedPreInsc
     payload.duplicateContactIds = linkedContactIds.filter(id => id !== contactId)
