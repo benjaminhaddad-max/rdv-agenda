@@ -219,6 +219,66 @@ export async function GET(
         fallbackRows.push(...byEmailRows)
       }
 
+      // Fallback Meta Lead Ads: certaines fiches NATIVE_META_* n'ont ni
+      // crm_form_submissions ni form_submissions, mais ont meta_lead_events.
+      if (fallbackRows.length === 0) {
+        const metaRows = await safeRows(
+          db.from('meta_lead_events')
+            .select('id, form_id, field_data, processed_at')
+            .eq('contact_id', contactId)
+            .order('processed_at', { ascending: false })
+            .limit(80)
+        )
+        if (metaRows.length > 0) {
+          const metaFormIds = [...new Set(
+            metaRows
+              .map(r => String(r.form_id ?? ''))
+              .filter(Boolean)
+          )]
+          let metaFormNameById = new Map<string, string>()
+          if (metaFormIds.length > 0) {
+            const metaForms = await safeRows(
+              db.from('meta_lead_forms')
+                .select('form_id, name')
+                .in('form_id', metaFormIds)
+            )
+            metaFormNameById = new Map(
+              metaForms.map(f => [String(f.form_id), String(f.name ?? '')])
+            )
+          }
+
+          const metaFieldDataToValues = (raw: unknown): Record<string, unknown> => {
+            if (!Array.isArray(raw)) return {}
+            const out: Record<string, unknown> = {}
+            for (const item of raw as Array<Record<string, unknown>>) {
+              const name = String(item?.name ?? '').trim()
+              if (!name) continue
+              const values = item?.values
+              if (Array.isArray(values)) {
+                const cleaned = values.map(v => String(v)).filter(Boolean)
+                out[name] = cleaned.length <= 1 ? (cleaned[0] ?? '') : cleaned.join(', ')
+              } else if (values !== null && values !== undefined) {
+                out[name] = String(values)
+              }
+            }
+            return out
+          }
+
+          for (const r of metaRows) {
+            const fid = String(r.form_id ?? '')
+            fallbackRows.push({
+              id: `meta_${String(r.id ?? '')}`,
+              form_id: fid,
+              data: metaFieldDataToValues(r.field_data),
+              source_url: null,
+              submitted_at: r.processed_at,
+              _meta_form_title: metaFormNameById.get(fid) || fid || 'Meta Lead Ads',
+              _fallback_type: 'meta_lead_events_fallback',
+            })
+          }
+        }
+      }
+
       if (fallbackRows.length > 0) {
         const formIds = [...new Set(
           fallbackRows
@@ -243,8 +303,8 @@ export async function GET(
           return {
             id: `fallback_${String(r.id ?? '')}`,
             form_id: fid,
-            form_title: formNameById.get(fid) || fid || 'Formulaire web',
-            form_type: 'form_submissions_fallback',
+            form_title: String(r._meta_form_title ?? formNameById.get(fid) || fid || 'Formulaire web'),
+            form_type: String(r._fallback_type ?? 'form_submissions_fallback'),
             page_url: r.source_url ?? null,
             values: r.data ?? {},
             submitted_at: submittedAt,
