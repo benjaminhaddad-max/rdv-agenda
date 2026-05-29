@@ -148,7 +148,7 @@ export default function ReschedulePage() {
             {selectedSlot && (
               <div style={{
                 marginTop: 20, background: '#243d5c', borderRadius: 10,
-                padding: '12px 16px', fontSize: 14, color: '#E8C97B', fontWeight: 600,
+                padding: '12px 16px', fontSize: 14, color: '#C9A84C', fontWeight: 600,
               }}>
                 📅 {format(new Date(selectedSlot.start), "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
               </div>
@@ -193,7 +193,7 @@ export default function ReschedulePage() {
                     background: sel ? 'rgba(204,172,113,0.15)' : '#152438',
                     border: `1px solid ${sel ? 'rgba(204,172,113,0.5)' : '#2d4a6b'}`,
                     borderRadius: 10, padding: '10px 14px',
-                    color: sel ? '#E8C97B' : '#8b8fa8',
+                    color: sel ? '#C9A84C' : '#8b8fa8',
                     fontSize: 13, fontWeight: sel ? 700 : 400,
                     cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center',
                   }}
@@ -219,7 +219,7 @@ export default function ReschedulePage() {
             {loadingSlots ? (
               <div style={{ color: '#555870', fontSize: 13 }}>Chargement des créneaux…</div>
             ) : slots.length === 0 ? (
-              <div style={{ color: '#E8C97B', fontSize: 13, padding: '12px 0' }}>
+              <div style={{ color: '#C9A84C', fontSize: 13, padding: '12px 0' }}>
                 Aucun créneau disponible ce jour — essayez une autre date.
               </div>
             ) : (
@@ -265,7 +265,7 @@ export default function ReschedulePage() {
             disabled={submitting}
             style={{
               width: '100%',
-              background: 'linear-gradient(135deg, #C9A84C, #E8C97B)',
+              background: 'linear-gradient(135deg, #C9A84C, #C9A84C)',
               border: 'none', borderRadius: 12, padding: '16px',
               color: 'white', fontSize: 16, fontWeight: 700,
               cursor: submitting ? 'default' : 'pointer',
@@ -289,7 +289,7 @@ function Header() {
       background: '#1d2f4b', borderBottom: '1px solid #2d4a6b',
       padding: '16px 24px', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
         Diploma Santé
       </div>
       <div style={{ fontSize: 11, color: '#555870' }}>Prépa médecine d&apos;excellence</div>

@@ -253,7 +253,7 @@ export default function DoublonsPage() {
                         <tr
                           key={c.hubspot_contact_id}
                           style={{
-                            borderBottom: '1px solid #f1f5f9',
+                            borderBottom: '1px solid #f7f4ee',
                             background: isPrimary ? 'rgba(46,163,242,0.05)' : 'transparent',
                           }}
                         >
@@ -293,7 +293,7 @@ export default function DoublonsPage() {
                                 padding: '2px 8px', borderRadius: 999, background: '#eef2f7',
                                 color: '#1a2f4b', fontSize: 11, fontWeight: 600,
                               }}>{c.hs_lead_status}</span>
-                            ) : <span style={{ color: '#e5ddc8' }}>—</span>}
+                            ) : <span style={{ color: '#a89e8a' }}>—</span>}
                           </td>
                           <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.contact_createdate)}</td>
                           <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.recent_conversion_date)}</td>

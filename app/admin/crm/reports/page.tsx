@@ -52,7 +52,7 @@ export default function DashboardsListPage() {
       {/* Topbar */}
       <div style={{ padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BarChart3 size={16} style={{ color: '#E8C97B' }} />
+          <BarChart3 size={16} style={{ color: '#C9A84C' }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>Dashboards & Rapports</span>
           <span style={{ fontSize: 11, color: '#4a6070' }}>
             Crée des tableaux de bord personnalisés avec tes KPIs
@@ -60,7 +60,7 @@ export default function DashboardsListPage() {
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+          style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
         >
           <Plus size={14} /> Nouveau dashboard
         </button>
@@ -85,12 +85,12 @@ export default function DashboardsListPage() {
           <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-            <LayoutDashboard size={48} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+            <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun dashboard pour le moment</div>
             <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
               Crée ton premier tableau de bord pour suivre tes KPIs en temps réel.
             </div>
-            <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
+            <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
               <Plus size={14} /> Créer mon premier dashboard
             </button>
           </div>
@@ -130,7 +130,7 @@ function DashboardCard({ dashboard: d, onDelete }: { dashboard: Dashboard; onDel
           <BarChart3 size={20} style={{ color: d.color }} />
         </div>
         {d.is_default && (
-          <span style={{ fontSize: 10, color: '#E8C97B', background: 'rgba(204,172,113,0.15)', padding: '3px 8px', borderRadius: 999, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 10, color: '#C9A84C', background: 'rgba(204,172,113,0.15)', padding: '3px 8px', borderRadius: 999, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Star size={10} /> Par défaut
           </span>
         )}
@@ -208,7 +208,7 @@ function NewDashboardModal({ onClose, onCreated }: { onClose: () => void; onCrea
           <button
             onClick={submit}
             disabled={!name.trim() || loading}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || loading ? 0.5 : 1 }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || loading ? 0.5 : 1 }}
           >
             {loading ? 'Création…' : 'Créer →'}
           </button>

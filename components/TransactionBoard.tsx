@@ -56,7 +56,7 @@ function DealCard({
         if (dragCount > 1) {
           const badge = document.createElement('div')
           badge.textContent = `${dragCount} transactions`
-          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#E8C97B;color:#f7f4ee;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#C9A84C;color:#0e1e35;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
           document.body.appendChild(badge)
           e.dataTransfer.setDragImage(badge, 0, 0)
           setTimeout(() => document.body.removeChild(badge), 0)
@@ -75,7 +75,7 @@ function DealCard({
       onMouseLeave={() => setHovered(false)}
       style={{
         background: isSelected ? '#f7f4ee' : '#ffffff',
-        border: `1px solid ${isSelected ? '#E8C97B' : '#e5ddc8'}`,
+        border: `1px solid ${isSelected ? '#C9A84C' : '#e5ddc8'}`,
         borderRadius: 8,
         padding: '10px 12px',
         cursor: 'grab',
@@ -90,8 +90,8 @@ function DealCard({
           style={{
             position: 'absolute', top: 6, right: 6, width: 18, height: 18,
             borderRadius: 4,
-            border: `2px solid ${isSelected ? '#E8C97B' : '#3a5a7a'}`,
-            background: isSelected ? '#E8C97B' : '#ffffff',
+            border: `2px solid ${isSelected ? '#C9A84C' : '#3a5a7a'}`,
+            background: isSelected ? '#C9A84C' : '#ffffff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'all 0.12s', zIndex: 2,
           }}
@@ -140,7 +140,7 @@ function DealCard({
         {deal.formation ? (
           <span style={{
             background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.25)',
-            borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#E8C97B',
+            borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#C9A84C',
             whiteSpace: 'nowrap',
           }}>
             {deal.formation}
@@ -296,7 +296,7 @@ function BoardColumn({
         flexDirection: 'column',
         background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
         borderRadius: 10,
-        border: `2px solid ${isOver ? '#E8C97B' : '#e5ddc8'}`,
+        border: `2px solid ${isOver ? '#C9A84C' : '#e5ddc8'}`,
         transition: 'all 0.15s',
         overflow: 'hidden',
         opacity: isDraggingColumn ? 0.5 : 1,
@@ -331,8 +331,8 @@ function BoardColumn({
               draggable={false}
               style={{
                 width: 16, height: 16, borderRadius: 3,
-                border: `2px solid ${allInColumnSelected ? '#E8C97B' : '#3a5a7a'}`,
-                background: allInColumnSelected ? '#E8C97B' : '#ffffff',
+                border: `2px solid ${allInColumnSelected ? '#C9A84C' : '#3a5a7a'}`,
+                background: allInColumnSelected ? '#C9A84C' : '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', flexShrink: 0,
               }}
@@ -370,7 +370,7 @@ function BoardColumn({
       {isOver && (
         <div style={{
           padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
-          color: '#E8C97B', background: 'rgba(204,172,113,0.06)',
+          color: '#C9A84C', background: 'rgba(204,172,113,0.06)',
           borderBottom: '1px solid rgba(204,172,113,0.15)',
         }}>
           ↓ Déposer ici
@@ -383,7 +383,7 @@ function BoardColumn({
         display: 'flex', flexDirection: 'column', gap: 6,
       }}>
         {deals.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#e5ddc8', fontSize: 11 }}>
+          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#a89e8a', fontSize: 11 }}>
             Aucune transaction
           </div>
         ) : (
@@ -577,7 +577,7 @@ export default function TransactionBoard({
           borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>
               {selectedDeals.size} transaction{selectedDeals.size > 1 ? 's' : ''} sélectionnée{selectedDeals.size > 1 ? 's' : ''}
             </span>
             <span style={{ fontSize: 11, color: '#4a6070' }}>

@@ -185,7 +185,7 @@ export default function UsersPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 bg-[#E8C97B] hover:bg-[#b89a5e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 bg-[#C9A84C] hover:bg-[#b89a5e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             <Plus size={14} /> Ajouter un utilisateur
           </button>
@@ -305,7 +305,7 @@ export default function UsersPage() {
         >
           <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-2 mb-2">
-              <Mail size={16} className="text-[#E8C97B]" />
+              <Mail size={16} className="text-[#C9A84C]" />
               <h2 className="text-base font-bold text-slate-800">Ajouter un utilisateur</h2>
             </div>
             <p className="text-xs text-slate-500 mb-5">
@@ -395,7 +395,7 @@ export default function UsersPage() {
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="px-4 py-2 text-sm font-semibold bg-[#E8C97B] text-white rounded-lg hover:bg-[#b89a5e] transition-colors disabled:opacity-60"
+                className="px-4 py-2 text-sm font-semibold bg-[#C9A84C] text-white rounded-lg hover:bg-[#b89a5e] transition-colors disabled:opacity-60"
               >
                 {creating ? 'Création…' : 'Inviter par email'}
               </button>

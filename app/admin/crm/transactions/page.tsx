@@ -54,7 +54,7 @@ interface StatsData {
 const STAGE_MAP: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444', bg: 'rgba(239,68,68,0.10)',  emoji: '🔴' },
   '3165428980': { label: 'RDV Pris',              color: '#4cabdb', bg: 'rgba(76,171,219,0.10)',  emoji: '🔵' },
-  '3165428981': { label: 'Délai Réflexion',       color: '#E8C97B', bg: 'rgba(204,172,113,0.10)', emoji: '🟡' },
+  '3165428981': { label: 'Délai Réflexion',       color: '#C9A84C', bg: 'rgba(204,172,113,0.10)', emoji: '🟡' },
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.10)',   emoji: '🟢' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.10)',  emoji: '🟣' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.10)',   emoji: '✅' },
@@ -279,7 +279,7 @@ function DropFilter({
           background: isActive ? 'rgba(204,172,113,0.08)' : '#f7f4ee',
           border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#e5ddc8'}`,
           borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-          color: isActive ? '#E8C97B' : '#4a6070', fontSize: 12, fontFamily: 'inherit',
+          color: isActive ? '#C9A84C' : '#4a6070', fontSize: 12, fontFamily: 'inherit',
           fontWeight: isActive ? 600 : 400,
           display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
           transition: 'all 0.15s',
@@ -302,7 +302,7 @@ function DropFilter({
               style={{
                 display: 'block', width: '100%', background: value === opt ? 'rgba(204,172,113,0.12)' : 'transparent',
                 border: 'none', padding: '8px 14px', fontSize: 12, cursor: 'pointer',
-                color: value === opt ? '#E8C97B' : '#4a6070', fontFamily: 'inherit',
+                color: value === opt ? '#C9A84C' : '#4a6070', fontFamily: 'inherit',
                 fontWeight: value === opt ? 700 : 400, textAlign: 'left', whiteSpace: 'nowrap',
               }}
             >
@@ -330,7 +330,7 @@ function SortHeader({
       style={{
         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         display: 'inline-flex', alignItems: 'center', gap: 4,
-        color: isActive ? '#E8C97B' : '#475569', fontFamily: 'inherit',
+        color: isActive ? '#C9A84C' : '#475569', fontFamily: 'inherit',
         fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
       }}
     >
@@ -869,13 +869,13 @@ export default function TransactionsPage() {
           <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <GraduationCap size={14} style={{ color: '#E8C97B' }} />
-            <span style={{ fontSize: 13, color: '#E8C97B', fontWeight: 700 }}>Transactions</span>
+            <GraduationCap size={14} style={{ color: '#C9A84C' }} />
+            <span style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700 }}>Transactions</span>
             <select
               value={season}
               onChange={e => setSeason(e.target.value)}
               style={{
-                fontSize: 12, fontWeight: 600, color: '#E8C97B',
+                fontSize: 12, fontWeight: 600, color: '#C9A84C',
                 background: '#fff', border: '1px solid #e5ddc8', borderRadius: 6,
                 padding: '3px 6px', cursor: 'pointer', marginLeft: 4,
               }}
@@ -987,7 +987,7 @@ export default function TransactionsPage() {
               style={{
                 background: viewMode === 'board' ? 'rgba(204,172,113,0.15)' : 'transparent',
                 border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'board' ? '#E8C97B' : '#4a6070', fontSize: 12,
+                color: viewMode === 'board' ? '#C9A84C' : '#4a6070', fontSize: 12,
                 display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                 fontWeight: viewMode === 'board' ? 700 : 400,
                 borderRight: '1px solid #e5ddc8',
@@ -1000,7 +1000,7 @@ export default function TransactionsPage() {
               style={{
                 background: viewMode === 'list' ? 'rgba(204,172,113,0.15)' : 'transparent',
                 border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'list' ? '#E8C97B' : '#4a6070', fontSize: 12,
+                color: viewMode === 'list' ? '#C9A84C' : '#4a6070', fontSize: 12,
                 display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                 fontWeight: viewMode === 'list' ? 700 : 400,
               }}
@@ -1049,7 +1049,7 @@ export default function TransactionsPage() {
               }}
               style={{
                 padding: '10px 14px',
-                borderBottom: `2px solid ${isActive ? '#E8C97B' : 'transparent'}`,
+                borderBottom: `2px solid ${isActive ? '#C9A84C' : 'transparent'}`,
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
@@ -1069,8 +1069,8 @@ export default function TransactionsPage() {
                   onBlur={() => renameView(view.id, renameValue)}
                   onClick={e => e.stopPropagation()}
                   style={{
-                    background: 'rgba(204,172,113,0.08)', border: '1px solid #E8C97B',
-                    borderRadius: 4, padding: '2px 6px', color: '#E8C97B',
+                    background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
+                    borderRadius: 4, padding: '2px 6px', color: '#C9A84C',
                     fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
                     outline: 'none', width: Math.max(60, renameValue.length * 8),
                   }}
@@ -1078,7 +1078,7 @@ export default function TransactionsPage() {
               ) : (
                 <span style={{
                   fontSize: 12, fontWeight: isActive ? 700 : 400,
-                  color: isActive ? '#E8C97B' : '#4a6070',
+                  color: isActive ? '#C9A84C' : '#4a6070',
                 }}>
                   {view.name}
                 </span>
@@ -1088,7 +1088,7 @@ export default function TransactionsPage() {
               {stageRule && displayStats?.stages[stageRule.value] != null ? (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#E8C97B' : '#475569',
+                  color: isActive ? '#C9A84C' : '#475569',
                   background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
@@ -1097,7 +1097,7 @@ export default function TransactionsPage() {
               ) : view.rules.length > 0 && !stageRule ? (
                 <span style={{
                   fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#E8C97B' : '#475569',
+                  color: isActive ? '#C9A84C' : '#475569',
                   background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
                   borderRadius: 8, padding: '1px 6px',
                 }}>
@@ -1131,7 +1131,7 @@ export default function TransactionsPage() {
           style={{
             padding: '7px 12px', background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
             border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-            borderRadius: 6, color: filterRules.length > 0 ? '#E8C97B' : '#4a6070',
+            borderRadius: 6, color: filterRules.length > 0 ? '#C9A84C' : '#4a6070',
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 12, fontFamily: 'inherit', fontWeight: filterRules.length > 0 ? 600 : 400,
             whiteSpace: 'nowrap', flexShrink: 0,
@@ -1148,7 +1148,7 @@ export default function TransactionsPage() {
             style={{
               padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
               border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
-              color: '#E8C97B', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+              color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
               whiteSpace: 'nowrap', margin: '0 4px', flexShrink: 0,
             }}
@@ -1173,15 +1173,15 @@ export default function TransactionsPage() {
               }}
               placeholder="Nom de la vue…"
               style={{
-                background: 'rgba(204,172,113,0.08)', border: '1px solid #E8C97B',
-                borderRadius: 4, padding: '3px 8px', color: '#E8C97B',
+                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
+                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
                 fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
               }}
             />
             <button
               onClick={() => createView(newViewName)}
               style={{
-                background: '#E8C97B', border: 'none', borderRadius: 4,
+                background: '#C9A84C', border: 'none', borderRadius: 4,
                 padding: '3px 6px', cursor: 'pointer', display: 'flex',
               }}
             >
@@ -1207,7 +1207,7 @@ export default function TransactionsPage() {
               whiteSpace: 'nowrap', flexShrink: 0,
               transition: 'color 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E8C97B')}
+            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
             onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
           >
             <Plus size={12} /> Vue
@@ -1317,7 +1317,7 @@ export default function TransactionsPage() {
                         onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
                         style={{
                           background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6,
-                          padding: '5px 8px', color: rule.value ? '#E8C97B' : '#4a6070', fontSize: 12,
+                          padding: '5px 8px', color: rule.value ? '#C9A84C' : '#4a6070', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                           flex: 1, minWidth: 140,
                         }}
@@ -1498,12 +1498,12 @@ export default function TransactionsPage() {
                               <span style={{
                                 background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.25)',
                                 borderRadius: 6, padding: '3px 9px', fontSize: 12, fontWeight: 700,
-                                color: '#E8C97B', whiteSpace: 'nowrap',
+                                color: '#C9A84C', whiteSpace: 'nowrap',
                               }}>
                                 {tx.formation}
                               </span>
                             ) : (
-                              <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
                             )}
                           </td>
 
@@ -1515,7 +1515,7 @@ export default function TransactionsPage() {
                                 <span style={{ fontSize: 12, color: '#4a6070' }}>{tx.contact.classe_actuelle}</span>
                               </div>
                             ) : (
-                              <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
                             )}
                           </td>
 
@@ -1529,7 +1529,7 @@ export default function TransactionsPage() {
                                 </span>
                               </div>
                             ) : (
-                              <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
                             )}
                           </td>
 

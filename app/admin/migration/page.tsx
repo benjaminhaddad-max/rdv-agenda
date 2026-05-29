@@ -50,7 +50,7 @@ const CATEGORIES: Array<{
   { key: 'workflows',     label: 'Workflows',           icon: Workflow,    color: '#f59e0b' },
   { key: 'dashboards',    label: 'Dashboards',          icon: BarChart3,   color: '#ec4899' },
   { key: 'custom_fields', label: 'Champs Custom',       icon: Settings,    color: '#8b5cf6' },
-  { key: 'marketing',     label: 'Marketing (Brevo)',   icon: Mail,        color: '#E8C97B' },
+  { key: 'marketing',     label: 'Marketing (Brevo)',   icon: Mail,        color: '#C9A84C' },
   { key: 'automations',   label: 'Automatisations',     icon: Zap,         color: '#eab308' },
   { key: 'migration',     label: 'Migration HubSpot',   icon: UploadCloud, color: '#ef4444' },
   { key: 'qualite',       label: 'Qualité & Sécurité',  icon: ShieldCheck, color: '#14b8a6' },
@@ -67,7 +67,7 @@ const STATUS_META: Record<MigrationTask['status'], { label: string; color: strin
 const PRIORITY_META: Record<MigrationTask['priority'], { label: string; color: string; bg: string }> = {
   critical: { label: '🔴 Critique', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
   high:     { label: '🟠 Haute',    color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  medium:   { label: '🟡 Moyenne',  color: '#E8C97B', bg: 'rgba(204,172,113,0.15)' },
+  medium:   { label: '🟡 Moyenne',  color: '#C9A84C', bg: 'rgba(204,172,113,0.15)' },
   low:      { label: '🟢 Basse',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
 }
 
@@ -174,7 +174,7 @@ export default function MigrationPage() {
           </a>
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Rocket size={16} style={{ color: '#E8C97B' }} />
+            <Rocket size={16} style={{ color: '#C9A84C' }} />
             <span style={{ fontSize: 14, fontWeight: 600 }}>Migration HubSpot → CRM Natif</span>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function MigrationPage() {
           <div style={{ background: 'linear-gradient(135deg, #ffffff, #ffffff)', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 12, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Progression globale</span>
-              <span style={{ fontSize: 22, fontWeight: 700, color: '#E8C97B' }}>{progressPct}%</span>
+              <span style={{ fontSize: 22, fontWeight: 700, color: '#C9A84C' }}>{progressPct}%</span>
             </div>
             <div style={{ height: 10, background: '#f7f4ee', borderRadius: 999, overflow: 'hidden' }}>
               <div style={{ width: `${progressPct}%`, height: '100%', background: 'linear-gradient(90deg, #06b6d4, #22c55e)', transition: 'width .4s ease' }} />
@@ -286,7 +286,7 @@ export default function MigrationPage() {
           <div style={{ flex: 1 }} />
           <button
             onClick={() => setShowNewTask(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '6px 14px', color: '#E8C97B', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '6px 14px', color: '#C9A84C', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
             <Plus size={14} /> Nouvelle tâche
           </button>
@@ -450,7 +450,7 @@ function TaskRow({ task, onClick, onStatusChange }: {
               width: 5,
               height: 5,
               borderRadius: '50%',
-              background: i < COMPLEXITY_META[task.complexity!].dots ? '#E8C97B' : '#e5ddc8',
+              background: i < COMPLEXITY_META[task.complexity!].dots ? '#C9A84C' : '#e5ddc8',
             }} />
           ))}
         </div>
@@ -674,7 +674,7 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 
         <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>Annuler</button>
-          <button onClick={submit} disabled={!title.trim() || loading} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12, fontFamily: 'inherit', opacity: !title.trim() || loading ? 0.5 : 1 }}>
+          <button onClick={submit} disabled={!title.trim() || loading} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12, fontFamily: 'inherit', opacity: !title.trim() || loading ? 0.5 : 1 }}>
             {loading ? 'Création…' : 'Créer'}
           </button>
         </div>

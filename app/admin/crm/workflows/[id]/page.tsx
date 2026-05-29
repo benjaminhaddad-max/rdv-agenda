@@ -45,7 +45,7 @@ const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: strin
   send_email:      { label: 'Envoyer un email',         icon: Mail,         color: '#2ea3f2' },
   send_sms:        { label: 'Envoyer un SMS',           icon: MessageSquare,color: '#0ea5e9' },
   create_task:     { label: 'Créer une tâche',          icon: CheckSquare,  color: '#22c55e' },
-  wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#E8C97B' },
+  wait:            { label: 'Attendre (durée)',         icon: Clock,        color: '#C9A84C' },
   wait_until:      { label: 'Attendre (heure du jour)', icon: CalendarClock,color: '#f59e0b' },
   update_property: { label: 'Modifier une propriété',   icon: Edit3,        color: '#a855f7' },
   webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#ef4444' },
@@ -174,7 +174,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
           </button>
           <button
             onClick={toggleActive}
-            style={{ background: wf.status === 'active' ? '#E8C97B' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
+            style={{ background: wf.status === 'active' ? '#C9A84C' : 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: wf.status === 'active' ? '#0e1e35' : '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
           >
             {wf.status === 'active' ? <><Pause size={12} /> Mettre en pause</> : <><Play size={12} /> Activer</>}
           </button>
@@ -255,7 +255,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
           <Card title="Stats" icon={Activity}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 12 }}>
               <Stat label="Entrés" value={wf.total_enrolled} color="#0038f0" />
-              <Stat label="En cours" value={wf.running_executions} color="#E8C97B" />
+              <Stat label="En cours" value={wf.running_executions} color="#C9A84C" />
               <Stat label="Complétés" value={wf.total_completed} color="#22c55e" />
               <Stat label="Échecs" value={wf.total_failed} color="#ef4444" />
             </div>
@@ -478,7 +478,7 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {result.logs.map((log: any, i: number) => (
                       <li key={i} style={{ padding: '6px 8px', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 4 }}>
-                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#E8C97B' }}>
+                        <span style={{ fontWeight: 600, color: log.status === 'success' ? '#22c55e' : log.status === 'failed' ? '#ef4444' : '#C9A84C' }}>
                           {log.status === 'success' ? '✓' : log.status === 'failed' ? '✗' : '○'}
                         </span>{' '}
                         <span>{log.step_type}</span>
@@ -796,7 +796,7 @@ function FlowStepCard({
                 style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }}
               />
               <div style={{ fontSize: 10, color: text.length > limit * 2 ? '#ef4444' : '#4a6070', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Variables : <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{classe}}'}</code></span>
+                <span>Variables : <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{classe}}'}</code></span>
                 <span>{text.length} car. · {segments} SMS{segments > 1 ? 's' : ''}{hasUnicode ? ' (accents)' : ''}</span>
               </div>
             </div>
@@ -1008,7 +1008,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Ma
   return (
     <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={12} style={{ color: '#E8C97B' }} />}
+        {Icon && <Icon size={12} style={{ color: '#C9A84C' }} />}
         {title}
       </div>
       {children}

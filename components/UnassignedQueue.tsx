@@ -21,9 +21,9 @@ type Appointment = {
 }
 
 const SOURCE_LABEL: Record<string, { label: string; color: string }> = {
-  telepro:  { label: 'Télépro', color: '#E8C97B' },
+  telepro:  { label: 'Télépro', color: '#C9A84C' },
   prospect: { label: 'En ligne', color: '#22c55e' },
-  admin:    { label: 'Admin',    color: '#E8C97B' },
+  admin:    { label: 'Admin',    color: '#C9A84C' },
 }
 
 export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => void }) {
@@ -75,7 +75,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
             <div style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 20, padding: '2px 12px',
-              fontSize: 13, fontWeight: 700, color: '#E8C97B',
+              fontSize: 13, fontWeight: 700, color: '#C9A84C',
             }}>
               {rdvs.length}
             </div>
@@ -88,7 +88,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
             value={filterSource}
             onChange={e => setFilterSource(e.target.value)}
             style={{
-              background: '#f1f5f9', border: '1px solid #e5ddc8',
+              background: '#f7f4ee', border: '1px solid #e5ddc8',
               borderRadius: 8, padding: '6px 10px', color: '#0e1e35',
               fontSize: 12, cursor: 'pointer', outline: 'none',
             }}
@@ -101,7 +101,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
           <button
             onClick={fetchUnassigned}
             style={{
-              background: '#f1f5f9', border: '1px solid #e5ddc8',
+              background: '#f7f4ee', border: '1px solid #e5ddc8',
               borderRadius: 8, width: 34, height: 34,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', color: '#4a6070',
@@ -131,13 +131,13 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                     display: 'flex', alignItems: 'center', gap: 16,
                     transition: 'background 0.15s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   {/* Urgency indicator */}
                   <div style={{
                     width: 4, height: 40, borderRadius: 2,
-                    background: new Date(rdv.start_at) < new Date() ? '#ef4444' : '#E8C97B',
+                    background: new Date(rdv.start_at) < new Date() ? '#ef4444' : '#C9A84C',
                     flexShrink: 0,
                   }} />
 
@@ -148,7 +148,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4a6070' }}>
-                        <Clock size={12} style={{ color: '#E8C97B' }} />
+                        <Clock size={12} style={{ color: '#C9A84C' }} />
                         <span>{format(new Date(rdv.start_at), 'E d MMM · HH:mm', { locale: fr })}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4a6070' }}>
@@ -167,7 +167,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                           background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.2)',
-                          color: '#E8C97B', fontSize: 11, fontWeight: 600,
+                          color: '#C9A84C', fontSize: 11, fontWeight: 600,
                           padding: '2px 8px', borderRadius: 6,
                         }}>
                           <Tag size={10} />
@@ -190,7 +190,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                   <button
                     onClick={() => setAssigningRdv(rdv)}
                     style={{
-                      background: '#C9A84C', color: 'white',
+                      background: '#C9A84C', color: '#0e1e35',
                       border: 'none', borderRadius: 10,
                       padding: '8px 16px', cursor: 'pointer',
                       fontSize: 13, fontWeight: 700,

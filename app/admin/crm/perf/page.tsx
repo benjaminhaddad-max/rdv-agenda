@@ -155,7 +155,7 @@ export default function CrmPerfPage() {
               {rows.map((r) => {
                 const health = getHealth(r.endpoint, r)
                 return (
-                <tr key={r.endpoint} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={r.endpoint} style={{ borderBottom: '1px solid #f7f4ee' }}>
                   <td style={{ padding: '10px 0' }}>{r.endpoint}</td>
                   <td>
                     <span

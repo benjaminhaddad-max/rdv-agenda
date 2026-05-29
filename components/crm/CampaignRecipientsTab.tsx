@@ -484,7 +484,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Us
   return (
     <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={13} style={{ color: '#E8C97B' }} />}
+        {Icon && <Icon size={13} style={{ color: '#C9A84C' }} />}
         {title}
       </div>
       {children}

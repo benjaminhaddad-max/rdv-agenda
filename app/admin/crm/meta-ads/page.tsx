@@ -249,7 +249,7 @@ function MetaAdsPage() {
                         <strong>{p.page_name}</strong>
                         <span style={{ fontSize: 10, color: '#94a3b8' }}>· {p.page_id}</span>
                         {pageFormCount > 0 && (
-                          <span style={{ fontSize: 10, color: '#4a6070', background: '#f1f5f9', padding: '2px 6px', borderRadius: 999 }}>
+                          <span style={{ fontSize: 10, color: '#4a6070', background: '#f7f4ee', padding: '2px 6px', borderRadius: 999 }}>
                             {pageFormCount} form{pageFormCount > 1 ? 's' : ''}
                           </span>
                         )}
@@ -335,7 +335,7 @@ function MetaAdsPage() {
                           </thead>
                           <tbody>
                             {filteredForms.map(f => (
-                              <tr key={f.form_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <tr key={f.form_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                                 <td style={td}>
                                   <div style={{ fontWeight: 600 }}>{f.name || '(sans nom)'}</div>
                                   <div style={{ fontSize: 10, color: '#94a3b8' }}>{f.form_id}</div>
@@ -414,7 +414,7 @@ function MetaAdsPage() {
                   {events.map(e => {
                     const form = forms.find(f => f.form_id === e.form_id)
                     return (
-                      <tr key={e.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <tr key={e.id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                         <td style={td}>{new Date(e.received_at).toLocaleString('fr-FR')}</td>
                         <td style={td}>{form?.name || e.form_id || '?'}</td>
                         <td style={td}>
@@ -507,7 +507,7 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
+  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
 const th: React.CSSProperties = { textAlign: 'left', padding: '6px 10px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' }
@@ -741,7 +741,7 @@ function MappingModal({
                   const isEnum = crmProp?.options && crmProp.options.length > 0 && q.options && q.options.length > 0
                   return (
                     <Fragment key={q.key}>
-                      <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f1f5f9' }}>
+                      <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f7f4ee' }}>
                         <td style={{ ...td, width: '50%' }}>
                           <div style={{ fontWeight: 600 }}>{q.label || q.key}</div>
                           <div style={{ fontSize: 10, color: '#94a3b8' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
@@ -767,7 +767,7 @@ function MappingModal({
                         </td>
                       </tr>
                       {isEnum && (
-                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <tr style={{ borderBottom: '1px solid #f7f4ee' }}>
                           <td colSpan={2} style={{ padding: '8px 10px 14px', background: '#fafbfc' }}>
                             <div style={{ fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 6 }}>
                               Mappage des valeurs

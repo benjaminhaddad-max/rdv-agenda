@@ -355,7 +355,7 @@ const CLASSE_OPTIONS = [
 const NAVY_BG     = '#f7f4ee'
 const NAVY_ROW    = '#ffffff'
 const NAVY_BORDER = '#e5ddc8'
-const GOLD        = '#E8C97B'
+const GOLD        = '#C9A84C'
 const BLUE        = '#4cabdb'
 
 // ── Stage mapping ──────────────────────────────────────────────────────────────
@@ -1353,12 +1353,12 @@ export default function CRMContactsTable({
           <a href={`tel:${contact.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Phone size={11} />{formatPhone(contact.phone)}
           </a>
-        ) : <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
+        ) : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
 
       case 'formation_souhaitee':
         return contact.formation_souhaitee
           ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{contact.formation_souhaitee}</span>
-          : <span style={{ color: '#e5ddc8', fontSize: 12 }}>—</span>
+          : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
 
       case 'classe':
         return (
@@ -1751,7 +1751,7 @@ export default function CRMContactsTable({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
-                    <GripVertical size={10} style={{ color: '#e5ddc8', flexShrink: 0, opacity: 0.6 }} />
+                    <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
                     <span style={{ flex: 1 }}>{COL_LABELS[key]}</span>
                     {isSortable && (
                       <span style={{

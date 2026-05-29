@@ -237,7 +237,7 @@ export default function AdsDashboardPage() {
                           const id = level === 'campaign' ? i.campaign_id : level === 'adset' ? i.adset_id : i.ad_id
                           const name = level === 'campaign' ? i.campaign_name : level === 'adset' ? i.adset_name : i.ad_name
                           return (
-                            <tr key={id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <tr key={id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                               <td style={td}>
                                 <div style={{ fontWeight: 600 }}>{name || '(sans nom)'}</div>
                                 <div style={{ fontSize: 10, color: '#94a3b8' }}>{id}</div>

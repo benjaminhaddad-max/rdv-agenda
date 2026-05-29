@@ -22,7 +22,7 @@ export default function EventsPage() {
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CalendarDays size={16} style={{ color: '#E8C97B' }} />
+          <CalendarDays size={16} style={{ color: '#C9A84C' }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>Événements</span>
           <span style={{ fontSize: 11, color: '#4a6070' }}>
             Gestionnaire d&apos;événements Diploma Santé
@@ -59,7 +59,7 @@ export default function EventsPage() {
               border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 8,
               padding: '6px 12px',
-              color: '#E8C97B',
+              color: '#C9A84C',
               fontSize: 12,
               cursor: 'pointer',
               display: 'flex',

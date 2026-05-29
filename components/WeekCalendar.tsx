@@ -38,7 +38,7 @@ type Commercial = {
 }
 
 const HOURS = Array.from({ length: 11 }, (_, i) => i + 8) // 8h → 18h
-const COLORS = ['#C9A84C','#22c55e','#E8C97B','#a855f7','#06b6d4','#ef4444','#f97316']
+const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -169,7 +169,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.2)',
               borderRadius: 10, padding: '6px 16px', textAlign: 'center',
             }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C97B', lineHeight: 1 }}>{rdvCount}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#C9A84C', lineHeight: 1 }}>{rdvCount}</div>
               <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>RDV cette semaine</div>
             </div>
             <div style={{
@@ -188,7 +188,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               style={{
                 background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
                 borderRadius: 8, padding: '6px 12px',
-                color: '#E8C97B', fontSize: 12,
+                color: '#C9A84C', fontSize: 12,
                 textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
               }}
             >
@@ -246,7 +246,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <span style={{ fontSize: 13, color: '#E8C97B', fontWeight: 700 }}>{rdvCount} RDV</span>
+            <span style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700 }}>{rdvCount} RDV</span>
             <span style={{ fontSize: 13, color: '#22c55e', fontWeight: 700 }}>{rdvEffectues} avancés</span>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -347,7 +347,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               background: 'rgba(204,172,113,0.15)',
               border: '1px solid rgba(204,172,113,0.4)',
               borderRadius: 8, padding: '6px 14px',
-              color: '#E8C97B', fontSize: 12, fontWeight: 700,
+              color: '#C9A84C', fontSize: 12, fontWeight: 700,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 5,
               transition: 'all 0.15s',
@@ -400,7 +400,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   </div>
                   <div style={{
                     fontSize: 17, fontWeight: 700,
-                    color: today ? '#E8C97B' : '#0e1e35',
+                    color: today ? '#C9A84C' : '#0e1e35',
                     lineHeight: 1.2, marginTop: 2,
                   }}>
                     {format(day, 'd')}
@@ -583,7 +583,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
                       {format(new Date(appt.start_at), 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.users && <span> · {appt.users.name}</span>}
-                      {appt.formation_type && <span style={{ color: '#E8C97B' }}> · {appt.formation_type}</span>}
+                      {appt.formation_type && <span style={{ color: '#C9A84C' }}> · {appt.formation_type}</span>}
                     </div>
                   </div>
 

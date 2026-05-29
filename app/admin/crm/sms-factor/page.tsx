@@ -803,7 +803,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                         fontSize: 12,
                       }}
                     >
-                      <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, color: '#7c3aed', fontWeight: 600 }}>
+                      <code style={{ background: '#f7f4ee', padding: '1px 6px', borderRadius: 4, color: '#7c3aed', fontWeight: 600 }}>
                         {l.placeholder}
                       </code>
                       <span style={{ color: '#4a6070', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
@@ -815,7 +815,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                         fontWeight: 600,
                         padding: '2px 6px',
                         borderRadius: 999,
-                        background: l.tracked ? '#dbeafe' : '#f1f5f9',
+                        background: l.tracked ? '#dbeafe' : '#f7f4ee',
                         color: l.tracked ? '#1d4ed8' : '#4a6070',
                       }}>
                         {l.tracked ? 'tracké' : 'brut'}
@@ -896,7 +896,7 @@ function NewCampaignModal({ onClose, onCreated }: {
               Ciblage
             </div>
 
-            <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: '#f7f4ee', padding: 4, borderRadius: 8 }}>
               <ModeTab icon={<Filter size={12} />} active={mode === 'filters'} onClick={() => setMode('filters')}>Filtres CRM</ModeTab>
               <ModeTab icon={<FileText size={12} />} active={mode === 'view'} onClick={() => setMode('view')}>Vue sauvegardée</ModeTab>
               <ModeTab icon={<Upload size={12} />} active={mode === 'phones'} onClick={() => setMode('phones')}>Liste de numéros</ModeTab>
@@ -1110,7 +1110,7 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
+  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
 const input: React.CSSProperties = {
   padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13,

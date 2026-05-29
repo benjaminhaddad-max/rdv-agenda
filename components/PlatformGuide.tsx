@@ -143,7 +143,7 @@ const SECTIONS: Section[] = [
     id: 'admin',
     icon: <Shield size={18} />,
     title: 'Dashboard Admin (Pascal)',
-    color: '#E8C97B',
+    color: '#C9A84C',
     roles: ['admin'],
     items: [
       {
@@ -405,7 +405,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 22,
             }}>
-              <Zap size={22} style={{ color: '#E8C97B' }} />
+              <Zap size={22} style={{ color: '#C9A84C' }} />
             </div>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0e1e35', margin: 0 }}>
@@ -433,7 +433,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                   background: '#ffffff', border: '1px solid #e5ddc8',
                   borderRadius: 12, padding: '12px 16px',
                 }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C97B' }}>{s.value}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#C9A84C' }}>{s.value}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35' }}>{s.label}</div>
                   <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>{s.detail}</div>
                 </div>
@@ -500,7 +500,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
                           display: 'flex', gap: 12, alignItems: 'flex-start',
                           background: '#f7f4ee',
                           borderRadius: 10, padding: '12px 14px',
-                          border: '1px solid #f1f5f9',
+                          border: '1px solid #f7f4ee',
                         }}>
                           <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>
                             {item.emoji}

@@ -336,7 +336,7 @@ export default function CloserNewRdvModal({
               Nouveau RDV
             </div>
             <div style={{ fontSize: 12, color: '#555870', marginTop: 2 }}>
-              Assigné à <span style={{ color: '#E8C97B', fontWeight: 600 }}>{closerName}</span>
+              Assigné à <span style={{ color: '#C9A84C', fontWeight: 600 }}>{closerName}</span>
             </div>
           </div>
           <button
@@ -377,7 +377,7 @@ export default function CloserNewRdvModal({
                       background: hsMode === m.key ? 'rgba(204,172,113,0.15)' : '#243d5c',
                       border: `1px solid ${hsMode === m.key ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                       borderRadius: 8, padding: '7px 6px',
-                      color: hsMode === m.key ? '#E8C97B' : '#8b8fa8',
+                      color: hsMode === m.key ? '#C9A84C' : '#8b8fa8',
                       fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
@@ -484,7 +484,7 @@ export default function CloserNewRdvModal({
                 }}>
                   <CheckCircle size={15} style={{ color: '#C9A84C', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#E8C97B' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#C9A84C' }}>
                       Contact CRM lié
                     </div>
                     <div style={{ fontSize: 11, color: '#555870', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -601,7 +601,7 @@ export default function CloserNewRdvModal({
                         background: meetingType === m.key ? 'rgba(204,172,113,0.15)' : '#243d5c',
                         border: `1px solid ${meetingType === m.key ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
                         borderRadius: 8, padding: '8px 0',
-                        color: meetingType === m.key ? '#E8C97B' : '#8b8fa8',
+                        color: meetingType === m.key ? '#C9A84C' : '#8b8fa8',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                       }}
@@ -724,7 +724,7 @@ export default function CloserNewRdvModal({
               disabled={submitting || !name.trim() || !email.trim() || !selectedDate || !selectedHour || hasTelePro === null}
               style={{
                 flex: 1,
-                background: '#C9A84C', color: 'white', border: 'none',
+                background: '#C9A84C', color: '#0e1e35', border: 'none',
                 borderRadius: 8, padding: '10px 0',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,

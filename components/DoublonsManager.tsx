@@ -47,19 +47,19 @@ function normalizePhoneUI(phone: string): string {
 }
 
 const LEAD_STATUS: Record<string, { label: string; color: string }> = {
-  NEW:                  { label: 'Nouveau',           color: '#E8C97B' },
+  NEW:                  { label: 'Nouveau',           color: '#C9A84C' },
   OPEN:                 { label: 'Ouvert',            color: '#22c55e' },
-  IN_PROGRESS:          { label: 'En cours',          color: '#E8C97B' },
+  IN_PROGRESS:          { label: 'En cours',          color: '#C9A84C' },
   OPEN_DEAL:            { label: 'Deal ouvert',       color: '#22c55e' },
   UNQUALIFIED:          { label: 'Non qualifié',      color: '#ef4444' },
   ATTEMPTED_TO_CONTACT: { label: 'Tentative contact', color: '#4a6070' },
   CONNECTED:            { label: 'Connecté',          color: '#22c55e' },
-  BAD_TIMING:           { label: 'Mauvais timing',    color: '#E8C97B' },
+  BAD_TIMING:           { label: 'Mauvais timing',    color: '#C9A84C' },
 }
 
 const DEAL_STAGES: Record<string, { label: string; color: string }> = {
-  '3165428979': { label: 'À replanifier',         color: '#E8C97B' },
-  '3165428980': { label: 'RDV pris',              color: '#E8C97B' },
+  '3165428979': { label: 'À replanifier',         color: '#C9A84C' },
+  '3165428980': { label: 'RDV pris',              color: '#C9A84C' },
   '3165428981': { label: 'Délai de réflexion',    color: '#4a6070' },
   '3165428982': { label: 'Préinscription',        color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#22c55e' },
@@ -69,24 +69,24 @@ const DEAL_STAGES: Record<string, { label: string; color: string }> = {
 
 const LIFECYCLE_STAGES: Record<string, { label: string; color: string }> = {
   subscriber:              { label: 'Abonné',           color: '#4a6070' },
-  lead:                    { label: 'Lead',              color: '#E8C97B' },
-  marketingqualifiedlead:  { label: 'Lead MQL',         color: '#E8C97B' },
-  salesqualifiedlead:      { label: 'Lead SQL',         color: '#E8C97B' },
-  opportunity:             { label: 'Opportunité',      color: '#E8C97B' },
+  lead:                    { label: 'Lead',              color: '#C9A84C' },
+  marketingqualifiedlead:  { label: 'Lead MQL',         color: '#C9A84C' },
+  salesqualifiedlead:      { label: 'Lead SQL',         color: '#C9A84C' },
+  opportunity:             { label: 'Opportunité',      color: '#C9A84C' },
   customer:                { label: 'Client',           color: '#22c55e' },
   evangelist:              { label: 'Évangéliste',      color: '#22c55e' },
   other:                   { label: 'Autre',            color: '#4a6070' },
 }
 
 const REASON_CONFIG = {
-  same_phone: { label: 'Même téléphone', color: '#E8C97B', bg: 'rgba(204,172,113,0.12)' },
+  same_phone: { label: 'Même téléphone', color: '#C9A84C', bg: 'rgba(204,172,113,0.12)' },
   same_email: { label: 'Même email', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-  same_name:  { label: 'Même nom', color: '#E8C97B', bg: 'rgba(204,172,113,0.12)' },
+  same_name:  { label: 'Même nom', color: '#C9A84C', bg: 'rgba(204,172,113,0.12)' },
 }
 
 const CONFIDENCE_CONFIG = {
   high:   { label: 'Haute confiance', color: '#22c55e' },
-  medium: { label: 'Confiance moyenne', color: '#E8C97B' },
+  medium: { label: 'Confiance moyenne', color: '#C9A84C' },
 }
 
 export default function DoublonsManager({ onClose }: { onClose: () => void }) {
@@ -227,7 +227,7 @@ export default function DoublonsManager({ onClose }: { onClose: () => void }) {
               fontSize: 12, color: '#4a6070', lineHeight: 1.6,
               display: 'flex', gap: 10, alignItems: 'flex-start',
             }}>
-              <AlertTriangle size={14} style={{ color: '#E8C97B', marginTop: 1, flexShrink: 0 }} />
+              <AlertTriangle size={14} style={{ color: '#C9A84C', marginTop: 1, flexShrink: 0 }} />
               <div>
                 <span style={{ color: '#0e1e35', fontWeight: 600 }}>Doublons détectés parmi les contacts des télépros.</span>
                 {' '}Fusionner garde le contact principal et transfère tous les deals vers lui. L&apos;action est <span style={{ color: '#ef4444', fontWeight: 600 }}>irréversible dans HubSpot</span>.
@@ -370,7 +370,7 @@ function DuplicateGroupCard({
           {cc.label}
         </span>
         {group.reason === 'same_phone' && group.matchedValue && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, background: 'rgba(204,172,113,0.1)', color: '#E8C97B', border: '1px solid rgba(204,172,113,0.3)' }}>
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, background: 'rgba(204,172,113,0.1)', color: '#C9A84C', border: '1px solid rgba(204,172,113,0.3)' }}>
             🔍 {group.matchedValue}
           </span>
         )}
@@ -420,7 +420,7 @@ function DuplicateGroupCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.phone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#E8C97B' : '#4a6070', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#C9A84C' : '#4a6070', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.phone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
@@ -429,7 +429,7 @@ function DuplicateGroupCard({
                   const isMatch = group.reason === 'same_phone' && group.matchedValue &&
                     normalizePhoneUI(contact.properties.mobilephone!) === group.matchedValue
                   return (
-                    <div style={{ fontSize: 11, color: isMatch ? '#E8C97B' : '#4a6070', fontWeight: isMatch ? 700 : 400 }}>
+                    <div style={{ fontSize: 11, color: isMatch ? '#C9A84C' : '#4a6070', fontWeight: isMatch ? 700 : 400 }}>
                       {contact.properties.mobilephone}{isMatch ? ' 🔍' : ''}
                     </div>
                   )
@@ -458,7 +458,7 @@ function DuplicateGroupCard({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#4a6070' }}>
                       <span>📋</span>
                       {deals && deals !== '0'
-                        ? <span><span style={{ color: '#E8C97B', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
+                        ? <span><span style={{ color: '#C9A84C', fontWeight: 700 }}>{deals}</span> deal{parseInt(deals) > 1 ? 's' : ''}</span>
                         : <span style={{ color: '#4a6070', fontStyle: 'italic' }}>Aucun deal</span>
                       }
                     </div>
@@ -520,7 +520,7 @@ function DuplicateGroupCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#E8C97B', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#C9A84C', textDecoration: 'none' }}
               >
                 <ExternalLink size={9} />
                 Voir sur HubSpot
@@ -567,7 +567,7 @@ function DuplicateGroupCard({
             style={{
               flex: 1, background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 8, padding: '9px', fontSize: 12, fontWeight: 700,
-              color: '#E8C97B', cursor: 'pointer',
+              color: '#C9A84C', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
           >

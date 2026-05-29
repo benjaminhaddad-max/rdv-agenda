@@ -8,7 +8,7 @@ import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
 // Constantes
 const NAVY_BORDER = '#e5ddc8'
-const GOLD = '#E8C97B'
+const GOLD = '#C9A84C'
 const BLUE = '#4cabdb'
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
@@ -397,7 +397,7 @@ function SelectField({
             background: o.id === value ? 'rgba(204,172,113,0.1)' : 'transparent',
             border: 'none',
             borderBottom: '1px solid #eaf0f6',
-            color: colorMap?.[o.id] || (o.id === value ? '#E8C97B' : '#4a6070'),
+            color: colorMap?.[o.id] || (o.id === value ? '#C9A84C' : '#4a6070'),
             fontSize: 13,
             fontFamily: 'inherit',
             cursor: 'pointer',
@@ -792,7 +792,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
             <div style={{ fontSize: 10, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Notes (optionnel)</div>
             <textarea
               value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 12, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 6, padding: '6px 10px', color: '#0e1e35', fontSize: 12, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
           </div>
 
@@ -1205,7 +1205,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
 
           {/* Section : Identité */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#E8C97B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, borderBottom: '1px solid rgba(204,172,113,0.2)', paddingBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, borderBottom: '1px solid rgba(204,172,113,0.2)', paddingBottom: 6 }}>
               Identité
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

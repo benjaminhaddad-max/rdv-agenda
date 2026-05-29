@@ -151,7 +151,7 @@ export default function BookingPublic() {
           {(formation || selectedDate || selectedSlot) && (
             <div style={{ marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
               <div style={{ fontSize: 12, color: '#555870', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Votre sélection</div>
-              {formation && <div style={{ fontSize: 12, color: '#E8C97B', marginBottom: 5 }}>🎓 {formation}</div>}
+              {formation && <div style={{ fontSize: 12, color: '#C9A84C', marginBottom: 5 }}>🎓 {formation}</div>}
               {selectedDate && selectedSlot && (
                 <div style={{ fontSize: 12, color: '#4cabdb', marginBottom: 5 }}>
                   📅 {format(new Date(selectedSlot.start), 'EEE d MMM · HH:mm', { locale: fr })}

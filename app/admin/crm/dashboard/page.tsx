@@ -185,7 +185,7 @@ export default function DashboardPage() {
               items={['Terminale', 'Première', 'Seconde']
                 .filter(c => stats.classes[c])
                 .map(c => ({ label: c, value: stats.classes[c] || 0 }))}
-              color="#E8C97B"
+              color="#C9A84C"
             />
           </Card>
           <Card title="Top commerciaux (30j)" icon={TrendingUp}>
@@ -308,7 +308,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Tr
   return (
     <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5ddc8', padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {Icon && <Icon size={12} style={{ color: '#E8C97B' }} />}
+        {Icon && <Icon size={12} style={{ color: '#C9A84C' }} />}
         {title}
       </div>
       {children}

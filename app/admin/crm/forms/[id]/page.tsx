@@ -328,7 +328,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
                 onClick={() => addField(ft.type)}
                 style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit' }}
               >
-                <Icon size={13} style={{ color: '#E8C97B' }} />
+                <Icon size={13} style={{ color: '#C9A84C' }} />
                 {ft.label}
               </button>
             )
@@ -923,7 +923,7 @@ function EmbedTab({ form }: { form: FormData }) {
     return (
       <Card title="Intégration">
         <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>
-          <Code size={40} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+          <Code size={40} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
           <div style={{ fontSize: 14, marginBottom: 8, color: '#0e1e35', fontWeight: 600 }}>
             Publie le formulaire pour obtenir le code d&apos;intégration
           </div>
@@ -959,7 +959,7 @@ function EmbedTab({ form }: { form: FormData }) {
 
       <Card title="Option 3 — API directe (usage avancé)" icon={Code}>
         <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10 }}>
-          POST JSON vers <code style={{ color: '#E8C97B' }}>{host}/api/forms/{form.slug}/submit</code>
+          POST JSON vers <code style={{ color: '#C9A84C' }}>{host}/api/forms/{form.slug}/submit</code>
         </div>
         <pre style={codeBlock}>{`POST ${host}/api/forms/${form.slug}/submit
 Content-Type: application/json
@@ -998,7 +998,7 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
     return (
       <Card title="Soumissions">
         <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>
-          <Inbox size={40} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+          <Inbox size={40} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
           <div style={{ fontSize: 14, color: '#0e1e35', marginBottom: 4 }}>Aucune soumission pour le moment</div>
           <div style={{ fontSize: 12 }}>Les réponses apparaîtront ici au fur et à mesure.</div>
         </div>
@@ -1056,7 +1056,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Fi
   return (
     <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        {Icon && <Icon size={14} style={{ color: '#E8C97B' }} />}
+        {Icon && <Icon size={14} style={{ color: '#C9A84C' }} />}
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#0e1e35' }}>{title}</h3>
       </div>
       {children}

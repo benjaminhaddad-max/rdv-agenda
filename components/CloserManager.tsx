@@ -22,7 +22,7 @@ type CreatedCredentials = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#f1f5f9',
+  background: '#f7f4ee',
   border: '1px solid #e5ddc8',
   borderRadius: 8,
   padding: '10px 13px',
@@ -174,21 +174,21 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
               background: 'rgba(204,172,113,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Briefcase size={15} style={{ color: '#E8C97B' }} />
+              <Briefcase size={15} style={{ color: '#C9A84C' }} />
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>Équipe Closers</div>
               <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ExternalLink size={10} style={{ color: '#E8C97B' }} />
+                <ExternalLink size={10} style={{ color: '#C9A84C' }} />
                 Synchronisé avec HubSpot
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={load} style={{ background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
+            <button onClick={load} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
               <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
-            <button onClick={onClose} style={{ background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
+            <button onClick={onClose} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
               <X size={14} />
             </button>
           </div>
@@ -199,7 +199,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
           {/* Résultat sync HubSpot */}
           {syncResult && (
             <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Download size={14} /> Sync HubSpot terminé
               </div>
               {syncResult.created.length === 0 && (
@@ -216,14 +216,14 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35', marginBottom: 4 }}>{c.name}</div>
                         <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 6 }}>{c.email}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#E8C97B', flex: 1 }}>{c.password}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#C9A84C', flex: 1 }}>{c.password}</div>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(`Email : ${c.email}\nMot de passe : ${c.password}`)
                               setSyncPwdCopied(c.email)
                               setTimeout(() => setSyncPwdCopied(null), 2000)
                             }}
-                            style={{ background: syncPwdCopied === c.email ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 10px', color: syncPwdCopied === c.email ? '#22c55e' : '#E8C97B', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                            style={{ background: syncPwdCopied === c.email ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 10px', color: syncPwdCopied === c.email ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                           >
                             {syncPwdCopied === c.email ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
                           </button>
@@ -279,7 +279,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
                     setPwdCopied(true)
                     setTimeout(() => setPwdCopied(false), 2000)
                   }}
-                  style={{ background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '6px 12px', color: pwdCopied ? '#22c55e' : '#E8C97B', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+                  style={{ background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '6px 12px', color: pwdCopied ? '#22c55e' : '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
                 >
                   {pwdCopied ? <><Check size={11} /> Copié</> : <><Copy size={11} /> Copier</>}
                 </button>
@@ -302,7 +302,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
               background: '#e5ddc8', border: '1px solid rgba(204,172,113,0.3)',
               borderRadius: 12, padding: '16px', marginBottom: 20,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Plus size={13} /> Nouveau closer
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -335,7 +335,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
                   onClick={handleAdd}
                   disabled={adding || !addFirstName.trim() || !addLastName.trim() || !addEmail.trim()}
                   style={{
-                    flex: 1, background: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? '#E8C97B' : '#f1f5f9',
+                    flex: 1, background: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? '#C9A84C' : '#f7f4ee',
                     color: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? '#f7f4ee' : '#4a6070',
                     border: 'none', borderRadius: 8, padding: '10px', fontSize: 13, fontWeight: 700,
                     cursor: (addFirstName.trim() && addLastName.trim() && addEmail.trim()) ? 'pointer' : 'default',
@@ -345,7 +345,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
                 </button>
                 <button
                   onClick={() => { setShowAddForm(false); setAddError(null); setAddFirstName(''); setAddLastName(''); setAddEmail('') }}
-                  style={{ background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 14px', color: '#4a6070', fontSize: 13, cursor: 'pointer' }}
+                  style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 14px', color: '#4a6070', fontSize: 13, cursor: 'pointer' }}
                 >
                   Annuler
                 </button>
@@ -431,7 +431,7 @@ export default function CloserManager({ onClose }: { onClose: () => void }) {
               style={{
                 width: '100%', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
                 borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
-                color: '#E8C97B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                color: '#C9A84C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               }}
             >
               <Plus size={14} /> Ajouter manuellement
@@ -512,7 +512,7 @@ function CloserRow({
             >
               {isLoading ? '…' : 'Confirmer'}
             </button>
-            <button onClick={onConfirmCancel} style={{ background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 7, padding: '8px 14px', fontSize: 12, color: '#4a6070', cursor: 'pointer' }}>
+            <button onClick={onConfirmCancel} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 7, padding: '8px 14px', fontSize: 12, color: '#4a6070', cursor: 'pointer' }}>
               Annuler
             </button>
           </div>
@@ -557,7 +557,7 @@ function CloserRow({
                   onClick={handleResetPassword}
                   disabled={resetLoading}
                   title="Voir / réinitialiser le mot de passe"
-                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8C97B', cursor: 'pointer' }}
+                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C9A84C', cursor: 'pointer' }}
                 >
                   <Key size={12} />
                 </button>
@@ -566,7 +566,7 @@ function CloserRow({
                 <button
                   onClick={handleImpersonate}
                   title="Se connecter en tant que ce closer"
-                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8C97B', cursor: 'pointer' }}
+                  style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C9A84C', cursor: 'pointer' }}
                 >
                   <LogIn size={12} />
                 </button>
@@ -591,7 +591,7 @@ function CloserRow({
           {shownPassword && (
             <div style={{ marginTop: 10, background: 'rgba(204,172,113,0.06)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: '#E8C97B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Key size={11} /> Identifiants de connexion
                 </div>
                 <button onClick={() => setShownPassword(null)} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
@@ -603,7 +603,7 @@ function CloserRow({
                 </div>
                 <div style={{ background: '#ffffff', borderRadius: 7, padding: '8px 12px' }}>
                   <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mot de passe (nouveau)</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#E8C97B', letterSpacing: '0.05em' }}>{shownPassword}</div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.05em' }}>{shownPassword}</div>
                 </div>
               </div>
               <button
@@ -612,7 +612,7 @@ function CloserRow({
                   setPwdCopied(true)
                   setTimeout(() => setPwdCopied(false), 2000)
                 }}
-                style={{ width: '100%', background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: `1px solid ${pwdCopied ? 'rgba(34,197,94,0.3)' : 'rgba(204,172,113,0.3)'}`, borderRadius: 7, padding: '8px', color: pwdCopied ? '#22c55e' : '#E8C97B', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                style={{ width: '100%', background: pwdCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: `1px solid ${pwdCopied ? 'rgba(34,197,94,0.3)' : 'rgba(204,172,113,0.3)'}`, borderRadius: 7, padding: '8px', color: pwdCopied ? '#22c55e' : '#C9A84C', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 {pwdCopied ? <><Check size={12} /> Copié !</> : <><Copy size={12} /> Copier Email + Mot de passe</>}
               </button>

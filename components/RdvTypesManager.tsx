@@ -5,7 +5,7 @@ import { Save, RefreshCw, Eye, EyeOff, GripVertical } from 'lucide-react'
 
 const NAVY = '#1d2f4b'
 const BLUE = '#4cabdb'
-const GOLD = '#E8C97B'
+const GOLD = '#C9A84C'
 
 type RdvTypeRow = {
   id: number
@@ -142,7 +142,7 @@ export default function RdvTypesManager({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Info */}
-        <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 22, fontSize: 12, color: '#E8C97B' }}>
+        <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 22, fontSize: 12, color: '#C9A84C' }}>
           💡 Les modifications sont appliquées <strong>immédiatement</strong> sur la page publique /rdv après sauvegarde.
         </div>
 

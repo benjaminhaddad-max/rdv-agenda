@@ -5,7 +5,7 @@ import { Save, RefreshCw, Eye, EyeOff, Copy, Check, Plus, Trash2, ExternalLink, 
 
 const NAVY = '#ffffff'
 const BLUE = '#4cabdb'
-const GOLD = '#E8C97B'
+const GOLD = '#C9A84C'
 
 // ─── Onglet Contenus /rdv ─────────────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ function TabContenus() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: '#E8C97B', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '7px 12px' }}>
+        <div style={{ fontSize: 12, color: '#C9A84C', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '7px 12px' }}>
           💡 Modifications appliquées <strong>immédiatement</strong> sur la page publique /rdv après sauvegarde.
         </div>
         <button onClick={load} style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 8, padding: '6px 11px', color: BLUE, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}>
@@ -322,7 +322,7 @@ function TabLiens() {
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={addLink} disabled={!campaign.trim()} style={{ background: campaign.trim() ? GOLD : '#f1f5f9', color: campaign.trim() ? NAVY : '#4a6070', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: campaign.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button onClick={addLink} disabled={!campaign.trim()} style={{ background: campaign.trim() ? GOLD : '#f7f4ee', color: campaign.trim() ? NAVY : '#4a6070', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: campaign.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Plus size={12} /> Sauvegarder
           </button>
           {previewUrl && (

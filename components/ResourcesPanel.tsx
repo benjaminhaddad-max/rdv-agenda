@@ -216,7 +216,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                 onClick={() => { resetForm(); setShowForm(true) }}
                 style={{
                   background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-                  borderRadius: 8, padding: '6px 14px', color: '#E8C97B',
+                  borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
                 }}
@@ -246,7 +246,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
               background: '#e5ddc8', border: '1px solid #e5ddc8', borderRadius: 12,
               padding: 20, marginBottom: 20,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#E8C97B', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C', marginBottom: 16 }}>
                 {editingId ? '✏️ Modifier la ressource' : '➕ Nouvelle ressource'}
               </div>
 
@@ -346,7 +346,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                         background: formRoles.includes(r) ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
                         border: `1px solid ${formRoles.includes(r) ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
                         borderRadius: 6, padding: '5px 12px',
-                        color: formRoles.includes(r) ? '#E8C97B' : '#4a6070',
+                        color: formRoles.includes(r) ? '#C9A84C' : '#4a6070',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                         textTransform: 'capitalize',
                       }}
@@ -432,7 +432,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                     >
                       {/* Type icon */}
                       <span style={{
-                        color: r.type === 'link' ? '#4cabdb' : r.type === 'pdf' ? '#ef4444' : '#E8C97B',
+                        color: r.type === 'link' ? '#4cabdb' : r.type === 'pdf' ? '#ef4444' : '#C9A84C',
                         display: 'flex', alignItems: 'center', flexShrink: 0,
                       }}>
                         {TYPE_ICONS[r.type]}
@@ -459,7 +459,7 @@ export default function ResourcesPanel({ onClose, role }: Props) {
                             <span key={rl} style={{
                               fontSize: 9, fontWeight: 700, borderRadius: 3, padding: '1px 5px',
                               background: rl === 'admin' ? 'rgba(204,172,113,0.1)' : rl === 'closer' ? 'rgba(107,135,255,0.1)' : 'rgba(168,85,247,0.1)',
-                              color: rl === 'admin' ? '#E8C97B' : rl === 'closer' ? '#6b87ff' : '#a855f7',
+                              color: rl === 'admin' ? '#C9A84C' : rl === 'closer' ? '#6b87ff' : '#a855f7',
                               textTransform: 'uppercase',
                             }}>
                               {rl}

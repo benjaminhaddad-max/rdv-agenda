@@ -298,7 +298,7 @@ export default function CRMFilterBuilder({
                 // ── BOOL ─────────────────────────────────────────────────────
                 if (kind === 'bool') {
                   return (
-                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#E8C97B' : '#4a6070' }}>
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#C9A84C' : '#4a6070' }}>
                       <option value="">Rechercher…</option>
                       <option value="true">Oui</option>
                       <option value="false">Non</option>
@@ -317,7 +317,7 @@ export default function CRMFilterBuilder({
                     )
                   }
                   return (
-                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#E8C97B' : '#4a6070' }}>
+                    <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#C9A84C' : '#4a6070' }}>
                       <option value="">Rechercher…</option>
                       {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                     </select>

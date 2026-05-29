@@ -102,8 +102,8 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
               >
                 <span style={{
                   width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                  border: selected.includes(col.key) ? '2px solid #E8C97B' : '2px solid #0e1e35',
-                  background: selected.includes(col.key) ? '#E8C97B' : 'transparent',
+                  border: selected.includes(col.key) ? '2px solid #C9A84C' : '2px solid #0e1e35',
+                  background: selected.includes(col.key) ? '#C9A84C' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {selected.includes(col.key) && <Check size={11} color="#ffffff" strokeWidth={3} />}
@@ -126,7 +126,7 @@ export default function ExportCSVModal({ buildParams, exporting, onClose, onExpo
               flex: 1, padding: '10px',
               background: selected.length > 0 ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
               border: '1px solid', borderColor: selected.length > 0 ? 'rgba(204,172,113,0.4)' : '#e5ddc8',
-              borderRadius: 8, color: selected.length > 0 ? '#E8C97B' : '#4a6070',
+              borderRadius: 8, color: selected.length > 0 ? '#C9A84C' : '#4a6070',
               fontSize: 13, fontWeight: 700, cursor: selected.length > 0 ? 'pointer' : 'default',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               opacity: exporting ? 0.6 : 1,

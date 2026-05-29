@@ -51,7 +51,7 @@ for (let h = 7; h <= 22; h++) {
 }
 
 const selectStyle: React.CSSProperties = {
-  background: '#f1f5f9',
+  background: '#f7f4ee',
   border: '1px solid #e5ddc8',
   borderRadius: 6,
   padding: '5px 8px',
@@ -371,7 +371,7 @@ function CloserAvailabilityCard({
             <button
               onClick={copyFromPreviousWeek}
               style={{
-                background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8,
+                background: '#f7f4ee', border: '1px solid #cbd5e1', borderRadius: 8,
                 padding: '5px 10px', fontSize: 12, color: '#0e1e35', cursor: 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 5,
               }}
@@ -442,7 +442,7 @@ function CloserAvailabilityCard({
               onClick={saveRules}
               disabled={saving}
               style={{
-                background: '#C9A84C', color: '#fff', border: 'none', borderRadius: 8,
+                background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 8,
                 padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
@@ -582,7 +582,7 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
           <button
             onClick={onClose}
             style={{
-              background: '#f1f5f9', border: '1px solid #e5ddc8', borderRadius: 8,
+              background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
               width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', color: '#4a6070',
             }}

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Users, Briefcase } from 'lucide-react'
 
 const NAVY = '#ffffff'
-const GOLD = '#E8C97B'
+const GOLD = '#C9A84C'
 const BLUE = '#4cabdb'
 
 interface RdvUser {

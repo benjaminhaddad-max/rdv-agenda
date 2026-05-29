@@ -19,7 +19,7 @@ interface Wf {
 const STATUS: Record<Wf['status'], { label: string; color: string; bg: string }> = {
   draft:    { label: 'Brouillon', color: '#4a6070', bg: '#fff' },
   active:   { label: 'Actif',     color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-  paused:   { label: 'En pause',  color: '#E8C97B', bg: 'rgba(204,172,113,0.15)' },
+  paused:   { label: 'En pause',  color: '#C9A84C', bg: 'rgba(204,172,113,0.15)' },
   archived: { label: 'Archivé',   color: '#4a6070', bg: 'rgba(139,143,168,0.15)' },
 }
 
@@ -107,7 +107,7 @@ export default function WorkflowsPage() {
           <div style={{ color: '#4a6070', fontSize: 13 }}>Chargement…</div>
         ) : workflows.length === 0 ? (
           <div style={{ background: '#fff', borderRadius: 12, padding: 40, textAlign: 'center', border: '1px solid #e5ddc8' }}>
-            <Workflow size={48} style={{ color: '#e5ddc8', margin: '0 auto 12px' }} />
+            <Workflow size={48} style={{ color: '#a89e8a', margin: '0 auto 12px' }} />
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Aucun workflow pour l&apos;instant</div>
             <div style={{ fontSize: 12, color: '#4a6070', maxWidth: 400, margin: '0 auto 16px' }}>
               Crée ton premier workflow pour automatiser des séquences (ex : email de bienvenue après formulaire, relance auto après 48h…).

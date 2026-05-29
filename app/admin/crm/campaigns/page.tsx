@@ -44,7 +44,7 @@ const STATUS_META: Record<Campaign['status'], { label: string; color: string; bg
   scheduled: { label: 'Programmée', color: '#06b6d4', bg: 'rgba(6,182,212,0.15)', icon: Clock },
   sending:   { label: 'Envoi…',     color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', icon: Send },
   sent:      { label: 'Envoyée',    color: '#22c55e', bg: 'rgba(34,197,94,0.15)', icon: Check },
-  paused:    { label: 'En pause',   color: '#E8C97B', bg: 'rgba(204,172,113,0.15)', icon: Pause },
+  paused:    { label: 'En pause',   color: '#C9A84C', bg: 'rgba(204,172,113,0.15)', icon: Pause },
   failed:    { label: 'Échec',      color: '#ef4444', bg: 'rgba(239,68,68,0.15)', icon: AlertTriangle },
   archived:  { label: 'Archivée',   color: '#4a6070', bg: 'rgba(139,143,168,0.15)', icon: Archive },
 }
@@ -129,7 +129,7 @@ export default function CampaignsPage() {
           </a>
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Mail size={16} style={{ color: '#E8C97B' }} />
+            <Mail size={16} style={{ color: '#C9A84C' }} />
             <span style={{ fontSize: 14, fontWeight: 600 }}>Campagnes Email</span>
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function CampaignsPage() {
       {/* Stats */}
       <div style={{ padding: '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
-          <StatCard label="Total" value={stats.total} color="#E8C97B" icon={Mail} />
+          <StatCard label="Total" value={stats.total} color="#C9A84C" icon={Mail} />
           <StatCard label="Brouillons" value={stats.draft} color="#4a6070" icon={FileText} />
           <StatCard label="Envoyées" value={stats.sent} color="#22c55e" icon={Check} />
           <StatCard label="Emails envoyés" value={stats.totalSent.toLocaleString('fr-FR')} color="#06b6d4" icon={Send} />
@@ -180,7 +180,7 @@ export default function CampaignsPage() {
           <div style={{ flex: 1 }} />
           <button
             onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
             <Plus size={14} /> Nouvelle campagne
           </button>
@@ -194,12 +194,12 @@ export default function CampaignsPage() {
         ) : filtered.length === 0 ? (
           campaigns.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-              <Mail size={48} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+              <Mail size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
               <div style={{ fontSize: 16, fontWeight: 600, color: '#0e1e35', marginBottom: 6 }}>Aucune campagne pour le moment</div>
               <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>Créez votre première campagne email pour toucher vos prospects.</div>
               <button
                 onClick={() => setShowNewModal(true)}
-                style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+                style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
               >
                 <Plus size={14} /> Créer ma première campagne
               </button>
@@ -390,14 +390,14 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
           placeholder="Ex: Plus que 3 jours pour t'inscrire {{prenom}} 🎓"
           style={inputStyle}
         />
-        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>Tu peux utiliser <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code>, <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code></div>
+        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>Tu peux utiliser <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code></div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
           <button
             onClick={submit}
             disabled={!name.trim() || !subject.trim() || loading}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || !subject.trim() || loading ? 0.5 : 1 }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || !subject.trim() || loading ? 0.5 : 1 }}
           >
             {loading ? 'Création…' : 'Créer et continuer →'}
           </button>

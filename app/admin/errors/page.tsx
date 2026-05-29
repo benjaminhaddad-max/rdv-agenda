@@ -252,7 +252,7 @@ function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
   }
   if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
   if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f1f5f9', color: '#4a6070', border: '1px solid #e5ddc8' }
+  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
 }
 function badge(color: string): React.CSSProperties {
   return {

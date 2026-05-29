@@ -75,7 +75,7 @@ const COLORS = {
   textPrimary:  '#0e1e35',   // texte principal
   textMuted:    '#4a6070',   // texte secondaire
   textLight:    '#4a6070',   // icônes
-  accent:       '#E8C97B',   // doré Diploma Santé (accent)
+  accent:       '#C9A84C',   // doré Diploma Santé (accent)
   accentBg:     'rgba(204, 172, 113, 0.12)',
   danger:       '#ef6b51',   // rouge HubSpot-style
 }

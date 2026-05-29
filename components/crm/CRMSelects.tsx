@@ -54,7 +54,7 @@ export function MultiSelectDropdown({ options, value, onChange }: {
         onClick={() => setOpen(!open)}
         style={{
           background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
-          padding: '6px 8px', color: selected.length > 0 ? '#E8C97B' : '#4a6070',
+          padding: '6px 8px', color: selected.length > 0 ? '#C9A84C' : '#4a6070',
           fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
@@ -107,8 +107,8 @@ export function MultiSelectDropdown({ options, value, onChange }: {
               >
                 <span style={{
                   width: 16, height: 16, borderRadius: 3,
-                  border: selected.includes(opt.id) ? '2px solid #E8C97B' : '2px solid #0e1e35',
-                  background: selected.includes(opt.id) ? '#E8C97B' : 'transparent',
+                  border: selected.includes(opt.id) ? '2px solid #C9A84C' : '2px solid #0e1e35',
+                  background: selected.includes(opt.id) ? '#C9A84C' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   {selected.includes(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
@@ -155,7 +155,7 @@ export function SearchableSelect({ options, value, onChange }: {
         onClick={() => setOpen(!open)}
         style={{
           background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
-          padding: '6px 8px', color: value ? '#E8C97B' : '#4a6070',
+          padding: '6px 8px', color: value ? '#C9A84C' : '#4a6070',
           fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', width: '100%',
           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
@@ -247,7 +247,7 @@ export function FilterSelect({
           border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#E8C97B' : '#4a6070',
+          color: isActive ? '#C9A84C' : '#4a6070',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -291,7 +291,7 @@ export function FilterSelect({
                 background: value === opt.id ? 'rgba(204,172,113,0.12)' : 'transparent',
                 border: 'none',
                 padding: '8px 14px',
-                color: value === opt.id ? '#E8C97B' : '#4a6070',
+                color: value === opt.id ? '#C9A84C' : '#4a6070',
                 fontSize: 12,
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -358,7 +358,7 @@ export function FilterMultiSelect({
           border: `1px solid ${isActive ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
           borderRadius: 8,
           padding: '7px 11px',
-          color: isActive ? '#E8C97B' : '#4a6070',
+          color: isActive ? '#C9A84C' : '#4a6070',
           fontSize: 12,
           cursor: 'pointer',
           display: 'flex',
@@ -401,7 +401,7 @@ export function FilterMultiSelect({
               background: !isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
               border: 'none',
               padding: '8px 14px',
-              color: !isActive ? '#E8C97B' : '#4a6070',
+              color: !isActive ? '#C9A84C' : '#4a6070',
               fontSize: 12,
               cursor: 'pointer',
               textAlign: 'left',
@@ -430,8 +430,8 @@ export function FilterMultiSelect({
             >
               <span style={{
                 width: 15, height: 15, borderRadius: 3, flexShrink: 0,
-                border: selected.includes(opt.id) ? '2px solid #E8C97B' : '2px solid #0e1e35',
-                background: selected.includes(opt.id) ? '#E8C97B' : 'transparent',
+                border: selected.includes(opt.id) ? '2px solid #C9A84C' : '2px solid #0e1e35',
+                background: selected.includes(opt.id) ? '#C9A84C' : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {selected.includes(opt.id) && <Check size={9} color="#ffffff" strokeWidth={3} />}

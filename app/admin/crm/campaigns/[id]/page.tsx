@@ -61,7 +61,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
                 Bien cordialement,<br>
                 <strong>L'équipe Diploma Santé</strong>
               </p>
-              <a href="https://diploma-sante.fr" style="display:inline-block;background:#E8C97B;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:600;">
+              <a href="https://diploma-sante.fr" style="display:inline-block;background:#C9A84C;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:600;">
                 En savoir plus
               </a>
             </td>
@@ -238,7 +238,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </a>
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Mail size={16} style={{ color: '#E8C97B', flexShrink: 0 }} />
+            <Mail size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
             <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</span>
             <span style={{ fontSize: 10, fontWeight: 600, color: statusMeta.color, background: statusMeta.bg, padding: '3px 8px', borderRadius: 999 }}>
               {statusMeta.label}
@@ -467,7 +467,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           <Field label="Sujet de l'email">
             <input value={campaign.subject} onChange={e => update({ subject: e.target.value })} style={inputStyle} />
             <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>
-              Variables : <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code>
+              Variables : <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>
             </div>
           </Field>
           <Field label="Preheader (aperçu dans la boîte mail)">
@@ -501,7 +501,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
             <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, flex: 1 }}>
               Drag & drop des blocs depuis la palette à gauche :
               <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
-              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code>, <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code>, <code style={{ color: '#E8C97B' }}>{'{{email}}'}</code>.
+              Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code>.
             </div>
             <BrevoImportButton
               onImport={(html) => {
@@ -547,7 +547,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
           <button
             onClick={sendTest}
             disabled={!testEmail.trim() || testSending}
-            style={{ marginTop: 10, width: '100%', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !testEmail.trim() || testSending ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            style={{ marginTop: 10, width: '100%', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !testEmail.trim() || testSending ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
           >
             <Send size={13} /> {testSending ? 'Envoi…' : 'Envoyer le test'}
           </button>
@@ -628,9 +628,9 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         <Card title="Aide" icon={AlertCircle}>
           <div style={{ fontSize: 12, color: '#4a6070', lineHeight: 1.5 }}>
             💡 <strong>Variables disponibles :</strong><br />
-            <code style={{ color: '#E8C97B' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
-            <code style={{ color: '#E8C97B' }}>{'{{nom}}'}</code> — nom<br />
-            <code style={{ color: '#E8C97B' }}>{'{{email}}'}</code> — email<br /><br />
+            <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code> — prénom du destinataire<br />
+            <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code> — nom<br />
+            <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code> — email<br /><br />
             Les variables sont remplacées automatiquement à l&apos;envoi.
           </div>
         </Card>
@@ -706,9 +706,9 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
       style={{
         background: 'transparent',
         border: 'none',
-        borderBottom: `2px solid ${active ? '#E8C97B' : 'transparent'}`,
+        borderBottom: `2px solid ${active ? '#C9A84C' : 'transparent'}`,
         padding: '12px 16px',
-        color: active ? '#E8C97B' : '#4a6070',
+        color: active ? '#C9A84C' : '#4a6070',
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
@@ -727,7 +727,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Ma
   return (
     <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        {Icon && <Icon size={14} style={{ color: '#E8C97B' }} />}
+        {Icon && <Icon size={14} style={{ color: '#C9A84C' }} />}
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</h3>
       </div>
       {children}
@@ -955,7 +955,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
                     border: '1px solid rgba(204,172,113,0.3)',
                     borderRadius: 8,
                     padding: '8px 16px',
-                    color: '#E8C97B',
+                    color: '#C9A84C',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -988,7 +988,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
 
         {/* Footer note */}
         <div style={{ padding: '10px 20px', borderTop: '1px solid #e5ddc8', background: '#f7f4ee', fontSize: 11, color: '#4a6070' }}>
-          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#E8C97B' }}>app.brevo.com</a> puis cliquer ici pour les importer.
+          💡 Tu peux créer / modifier tes templates sur <a href="https://app.brevo.com/camp/lists/templates" target="_blank" rel="noreferrer" style={{ color: '#C9A84C' }}>app.brevo.com</a> puis cliquer ici pour les importer.
         </div>
       </div>
     </>

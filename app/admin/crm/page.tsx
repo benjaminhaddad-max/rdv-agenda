@@ -1628,7 +1628,7 @@ export default function CRMPage() {
           <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
           <div style={{ width: 1, height: 22, background: '#D4C4A0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Users size={13} style={{ color: '#E8C97B' }} />
+            <Users size={13} style={{ color: '#C9A84C' }} />
             <span style={{ fontSize: 12, color: '#3D5275', fontWeight: 600 }}>CRM — Contacts & Transactions</span>
           </div>
         </div>
@@ -1722,7 +1722,7 @@ export default function CRMPage() {
               }}
               style={{
                 padding: '10px 14px',
-                borderBottom: `2px solid ${isActive ? '#E8C97B' : 'transparent'}`,
+                borderBottom: `2px solid ${isActive ? '#C9A84C' : 'transparent'}`,
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
@@ -1730,7 +1730,7 @@ export default function CRMPage() {
                 flexShrink: 0,
               }}
             >
-              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#E8C97B' : '#3D5275' }} />}
+              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#C9A84C' : '#3D5275' }} />}
 
               {isRenaming ? (
                 <input
@@ -1744,8 +1744,8 @@ export default function CRMPage() {
                   onBlur={() => renameCRMView(view.id, renameValue)}
                   onClick={e => e.stopPropagation()}
                   style={{
-                    background: 'rgba(204,172,113,0.08)', border: '1px solid #E8C97B',
-                    borderRadius: 4, padding: '2px 6px', color: '#E8C97B',
+                    background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
+                    borderRadius: 4, padding: '2px 6px', color: '#C9A84C',
                     fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
                     outline: 'none', width: Math.max(60, renameValue.length * 8),
                   }}
@@ -1753,7 +1753,7 @@ export default function CRMPage() {
               ) : (
                 <span style={{
                   fontSize: 12, fontWeight: isActive ? 700 : 400,
-                  color: isActive ? '#E8C97B' : '#3D5275',
+                  color: isActive ? '#C9A84C' : '#3D5275',
                 }}>
                   {view.name}
                 </span>
@@ -1801,7 +1801,7 @@ export default function CRMPage() {
             padding: '7px 12px',
             background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
             border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-            borderRadius: 6, color: totalFilterRules > 0 ? '#E8C97B' : '#3D5275',
+            borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#3D5275',
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 12, fontFamily: 'inherit', fontWeight: totalFilterRules > 0 ? 600 : 400,
             whiteSpace: 'nowrap', flexShrink: 0,
@@ -1818,7 +1818,7 @@ export default function CRMPage() {
             style={{
               padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
               border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
-              color: '#E8C97B', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+              color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
               whiteSpace: 'nowrap', flexShrink: 0,
             }}
@@ -1857,12 +1857,12 @@ export default function CRMPage() {
               }}
               placeholder="Nom de la vue…"
               style={{
-                background: 'rgba(204,172,113,0.08)', border: '1px solid #E8C97B',
-                borderRadius: 4, padding: '3px 8px', color: '#E8C97B',
+                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
+                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
                 fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
               }}
             />
-            <button onClick={() => createCRMView(newViewName)} style={{ background: '#E8C97B', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}>
+            <button onClick={() => createCRMView(newViewName)} style={{ background: '#C9A84C', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}>
               <Check size={12} color="#f7f4ee" />
             </button>
             <button onClick={() => { setCreatingView(false); setNewViewName('') }} style={{ background: 'none', border: 'none', padding: 0, color: '#3D5275', cursor: 'pointer', display: 'flex' }}>
@@ -1878,7 +1878,7 @@ export default function CRMPage() {
               alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
               whiteSpace: 'nowrap', flexShrink: 0,
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E8C97B')}
+            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
             onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
           >
             <Plus size={12} /> Enregistrer la vue
@@ -1940,7 +1940,7 @@ export default function CRMPage() {
             style={{
               background: 'rgba(204,172,113,0.10)',
               border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8, padding: '6px 14px', color: '#E8C97B',
+              borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
               fontSize: 12, textDecoration: 'none', display: 'flex',
               alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap',
             }}
@@ -2101,7 +2101,7 @@ export default function CRMPage() {
                 </button>
               ))}
               <button onClick={selectAll}
-                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#E8C97B', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Tout ({displayed.length})
               </button>
               <button onClick={() => setSelectedIds(new Set())}
@@ -2208,7 +2208,7 @@ export default function CRMPage() {
                   border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : '#D4C4A0'}`,
                   borderRadius: 6,
                   padding: '4px 10px',
-                  color: limit === n ? '#E8C97B' : '#0F1F3D',
+                  color: limit === n ? '#C9A84C' : '#0F1F3D',
                   cursor: 'pointer',
                   fontSize: 12,
                   fontFamily: 'inherit',
@@ -2248,7 +2248,7 @@ export default function CRMPage() {
                         borderRadius: 6,
                         width: 32,
                         height: 32,
-                        color: p === page ? '#E8C97B' : '#0F1F3D',
+                        color: p === page ? '#C9A84C' : '#0F1F3D',
                         cursor: 'pointer',
                         fontSize: 12,
                         fontFamily: 'inherit',
@@ -2425,7 +2425,7 @@ export default function CRMPage() {
                       // BOOL
                       if (kind === 'bool') {
                         return (
-                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#E8C97B' : '#3D5275', cursor: 'pointer' }}>
+                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#3D5275', cursor: 'pointer' }}>
                             <option value="">Rechercher…</option>
                             <option value="true">Oui</option>
                             <option value="false">Non</option>
@@ -2454,7 +2454,7 @@ export default function CRMPage() {
                           )
                         }
                         return (
-                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#E8C97B' : '#3D5275', cursor: 'pointer' }}>
+                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#3D5275', cursor: 'pointer' }}>
                             <option value="">Rechercher…</option>
                             {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                           </select>
@@ -2528,7 +2528,7 @@ export default function CRMPage() {
                 <button onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Tout effacer
                 </button>
-                <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#E8C97B', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Nouvelle vue
                 </button>
               </div>
@@ -2585,7 +2585,7 @@ export default function CRMPage() {
                                 if (e.key === 'Escape') setRenamingViewId(null)
                               }}
                               onBlur={e => renameCRMView(view.id, e.target.value)}
-                              style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid #E8C97B', borderRadius: 5, padding: '3px 8px', color: '#E8C97B', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', width: '100%' }}
+                              style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C', borderRadius: 5, padding: '3px 8px', color: '#C9A84C', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', width: '100%' }}
                             />
                           ) : (
                             <div>
@@ -2600,7 +2600,7 @@ export default function CRMPage() {
                           onClick={() => { setRenamingViewId(view.id); setRenameValue(view.name) }}
                           title="Renommer"
                           style={{ background: 'none', border: 'none', color: '#0F1F3D', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#E8C97B')}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
                           onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
                         >
                           <Pen size={13} />

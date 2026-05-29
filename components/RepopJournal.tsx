@@ -186,7 +186,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
                 padding: '1px 10px',
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#E8C97B',
+                color: '#C9A84C',
               }}>
                 {totalCount}
               </span>
@@ -366,7 +366,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
     <div style={{
       background: '#ffffff',
       border: '1px solid rgba(204,172,113,0.2)',
-      borderLeft: '3px solid #E8C97B',
+      borderLeft: '3px solid #C9A84C',
       borderRadius: 12,
       padding: '14px 16px',
       display: 'flex', flexDirection: 'column', gap: 10,
@@ -379,7 +379,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
             background: 'rgba(204,172,113,0.15)',
             border: '1px solid rgba(204,172,113,0.4)',
             borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: '#E8C97B',
+            fontSize: 11, fontWeight: 700, color: '#C9A84C',
           }}>
             🔁 Repop
           </span>
@@ -391,7 +391,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           {entry.classe && (
             <span style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#E8C97B',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
             }}>
               {entry.classe}
             </span>
@@ -399,7 +399,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           {entry.zone_localite && (
             <span style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#E8C97B',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
             }}>
               {entry.zone_localite}
             </span>
@@ -407,7 +407,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           {entry.formation_type && (
             <span style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#E8C97B',
+              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
             }}>
               {entry.formation_type}
             </span>
@@ -427,7 +427,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#E8C97B',
+              borderRadius: 6, padding: '3px 9px', color: '#C9A84C',
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
@@ -446,7 +446,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.08)',
           border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.25)'}`,
           borderRadius: 8, padding: '8px 16px',
-          color: isDismissing ? '#22c55e' : '#E8C97B',
+          color: isDismissing ? '#22c55e' : '#C9A84C',
           fontSize: 13, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
           opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
           transition: 'all 0.2s ease',
@@ -460,7 +460,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
         {entry.prospect_phone && (
           <a
             href={`tel:${entry.prospect_phone}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#E8C97B', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#C9A84C', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
           >
             <Phone size={13} />
             {entry.prospect_phone}
@@ -503,9 +503,9 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
         {/* Formulaire repop */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#E8C97B', flexShrink: 0,
+            width: 8, height: 8, borderRadius: '50%', background: '#C9A84C', flexShrink: 0,
           }} />
-          <span style={{ fontSize: 12, color: '#E8C97B', fontWeight: 600 }}>
+          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>
             <strong>{entry.repop_form_date_label}</strong>
             {' — '}
             {entry.repop_form_name || 'Nouveau formulaire soumis'}
@@ -659,7 +659,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
               <a
                 href={`tel:${entry.prospect_phone}`}
                 onClick={e => e.stopPropagation()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#E8C97B', textDecoration: 'none', fontWeight: 600 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', textDecoration: 'none', fontWeight: 600 }}
               >
                 <Phone size={12} />{entry.prospect_phone}
               </a>
@@ -689,7 +689,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '5px 9px', color: '#E8C97B',
+              borderRadius: 6, padding: '5px 9px', color: '#C9A84C',
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
@@ -767,7 +767,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
 const tagStyle: React.CSSProperties = {
   background: 'rgba(204,172,113,0.12)',
   border: '1px solid rgba(204,172,113,0.3)',
-  borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#E8C97B',
+  borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#C9A84C',
 }
 
 /** Couleur du badge selon le statut du lead (HubSpot hs_lead_status). */

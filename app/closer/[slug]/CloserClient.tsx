@@ -142,7 +142,7 @@ const CAMPUS_OPTIONS = [
 ]
 
 const inputStyle: React.CSSProperties = {
-  background: '#f1f5f9',
+  background: '#f7f4ee',
   border: '1px solid #2d4a6b',
   borderRadius: 8,
   padding: '8px 12px',
@@ -154,7 +154,7 @@ const inputStyle: React.CSSProperties = {
 }
 
 const fieldInputStyle: React.CSSProperties = {
-  width: '100%', background: '#f1f5f9', border: '1px solid #2d4a6b',
+  width: '100%', background: '#f7f4ee', border: '1px solid #2d4a6b',
   borderRadius: 10, padding: '11px 14px', color: '#0e1e35',
   fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
 }
@@ -195,7 +195,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
   const SUIVI_OPTIONS = [
     { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
-    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#E8C97B' },
+    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#C9A84C' },
     { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
   ]
 
@@ -666,10 +666,10 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           </div>
           {meetingType === 'visio' && meetingLink && (
             <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Video size={14} style={{ color: '#E8C97B', flexShrink: 0 }} />
-              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#E8C97B', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
+              <Video size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
+              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#C9A84C', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
               <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#E8C97B', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
               </button>
             </div>
@@ -714,7 +714,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
+        <div style={{ display: 'flex', background: '#f7f4ee', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
@@ -788,7 +788,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       { key: 'new' as const, label: 'Nouveau contact', icon: <Plus size={11} /> },
                     ]).map(m => (
                       <button key={m.key} onClick={() => { setLookupMode(m.key); setLookupError(null); setSearchResults([]) }}
-                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#e5ddc8'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        style={{ background: lookupMode === m.key ? `${user.avatar_color}20` : '#f7f4ee', border: `1px solid ${lookupMode === m.key ? `${user.avatar_color}50` : '#e5ddc8'}`, borderRadius: 8, padding: '6px 12px', color: lookupMode === m.key ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                         {m.icon} {m.label}
                       </button>
                     ))}
@@ -816,7 +816,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                             return (
                               <button key={r.hubspot_contact_id}
                                 onClick={() => pickSearchResult(r)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #f1f5f9', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #f7f4ee', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                               >
@@ -875,7 +875,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   const isSelected = selectedDate && isBefore(day, addDays(selectedDate, 1)) && !isBefore(day, selectedDate)
                   return (
                     <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                      style={{ background: isSelected ? `${user.avatar_color}25` : '#f1f5f9', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
+                      style={{ background: isSelected ? `${user.avatar_color}25` : '#f7f4ee', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 10, padding: '8px 12px', color: isSelected ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
                       <div style={{ fontSize: 10, textTransform: 'uppercase' }}>{format(day, 'EEE', { locale: fr })}</div>
                       <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'd')}</div>
                       <div style={{ fontSize: 10 }}>{format(day, 'MMM', { locale: fr })}</div>
@@ -896,7 +896,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       const isSelected = selectedSlot?.start === slot.start
                       return (
                         <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                          style={{ background: isSelected ? `${user.avatar_color}25` : '#f1f5f9', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#0e1e35', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
+                          style={{ background: isSelected ? `${user.avatar_color}25` : '#f7f4ee', border: `1px solid ${isSelected ? user.avatar_color : '#e5ddc8'}`, borderRadius: 8, padding: '8px 6px', color: isSelected ? user.avatar_color : '#0e1e35', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
                           {format(new Date(slot.start), 'HH:mm')}
                         </button>
                       )
@@ -964,7 +964,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         setMeetingType(t.value)
                         if (t.value === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
                       }}
-                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#f1f5f9', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#e5ddc8'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        style={{ flex: 1, background: meetingType === t.value ? `${user.avatar_color}20` : '#f7f4ee', border: `1px solid ${meetingType === t.value ? `${user.avatar_color}60` : '#e5ddc8'}`, borderRadius: 8, padding: '9px', color: meetingType === t.value ? user.avatar_color : '#4a6070', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                         {t.icon} {t.label}
                       </button>
                     ))}
@@ -990,7 +990,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input value={meetingLink} onChange={e => setMeetingLink(e.target.value)} style={{ ...fieldInputStyle, flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
                       <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 8, padding: '0 14px', color: linkCopied ? '#22c55e' : '#E8C97B', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 8, padding: '0 14px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                         {linkCopied ? <><Check size={12} /> Copié</> : <><Copy size={12} /> Copier</>}
                       </button>
                     </div>
@@ -1014,7 +1014,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             )}
 
             <button onClick={submitRdv} disabled={submitting || !canSubmit}
-              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#f1f5f9', color: canSubmit ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
+              style={{ width: '100%', background: canSubmit ? user.avatar_color : '#f7f4ee', color: canSubmit ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.15s' }}>
               <CheckCircle size={16} />
               {submitting ? 'Enregistrement…' : 'Valider le RDV'}
             </button>
@@ -1087,7 +1087,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                       setRulesError('Migration v26 manquante')
                     }
                   }}
-                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#0e1e35', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ background: '#f7f4ee', border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#0e1e35', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
                   📋 Copier la semaine précédente
                 </button>
@@ -1097,7 +1097,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                 {DAYS.map(day => {
                   const rule = rules.find(r => r.day_of_week === day.value)!
                   return (
-                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#f1f5f9', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#e5ddc8'}`, borderRadius: 10, transition: 'all 0.15s' }}>
+                    <div key={day.value} style={{ display: 'grid', gridTemplateColumns: '120px 44px 1fr 20px 1fr', alignItems: 'center', gap: 12, padding: '10px 14px', background: rule.is_active ? 'rgba(204,172,113,0.05)' : '#f7f4ee', border: `1px solid ${rule.is_active ? 'rgba(204,172,113,0.2)' : '#e5ddc8'}`, borderRadius: 10, transition: 'all 0.15s' }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: rule.is_active ? '#0e1e35' : '#94a3b8' }}>{day.label}</div>
                       <button onClick={() => updateRule(day.value, 'is_active', !rule.is_active)}
                         style={{ width: 44, height: 24, borderRadius: 12, background: rule.is_active ? '#C9A84C' : '#353849', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
@@ -1117,7 +1117,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
                 <button onClick={saveRules} disabled={rulesSaving}
-                  style={{ background: '#C9A84C', color: 'white', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: rulesSaving ? 0.7 : 1 }}>
+                  style={{ background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: rulesSaving ? 0.7 : 1 }}>
                   <Save size={15} />
                   {rulesSaving ? 'Enregistrement…' : 'Enregistrer le planning'}
                 </button>
@@ -1134,13 +1134,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, -7))} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
                   <ChevronLeft size={14} />
                 </button>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#4a6070' }}>
                   {format(calendarWeekStart, 'd MMM', { locale: fr })} — {format(addDays(calendarWeekStart, 27), 'd MMM yyyy', { locale: fr })}
                 </div>
-                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
+                <button onClick={() => setCalendarWeekStart(prev => addDays(prev, 7))} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
                   <ChevronRight size={14} />
                 </button>
               </div>
@@ -1168,7 +1168,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                           }
                         }}
                         disabled={isPast}
-                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#f1f5f9', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#E8C97B' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                        style={{ width: '100%', aspectRatio: '1', background: isBlocked ? 'rgba(239,68,68,0.15)' : isConfirming ? 'rgba(204,172,113,0.15)' : '#f7f4ee', border: `1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : isConfirming ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`, borderRadius: 8, color: isPast ? '#353849' : isBlocked ? '#ef4444' : isConfirming ? '#C9A84C' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: isPast || isSunday ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                         {format(day, 'd')}
                       </button>
                     </div>
@@ -1178,11 +1178,11 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
               {blockingDate && (
                 <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ fontSize: 13, color: '#E8C97B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     Bloquer le {format(new Date(blockingDate + 'T00:00:00'), 'EEEE d MMMM', { locale: fr })}
                   </div>
                   <input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Raison (optionnel)…" style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
-                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#E8C97B', color: '#ffffff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => blockDate(blockingDate)} style={{ background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     <Plus size={12} style={{ display: 'inline', verticalAlign: -2 }} /> Bloquer
                   </button>
                   <button onClick={() => { setBlockingDate(null); setBlockReason('') }} style={{ background: 'transparent', border: '1px solid #2d4a6b', borderRadius: 8, padding: '6px 8px', color: '#4a6070', cursor: 'pointer' }}>
@@ -1194,7 +1194,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               {blockedDates.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {blockedDates.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 8, padding: '8px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Ban size={13} style={{ color: '#ef4444' }} />
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', textTransform: 'capitalize' }}>
@@ -1243,7 +1243,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
                   </span>
                 )}
-                <button onClick={fetchHistorique} style={{ background: '#f1f5f9', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
+                <button onClick={fetchHistorique} style={{ background: '#f7f4ee', border: '1px solid #2d4a6b', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
                   <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
                 </button>
                 {!histLoading && (
@@ -1339,7 +1339,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                     {rdv.repop_form_date && (
                       <span style={{
                         background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
-                        color: '#E8C97B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        color: '#C9A84C', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
                         flexShrink: 0,
                       }}>
                         🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
@@ -1350,13 +1350,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   {/* Infos prospect */}
                   <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {rdv.prospect_phone && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f1f5f9', borderRadius: 5, padding: '2px 8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
                         <Phone size={10} /> {rdv.prospect_phone}
                       </span>
                     )}
                     {rdv.formation_type && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f1f5f9', borderRadius: 5, padding: '2px 8px' }}>
-                        <Tag size={10} style={{ color: '#E8C97B' }} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
+                        <Tag size={10} style={{ color: '#C9A84C' }} />
                         Filière : <strong style={{ color: '#0e1e35' }}>{rdv.formation_type}</strong>
                       </span>
                     )}
@@ -1376,7 +1376,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
                           background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
-                          borderRadius: 7, padding: '5px 12px', color: '#E8C97B',
+                          borderRadius: 7, padding: '5px 12px', color: '#C9A84C',
                           fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                         }}
                       >

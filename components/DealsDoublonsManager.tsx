@@ -24,9 +24,9 @@ interface ScanResult {
 
 const STAGE_COLOR: Record<string, string> = {
   'Pré-inscription effectuée': '#22c55e',
-  'Délai de réflexion':        '#E8C97B',
-  'À Replanifier':             '#E8C97B',
-  'RDV découverte pris':       '#E8C97B',
+  'Délai de réflexion':        '#C9A84C',
+  'À Replanifier':             '#C9A84C',
+  'RDV découverte pris':       '#C9A84C',
 }
 
 function stageBadge(stage: string) {
@@ -150,9 +150,9 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               { label: '🥇 Pré-inscription effectuée', color: '#22c55e' },
-              { label: '🥈 Délai de réflexion', color: '#E8C97B' },
-              { label: '🥉 À Replanifier', color: '#E8C97B' },
-              { label: '4️⃣ RDV découverte pris', color: '#E8C97B' },
+              { label: '🥈 Délai de réflexion', color: '#C9A84C' },
+              { label: '🥉 À Replanifier', color: '#C9A84C' },
+              { label: '4️⃣ RDV découverte pris', color: '#C9A84C' },
             ].map(({ label, color }) => (
               <span key={label} style={{ background: `${color}18`, border: `1px solid ${color}44`, color, borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
                 {label}
@@ -168,7 +168,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
             disabled={loading}
             style={{
               background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8, padding: '8px 18px', color: '#E8C97B',
+              borderRadius: 8, padding: '8px 18px', color: '#C9A84C',
               fontSize: 13, fontWeight: 600, cursor: loading ? 'wait' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
               opacity: loading ? 0.6 : 1,
@@ -215,8 +215,8 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
         {result && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             {[
-              { label: 'Deals scannés', value: result.total_deals, color: '#E8C97B' },
-              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#E8C97B' },
+              { label: 'Deals scannés', value: result.total_deals, color: '#C9A84C' },
+              { label: 'Groupes doublons', value: result.duplicate_groups, color: '#C9A84C' },
               { label: 'À archiver', value: result.deals_to_archive - archivedIds.size, color: '#ef4444' },
               { label: 'Archivés', value: archivedIds.size, color: '#22c55e' },
             ].map(({ label, value, color }) => (
@@ -247,7 +247,7 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                 <a
                   href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/contact/${group.contactId}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: '#E8C97B', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
+                  style={{ fontSize: 11, color: '#C9A84C', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
                 >
                   #{group.contactId} <ExternalLink size={10} />
                 </a>

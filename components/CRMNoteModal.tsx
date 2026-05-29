@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { StickyNote } from 'lucide-react'
 
 const NAVY = '#ffffff'
-const GOLD = '#E8C97B'
+const GOLD = '#C9A84C'
 const BLUE = '#4cabdb'
 
 interface Props {

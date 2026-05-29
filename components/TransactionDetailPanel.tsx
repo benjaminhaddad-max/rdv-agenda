@@ -44,7 +44,7 @@ interface Props {
 const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444', emoji: '🔴' },
   '3165428980': { label: 'RDV Pris',              color: '#4cabdb', emoji: '🔵' },
-  '3165428981': { label: 'Délai Réflexion',       color: '#E8C97B', emoji: '🟡' },
+  '3165428981': { label: 'Délai Réflexion',       color: '#C9A84C', emoji: '🟡' },
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e', emoji: '🟢' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7', emoji: '🟣' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', emoji: '✅' },
@@ -210,7 +210,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
           </FieldRow>
 
           <FieldRow icon={<BookOpen size={11} style={{ color: '#4a6070' }} />} label="Formation">
-            <InlineEditField value={deal.formation} onSave={v => saveDeal('formation', v)} type="select" options={FORMATION_OPTIONS} color="#E8C97B" fontWeight={700} />
+            <InlineEditField value={deal.formation} onSave={v => saveDeal('formation', v)} type="select" options={FORMATION_OPTIONS} color="#C9A84C" fontWeight={700} />
           </FieldRow>
 
           <FieldRow label="Étape">
@@ -246,7 +246,7 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
                   onSave={v => saveDeal('hubspot_owner_id', v)}
                   type="select"
                   options={closerOptions}
-                  color="#E8C97B"
+                  color="#C9A84C"
                 />
               </div>
             ) : (

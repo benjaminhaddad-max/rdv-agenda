@@ -107,7 +107,7 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
           </button>
           <button
             onClick={() => setShowAddWidget(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '6px 14px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '6px 14px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
             <Plus size={14} /> Ajouter un widget
           </button>
@@ -118,12 +118,12 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
       <div style={{ padding: 20, maxWidth: 1600, margin: '0 auto' }}>
         {dashboard.widgets.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 80, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-            <BarChart3 size={48} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+            <BarChart3 size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Dashboard vide</div>
             <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
               Ajoute ton premier widget pour commencer à visualiser tes données.
             </div>
-            <button onClick={() => setShowAddWidget(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#E8C97B', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
+            <button onClick={() => setShowAddWidget(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
               <Plus size={14} /> Ajouter un widget
             </button>
           </div>
@@ -218,7 +218,7 @@ function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () =>
           </span>
           <button
             onClick={onDelete}
-            style={{ background: 'transparent', border: 'none', color: '#e5ddc8', cursor: 'pointer', padding: 2 }}
+            style={{ background: 'transparent', border: 'none', color: '#a89e8a', cursor: 'pointer', padding: 2 }}
             title="Supprimer"
             onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
             onMouseLeave={e => e.currentTarget.style.color = '#e5ddc8'}
@@ -349,7 +349,7 @@ function PieChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) 
   if (data.breakdown.length === 0) {
     return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
   }
-  const palette = ['#E8C97B', '#06b6d4', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316']
+  const palette = ['#C9A84C', '#06b6d4', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316']
   const total = data.breakdown.reduce((s, b) => s + b.value, 0)
   if (total === 0) {
     return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
@@ -414,13 +414,13 @@ function FunnelWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
             gap: 12,
             padding: '10px 14px',
             background: b.color ? `${b.color}15` : '#f7f4ee',
-            borderLeft: `3px solid ${b.color || '#E8C97B'}`,
+            borderLeft: `3px solid ${b.color || '#C9A84C'}`,
             borderRadius: 6,
             width: `${Math.max(40, pct)}%`,
             minWidth: 200,
           }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: b.color || '#E8C97B' }}>{b.value}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: b.color || '#C9A84C' }}>{b.value}</span>
           </div>
         )
       })}
@@ -487,7 +487,7 @@ function AddWidgetModal({ dashboardId, onClose, onAdded }: { dashboardId: string
   const [groupBy, setGroupBy] = useState('')
   const [timeRange, setTimeRange] = useState('last_30_days')
   const [size, setSize] = useState('medium')
-  const [color, setColor] = useState('#E8C97B')
+  const [color, setColor] = useState('#C9A84C')
   const [saving, setSaving] = useState(false)
 
   const currentSrc = DATA_SOURCES.find(s => s.key === dataSource)!
@@ -597,7 +597,7 @@ function AddWidgetModal({ dashboardId, onClose, onAdded }: { dashboardId: string
           <button
             onClick={submit}
             disabled={!title.trim() || saving}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#E8C97B', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !title.trim() || saving ? 0.5 : 1 }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !title.trim() || saving ? 0.5 : 1 }}
           >
             {saving ? 'Ajout…' : 'Ajouter le widget'}
           </button>

@@ -128,7 +128,7 @@ export default function FormRenderer({
   }
   if (!form) return null
 
-  const primary = form.primary_color || '#E8C97B'
+  const primary = form.primary_color || '#C9A84C'
   const bg = form.bg_color || '#ffffff'
   const text = form.text_color || '#1d2f4b'
 

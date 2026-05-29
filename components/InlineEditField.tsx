@@ -96,7 +96,7 @@ export default function InlineEditField(props: Props) {
   // Edit mode
   const inputStyle: React.CSSProperties = {
     background: '#f7f4ee',
-    border: `1px solid ${saving ? '#E8C97B' : '#e5ddc8'}`,
+    border: `1px solid ${saving ? '#C9A84C' : '#e5ddc8'}`,
     borderRadius: 6,
     padding: '4px 8px',
     color: '#0e1e35',

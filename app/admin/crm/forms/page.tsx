@@ -143,7 +143,7 @@ export default function FormsPage() {
       {/* Stats */}
       <div style={{ padding: '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          <StatCard label="Total" value={stats.total} color="#E8C97B" icon={FileText} />
+          <StatCard label="Total" value={stats.total} color="#C9A84C" icon={FileText} />
           <StatCard label="Publiés" value={stats.published} color="#22c55e" icon={CheckCircle2} />
           <StatCard label="Vues totales" value={stats.totalViews.toLocaleString('fr-FR')} color="#06b6d4" icon={Eye} />
           <StatCard label="Soumissions" value={stats.totalSubmissions.toLocaleString('fr-FR')} color="#a855f7" icon={Send} />
@@ -179,7 +179,7 @@ export default function FormsPage() {
               >
                 <span>{f}</span>
                 <span style={{
-                  background: active ? `${FOLDER_COLOR[f]}20` : '#f1f5f9',
+                  background: active ? `${FOLDER_COLOR[f]}20` : '#f7f4ee',
                   color: active ? FOLDER_COLOR[f] : '#4a6070',
                   fontSize: 11,
                   fontWeight: 700,
@@ -237,7 +237,7 @@ export default function FormsPage() {
         ) : filtered.length === 0 ? (
           forms.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-              <FileText size={48} style={{ color: '#e5ddc8', margin: '0 auto 16px' }} />
+              <FileText size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun formulaire pour le moment</div>
               <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>Crée un formulaire pour capturer des prospects sur ton site.</div>
               <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '10px 20px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
@@ -377,7 +377,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
               {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>
-              Exemple : <code style={{ color: '#E8C97B' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
+              Exemple : <code style={{ color: '#C9A84C' }}>NS</code> importera &quot;NS Landing PASS&quot;, &quot;NS Inscription LAS&quot;, etc.
             </div>
 
             {error === 'SCOPE_MISSING' ? (
@@ -386,14 +386,14 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
                 <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
                   Le token HubSpot actuel n&apos;a pas la permission de lire les formulaires.
                 </div>
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#E8C97B' }}>À faire :</div>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: '#C9A84C' }}>À faire :</div>
                 <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, fontSize: 12, color: '#4a6070' }}>
                   <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: '#06b6d4' }}>HubSpot → Private Apps</a></li>
                   <li>Clique sur ton application privée</li>
-                  <li>Onglet &quot;Scopes&quot; → recherche <code style={{ color: '#E8C97B' }}>forms</code></li>
+                  <li>Onglet &quot;Scopes&quot; → recherche <code style={{ color: '#C9A84C' }}>forms</code></li>
                   <li>Coche <strong>forms</strong> (Read)</li>
                   <li>Clique &quot;Commit changes&quot; → copie le nouveau token</li>
-                  <li>Mets à jour <code style={{ color: '#E8C97B' }}>HUBSPOT_ACCESS_TOKEN</code> sur Vercel</li>
+                  <li>Mets à jour <code style={{ color: '#C9A84C' }}>HUBSPOT_ACCESS_TOKEN</code> sur Vercel</li>
                   <li>Redéploie puis relance l&apos;import</li>
                 </ol>
               </div>

@@ -176,7 +176,7 @@ export function CRMFieldPicker({
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 10px', background: value === f.key ? 'rgba(204,172,113,0.12)' : 'transparent',
                       border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      color: value === f.key ? '#E8C97B' : '#1a2f4b',
+                      color: value === f.key ? '#C9A84C' : '#1a2f4b',
                       fontWeight: value === f.key ? 600 : 400,
                     }}
                     onMouseEnter={e => { if (value !== f.key) e.currentTarget.style.background = '#f7f4ee' }}
@@ -211,7 +211,7 @@ export function CRMFieldPicker({
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 10px', background: isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
                       border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      color: isActive ? '#E8C97B' : '#1a2f4b',
+                      color: isActive ? '#C9A84C' : '#1a2f4b',
                       fontWeight: isActive ? 600 : 400,
                       borderTop: '1px solid #f7f4ee',
                     }}

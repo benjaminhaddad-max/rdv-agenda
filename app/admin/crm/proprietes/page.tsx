@@ -203,7 +203,7 @@ export default function ProprietesPage() {
             {grouped.map(([groupName, props]) => (
               <div key={groupName}>
                 <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginBottom: 8, marginTop: 0 }}>
-                  {groupName} <span style={{ color: '#e5ddc8' }}>({props.length})</span>
+                  {groupName} <span style={{ color: '#a89e8a' }}>({props.length})</span>
                 </h2>
                 <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
                   <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
@@ -222,7 +222,7 @@ export default function ProprietesPage() {
                           <tr
                             key={p.name}
                             onClick={() => setDetail(p)}
-                            style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .12s' }}
+                            style={{ borderBottom: '1px solid #f7f4ee', cursor: 'pointer', transition: 'background .12s' }}
                             onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
@@ -247,9 +247,9 @@ export default function ProprietesPage() {
                                   {p.options.length > 4 && <span style={{ color: '#94a3b8' }}> +{p.options.length - 4}</span>}
                                 </span>
                               ) : p.hubspot_defined ? (
-                                <span style={{ fontSize: 11, color: '#e5ddc8' }}>— HubSpot natif —</span>
+                                <span style={{ fontSize: 11, color: '#a89e8a' }}>— HubSpot natif —</span>
                               ) : (
-                                <span style={{ fontSize: 11, color: '#e5ddc8' }}>—</span>
+                                <span style={{ fontSize: 11, color: '#a89e8a' }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -387,7 +387,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                   </thead>
                   <tbody>
                     {property.options.map((opt, i) => (
-                      <tr key={i} style={{ borderBottom: i < property.options!.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      <tr key={i} style={{ borderBottom: i < property.options!.length - 1 ? '1px solid #f7f4ee' : 'none' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 500 }}>{opt.label}</td>
                         <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#4a6070' }}>{opt.value}</td>
                       </tr>
@@ -430,7 +430,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                     {actualValues.map((v, i) => {
                       const resolved = isUserProp && v.value ? userIndex.get(String(v.value)) : null
                       return (
-                        <tr key={i} style={{ borderBottom: i < actualValues.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                        <tr key={i} style={{ borderBottom: i < actualValues.length - 1 ? '1px solid #f7f4ee' : 'none' }}>
                           <td style={{ padding: '8px 12px', wordBreak: 'break-all' }}>
                             {v.value ? (
                               resolved ? (

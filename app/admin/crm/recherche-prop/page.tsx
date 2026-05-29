@@ -274,7 +274,7 @@ export default function RecherchePropPage() {
                 </thead>
                 <tbody>
                   {results.map(c => (
-                    <tr key={c.hubspot_contact_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={c.hubspot_contact_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                       <td style={td}>
                         <div style={{ fontWeight: 600 }}>{[c.firstname, c.lastname].filter(Boolean).join(' ') || '—'}</div>
                         <div style={{ fontSize: 10, color: '#94a3b8' }}>{c.hubspot_contact_id}</div>
