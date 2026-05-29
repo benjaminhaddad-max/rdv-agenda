@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
+import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
@@ -1834,14 +1834,9 @@ export default function CRMContactsTable({
                       handleRowLeave()
                       if (!isExpanded) e.currentTarget.style.background = '#ffffff'
                     }}
-                    onClick={() => {
-                      if (onOpenDrawer) onOpenDrawer(contact)
-                      else toggleExpand(contact.hubspot_contact_id)
-                    }}
                     style={{
                       background: rowBg,
                       borderBottom: `1px solid ${isExpanded ? 'transparent' : '#eaf0f6'}`,
-                      cursor: 'pointer',
                       transition: 'background 0.1s',
                       // Skip-rendering des rangs hors viewport : le navigateur
                       // ne layout / paint que ceux visibles -> scroll fluide
@@ -1916,15 +1911,55 @@ export default function CRMContactsTable({
                     })}
 
                     {/* Actions */}
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                      <ActionsMenu
-                        contact={contact}
-                        name={name}
-                        mode={mode}
-                        onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
-                        onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
-                        onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
-                      />
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                        {onOpenDrawer && (
+                          <button
+                            title="Aperçu"
+                            onClick={() => onOpenDrawer(contact)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              background: 'rgba(76,171,219,0.12)',
+                              border: '1px solid rgba(76,171,219,0.3)',
+                              borderRadius: 6, padding: '4px 8px',
+                              color: '#4cabdb', fontSize: 11, fontWeight: 600,
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(76,171,219,0.22)' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(76,171,219,0.12)' }}
+                          >
+                            <Eye size={11} /> Aperçu
+                          </button>
+                        )}
+                        <a
+                          href={`https://app.hubspot.com/contacts/43296174/contact/${contact.hubspot_contact_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ouvrir la fiche HubSpot"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            background: 'rgba(249,115,22,0.1)',
+                            border: '1px solid rgba(249,115,22,0.25)',
+                            borderRadius: 6, padding: '4px 8px',
+                            color: '#f97316', fontSize: 11, fontWeight: 600,
+                            textDecoration: 'none', whiteSpace: 'nowrap',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(249,115,22,0.2)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(249,115,22,0.1)' }}
+                        >
+                          <ExternalLink size={11} /> Fiche
+                        </a>
+                        <ActionsMenu
+                          contact={contact}
+                          name={name}
+                          mode={mode}
+                          onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
+                          onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                          onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                        />
+                      </div>
                     </td>
                   </tr>
 
