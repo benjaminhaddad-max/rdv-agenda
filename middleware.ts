@@ -159,7 +159,7 @@ function redirectByRole(
   request: NextRequest
 ) {
   if (dbUser.role === 'admin') {
-    return NextResponse.redirect(new URL('/admin', request.url))
+    return NextResponse.redirect(new URL('/admin/crm', request.url))
   }
   if (dbUser.role === 'closer') {
     return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))
