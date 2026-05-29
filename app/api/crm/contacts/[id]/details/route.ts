@@ -131,7 +131,7 @@ export async function GET(
           .select('id, hubspot_engagement_id, activity_type, subject, body, direction, status, owner_id, metadata, occurred_at, hubspot_deal_id')
           .eq('hubspot_contact_id', contactId)
           .order('occurred_at', { ascending: false })
-          .limit(100))
+          .limit(300))
       : emptyArr,
 
     wantCore
@@ -154,7 +154,7 @@ export async function GET(
           .select('event_type, occurred_at, event_data')
           .eq('email', contact.email)
           .order('occurred_at', { ascending: false })
-          .limit(200))
+          .limit(600))
       : emptyArr,
 
     // Pre_inscriptions agregees de TOUS les contacts dupliques (meme email
@@ -170,9 +170,9 @@ export async function GET(
     wantExtended
       ? safeRows(db.from('sms_campaign_recipients')
           .select('id, campaign_id, phone, rendered_message, status, sms_factor_ticket, error_message, segments_count, sent_at, created_at')
-          .eq('hubspot_contact_id', contactId)
+          .in('hubspot_contact_id', linkedContactIds)
           .order('sent_at', { ascending: false, nullsFirst: false })
-          .limit(200))
+          .limit(1000))
       : emptyArr,
 
     wantExtended
@@ -180,7 +180,7 @@ export async function GET(
           .select('id, campaign_id, contact_id, email, status, error_message, sent_at, delivered_at, first_open_at, last_open_at, open_count, first_click_at, last_click_at, click_count, brevo_message_id, created_at')
           .in('contact_id', linkedContactIds)
           .order('sent_at', { ascending: false, nullsFirst: false })
-          .limit(200))
+          .limit(1000))
       : emptyArr,
   ])
 
@@ -201,8 +201,9 @@ export async function GET(
       })
     }
     const hasCrmFormRows = normalizedFormSubmissions.length > 0
-    const crmRowsMissingValues = normalizedFormSubmissions.some((r) => !hasRenderableValues((r as Record<string, unknown>)?.values))
-    const shouldHydrateWithFallback = !hasCrmFormRows || crmRowsMissingValues
+    // On hydrate systematiquement via les sources fallback pour garantir que
+    // TOUS les formulaires remontent, meme si des lignes CRM existent deja.
+    const shouldHydrateWithFallback = true
 
     if (shouldHydrateWithFallback) {
       const fallbackRows: Array<Record<string, unknown>> = []
@@ -235,7 +236,7 @@ export async function GET(
       const metaRows = await safeRows(
         db.from('meta_lead_events')
           .select('id, form_id, field_data, processed_at')
-          .eq('contact_id', contactId)
+          .in('contact_id', linkedContactIds)
           .order('processed_at', { ascending: false })
           .limit(80)
       )
