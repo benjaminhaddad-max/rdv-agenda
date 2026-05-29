@@ -1313,14 +1313,34 @@ export default function CRMContactsTable({
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
             <ContactAvatar name={name} size={30} />
             <div style={{ minWidth: 0 }}>
-              <a
-                href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
-                onClick={e => e.stopPropagation()}
-                style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', display: 'block' }}
-                title="Ouvrir la fiche détaillée"
-              >
-                {name}
-              </a>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {name}
+                </span>
+                {onOpenDrawer && (
+                  <button
+                    title="Aperçu"
+                    onClick={e => { e.stopPropagation(); onOpenDrawer(contact) }}
+                    style={{ background: 'none', border: 'none', padding: '1px 3px', cursor: 'pointer', color: '#a0aec0', display: 'flex', alignItems: 'center', borderRadius: 4, flexShrink: 0 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#4cabdb' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0aec0' }}
+                  >
+                    <Eye size={12} />
+                  </button>
+                )}
+                <a
+                  href={`https://app.hubspot.com/contacts/43296174/contact/${contact.hubspot_contact_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ouvrir dans HubSpot"
+                  onClick={e => e.stopPropagation()}
+                  style={{ color: '#a0aec0', display: 'flex', alignItems: 'center', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#f97316' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a0aec0' }}
+                >
+                  <ExternalLink size={11} />
+                </a>
+              </div>
               {contact.email && (
                 <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {contact.email}
@@ -1912,46 +1932,7 @@ export default function CRMContactsTable({
 
                     {/* Actions */}
                     <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                        {onOpenDrawer && (
-                          <button
-                            title="Aperçu"
-                            onClick={() => onOpenDrawer(contact)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 5,
-                              background: 'rgba(76,171,219,0.12)',
-                              border: '1px solid rgba(76,171,219,0.3)',
-                              borderRadius: 6, padding: '4px 8px',
-                              color: '#4cabdb', fontSize: 11, fontWeight: 600,
-                              cursor: 'pointer', whiteSpace: 'nowrap',
-                              transition: 'all 0.15s',
-                            }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(76,171,219,0.22)' }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(76,171,219,0.12)' }}
-                          >
-                            <Eye size={11} /> Aperçu
-                          </button>
-                        )}
-                        <a
-                          href={`https://app.hubspot.com/contacts/43296174/contact/${contact.hubspot_contact_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Ouvrir la fiche HubSpot"
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            background: 'rgba(249,115,22,0.1)',
-                            border: '1px solid rgba(249,115,22,0.25)',
-                            borderRadius: 6, padding: '4px 8px',
-                            color: '#f97316', fontSize: 11, fontWeight: 600,
-                            textDecoration: 'none', whiteSpace: 'nowrap',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(249,115,22,0.2)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(249,115,22,0.1)' }}
-                        >
-                          <ExternalLink size={11} /> Fiche
-                        </a>
-                        <ActionsMenu
+                      <ActionsMenu
                           contact={contact}
                           name={name}
                           mode={mode}
@@ -1959,7 +1940,6 @@ export default function CRMContactsTable({
                           onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
                           onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
                         />
-                      </div>
                     </td>
                   </tr>
 
