@@ -1329,10 +1329,10 @@ export default function CRMContactsTable({
                   </button>
                 )}
                 <a
-                  href={`https://app.hubspot.com/contacts/43296174/contact/${contact.hubspot_contact_id}`}
+                  href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Ouvrir dans HubSpot"
+                  title="Ouvrir la fiche contact"
                   onClick={e => e.stopPropagation()}
                   style={{ color: '#a0aec0', display: 'flex', alignItems: 'center', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}
                   onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#f97316' }}
