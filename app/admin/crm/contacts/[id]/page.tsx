@@ -428,6 +428,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     sendStatus?: string
     sms?: SMSMessage
     emailCampaign?: EmailCampaign
+    formValues?: Record<string, unknown>
   }
   const timeline: TimelineItem[] = []
   const formatFormValuesPreview = (values: unknown): string | undefined => {
@@ -475,6 +476,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       title: f.form_title || f.form_id,
       subtitle: subParts.length > 0 ? subParts.join(' · ') : undefined,
       body: valuesPreview,
+      formValues: (f.values && typeof f.values === 'object') ? (f.values as Record<string, unknown>) : undefined,
     })
   }
   if (recentConversionFallback) {
@@ -486,6 +488,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         : (contact.contact_createdate ? new Date(contact.contact_createdate).getTime() : Date.now()),
       title: recentConversionFallback,
       subtitle: 'Formulaire (fallback HubSpot)',
+      formValues: undefined,
     })
   }
   for (let i = 0; i < fallbackFormNames.length; i++) {
@@ -500,6 +503,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         : (contact.contact_createdate ? new Date(contact.contact_createdate).getTime() : Date.now())) - ((i + 1) * 1000),
       title: name,
       subtitle: 'Formulaire (historique HubSpot)',
+      formValues: undefined,
     })
   }
   for (const a of appointments) {
@@ -585,6 +589,27 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const lastActivity = timeline[0]?.timestamp ? new Date(timeline[0].timestamp) : lastFormDate
+  const [expandedTimelineIds, setExpandedTimelineIds] = useState<Set<string>>(new Set())
+  const toggleTimelineItem = (id: string) => {
+    setExpandedTimelineIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const getFormFields = useCallback((values?: Record<string, unknown>) => {
+    if (!values) return []
+    return Object.entries(values)
+      .filter(([k, v]) => {
+        if (!k || k.startsWith('_') || k === 'hp') return false
+        if (v === null || v === undefined) return false
+        const s = String(v).trim()
+        return s.length > 0
+      })
+      .slice(0, 40)
+      .map(([k, v]) => ({ key: k, value: String(v) }))
+  }, [])
 
   // Props modale
   const lc = propSearch.toLowerCase()
@@ -772,6 +797,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       <ul className="space-y-3">
                         {items.map(t => (
                           <li key={t.id} className="relative">
+                            {(() => {
+                              const isForm = t.type === 'form'
+                              const formFields = isForm ? getFormFields(t.formValues) : []
+                              const isExpanded = expandedTimelineIds.has(t.id)
+                              return (
                             <div className="absolute -left-[22px] top-3">
                               <TypeDot type={t.type} />
                             </div>
@@ -799,6 +829,27 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
                               )}
+                              {isForm && formFields.length > 0 && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTimelineItem(t.id)}
+                                    className="text-xs text-[#0038f0] hover:underline"
+                                  >
+                                    {isExpanded ? 'Masquer les champs saisis' : `Voir les champs saisis (${formFields.length})`}
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="mt-2 border rounded-md bg-slate-50 p-2.5 space-y-1.5">
+                                      {formFields.map((field, idx) => (
+                                        <div key={`${t.id}-field-${idx}`} className="text-xs">
+                                          <div className="text-slate-500">{humanizeFieldLabel(field.key)}</div>
+                                          <div className="text-slate-800 break-words">{field.value}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
                                   Erreur : {t.sms.error_message}
@@ -816,6 +867,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                 <EmailLinksSection links={t.emailCampaign.links} />
                               )}
                             </div>
+                              )
+                            })()}
                           </li>
                         ))}
                       </ul>
@@ -1824,4 +1877,12 @@ function sanitize(html: string) {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+="[^"]*"/gi, '')
     .replace(/javascript:/gi, '')
+}
+
+function humanizeFieldLabel(raw: string): string {
+  return raw
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\w/, c => c.toUpperCase())
 }
