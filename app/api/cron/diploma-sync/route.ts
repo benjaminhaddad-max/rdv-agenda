@@ -31,6 +31,11 @@ const TARGET_STATUS = new Set(['payee', 'en_cours', 'archivee', 'annulee'])
 
 const STATUS_RANK: Record<string, number> = { archivee: 4, annulee: 3, en_cours: 2, payee: 1 }
 
+function leadStatusForInscriptionStatus(status: string): string | null {
+  if (status === 'payee' || status === 'en_cours') return 'Pré-inscrit 2026-2027'
+  return null
+}
+
 function normalizeEmail(e: string | null | undefined): string {
   if (!e) return ''
   const lower = String(e).trim().toLowerCase()
@@ -57,6 +62,9 @@ function stageFor(ins: { status: string; finalisation_step: number | null }): st
 interface DiplomaInscription {
   id: string
   email: string | null
+  first_name?: string | null
+  last_name?: string | null
+  phone?: string | null
   status: string
   hubspot_contact_id: string | null
   hubspot_deal_id: string | null
@@ -120,69 +128,80 @@ export async function GET(req: NextRequest) {
     const all = await pullDiploma()
     const targets = all.filter(i => TARGET_STATUS.has(i.status))
 
-    // 2. Lookup contacts par email (exact d'abord, fallback gmail/googlemail si necessaire)
+    // 2. Lookup contacts par EMAIL (règle métier demandée):
+    //  - si un contact existe avec l'email de l'inscription => on le réutilise
+    //  - sinon on crée un contact (nom/prénom/tel/mail + hs_lead_status)
+    //  - la transaction est ensuite créée/mise à jour et liée à ce contact
     type ContactRow = { hubspot_contact_id: string; email: string | null }
+
+    const knownContactIds = new Set<string>()
     const normToContactId = new Map<string, string>()
-    const gmailDomainCache = new Map<string, Map<string, string>>()
 
-    for (const ins of targets) {
-      if (!ins.email) continue
-      const exact = String(ins.email).trim().toLowerCase()
-      const norm = normalizeEmail(exact)
-      if (normToContactId.has(norm)) continue
-
-      // 1) lookup exact
-      const { data: r1 } = await db
+    const exactEmails = [...new Set(
+      targets
+        .map(ins => ins.email ? String(ins.email).trim().toLowerCase() : '')
+        .filter(Boolean)
+    )]
+    for (let i = 0; i < exactEmails.length; i += 500) {
+      const chunk = exactEmails.slice(i, i + 500)
+      const { data } = await db
         .from('crm_contacts')
         .select('hubspot_contact_id,email')
-        .eq('email', exact)
-        .limit(10)
-      const rows1 = (r1 || []) as ContactRow[]
-      if (rows1.length > 0) {
-        for (const c of rows1) {
-          const cn = normalizeEmail(c.email)
-          if (cn && !normToContactId.has(cn)) {
-            normToContactId.set(cn, String(c.hubspot_contact_id))
-          }
-        }
-        continue
+        .in('email', chunk)
+      const rows = (data || []) as ContactRow[]
+      for (const c of rows) {
+        const cid = String(c.hubspot_contact_id)
+        knownContactIds.add(cid)
+        const cn = normalizeEmail(c.email)
+        if (cn && !normToContactId.has(cn)) normToContactId.set(cn, cid)
       }
+    }
 
-      // 2) fallback gmail/googlemail (variantes points)
+    const gmailDomainCache = new Map<string, Map<string, string>>()
+    for (const ins of targets) {
+      if (!ins.email) continue
+      const norm = normalizeEmail(ins.email)
+      if (normToContactId.has(norm)) continue
       const at = norm.lastIndexOf('@')
       const dom = at >= 0 ? norm.slice(at + 1) : ''
-      if (dom === 'gmail.com' || dom === 'googlemail.com') {
-        let cache = gmailDomainCache.get(dom)
-        if (!cache) {
-          cache = new Map<string, string>()
-          let off = 0
-          const PAGE = 1000
-          while (true) {
-            const { data } = await db
-              .from('crm_contacts')
-              .select('hubspot_contact_id,email')
-              .ilike('email', `%@${dom}`)
-              .range(off, off + PAGE - 1)
-            const rows = (data || []) as ContactRow[]
-            if (rows.length === 0) break
-            for (const c of rows) {
-              const cn = normalizeEmail(c.email)
-              if (cn && !cache.has(cn)) cache.set(cn, String(c.hubspot_contact_id))
-            }
-            if (rows.length < PAGE) break
-            off += PAGE
+      if (dom !== 'gmail.com' && dom !== 'googlemail.com') continue
+      let cache = gmailDomainCache.get(dom)
+      if (!cache) {
+        cache = new Map<string, string>()
+        let off = 0
+        const PAGE = 1000
+        while (true) {
+          const { data } = await db
+            .from('crm_contacts')
+            .select('hubspot_contact_id,email')
+            .ilike('email', `%@${dom}`)
+            .range(off, off + PAGE - 1)
+          const rows = (data || []) as ContactRow[]
+          if (rows.length === 0) break
+          for (const c of rows) {
+            const cid = String(c.hubspot_contact_id)
+            knownContactIds.add(cid)
+            const cn = normalizeEmail(c.email)
+            if (cn && !cache.has(cn)) cache.set(cn, cid)
           }
-          gmailDomainCache.set(dom, cache)
+          if (rows.length < PAGE) break
+          off += PAGE
         }
-        const hit = cache.get(norm)
-        if (hit) normToContactId.set(norm, hit)
+        gmailDomainCache.set(dom, cache)
       }
+      const hit = cache.get(norm)
+      if (hit) normToContactId.set(norm, hit)
     }
 
     // 3. Build upsert + dealstage update lists, with dedup par (contact, saison)
     const dedupMap = new Map<string, ReturnType<typeof buildRow>>()
+    const contactIdsToMarkPreinscrit = new Set<string>()
     let skipNoEmail = 0
     let skipNoContact = 0
+    const matchStats = {
+      email_match: 0,
+      contact_created: 0,
+    }
 
     function buildRow(ins: DiplomaInscription, contactId: string) {
       return {
@@ -227,22 +246,55 @@ export async function GET(req: NextRequest) {
       if (!ins.email) { skipNoEmail++; continue }
       const norm = normalizeEmail(ins.email)
       let contactId = normToContactId.get(norm)
-      // Si pas de contact en base, on cree un stub (sera affine au prochain crm-sync)
-      if (!contactId) {
-        contactId = `dpl_c_${ins.id}`
+
+      if (contactId) {
+        matchStats.email_match++
+        const forcedLeadStatus = leadStatusForInscriptionStatus(ins.status)
+        if (forcedLeadStatus) {
+          await db
+            .from('crm_contacts')
+            .update({ hs_lead_status: forcedLeadStatus, synced_at: new Date().toISOString() })
+            .eq('hubspot_contact_id', contactId)
+        }
+      } else {
+        contactId = ins.hubspot_contact_id ? String(ins.hubspot_contact_id).trim() : `dpl_c_${ins.id}`
+        const firstName = (ins as DiplomaInscription).first_name ?? null
+        const lastName = (ins as DiplomaInscription).last_name ?? null
+        const phone = (ins as DiplomaInscription).phone ?? null
+        const forcedLeadStatus = leadStatusForInscriptionStatus(ins.status)
         await db.from('crm_contacts').upsert([{
           hubspot_contact_id: contactId,
           email: String(ins.email).toLowerCase(),
-          firstname: (ins as DiplomaInscription & { first_name?: string }).first_name ?? null,
-          lastname:  (ins as DiplomaInscription & { last_name?: string  }).last_name  ?? null,
-          phone:     (ins as DiplomaInscription & { phone?: string      }).phone      ?? null,
+          firstname: firstName,
+          lastname:  lastName,
+          phone,
+          hs_lead_status: forcedLeadStatus,
           synced_at: new Date().toISOString(),
         }], { onConflict: 'hubspot_contact_id' })
         normToContactId.set(norm, contactId)
-        skipNoContact++ // on l'incremente comme indicateur d'anomalie plateforme
+        knownContactIds.add(contactId)
+        skipNoContact++ // indicateur d'écart entre plateforme et CRM
+        matchStats.contact_created++
+      }
+      if (contactId && !knownContactIds.has(contactId)) {
+        // Sécurité: contact trouvé par email mais absent du set local chargé.
+        const forcedLeadStatus = leadStatusForInscriptionStatus(ins.status)
+        await db.from('crm_contacts').upsert([{
+          hubspot_contact_id: contactId,
+          email: String(ins.email).toLowerCase(),
+          firstname: (ins as DiplomaInscription).first_name ?? null,
+          lastname:  (ins as DiplomaInscription).last_name ?? null,
+          phone:     (ins as DiplomaInscription).phone ?? null,
+          hs_lead_status: forcedLeadStatus,
+          synced_at: new Date().toISOString(),
+        }], { onConflict: 'hubspot_contact_id' })
+        knownContactIds.add(contactId)
       }
 
       const row = buildRow(ins, contactId)
+      if (ins.status === 'payee' || ins.status === 'en_cours') {
+        contactIdsToMarkPreinscrit.add(contactId)
+      }
       const key = `${contactId}|${SAISON}`
       const existing = dedupMap.get(key)
       if (!existing) {
@@ -301,6 +353,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Reconciliation de securite:
+    // tout contact avec pre-inscription active (payee/en_cours) doit rester
+    // en "Pré-inscrit 2026-2027", meme si un autre flux l'a repasse a "Nouveau".
+    if (contactIdsToMarkPreinscrit.size > 0) {
+      const ids = [...contactIdsToMarkPreinscrit]
+      const CHUNK = 500
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = ids.slice(i, i + CHUNK)
+        await db
+          .from('crm_contacts')
+          .update({
+            hs_lead_status: 'Pré-inscrit 2026-2027',
+            synced_at: new Date().toISOString(),
+          })
+          .in('hubspot_contact_id', batch)
+      }
+    }
+
     const dealsUpdated = dealsUpserted
     const durationMs = Date.now() - startMs
 
@@ -326,6 +396,7 @@ export async function GET(req: NextRequest) {
       deals_skip_no_deal_id: 0,
       skip_no_email: skipNoEmail,
       skip_no_contact_match: skipNoContact,
+      match_stats: matchStats,
     })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)

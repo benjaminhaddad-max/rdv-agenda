@@ -431,9 +431,63 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     formValues?: Record<string, unknown>
   }
   const timeline: TimelineItem[] = []
+  const normalizeFormValues = (raw: unknown): Record<string, unknown> => {
+    let value: unknown = raw
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return {}
+      try {
+        value = JSON.parse(trimmed)
+      } catch {
+        return {}
+      }
+    }
+
+    if (Array.isArray(value)) {
+      const out: Record<string, unknown> = {}
+      for (const item of value) {
+        if (!item || typeof item !== 'object') continue
+        const row = item as Record<string, unknown>
+        const key = String(row.name ?? row.key ?? row.label ?? '').trim()
+        if (!key) continue
+        const rawFieldValue = row.value ?? row.values ?? row.val
+        if (Array.isArray(rawFieldValue)) {
+          const cleaned = rawFieldValue.map(v => String(v).trim()).filter(Boolean)
+          if (cleaned.length > 0) out[key] = cleaned.join(', ')
+          continue
+        }
+        if (rawFieldValue === null || rawFieldValue === undefined) continue
+        const str = String(rawFieldValue).trim()
+        if (str) out[key] = str
+      }
+      return out
+    }
+
+    if (!value || typeof value !== 'object') return {}
+    const obj = value as Record<string, unknown>
+
+    if (Array.isArray(obj.field_data)) {
+      return normalizeFormValues(obj.field_data)
+    }
+    if (Array.isArray(obj.fields)) {
+      return normalizeFormValues(obj.fields)
+    }
+    if (
+      typeof obj.name === 'string' &&
+      (Object.prototype.hasOwnProperty.call(obj, 'value') || Object.prototype.hasOwnProperty.call(obj, 'values'))
+    ) {
+      return normalizeFormValues([obj])
+    }
+    if (obj.data && typeof obj.data === 'object') {
+      const nested = normalizeFormValues(obj.data)
+      if (Object.keys(nested).length > 0) return nested
+    }
+
+    return obj
+  }
   const formatFormValuesPreview = (values: unknown): string | undefined => {
-    if (!values || typeof values !== 'object') return undefined
-    const entries = Object.entries(values as Record<string, unknown>)
+    const normalized = normalizeFormValues(values)
+    const entries = Object.entries(normalized)
       .filter(([k, v]) => {
         if (!k || k.startsWith('_') || k === 'hp') return false
         if (v === null || v === undefined) return false
@@ -463,10 +517,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     })
   }
   for (const f of formSubmissions) {
-    const valuesPreview = formatFormValuesPreview(f.values)
-    const utmSource = f.values?.utm_source || f.values?.utmSource || null
-    const utmMedium = f.values?.utm_medium || f.values?.utmMedium || null
-    const utmCampaign = f.values?.utm_campaign || f.values?.utmCampaign || null
+    const normalizedValues = normalizeFormValues(f.values)
+    const valuesPreview = formatFormValuesPreview(normalizedValues)
+    const utmSource = normalizedValues.utm_source || normalizedValues.utmSource || null
+    const utmMedium = normalizedValues.utm_medium || normalizedValues.utmMedium || null
+    const utmCampaign = normalizedValues.utm_campaign || normalizedValues.utmCampaign || null
     const utmBits = [utmSource, utmMedium, utmCampaign].filter(Boolean).join(' / ')
     const subParts = [f.page_url, utmBits].filter(Boolean)
     timeline.push({
@@ -476,7 +531,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       title: f.form_title || f.form_id,
       subtitle: subParts.length > 0 ? subParts.join(' · ') : undefined,
       body: valuesPreview,
-      formValues: (f.values && typeof f.values === 'object') ? (f.values as Record<string, unknown>) : undefined,
+      formValues: Object.keys(normalizedValues).length > 0 ? normalizedValues : undefined,
     })
   }
   if (recentConversionFallback) {
