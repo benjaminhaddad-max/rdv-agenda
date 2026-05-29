@@ -392,6 +392,29 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const createdAt    = contact.contact_createdate ? new Date(contact.contact_createdate) : null
   const lastFormDate = contact.recent_conversion_date ? new Date(contact.recent_conversion_date) : null
 
+  // Fallback isole pour eviter une timeline vide quand l'historique detaille
+  // (crm_form_submissions / crm_activities) n'est pas encore remonte.
+  const parseFallbackFormNames = (raw: unknown): string[] => {
+    if (typeof raw !== 'string') return []
+    return [...new Set(
+      raw
+        .split(/[;\n|]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .filter(s => s.length >= 3)
+    )].slice(0, 12)
+  }
+  const fallbackFormNames = formSubmissions.length === 0
+    ? parseFallbackFormNames(contact?.hubspot_raw?.hs_calculated_form_submissions)
+    : []
+  const recentConversionFallback = (
+    formSubmissions.length === 0 &&
+    typeof contact.recent_conversion_event === 'string' &&
+    contact.recent_conversion_event.trim().length > 0
+  )
+    ? contact.recent_conversion_event.trim()
+    : null
+
   // ── Timeline ──────────────────────────────────────────────────────────
   type TimelineItem = {
     id: string
@@ -432,6 +455,31 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       timestamp: new Date(f.submitted_at).getTime(),
       title: f.form_title || f.form_id,
       subtitle: f.page_url,
+    })
+  }
+  if (recentConversionFallback) {
+    timeline.push({
+      id: 'form-fallback-recent-conversion',
+      type: 'form',
+      timestamp: contact.recent_conversion_date
+        ? new Date(contact.recent_conversion_date).getTime()
+        : (contact.contact_createdate ? new Date(contact.contact_createdate).getTime() : Date.now()),
+      title: recentConversionFallback,
+      subtitle: 'Formulaire (fallback HubSpot)',
+    })
+  }
+  for (let i = 0; i < fallbackFormNames.length; i++) {
+    const name = fallbackFormNames[i]
+    if (name === recentConversionFallback) continue
+    timeline.push({
+      id: `form-fallback-list-${i}`,
+      type: 'form',
+      // Petite decrementation pour garder un ordre stable sans ecraser les vrais timestamps.
+      timestamp: (contact.recent_conversion_date
+        ? new Date(contact.recent_conversion_date).getTime()
+        : (contact.contact_createdate ? new Date(contact.contact_createdate).getTime() : Date.now())) - ((i + 1) * 1000),
+      title: name,
+      subtitle: 'Formulaire (historique HubSpot)',
     })
   }
   for (const a of appointments) {
@@ -817,8 +865,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          <RightSection icon={<FileText size={14} />} title="Formulaires soumis" count={formSubmissions.length} accent="dark">
-            {formSubmissions.length === 0 ? (
+          <RightSection
+            icon={<FileText size={14} />}
+            title="Formulaires soumis"
+            count={formSubmissions.length > 0 ? formSubmissions.length : (recentConversionFallback ? 1 : 0) + fallbackFormNames.filter(name => name !== recentConversionFallback).length}
+            accent="dark"
+          >
+            {(formSubmissions.length === 0 && !recentConversionFallback && fallbackFormNames.length === 0) ? (
               <EmptyRight text="Aucune soumission." />
             ) : (
               <ul className="space-y-2">
@@ -830,6 +883,26 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   </li>
                 ))}
+                {formSubmissions.length === 0 && recentConversionFallback && (
+                  <li className="border rounded-lg p-3 text-sm bg-slate-50">
+                    <div className="font-medium">{recentConversionFallback}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {contact.recent_conversion_date
+                        ? format(new Date(contact.recent_conversion_date), 'PP', { locale: fr })
+                        : 'Date non disponible'}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">Source fallback HubSpot</div>
+                  </li>
+                )}
+                {formSubmissions.length === 0 && fallbackFormNames
+                  .filter(name => name !== recentConversionFallback)
+                  .slice(0, 10)
+                  .map((name, idx) => (
+                    <li key={`fallback-form-${idx}`} className="border rounded-lg p-3 text-sm bg-slate-50">
+                      <div className="font-medium">{name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Historique HubSpot</div>
+                    </li>
+                  ))}
               </ul>
             )}
           </RightSection>
