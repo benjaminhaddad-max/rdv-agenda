@@ -24,6 +24,27 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+function normalizeForMatch(value: string | null | undefined): string {
+  if (!value) return ''
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function inferLeadStatusFromForm(form: { name?: string | null; slug?: string | null; title?: string | null }): string | null {
+  const haystack = [form.name, form.slug, form.title]
+    .map(normalizeForMatch)
+    .filter(Boolean)
+    .join(' ')
+
+  // Les formulaires d'inscription doivent entrer directement en pré-inscrit.
+  if (/(^|[\s_-])pre[\s_-]?inscri/.test(haystack) || /(^|[\s_-])inscri/.test(haystack)) {
+    return 'Pré-inscrit 2026/2027'
+  }
+  return null
+}
+
 // Pré-flight CORS
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
@@ -129,6 +150,7 @@ export async function POST(req: Request, { params }: Params) {
     // Cherche par email en priorité, sinon par téléphone (PK = hubspot_contact_id)
     let existing: {
       hubspot_contact_id: string
+      hs_lead_status: string | null
       first_conversion_date: string | null
       first_conversion_event_name: string | null
       recent_conversion_date: string | null
@@ -138,7 +160,7 @@ export async function POST(req: Request, { params }: Params) {
     if (contactData.email) {
       const { data: c } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
+        .select('hubspot_contact_id, hs_lead_status, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
         .eq('email', String(contactData.email).toLowerCase().trim())
         .maybeSingle()
       existing = c
@@ -147,7 +169,7 @@ export async function POST(req: Request, { params }: Params) {
       const phoneClean = String(contactData.phone).replace(/\s+/g, '')
       const { data: c } = await db
         .from('crm_contacts')
-        .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
+        .select('hubspot_contact_id, hs_lead_status, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
         .eq('phone', phoneClean)
         .maybeSingle()
       existing = c
@@ -160,12 +182,23 @@ export async function POST(req: Request, { params }: Params) {
       form.name || 'Formulaire web',
       existing,
     )
+    const inferredLeadStatus = inferLeadStatusFromForm({
+      name: form.name,
+      slug: form.slug,
+      title: form.title,
+    })
 
     if (existing) {
       // Met à jour le contact existant avec les nouvelles valeurs non vides
       const updateData: Record<string, unknown> = {
         ...conversionMeta,
         synced_at: nowIso,
+      }
+      if (
+        inferredLeadStatus &&
+        (!existing.hs_lead_status || String(existing.hs_lead_status).trim() === '' || existing.hs_lead_status === 'Nouveau')
+      ) {
+        updateData.hs_lead_status = inferredLeadStatus
       }
       for (const [k, v] of Object.entries(contactData)) {
         if (v !== undefined && v !== null && String(v).trim() !== '') {
@@ -185,6 +218,7 @@ export async function POST(req: Request, { params }: Params) {
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,
         origine:            'Formulaire web',
+        hs_lead_status:     inferredLeadStatus,
       }
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
@@ -233,6 +267,31 @@ export async function POST(req: Request, { params }: Params) {
       { error: "Erreur lors de l'enregistrement de la soumission" },
       { status: 500, headers: CORS_HEADERS }
     )
+  }
+
+  // 6-bis. Alimente la timeline CRM dédiée (crm_form_submissions) pour
+  // garantir l'affichage activité sur les fiches contact.
+  if (contactId) {
+    const timelineRow = {
+      hubspot_contact_id: contactId,
+      form_id: String(form.id),
+      form_title: form.name || form.title || form.slug || 'Formulaire web',
+      form_type: 'website_form',
+      page_url: body.source_url || req.headers.get('referer') || null,
+      page_title: null as string | null,
+      values: submissionData,
+      submitted_at: submission.submitted_at as string,
+    }
+    const { error: timelineErr } = await db
+      .from('crm_form_submissions')
+      .upsert([timelineRow], { onConflict: 'hubspot_contact_id,form_id,submitted_at' })
+    if (timelineErr) {
+      logger.error('forms-submit-crm-form-submissions', timelineErr, {
+        form_id: form.id,
+        contact_id: contactId,
+        submission_id: submission.id,
+      })
+    }
   }
 
   // 7. Incrémente le compteur de soumissions (async, pas bloquant)
