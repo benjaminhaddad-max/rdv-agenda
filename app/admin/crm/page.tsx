@@ -1517,7 +1517,7 @@ export default function CRMPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
+          <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 24, width: 'auto' }} />
           <div style={{ width: 1, height: 22, background: '#D4C4A0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Users size={13} style={{ color: '#C9A84C' }} />
