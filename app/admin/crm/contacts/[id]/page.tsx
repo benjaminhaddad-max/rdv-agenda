@@ -203,7 +203,7 @@ const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
 
 // Couleurs pour les status de lead (pills)
 const LEAD_STATUS_COLORS: Record<string, string> = {
-  'Nouveau':              'bg-blue-100 text-blue-800 border-blue-200',
+  'Nouveau':              'bg-amber-100 text-amber-800 border-amber-200',
   'Nouveau - Chaud':      'bg-red-100 text-red-800 border-red-200',
   'Rdv pris':             'bg-green-100 text-green-800 border-green-200',
   'Pré-inscription':      'bg-purple-100 text-purple-800 border-purple-200',
@@ -212,12 +212,12 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   'NRP2':                 'bg-amber-100 text-amber-800 border-amber-200',
   'NRP3':                 'bg-orange-100 text-orange-800 border-orange-200',
   'Délai de réflexion':   'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'À replanifier':        'bg-[#2ea3f2]/15 text-indigo-800 border-[#2ea3f2]/20',
+  'À replanifier':        'bg-[#C9A84C]/15 text-[#0e1e35] border-[#C9A84C]/20',
   'Perdu':                'bg-gray-100 text-gray-800 border-gray-200',
 }
 
-// Charte Diploma Santé : bleu ciel (#2ea3f2) → bleu foncé (#0038f0)
-const BRAND_GRADIENT = 'bg-gradient-to-br from-[#2ea3f2] to-[#0038f0]'
+// Charte Diploma Santé : gold + navy
+const BRAND_GRADIENT = 'bg-gradient-to-br from-[#C9A84C] to-[#0e1e35]'
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -558,7 +558,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             label="Transactions"
             value={String(deals.length)}
             hint={deals[0]?.dealname as string | undefined}
-            color="bg-gradient-to-br from-[#2ea3f2] to-[#0038f0]"
+            color="bg-gradient-to-br from-[#C9A84C] to-[#0e1e35]"
           />
           <KpiCard
             icon={<Award size={18} />}
@@ -572,14 +572,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             label="Dernière activité"
             value={lastActivity ? formatDistanceToNow(lastActivity, { locale: fr, addSuffix: true }) : '—'}
             hint={lastActivity ? format(lastActivity, 'PP', { locale: fr }) : undefined}
-            color="bg-gradient-to-br from-[#4cabdb] to-[#2ea3f2]"
+            color="bg-gradient-to-br from-[#b08f50] to-[#C9A84C]"
           />
           <KpiCard
             icon={<User size={18} />}
             label="Propriétaire"
             value={ownerName}
             hint={createdAt ? `Créé ${formatDistanceToNow(createdAt, { locale: fr, addSuffix: true })}` : undefined}
-            color="bg-gradient-to-br from-[#0038f0] to-[#0028b0]"
+            color="bg-gradient-to-br from-[#0e1e35] to-[#1f3553]"
           />
         </div>
       </div>
@@ -593,13 +593,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <User size={15} /> À propos
               </div>
-              <button className="text-xs text-[#0038f0] hover:underline">Actions</button>
+              <button className="text-xs text-[#0e1e35] hover:underline">Actions</button>
             </div>
 
             {/* Quick actions */}
             <div className="px-4 py-3 border-b grid grid-cols-5 gap-2">
               <QuickAction icon={<StickyNote size={14} />} label="Note"   color="bg-amber-50 text-amber-700 border-amber-200"   onClick={() => setQuickAction('note')} />
-              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-blue-50 text-blue-700 border-blue-200"     onClick={() => setQuickAction('email')} />
+              <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-[#f7f4ee] text-[#0e1e35] border-amber-200"   onClick={() => setQuickAction('email')} />
               <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200"  onClick={() => setQuickAction('call')} />
               <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-[#f7f4ee] text-slate-700 border-[#e5ddc8]"  onClick={() => setQuickAction('task')} />
               <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" onClick={() => setQuickAction('meeting')} />
@@ -621,7 +621,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setHistoryProp({ name: f.name, label: f.label, options: meta?.options }) }}
-                        className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0038f0] transition"
+                        className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] transition"
                         title="Historique des changements"
                       >
                         <History size={11} />
@@ -646,7 +646,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       ) : (
                         <button
                           onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block text-sm hover:text-[#0038f0] truncate"
+                          className="text-left w-full block text-sm hover:text-[#0e1e35] truncate"
                         >
                           {displayValue || <span className="text-slate-300">—</span>}
                         </button>
@@ -660,7 +660,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             <div className="px-4 py-3 border-t bg-[#f7f4ee]">
               <button
                 onClick={() => setShowAllProps(true)}
-                className="text-xs text-[#0038f0] hover:underline font-medium"
+                className="text-xs text-[#0e1e35] hover:underline font-medium"
               >
                 Voir les {properties.length} propriétés →
               </button>
@@ -688,7 +688,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   value={timelineSearch}
                   onChange={e => setTimelineSearch(e.target.value)}
                   placeholder="Rechercher dans la timeline…"
-                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-[#f7f4ee] focus:bg-white focus:ring-2 focus:ring-[#2ea3f2]/20"
+                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-[#f7f4ee] focus:bg-white focus:ring-2 focus:ring-[#C9A84C]/20"
                 />
               </div>
             </div>
@@ -795,7 +795,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="mb-2">
                 <button
                   onClick={() => setShowLinovaModal(true)}
-                  className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0038f0] text-white hover:bg-[#002bc2]"
+                  className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0e1e35] text-white hover:bg-[#1f3553]"
                 >
                   Programmer RDV admission Linova
                 </button>
@@ -852,11 +852,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             const status = (() => {
               const s = pi.paiement_status
               if (s === 'archivee')   return { label: 'Inscription finalisée', color: 'bg-green-600 text-white', dot: 'bg-green-300' }
-              if (s === 'en_cours' && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
-              if (s === 'en_cours')   return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
+              if (s === 'en_cours' && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-amber-100 text-amber-800', dot: 'bg-[#C9A84C]' }
+              if (s === 'en_cours')   return { label: 'Finalisation – lien envoyé', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
               // payee + finalisation_step>0 = onglet "En finalisation" cote plateforme
-              if (s === 'payee' && finalisationStep > 0 && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' }
-              if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
+              if (s === 'payee' && finalisationStep > 0 && formStarted) return { label: 'Finalisation – lien rempli', color: 'bg-amber-100 text-amber-800', dot: 'bg-[#C9A84C]' }
+              if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien envoyé', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
               if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
               if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
               if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-[#4a6070]', dot: 'bg-slate-400' }
@@ -1008,7 +1008,7 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex items-center gap-3 text-[#4a6070]">
-        <div className="w-6 h-6 border-2 border-[#e5ddc8] border-t-[#2ea3f2] rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#e5ddc8] border-t-[#C9A84C] rounded-full animate-spin" />
         <span>Chargement…</span>
       </div>
     </div>
@@ -1087,7 +1087,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
       <button
         onClick={onSave}
         disabled={saving}
-        className="px-2.5 text-white bg-[#0038f0] rounded text-xs disabled:opacity-50 hover:bg-[#0038f0]"
+        className="px-2.5 text-white bg-[#0e1e35] rounded text-xs disabled:opacity-50 hover:bg-[#0e1e35]"
       >✓</button>
       <button
         onClick={onCancel}
@@ -1102,10 +1102,10 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
     <button
       onClick={onClick}
       className={`px-3.5 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
-        active ? 'border-[#2ea3f2] text-[#0038f0] font-semibold' : 'border-transparent text-[#4a6070] hover:text-slate-700'
+        active ? 'border-[#C9A84C] text-[#0e1e35] font-semibold' : 'border-transparent text-[#4a6070] hover:text-slate-700'
       }`}
     >
-      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#2ea3f2]' : 'text-[#a89e8a]'}`}>({count})</span>}
+      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#C9A84C]' : 'text-[#a89e8a]'}`}>({count})</span>}
     </button>
   )
 }
@@ -1113,12 +1113,12 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
 function TypeDot({ type }: { type: string }) {
   const map: Record<string, string> = {
     note: 'bg-amber-400',
-    email: 'bg-blue-500',
+    email: 'bg-[#C9A84C]',
     sms: 'bg-violet-500',
     call: 'bg-green-500',
     task: 'bg-slate-400',
     meeting: 'bg-purple-500',
-    rdv: 'bg-[#2ea3f2]',
+    rdv: 'bg-[#C9A84C]',
     form: 'bg-rose-500',
   }
   return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
@@ -1127,12 +1127,12 @@ function TypeDot({ type }: { type: string }) {
 function TypeBadge({ type }: { type: string }) {
   const map: Record<string, { icon: React.ReactNode; bg: string }> = {
     note:    { icon: <StickyNote size={11} />, bg: 'bg-amber-100 text-amber-700' },
-    email:   { icon: <Mail size={11} />,       bg: 'bg-blue-100 text-blue-700' },
+    email:   { icon: <Mail size={11} />,       bg: 'bg-amber-100 text-[#0e1e35]' },
     sms:     { icon: <Phone size={11} />,      bg: 'bg-violet-100 text-violet-700' },
     call:    { icon: <Phone size={11} />,      bg: 'bg-green-100 text-green-700' },
     task:    { icon: <CheckSquare size={11} />, bg: 'bg-slate-100 text-slate-700' },
     meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
-    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#2ea3f2]/15 text-[#0038f0]' },
+    rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#C9A84C]/15 text-[#0e1e35]' },
     form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
   }
   const m = map[type] ?? map.note
@@ -1261,14 +1261,14 @@ function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
               >
                 {link.url}
               </a>
-              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
+              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-[#0e1e35]">
                 {link.click_count} clic{link.click_count > 1 ? 's' : ''}
               </span>
               {link.clicks.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setExpandedKey(isExpanded ? null : key)}
-                  className="text-[10px] text-blue-600 hover:underline"
+                  className="text-[10px] text-[#0e1e35] hover:underline"
                 >
                   {isExpanded ? 'Masquer' : 'Détails'}
                 </button>
@@ -1343,7 +1343,7 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
       const cnt = stats.opens > 1 ? ` ×${stats.opens}` : ''
       items.push({
         label: rel ? `Ouvert${cnt} · ${rel}` : `Ouvert${cnt}`,
-        bg: 'bg-blue-100 text-blue-700',
+        bg: 'bg-amber-100 text-[#0e1e35]',
         title: exact ? `Dernière ouverture : ${exact}` : undefined,
       })
     }
@@ -1392,7 +1392,7 @@ function RightSection({ icon, title, count, accent, children }: {
     })
   }
   const accentColor = {
-    brand: 'text-[#0038f0] bg-[#2ea3f2]/10',
+    brand: 'text-[#0e1e35] bg-[#C9A84C]/10',
     gold:  'text-[#C9A84C] bg-[#C9A84C]/10',
     dark:  'text-[#333] bg-slate-100',
   }[accent]
@@ -1435,10 +1435,10 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
   return (
     <Link
       href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
-      className="block border rounded-lg p-3 bg-gradient-to-br from-[#2ea3f2]/5 to-white hover:shadow-md transition-shadow"
+      className="block border rounded-lg p-3 bg-gradient-to-br from-[#C9A84C]/5 to-white hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-2">
-        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] text-white flex items-center justify-center shadow-sm">
+        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#C9A84C] to-[#0e1e35] text-white flex items-center justify-center shadow-sm">
           <Briefcase size={14} />
         </div>
         <div className="flex-1 min-w-0">
@@ -1452,11 +1452,11 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#0038f0]">{stageLabel}</span>
+          <span className="font-medium text-[#0e1e35]">{stageLabel}</span>
           <span className="text-[#a89e8a]">{pipelineLabel}</span>
         </div>
         <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-gradient-to-r from-[#C9A84C] to-[#0e1e35]" style={{ width: `${progress}%` }} />
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-[11px] text-[#4a6070]">
@@ -1489,7 +1489,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
   }
   const priorityColor: Record<string, string> = {
     low:    'bg-slate-100 text-[#4a6070]',
-    normal: 'bg-blue-100 text-blue-700',
+    normal: 'bg-amber-100 text-[#0e1e35]',
     high:   'bg-orange-100 text-orange-700',
     urgent: 'bg-red-100 text-red-700',
   }
@@ -1498,7 +1498,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
     <>
       <button
         onClick={onAdd}
-        className="w-full flex items-center justify-center gap-1 mb-2 py-1.5 text-xs text-[#0038f0] border border-dashed border-[#2ea3f2]/40 rounded-md hover:bg-[#2ea3f2]/5"
+        className="w-full flex items-center justify-center gap-1 mb-2 py-1.5 text-xs text-[#0e1e35] border border-dashed border-[#C9A84C]/40 rounded-md hover:bg-[#C9A84C]/5"
       >
         <Plus size={12} /> Créer une tâche
       </button>
@@ -1518,7 +1518,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
                 <div className="flex items-start gap-2">
                   <button
                     onClick={() => completeTask(t.id)}
-                    className="mt-0.5 w-4 h-4 rounded border-2 border-slate-300 hover:border-[#0038f0] hover:bg-[#0038f0]/10 flex-shrink-0"
+                    className="mt-0.5 w-4 h-4 rounded border-2 border-[#e5ddc8] hover:border-[#0e1e35] hover:bg-[#0e1e35]/10 flex-shrink-0"
                     title="Marquer comme terminée"
                   />
                   <div className="flex-1 min-w-0">
@@ -1624,7 +1624,7 @@ function PropertiesModal({
             <div key={group} className="mb-3 border rounded-lg overflow-hidden">
               <button
                 onClick={() => onToggle(group)}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f7f4ee] hover:bg-slate-100 text-sm font-semibold"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f7f4ee] hover:bg-[#f7f4ee] text-sm font-semibold"
               >
                 <span>{formatGroup(group)} <span className="text-xs text-[#4a6070] ml-1">({props.length})</span></span>
                 {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -1635,14 +1635,14 @@ function PropertiesModal({
                     const val = allValues[p.name] ?? ''
                     const isEditing = editing === p.name
                     return (
-                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#2ea3f2]/10/30 group">
+                      <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#C9A84C]/10/30 group">
                         <dt className="col-span-2 text-xs text-[#4a6070] flex items-center justify-between gap-1" title={p.name}>
                           <span className="truncate">{p.label || p.name}</span>
                           {onShowHistory && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onShowHistory(p) }}
-                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0038f0] flex-shrink-0"
+                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] flex-shrink-0"
                               title="Historique"
                             >
                               <History size={11} />
@@ -1662,7 +1662,7 @@ function PropertiesModal({
                           ) : (
                             <button
                               onClick={() => onEditStart(p.name, val)}
-                              className="text-left w-full block break-words hover:text-[#0038f0]"
+                              className="text-left w-full block break-words hover:text-[#0e1e35]"
                             >
                               {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
                             </button>
