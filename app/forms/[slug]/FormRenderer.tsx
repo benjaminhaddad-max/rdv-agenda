@@ -140,38 +140,27 @@ export default function FormRenderer({
             style={{
               maxWidth: 560,
               margin: '0 auto',
-              background: '#ffffff',
-              border: `1px solid ${primary}33`,
-              borderRadius: 16,
-              boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
-              overflow: 'hidden',
+              background: 'transparent',
+              border: `2px solid ${primary}22`,
+              borderRadius: 14,
+              padding: embed ? '20px 16px' : '28px 22px',
+              textAlign: 'center',
             }}
           >
             <div
               style={{
-                height: 6,
-                background: `linear-gradient(90deg, ${primary} 0%, ${primary}aa 100%)`,
+                width: 64,
+                height: 4,
+                margin: '0 auto 12px',
+                background: primary,
+                borderRadius: 999,
               }}
             />
-            <div style={{ textAlign: 'center', padding: embed ? '22px 18px' : '30px 26px', color: text }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Message envoye</h2>
-              <p style={{ margin: '0 0 12px', fontSize: 15, opacity: 0.92, lineHeight: 1.5 }}>
+            <div style={{ color: text }}>
+              <h2 style={{ margin: '0 0 8px', fontSize: 34, fontWeight: 800, lineHeight: 1.1 }}>Message envoye</h2>
+              <p style={{ margin: 0, fontSize: 18, opacity: 0.9, lineHeight: 1.45 }}>
                 {form.success_message || 'Merci, votre demande a bien ete prise en compte.'}
               </p>
-              <div
-                style={{
-                  display: 'inline-block',
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  background: '#f5f8fa',
-                  border: '1px solid #cbd6e2',
-                  color: '#516f90',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                Reponse rapide de notre equipe
-              </div>
             </div>
           </div>
         </div>
