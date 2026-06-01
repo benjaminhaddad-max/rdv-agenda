@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { RefreshCw, Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, GitMerge, AlertTriangle, BookOpen } from 'lucide-react'
+import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen } from 'lucide-react'
 import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
@@ -12,13 +12,7 @@ import { validateEmailDomain } from '@/lib/email-validation'
 // Composants ouverts conditionnellement (drawers, modals d'outils). Charges a
 // la demande -> bundle initial bien plus leger, premier paint plus rapide.
 const CRMEditDrawer = dynamic(() => import('@/components/CRMEditDrawer'), { ssr: false })
-const DoublonsManager = dynamic(() => import('@/components/DoublonsManager'), { ssr: false })
-const ExternalDoublonsManager = dynamic(() => import('@/components/ExternalDoublonsManager'), { ssr: false })
-const DealsDoublonsManager = dynamic(() => import('@/components/DealsDoublonsManager'), { ssr: false })
-const CheckRdvCloserPanel = dynamic(() => import('@/components/CheckRdvCloserPanel'), { ssr: false })
 const RepopJournal = dynamic(() => import('@/components/RepopJournal'), { ssr: false })
-const TeleproConflictsManager = dynamic(() => import('@/components/TeleproConflictsManager'), { ssr: false })
-const OrigineMatchesManager = dynamic(() => import('@/components/OrigineMatchesManager'), { ssr: false })
 import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
@@ -258,13 +252,7 @@ export default function CRMPage() {
   }
 
   // ── Outils modals ──────────────────────────────────────────────────────────
-  const [showCheckRdv,      setShowCheckRdv]      = useState(false)
-  const [showDoublons,      setShowDoublons]      = useState(false)
-  const [showExtDoublons,   setShowExtDoublons]   = useState(false)
-  const [showDealsDoublons, setShowDealsDoublons] = useState(false)
   const [showRepop,         setShowRepop]         = useState(false)
-  const [showTeleproConflicts, setShowTeleproConflicts] = useState(false)
-  const [showOrigineMatches, setShowOrigineMatches] = useState(false)
 
   // ─── Modal "Nouveau contact" ─────────────────────────────────────────────
   const [showNewContact, setShowNewContact] = useState(false)
@@ -1573,12 +1561,6 @@ export default function CRMPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <div style={{ width: 1, height: 20, background: '#D4C4A0', marginRight: 4 }} />
           <span style={{ fontSize: 10, fontWeight: 700, color: '#0F1F3D', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
-          <CRMToolBtn icon={<AlertTriangle size={11} />} label="Check RDV"         onClick={() => setShowCheckRdv(true)} />
-          <CRMToolBtn icon={<GitMerge size={11} />}      label="Doublons contacts" onClick={() => setShowDoublons(true)} color="red" />
-          <CRMToolBtn icon={<Users size={11} />}         label="Doublons externe"  onClick={() => setShowExtDoublons(true)} color="gold" />
-          <CRMToolBtn icon={<RefreshCw size={11} />}     label="Doublons transac"  onClick={() => setShowDealsDoublons(true)} color="red" />
-          <CRMToolBtn icon={<Users size={11} />}         label="Doublon télépro"   onClick={() => setShowTeleproConflicts(true)} color="gold" />
-          <CRMToolBtn icon={<GitMerge size={11} />}      label="Récup. origine"    onClick={() => setShowOrigineMatches(true)} color="gold" />
           <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
         </div>
 
@@ -2731,12 +2713,6 @@ export default function CRMPage() {
         />
       )}
 
-      {/* ── Outils Modals ───────────────────────────────────────────────────── */}
-      {showCheckRdv      && <CheckRdvCloserPanel  onClose={() => setShowCheckRdv(false)} />}
-      {showDoublons      && <DoublonsManager      onClose={() => setShowDoublons(false)} />}
-      {showExtDoublons   && <ExternalDoublonsManager onClose={() => setShowExtDoublons(false)} />}
-      {showDealsDoublons && <DealsDoublonsManager onClose={() => setShowDealsDoublons(false)} />}
-
       {/* ── Modal "Nouveau contact" ────────────────────────────────────── */}
       {showNewContact && (
         <div
@@ -2895,40 +2871,6 @@ export default function CRMPage() {
                 </div>
               )
             })()}
-          </div>
-        </div>
-      )}
-
-      {showOrigineMatches && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setShowOrigineMatches(false) }}
-        >
-          <div style={{ background: '#ffffff', borderRadius: 14, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)', maxHeight: '88vh', overflow: 'auto' }}>
-            <button
-              onClick={() => setShowOrigineMatches(false)}
-              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#3D5275', padding: 4, zIndex: 1 }}
-            >
-              <X size={18} />
-            </button>
-            <OrigineMatchesManager />
-          </div>
-        </div>
-      )}
-
-      {showTeleproConflicts && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setShowTeleproConflicts(false) }}
-        >
-          <div style={{ background: '#ffffff', borderRadius: 14, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)', maxHeight: '85vh', overflow: 'auto' }}>
-            <button
-              onClick={() => setShowTeleproConflicts(false)}
-              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#3D5275', padding: 4, zIndex: 1 }}
-            >
-              <X size={18} />
-            </button>
-            <TeleproConflictsManager />
           </div>
         </div>
       )}
