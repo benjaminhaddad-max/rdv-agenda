@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
+import { normalizeOrigineValue } from '@/lib/origine-normalization'
 
 /**
  * Paginated helper to fetch all distinct values for a column from crm_contacts.
@@ -56,7 +57,7 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
  * Source unique : valeurs distinctes côté CRM/Supabase (sans dépendance HubSpot).
  */
 export async function GET() {
-  const staticPayload = await cached('crm:field-options:v4:static', 3600, async () => {
+  const staticPayload = await cached('crm:field-options:v5:static', 300, async () => {
     const [leadStatuses, sources, formations, zones, departements] = await Promise.all([
       fetchAllDistinctValues('hs_lead_status'),
       fetchAllDistinctValues('origine'),
@@ -64,9 +65,14 @@ export async function GET() {
       fetchAllDistinctValues('zone_localite'),
       fetchAllDistinctValues('departement'),
     ])
+    const normalizedSources = [...new Set(
+      sources
+        .map((v) => normalizeOrigineValue(v))
+        .filter((v): v is string => !!v)
+    )]
     return {
       leadStatuses: leadStatuses.slice().sort(),
-      sources: sources.slice().sort(),
+      sources: normalizedSources.slice().sort(),
       formations: formations.slice().sort(),
       zones: zones.slice().sort(),
       departements: departements.slice().sort(),
