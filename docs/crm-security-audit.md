@@ -41,8 +41,6 @@
 
 ### Cron endpoints — must require strict bearer secret
 
-- `/api/cron/crm-sync`
-- `/api/cron/hubspot-new-leads`
 - `/api/cron/typesense-crm-sync`
 - `/api/cron/crm-fast-mv-refresh`
 - `/api/cron/diploma-sync`

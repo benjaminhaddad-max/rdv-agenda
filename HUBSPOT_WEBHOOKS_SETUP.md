@@ -13,7 +13,7 @@ HubSpot ──► POST /api/webhooks/hubspot ──► batch read ──► Supa
 ```
 
 Plus :
-- **Cron nightly à 3h** (`/api/cron/crm-sync?full=1`) — filet de sécurité qui rattrape ce qui aurait été perdu (rare avec retry HubSpot 10x sur 24h)
+- **HubSpot retry automatiquement** les webhooks (10x sur 24h) en cas d'erreur côté récepteur.
 
 ---
 
@@ -136,9 +136,8 @@ L'endpoint :
 
 ## Coexistence avec le polling actuel
 
-Tu peux **garder le cron 5-min** (`/api/cron/hubspot-new-leads`) pendant la phase de transition. Les webhooks et le polling ne se gênent pas (l'upsert est idempotent). Une fois confiance acquise, le cron 5-min peut être désactivé ou ralenti.
-
-Le **nightly full sync** reste indispensable pour rattraper les events ratés (si webhook + retries HubSpot échouent, ce qui est rare).
+Le CRM s'appuie désormais sur le webhook HubSpot pour la synchro temps réel.
+Le polling HubSpot legacy n'est plus utilisé.
 
 ---
 
