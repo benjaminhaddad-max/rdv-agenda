@@ -13,6 +13,7 @@ interface FormData {
   id: string
   name: string
   slug: string
+  folder?: string | null
   description: string | null
   status: 'draft' | 'published' | 'archived'
   title: string | null
@@ -20,6 +21,7 @@ interface FormData {
   submit_label: string
   success_message: string | null
   redirect_url: string | null
+  redirect_file_url?: string | null
   primary_color: string
   bg_color: string
   text_color: string
@@ -190,6 +192,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             submit_label: form.submit_label,
             success_message: form.success_message,
             redirect_url: form.redirect_url,
+            redirect_file_url: form.redirect_file_url ?? null,
             primary_color: form.primary_color,
             bg_color: form.bg_color,
             text_color: form.text_color,
@@ -880,8 +883,24 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
         <Field label="Message de succès">
           <textarea value={form.success_message || ''} onChange={e => update({ success_message: e.target.value })} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Merci, nous vous recontactons rapidement !" />
         </Field>
-        <Field label="OU URL de redirection (optionnel)">
-          <input value={form.redirect_url || ''} onChange={e => update({ redirect_url: e.target.value })} placeholder="https://diploma-sante.fr/merci" style={inputStyle} />
+        <Field label="URL de redirection (optionnel)">
+          <input
+            value={form.redirect_url || ''}
+            onChange={e => update({ redirect_url: e.target.value })}
+            placeholder="https://diploma-sante.fr/merci"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Fichier de redirection (PDF, optionnel)">
+          <input
+            value={form.redirect_file_url || ''}
+            onChange={e => update({ redirect_file_url: e.target.value })}
+            placeholder="https://diploma-sante.fr/brochure.pdf ou /brochures/brochure.pdf"
+            style={inputStyle}
+          />
+          <div style={{ marginTop: 4, fontSize: 11, color: '#516f90' }}>
+            Si le fichier est renseigné, il sera prioritaire sur l&apos;URL.
+          </div>
         </Field>
       </Card>
 
@@ -910,7 +929,9 @@ function EmbedTab({ form }: { form: FormData }) {
   const [copied, setCopied] = useState<string | null>(null)
   const host = typeof window !== 'undefined' ? window.location.origin : ''
   const publicUrl = `${host}/forms/${form.slug}`
-  const iframeCode = `<iframe src="${host}/embed/forms/${form.slug}" width="100%" height="600" frameborder="0" style="border:0;max-width:100%;"></iframe>`
+  const isDiplomaFolder = (form.folder ?? 'Diploma Santé') === 'Diploma Santé'
+  const iframeHeight = isDiplomaFolder ? 420 : 600
+  const iframeCode = `<iframe src="${host}/embed/forms/${form.slug}" width="100%" height="${iframeHeight}" frameborder="0" style="border:0;max-width:100%;"></iframe>`
   const jsCode = `<div data-diploma-form="${form.slug}"></div>\n<script src="${host}/api/forms/${form.slug}/embed.js" async></script>`
 
   const copy = (text: string, name: string) => {

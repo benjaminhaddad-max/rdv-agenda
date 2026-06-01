@@ -32,7 +32,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const ALLOWED = [
     'name', 'slug', 'description', 'status',
-    'title', 'subtitle', 'submit_label', 'success_message', 'redirect_url',
+    'title', 'subtitle', 'submit_label', 'success_message', 'redirect_url', 'redirect_file_url',
     'primary_color', 'bg_color', 'text_color',
     'field_border_color', 'field_border_width', 'field_border_radius', 'field_bg_color',
     'submit_bg_color', 'submit_text_color', 'submit_border_radius', 'submit_size', 'submit_full_width',
@@ -49,21 +49,29 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
-  // Si la colonne `folder` n'existe pas encore (migration non appliquée), on
-  // retire `folder` du patch et on retente — pas de crash.
+  // Si une colonne optionnelle n'existe pas encore (migration non appliquée),
+  // on la retire du patch et on retente — pas de crash.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any, error: any
   {
     const r = await db.from('forms').update(patch).eq('id', id).select().single()
     data = r.data; error = r.error
-    if (error && (error.message || '').toLowerCase().includes('folder')) {
-      delete patch.folder
+    const errMsg = String(error?.message || '').toLowerCase()
+    const optionalColumns: Array<'folder' | 'redirect_file_url'> = ['folder', 'redirect_file_url']
+    let removed = false
+    for (const col of optionalColumns) {
+      if (errMsg.includes(col)) {
+        delete patch[col]
+        removed = true
+      }
+    }
+    if (error && removed) {
       if (Object.keys(patch).length > 0) {
         const r2 = await db.from('forms').update(patch).eq('id', id).select().single()
         data = r2.data; error = r2.error
       } else {
-        // Seul folder était demandé mais la colonne n'existe pas
-        return NextResponse.json({ error: 'La colonne `folder` n\'existe pas encore. Lance la migration SQL.' }, { status: 400 })
+        // Seules des colonnes optionnelles absentes étaient demandées
+        return NextResponse.json({ error: 'Une colonne optionnelle n\'existe pas encore. Lance les migrations SQL.' }, { status: 400 })
       }
     }
   }

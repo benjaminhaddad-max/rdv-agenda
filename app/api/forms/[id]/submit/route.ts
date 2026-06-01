@@ -36,6 +36,12 @@ export async function POST(req: Request, { params }: Params) {
 
   const body = await req.json().catch(() => ({}))
   const data = (body.data || {}) as Record<string, unknown>
+  const resolveRedirectTarget = (f: { redirect_file_url?: string | null; redirect_url?: string | null }): string | null => {
+    const fileTarget = String(f.redirect_file_url || '').trim()
+    if (fileTarget) return fileTarget
+    const urlTarget = String(f.redirect_url || '').trim()
+    return urlTarget || null
+  }
 
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
@@ -275,7 +281,7 @@ export async function POST(req: Request, { params }: Params) {
     {
       ok: true,
       submission_id: submission.id,
-      redirect_url: form.redirect_url,
+      redirect_url: resolveRedirectTarget(form),
       success_message: form.success_message || 'Merci, votre message a bien été envoyé !',
     },
     { status: 200, headers: CORS_HEADERS }
