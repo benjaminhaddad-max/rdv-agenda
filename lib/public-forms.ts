@@ -21,6 +21,7 @@ export interface PublicForm {
   submit_label: string
   success_message: string | null
   redirect_url: string | null
+  redirect_file_url?: string | null
   primary_color: string
   bg_color: string
   text_color: string
@@ -41,7 +42,7 @@ export interface PublicForm {
 }
 
 const PUBLIC_FORM_CACHE_PREFIX = 'forms:public:'
-const PUBLIC_FORM_CACHE_VERSION = 'v2'
+const PUBLIC_FORM_CACHE_VERSION = 'v3'
 
 function publicFormCacheKey(slug: string): string {
   return `${PUBLIC_FORM_CACHE_PREFIX}${slug}:${PUBLIC_FORM_CACHE_VERSION}`
@@ -54,12 +55,30 @@ export async function getPublicFormBySlug(slug: string): Promise<PublicForm | nu
   return cached<PublicForm | null>(publicFormCacheKey(normalizedSlug), 30, async () => {
     const db = createServiceClient()
 
-    const { data: form, error } = await db
-      .from('forms')
-      .select('id, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
-      .eq('slug', normalizedSlug)
-      .eq('status', 'published')
-      .single()
+    let form: PublicForm | null = null
+    let error: { message?: string } | null = null
+    {
+      const r = await db
+        .from('forms')
+        .select('id, slug, title, subtitle, submit_label, success_message, redirect_url, redirect_file_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
+        .eq('slug', normalizedSlug)
+        .eq('status', 'published')
+        .single()
+      form = (r.data as PublicForm | null) ?? null
+      error = r.error
+
+      // Compatibilité si la migration redirect_file_url n'est pas encore appliquée.
+      if (error && String(error.message || '').toLowerCase().includes('redirect_file_url')) {
+        const r2 = await db
+          .from('forms')
+          .select('id, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
+          .eq('slug', normalizedSlug)
+          .eq('status', 'published')
+          .single()
+        form = (r2.data as PublicForm | null) ?? null
+        error = r2.error
+      }
+    }
 
     if (error || !form) return null
 
