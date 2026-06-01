@@ -401,10 +401,9 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
         success.className = 'diploma-form__success';
         success.innerHTML =
           '<div class="diploma-form__success-card">' +
-            '<div class="diploma-form__success-topbar"></div>' +
+            '<div class="diploma-form__success-bar"></div>' +
             '<div class="diploma-form__success-title">Message envoye</div>' +
             '<div class="diploma-form__success-text">' + escapeHtml(res.body.success_message || 'Merci, votre demande a bien ete prise en compte.') + '</div>' +
-            '<div class="diploma-form__success-badge">Reponse rapide de notre equipe</div>' +
           '</div>';
         formEl.replaceWith(success);
       })
@@ -503,11 +502,10 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       scope + ' .diploma-form__submit:disabled{opacity:0.6;cursor:default;}',
       scope + ' .diploma-form__error{display:none;padding:10px 16px;border-radius:10px;background:rgba(239,68,68,0.12);color:#c00;font-size:13px;margin-top:4px;}',
       scope + ' .diploma-form__success{text-align:center;padding:12px 4px;color:' + c.text + ';}',
-      scope + ' .diploma-form__success-card{max-width:560px;margin:0 auto;background:#fff;border:1px solid ' + c.primary + '33;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.08);overflow:hidden;padding:0 20px 22px;}',
-      scope + ' .diploma-form__success-topbar{height:6px;margin:0 -20px 18px;background:linear-gradient(90deg,' + c.primary + ' 0%,' + c.primary + 'aa 100%);}',
-      scope + ' .diploma-form__success-title{font-size:24px;font-weight:800;margin-bottom:8px;}',
-      scope + ' .diploma-form__success-text{font-size:15px;line-height:1.5;opacity:0.92;margin-bottom:12px;}',
-      scope + ' .diploma-form__success-badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#f5f8fa;border:1px solid #cbd6e2;color:#516f90;font-size:12px;font-weight:600;}',
+      scope + ' .diploma-form__success-card{max-width:560px;margin:0 auto;background:transparent;border:2px solid ' + c.primary + '22;border-radius:14px;padding:26px 20px;}',
+      scope + ' .diploma-form__success-bar{width:64px;height:4px;border-radius:999px;background:' + c.primary + ';margin:0 auto 12px;}',
+      scope + ' .diploma-form__success-title{font-size:34px;font-weight:800;line-height:1.1;margin-bottom:8px;}',
+      scope + ' .diploma-form__success-text{font-size:18px;line-height:1.45;opacity:0.9;}',
     ].join('\\n');
     document.head.appendChild(s);
   }
