@@ -95,7 +95,7 @@ export default function CRMGlobalSearchBar() {
     setOpen(true)
 
     Promise.all([
-      fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=5&page=0&defer_count=1`, {
+      fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=8&page=0&defer_count=1&all_classes=1`, {
         signal: ac.signal,
         cache: 'no-store',
       }),
@@ -126,9 +126,30 @@ export default function CRMGlobalSearchBar() {
             }
           }
         }
-        const mergedContacts = exactContact
+        let mergedContacts = exactContact
           ? [exactContact, ...baseContacts.filter((c) => c.hubspot_contact_id !== exactContact!.hubspot_contact_id)]
           : baseContacts
+
+        // Fallback de précision: si requête multi-mots et peu de résultats,
+        // on complète avec un search plus large sur le premier token.
+        const tokens = debouncedQuery.split(/\s+/).map((t) => t.trim()).filter(Boolean)
+        if (tokens.length > 1 && mergedContacts.length < 5) {
+          const broaderRes = await fetch(
+            `/api/crm/contacts?search=${encodeURIComponent(tokens[0])}&limit=8&page=0&defer_count=1&all_classes=1`,
+            { signal: ac.signal, cache: 'no-store' },
+          ).catch(() => null)
+          if (broaderRes?.ok) {
+            const broaderJson = await broaderRes.json().catch(() => ({}))
+            const broaderContacts: ContactHit[] = Array.isArray(broaderJson?.data) ? broaderJson.data : []
+            for (const c of broaderContacts) {
+              if (!mergedContacts.some((m) => m.hubspot_contact_id === c.hubspot_contact_id)) {
+                mergedContacts.push(c)
+              }
+              if (mergedContacts.length >= 8) break
+            }
+          }
+        }
+
         setContacts(mergedContacts)
         setDeals(Array.isArray(dealsJson?.data) ? dealsJson.data : [])
       })
