@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
+import { normalizeOrigineValue } from '@/lib/origine-normalization'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 function normalizeOrigin(v: unknown): string | null {
-  if (v === null || v === undefined) return null
-  const s = String(v).trim()
-  return s.length ? s : null
+  return normalizeOrigineValue(v)
 }
 
 function normalizeEmail(email: unknown): string {

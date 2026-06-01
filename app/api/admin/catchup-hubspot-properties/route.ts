@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
+import { normalizeOrigineValue } from '@/lib/origine-normalization'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -187,7 +188,9 @@ export async function POST(req: NextRequest) {
       let changed = false
 
       for (const propName of selectedProps) {
-        const val = normalizeValue(props[propName])
+        const val = propName === 'origine'
+          ? normalizeOrigineValue(props[propName])
+          : normalizeValue(props[propName])
         mergedRaw[propName] = val
         const col = HUBSPOT_TO_COLUMN[propName]
         if (col) {
