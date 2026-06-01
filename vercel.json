@@ -5,7 +5,7 @@
     { "path": "/api/cron/sms-intraday",     "schedule": "*/5 * * * *"  },
     { "path": "/api/cron/auto-replanifier", "schedule": "0 2 * * *"    },
     { "path": "/api/cron/diploma-sync",    "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/meta-leads-poll", "schedule": "* * * * *" },
+    { "path": "/api/cron/meta-leads-poll", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/crm-fast-mv-refresh", "schedule": "*/3 * * * *" },
     { "path": "/api/cron/typesense-crm-sync", "schedule": "*/2 * * * *" },
     { "path": "/api/cron/campaigns-process-pending", "schedule": "* * * * *" },

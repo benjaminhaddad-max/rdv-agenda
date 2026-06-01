@@ -2,8 +2,9 @@
  * GET /api/cron/meta-leads-poll
  *
  * Polling Meta Lead Ads toutes les 15 min — alternative au webhook qui peut
- * être instable. Pour chaque form actif, fetch les leads des dernières
- * 60 minutes et les processe. Idempotent grace au unique constraint sur
+ * être instable. Pour chaque form actif, fetch les leads d'une fenêtre
+ * de rattrapage (20 min par défaut) et les processe. Idempotent grace au
+ * unique constraint sur
  * leadgen_id dans meta_lead_events.
  *
  * Sécurisé via Bearer CRON_SECRET.
@@ -54,13 +55,13 @@ export async function GET(req: NextRequest) {
 
   // Fenetre logique de secours : le webhook doit etre temps reel, ce cron
   // rattrape les trous (delay/retry Meta, cold start, etc.).
-  const minutesParam = parseInt(req.nextUrl.searchParams.get('minutes') ?? '10', 10)
+  const minutesParam = parseInt(req.nextUrl.searchParams.get('minutes') ?? '20', 10)
   const maxPerFormParam = parseInt(req.nextUrl.searchParams.get('max_per_form') ?? '600', 10)
   // Mode backfill manuel: permet un rattrapage large après incident (jusqu'à 7 jours).
   // Le cron standard reste borné à 3h pour limiter la charge.
   const backfillMode = req.nextUrl.searchParams.get('backfill') === '1'
   const maxWindowMinutes = backfillMode ? 7 * 24 * 60 : 180
-  const WINDOW_MINUTES = Number.isFinite(minutesParam) ? Math.min(Math.max(minutesParam, 5), maxWindowMinutes) : 10
+  const WINDOW_MINUTES = Number.isFinite(minutesParam) ? Math.min(Math.max(minutesParam, 5), maxWindowMinutes) : 20
   // Plus haut pour eviter les pertes sur pics; borne haute pour rester stable.
   const MAX_PER_FORM = Number.isFinite(maxPerFormParam) ? Math.min(Math.max(maxPerFormParam, 100), 5000) : 600
   const minCreatedAtMs = Date.now() - WINDOW_MINUTES * 60 * 1000
