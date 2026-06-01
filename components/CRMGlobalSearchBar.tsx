@@ -38,6 +38,41 @@ function initialsFromText(v: string): string {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'
 }
 
+function tokenize(v: string): string[] {
+  return v
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+function contactMatchesAllTokens(c: ContactHit, tokens: string[]): boolean {
+  if (tokens.length === 0) return true
+  const haystack = [
+    c.firstname ?? '',
+    c.lastname ?? '',
+    c.email ?? '',
+    c.hubspot_contact_id ?? '',
+  ].join(' ')
+  const h = tokenize(haystack).join(' ')
+  return tokens.every((t) => h.includes(t))
+}
+
+function dealMatchesAllTokens(d: DealHit, tokens: string[]): boolean {
+  if (tokens.length === 0) return true
+  const haystack = [
+    d.dealname ?? '',
+    d.formation ?? '',
+    d.hubspot_deal_id ?? '',
+    d.contact?.firstname ?? '',
+    d.contact?.lastname ?? '',
+  ].join(' ')
+  const h = tokenize(haystack).join(' ')
+  return tokens.every((t) => h.includes(t))
+}
+
 export default function CRMGlobalSearchBar() {
   const router = useRouter()
   const pathname = usePathname()
@@ -130,28 +165,18 @@ export default function CRMGlobalSearchBar() {
           ? [exactContact, ...baseContacts.filter((c) => c.hubspot_contact_id !== exactContact!.hubspot_contact_id)]
           : baseContacts
 
-        // Fallback de précision: si requête multi-mots et peu de résultats,
-        // on complète avec un search plus large sur le premier token.
-        const tokens = debouncedQuery.split(/\s+/).map((t) => t.trim()).filter(Boolean)
-        if (tokens.length > 1 && mergedContacts.length < 5) {
-          const broaderRes = await fetch(
-            `/api/crm/contacts?search=${encodeURIComponent(tokens[0])}&limit=8&page=0&defer_count=1&all_classes=1`,
-            { signal: ac.signal, cache: 'no-store' },
-          ).catch(() => null)
-          if (broaderRes?.ok) {
-            const broaderJson = await broaderRes.json().catch(() => ({}))
-            const broaderContacts: ContactHit[] = Array.isArray(broaderJson?.data) ? broaderJson.data : []
-            for (const c of broaderContacts) {
-              if (!mergedContacts.some((m) => m.hubspot_contact_id === c.hubspot_contact_id)) {
-                mergedContacts.push(c)
-              }
-              if (mergedContacts.length >= 8) break
-            }
-          }
+        const qTokens = tokenize(debouncedQuery)
+        if (qTokens.length >= 2) {
+          mergedContacts = mergedContacts.filter((c) => contactMatchesAllTokens(c, qTokens))
+        }
+
+        let mergedDeals: DealHit[] = Array.isArray(dealsJson?.data) ? dealsJson.data : []
+        if (qTokens.length >= 2) {
+          mergedDeals = mergedDeals.filter((d) => dealMatchesAllTokens(d, qTokens))
         }
 
         setContacts(mergedContacts)
-        setDeals(Array.isArray(dealsJson?.data) ? dealsJson.data : [])
+        setDeals(mergedDeals)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
