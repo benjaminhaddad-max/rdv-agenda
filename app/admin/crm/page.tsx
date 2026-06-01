@@ -1507,7 +1507,7 @@ export default function CRMPage() {
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div style={{
         padding: '0 20px',
-        height: 52,
+        height: 96,
         background: '#ffffff',
         borderBottom: '1px solid #e5ddc8',
         display: 'flex',
@@ -1517,8 +1517,8 @@ export default function CRMPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 24, width: 'auto' }} />
-          <div style={{ width: 1, height: 22, background: '#D4C4A0' }} />
+          <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 72, width: 'auto' }} />
+          <div style={{ width: 1, height: 56, background: '#D4C4A0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Users size={13} style={{ color: '#C9A84C' }} />
             <span style={{ fontSize: 12, color: '#3D5275', fontWeight: 600 }}>CRM — Contacts & Transactions</span>
