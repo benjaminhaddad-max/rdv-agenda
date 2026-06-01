@@ -157,9 +157,9 @@ export default function FormRenderer({
               }}
             />
             <div style={{ color: text }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: 34, fontWeight: 800, lineHeight: 1.1 }}>Message envoye</h2>
-              <p style={{ margin: 0, fontSize: 18, opacity: 0.9, lineHeight: 1.45 }}>
-                {form.success_message || 'Merci, votre demande a bien ete prise en compte.'}
+              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, lineHeight: 1.15 }}>Message envoyé</h2>
+              <p style={{ margin: 0, fontSize: 16, opacity: 0.9, lineHeight: 1.45 }}>
+                {form.success_message || 'Merci, votre demande a bien été prise en compte.'}
               </p>
             </div>
           </div>

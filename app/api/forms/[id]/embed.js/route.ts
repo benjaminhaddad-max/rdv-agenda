@@ -402,8 +402,8 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
         success.innerHTML =
           '<div class="diploma-form__success-card">' +
             '<div class="diploma-form__success-bar"></div>' +
-            '<div class="diploma-form__success-title">Message envoye</div>' +
-            '<div class="diploma-form__success-text">' + escapeHtml(res.body.success_message || 'Merci, votre demande a bien ete prise en compte.') + '</div>' +
+            '<div class="diploma-form__success-title">Message envoyé</div>' +
+            '<div class="diploma-form__success-text">' + escapeHtml(res.body.success_message || 'Merci, votre demande a bien été prise en compte.') + '</div>' +
           '</div>';
         formEl.replaceWith(success);
       })
@@ -504,8 +504,8 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       scope + ' .diploma-form__success{text-align:center;padding:12px 4px;color:' + c.text + ';}',
       scope + ' .diploma-form__success-card{max-width:560px;margin:0 auto;background:transparent;border:2px solid ' + c.primary + '22;border-radius:14px;padding:26px 20px;}',
       scope + ' .diploma-form__success-bar{width:64px;height:4px;border-radius:999px;background:' + c.primary + ';margin:0 auto 12px;}',
-      scope + ' .diploma-form__success-title{font-size:34px;font-weight:800;line-height:1.1;margin-bottom:8px;}',
-      scope + ' .diploma-form__success-text{font-size:18px;line-height:1.45;opacity:0.9;}',
+      scope + ' .diploma-form__success-title{font-size:24px;font-weight:800;line-height:1.15;margin-bottom:8px;}',
+      scope + ' .diploma-form__success-text{font-size:16px;line-height:1.45;opacity:0.9;}',
     ].join('\\n');
     document.head.appendChild(s);
   }
