@@ -106,14 +106,6 @@ interface RdvUser {
   hubspot_user_id?: string
 }
 
-interface SyncLog {
-  synced_at: string
-  contacts_upserted: number
-  deals_upserted: number
-  duration_ms: number
-  error_message?: string | null
-}
-
 interface IngestionHealth {
   latest_contact: {
     id: string | null
@@ -142,9 +134,6 @@ export default function CRMPage() {
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(0)
   const [loading, setLoading]     = useState(true)
-  const [syncing, setSyncing]         = useState(false)
-  const [syncProgress, setSyncProgress] = useState<{ done: number; label: string } | null>(null)
-  const [lastSync, setLastSync]       = useState<SyncLog | null>(null)
   const [ingestionHealth, setIngestionHealth] = useState<IngestionHealth | null>(null)
 
   // Saved views
@@ -1374,91 +1363,6 @@ export default function CRMPage() {
     scheduleRefetch()
   }
 
-  // ── HubSpot sync ─────────────────────────────────────────────────────────────
-
-  async function handleSync(full = false) {
-    setSyncing(true)
-    setSyncProgress(null)
-
-    try {
-      if (!full) {
-        // Sync incrémental : un seul appel
-        const res = await fetch('/api/admin/crm-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full: false }),
-        })
-        const data = await res.json()
-        setLastSync({
-          synced_at: new Date().toISOString(),
-          contacts_upserted: data.contacts_upserted ?? 0,
-          deals_upserted: data.deals_upserted ?? 0,
-          duration_ms: data.duration_ms ?? 0,
-          error_message: data.error ?? null,
-        })
-      } else {
-        // Sync complet : premier appel (deals + premier chunk contacts)
-        setSyncProgress({ done: 0, label: 'Sync deals + premiers contacts…' })
-        const res1 = await fetch('/api/admin/crm-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full: true }),
-        })
-        const data1 = await res1.json()
-
-        let totalContacts = data1.contacts_upserted ?? 0
-        let cursor: string | null = data1.next_cursor ?? null
-
-        setSyncProgress({ done: totalContacts, label: `${totalContacts.toLocaleString('fr')} contacts synchro…` })
-
-        // Chunks suivants tant qu'il y a un cursor
-        while (cursor) {
-          const res = await fetch('/api/admin/crm-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cursor }),
-          })
-          const data = await res.json()
-
-          totalContacts += data.contacts_upserted ?? 0
-          cursor = data.next_cursor ?? null
-
-          setSyncProgress({
-            done: totalContacts,
-            label: cursor
-              ? `${totalContacts.toLocaleString('fr')} contacts synchro…`
-              : `✓ ${totalContacts.toLocaleString('fr')} contacts synchronisés`,
-          })
-
-          if (data.error) break
-        }
-
-        setLastSync({
-          synced_at: new Date().toISOString(),
-          contacts_upserted: totalContacts,
-          deals_upserted: data1.deals_upserted ?? 0,
-          duration_ms: 0,
-          error_message: null,
-        })
-      }
-
-      await fetchContacts(true)
-    } catch { /* silent */ }
-    finally {
-      setSyncing(false)
-      setTimeout(() => setSyncProgress(null), 4000)
-    }
-  }
-
-  function formatSyncTime(isoDate: string) {
-    const diff = Date.now() - new Date(isoDate).getTime()
-    const min = Math.round(diff / 60000)
-    if (min < 1) return "à l'instant"
-    if (min < 60) return `il y a ${min} min`
-    const h = Math.round(min / 60)
-    return `il y a ${h}h`
-  }
-
   function formatSignalTime(isoDate: string | null | undefined) {
     if (!isoDate) return 'inconnu'
     const diff = Date.now() - new Date(isoDate).getTime()
@@ -1644,29 +1548,11 @@ export default function CRMPage() {
         borderBottom: '1px solid #e5ddc8',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         flexShrink: 0,
         gap: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {syncProgress && syncing && (
-            <span style={{ fontSize: 11, color: '#4cabdb', fontWeight: 600 }}>
-              {syncProgress.label}
-            </span>
-          )}
-          {!syncing && syncProgress && (
-            <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>
-              {syncProgress.label}
-            </span>
-          )}
-          {!syncProgress && lastSync && (
-            <span style={{ fontSize: 11, color: lastSync.error_message ? '#ef4444' : '#0F1F3D' }}>
-              {lastSync.error_message
-                ? `⚠ ${lastSync.error_message}`
-                : `✓ ${formatSyncTime(lastSync.synced_at)} · ${lastSync.contacts_upserted.toLocaleString('fr')} contacts · ${lastSync.deals_upserted} deals`
-              }
-            </span>
-          )}
           {ingestionHealth && (
             <span
               title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
