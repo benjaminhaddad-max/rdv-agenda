@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
+import {
+  isReadOnlyProperty,
+  normalizePropertyValueForDbColumn,
+  normalizePropertyValueForHubSpot,
+} from '@/lib/crm-property-normalization'
 
 /**
  * PATCH /api/crm/contacts/[id]/prop
@@ -34,23 +39,37 @@ export async function PATCH(
 ) {
   const db = createServiceClient()
   const { id: contactId } = await params
-  const { property, value } = await req.json()
+  const body = await req.json()
+  const property = typeof body?.property === 'string' ? body.property : ''
+  const value = body?.value as unknown
 
   if (!property || typeof property !== 'string') {
     return NextResponse.json({ error: 'property manquant' }, { status: 400 })
   }
 
+  const { data: propertyMeta } = await db
+    .from('crm_properties')
+    .select('type, field_type')
+    .eq('object_type', 'contacts')
+    .eq('name', property)
+    .maybeSingle()
+
+  if (isReadOnlyProperty(propertyMeta)) {
+    return NextResponse.json({ error: 'Propriété en lecture seule (calculée ou fichier)' }, { status: 400 })
+  }
+
   const col = KNOWN_COLUMNS[property]
   const now = new Date().toISOString()
+  const normalizedByType = normalizePropertyValueForHubSpot(value, propertyMeta)
   const normalizedValue =
     property === 'classe_actuelle'
-      ? (normalizeClasseActuelle(value) ?? 'Autres')
-      : value
+      ? (normalizeClasseActuelle(String(normalizedByType ?? '')) ?? 'Autres')
+      : normalizedByType
 
   // ── 1. Update Supabase ─────────────────────────────────────────────
   // On met à jour la colonne individuelle si connue + hubspot_raw JSONB
   const update: Record<string, unknown> = { synced_at: now }
-  if (col) update[col] = normalizedValue === '' ? null : normalizedValue
+  if (col) update[col] = normalizePropertyValueForDbColumn(normalizedValue, propertyMeta)
 
   // MAJ du JSONB hubspot_raw via expression SQL "jsonb_set"
   // (on passe par un update classique + merge côté serveur)
@@ -81,7 +100,7 @@ export async function PATCH(
     await db.from('crm_property_history').insert({
       hubspot_contact_id: contactId,
       property_name:      property,
-      value:              normalizedValue === '' ? null : String(normalizedValue ?? ''),
+      value:              normalizedValue === null ? null : String(normalizedValue),
       changed_at:         now,
       source_type:        'CRM_UI',
       source_id:          null,
@@ -124,7 +143,7 @@ export async function PATCH(
       if (cfg.property && cfg.property !== property) continue
       if (cfg.to !== undefined && cfg.to !== null) {
         const expected = Array.isArray(cfg.to) ? cfg.to : [cfg.to]
-        if (!expected.includes(String(normalizedValue))) continue
+        if (!expected.includes(String(normalizedValue ?? ''))) continue
       }
       await enrollContact(db, wf.id, contactId, { property, value: normalizedValue, source: 'CRM_UI' })
     }

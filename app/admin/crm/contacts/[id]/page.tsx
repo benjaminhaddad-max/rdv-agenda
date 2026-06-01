@@ -367,12 +367,18 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const saveProp = async (propName: string, value: string) => {
+    const meta = propMeta[propName]
+    if (isReadOnlyPropertyType(meta)) {
+      alert('Cette propriété est en lecture seule dans le CRM.')
+      return
+    }
+    const normalizedValue = normalizeValueForSave(value, meta)
     setSaving(true)
     try {
       const res = await fetch(`/api/crm/contacts/${id}/prop`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ property: propName, value }),
+        body: JSON.stringify({ property: propName, value: normalizedValue }),
       })
       if (!res.ok) throw new Error(await res.text())
       await load({ force: true })
@@ -611,7 +617,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
                 const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'closer_du_contact_owner_id' || f.name === 'teleprospecteur' || f.name === 'telepro_user_id'
-                const isOwner = f.name === 'hubspot_owner_id'
+                const isReadOnly = isReadOnlyPropertyType(meta)
                 const displayValue = isOwnerField ? ownerLabel(val as string) : formatPropValue(val, meta)
 
                 return (
@@ -640,15 +646,26 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                         />
                       ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
                         <button
-                          onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
+                          onClick={() => {
+                            if (isReadOnly) return
+                            setEditing(f.name)
+                            setEditValue(normalizeValueForEditor(val, meta))
+                          }}
                           className={`px-2.5 py-1 rounded-full text-xs font-medium border ${leadStatusColor}`}
                         >{displayValue}</button>
                       ) : (
                         <button
-                          onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block text-sm hover:text-[#0e1e35] truncate"
+                          onClick={() => {
+                            if (isReadOnly) return
+                            setEditing(f.name)
+                            setEditValue(normalizeValueForEditor(val, meta))
+                          }}
+                          className={`text-left w-full block text-sm truncate ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
                         >
                           {displayValue || <span className="text-slate-300">—</span>}
+                          {isReadOnly && (
+                            <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">(lecture seule)</span>
+                          )}
                         </button>
                       )}
                     </dd>
@@ -989,7 +1006,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           onToggle={toggleGroup}
           editing={editing}
           editValue={editValue}
-          onEditStart={(name, v) => { setEditing(name); setEditValue(String(v ?? '')) }}
+          onEditStart={(name, v) => {
+            const meta = propMeta[name]
+            setEditing(name)
+            setEditValue(normalizeValueForEditor(v, meta))
+          }}
           onEditChange={setEditValue}
           onEditSave={saveProp}
           onEditCancel={() => setEditing(null)}
@@ -1060,15 +1081,45 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
   saving: boolean
   customOptions?: Array<{ value: string; label: string }>
 }) {
+  const editorValue = normalizeValueForEditor(value, meta)
   // customOptions prend priorité (ex: liste des owners pour hubspot_owner_id)
   const options = customOptions ?? (
     (meta?.field_type === 'select' || meta?.field_type === 'radio') ? meta.options : undefined
   )
+  const isMultiSelect =
+    meta?.field_type === 'checkbox' &&
+    meta?.type !== 'bool' &&
+    Array.isArray(meta?.options) &&
+    meta.options.length > 0
+  const selectedMultiValues = editorValue
+    .split(';')
+    .map(v => v.trim())
+    .filter(Boolean)
+  const toggleMultiValue = (optValue: string) => {
+    const next = new Set(selectedMultiValues)
+    if (next.has(optValue)) next.delete(optValue)
+    else next.add(optValue)
+    onChange([...next].join(';'))
+  }
   return (
     <div className="flex gap-1">
-      {options ? (
+      {isMultiSelect ? (
+        <div className="flex-1 border rounded px-2 py-1 max-h-32 overflow-auto bg-white">
+          <div className="grid grid-cols-1 gap-1">
+            {(meta?.options ?? []).map(o => {
+              const checked = selectedMultiValues.includes(o.value)
+              return (
+                <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input type="checkbox" checked={checked} onChange={() => toggleMultiValue(o.value)} />
+                  <span>{o.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      ) : options ? (
         <select
-          value={value}
+          value={editorValue}
           onChange={e => onChange(e.target.value)}
           className="flex-1 px-2 py-1 border rounded text-xs"
           autoFocus
@@ -1077,12 +1128,57 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       ) : (
-        <input
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="flex-1 px-2 py-1 border rounded text-xs"
-          autoFocus
-        />
+        isBooleanProperty(meta) ? (
+          <select
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs"
+            autoFocus
+          >
+            <option value="">—</option>
+            <option value="true">Oui</option>
+            <option value="false">Non</option>
+          </select>
+        ) : isDateProperty(meta) ? (
+          <input
+            type="date"
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs"
+            autoFocus
+          />
+        ) : isDateTimeProperty(meta) ? (
+          <input
+            type="datetime-local"
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs"
+            autoFocus
+          />
+        ) : isNumberProperty(meta) ? (
+          <input
+            type="number"
+            step="any"
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs"
+            autoFocus
+          />
+        ) : isTextareaProperty(meta) ? (
+          <textarea
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs min-h-[68px]"
+            autoFocus
+          />
+        ) : (
+          <input
+            value={editorValue}
+            onChange={e => onChange(e.target.value)}
+            className="flex-1 px-2 py-1 border rounded text-xs"
+            autoFocus
+          />
+        )
       )}
       <button
         onClick={onSave}
@@ -1378,12 +1474,10 @@ function RightSection({ icon, title, count, accent, children }: {
 }) {
   // Persiste l'etat ouvert/ferme par section dans localStorage (defaut : ferme)
   const storageKey = `rs-open:${title}`
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const saved = localStorage.getItem(storageKey)
-    if (saved === '1') setOpen(true)
-  }, [storageKey])
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(storageKey) === '1'
+  })
   const toggle = () => {
     setOpen(o => {
       const next = !o
@@ -1473,6 +1567,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
   onUpdated: () => void
   onAdd: () => void
 }) {
+  const [nowMs] = useState(() => Date.now())
   const ownerLabel = (id?: string | null) => {
     if (!id) return ''
     const o = owners.find(o => o.hubspot_owner_id === id)
@@ -1509,7 +1604,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
       ) : (
         <ul className="space-y-2">
           {tasks.map(t => {
-            const isOverdue = t.due_at && new Date(t.due_at).getTime() < Date.now()
+            const isOverdue = t.due_at && new Date(t.due_at).getTime() < nowMs
             return (
               <li
                 key={t.id}
@@ -1634,6 +1729,7 @@ function PropertiesModal({
                   {props.map(p => {
                     const val = allValues[p.name] ?? ''
                     const isEditing = editing === p.name
+                    const isReadOnly = isReadOnlyPropertyType(p)
                     return (
                       <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#C9A84C]/10/30 group">
                         <dt className="col-span-2 text-xs text-[#4a6070] flex items-center justify-between gap-1" title={p.name}>
@@ -1661,10 +1757,13 @@ function PropertiesModal({
                             />
                           ) : (
                             <button
-                              onClick={() => onEditStart(p.name, val)}
-                              className="text-left w-full block break-words hover:text-[#0e1e35]"
+                              onClick={() => { if (!isReadOnly) onEditStart(p.name, val) }}
+                              className={`text-left w-full block break-words ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
                             >
                               {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
+                              {isReadOnly && (
+                                <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">(lecture seule)</span>
+                              )}
                             </button>
                           )}
                         </dd>
@@ -1709,18 +1808,136 @@ function formatPropValue(v: Any, p?: CRMProperty) {
   if (!p) return str
   if (p.type === 'datetime' || p.type === 'date') {
     const ts = parseInt(str, 10)
-    if (!isNaN(ts) && ts > 1e12) return format(new Date(ts), 'PPp', { locale: fr })
+    if (!isNaN(ts) && ts > 1e12) {
+      return p.type === 'date'
+        ? format(new Date(ts), 'PP', { locale: fr })
+        : format(new Date(ts), 'PPp', { locale: fr })
+    }
     const d = new Date(str)
-    if (!isNaN(d.getTime())) return format(d, 'PPp', { locale: fr })
+    if (!isNaN(d.getTime())) {
+      return p.type === 'date'
+        ? format(d, 'PP', { locale: fr })
+        : format(d, 'PPp', { locale: fr })
+    }
   }
   if ((p.field_type === 'select' || p.field_type === 'radio') && p.options) {
     const o = p.options.find(o => o.value === str)
     if (o) return o.label
   }
-  if (p.field_type === 'checkbox' || p.type === 'bool') {
+  if (p.field_type === 'checkbox' && p.type !== 'bool' && p.options) {
+    const selected = str
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (!selected.length) return ''
+    const labels = selected.map(sel => p.options?.find(o => o.value === sel)?.label ?? sel)
+    return labels.join(', ')
+  }
+  if (p.type === 'bool' || (p.field_type === 'checkbox' && !p.options)) {
     return str === 'true' || str === '1' ? 'Oui' : 'Non'
   }
   return str
+}
+
+function isReadOnlyPropertyType(p?: CRMProperty): boolean {
+  if (!p) return false
+  const type = String(p.type || '').toLowerCase()
+  const fieldType = String(p.field_type || '').toLowerCase()
+  return (
+    type.includes('calculation') ||
+    fieldType.includes('calculation') ||
+    type === 'file' ||
+    fieldType === 'file'
+  )
+}
+
+function isBooleanProperty(p?: CRMProperty): boolean {
+  if (!p) return false
+  const type = String(p.type || '').toLowerCase()
+  const fieldType = String(p.field_type || '').toLowerCase()
+  return type === 'bool' || fieldType === 'booleancheckbox'
+}
+
+function isDateProperty(p?: CRMProperty): boolean {
+  return String(p?.type || '').toLowerCase() === 'date'
+}
+
+function isDateTimeProperty(p?: CRMProperty): boolean {
+  return String(p?.type || '').toLowerCase() === 'datetime'
+}
+
+function isNumberProperty(p?: CRMProperty): boolean {
+  return String(p?.type || '').toLowerCase() === 'number'
+}
+
+function isTextareaProperty(p?: CRMProperty): boolean {
+  return String(p?.field_type || '').toLowerCase() === 'textarea'
+}
+
+function normalizeValueForEditor(v: Any, p?: CRMProperty): string {
+  if (v === null || v === undefined) return ''
+  const raw = String(v)
+  if (!p) return raw
+
+  if (isDateProperty(p)) {
+    const ts = Number(raw)
+    if (!Number.isNaN(ts) && ts > 1e12) return new Date(ts).toISOString().slice(0, 10)
+    const d = new Date(raw)
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+    return ''
+  }
+
+  if (isDateTimeProperty(p)) {
+    const ts = Number(raw)
+    const d = !Number.isNaN(ts) && ts > 1e12 ? new Date(ts) : new Date(raw)
+    if (!Number.isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    return ''
+  }
+
+  if (isBooleanProperty(p)) {
+    const low = raw.toLowerCase()
+    if (low === '1' || low === 'true' || low === 'yes' || low === 'oui') return 'true'
+    if (low === '0' || low === 'false' || low === 'no' || low === 'non') return 'false'
+    return ''
+  }
+
+  return raw
+}
+
+function normalizeValueForSave(value: string, p?: CRMProperty): string {
+  const raw = String(value ?? '').trim()
+  if (!p) return raw
+  if (!raw) return ''
+
+  if (isDateProperty(p)) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+    if (!m) return raw
+    const y = Number(m[1])
+    const month = Number(m[2])
+    const day = Number(m[3])
+    return String(Date.UTC(y, month - 1, day))
+  }
+
+  if (isDateTimeProperty(p)) {
+    const d = new Date(raw)
+    if (!Number.isNaN(d.getTime())) return String(d.getTime())
+    return raw
+  }
+
+  if (isBooleanProperty(p)) {
+    if (raw === 'true') return 'true'
+    if (raw === 'false') return 'false'
+  }
+
+  if (isNumberProperty(p)) {
+    const n = Number(raw.replace(',', '.'))
+    if (!Number.isNaN(n)) return String(n)
+  }
+
+  return raw
 }
 
 function sanitize(html: string) {

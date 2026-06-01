@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import {
+  isReadOnlyProperty,
+  normalizePropertyValueForDbColumn,
+  normalizePropertyValueForHubSpot,
+} from '@/lib/crm-property-normalization'
 
 /**
  * PATCH /api/crm/deals/[id]/prop
@@ -26,24 +31,32 @@ export async function PATCH(
 ) {
   const db = createServiceClient()
   const { id: dealId } = await params
-  const { property, value } = await req.json()
+  const body = await req.json()
+  const property = typeof body?.property === 'string' ? body.property : ''
+  const value = body?.value as unknown
 
   if (!property || typeof property !== 'string') {
     return NextResponse.json({ error: 'property manquant' }, { status: 400 })
   }
 
+  const { data: propertyMeta } = await db
+    .from('crm_properties')
+    .select('type, field_type')
+    .eq('object_type', 'deals')
+    .eq('name', property)
+    .maybeSingle()
+
+  if (isReadOnlyProperty(propertyMeta)) {
+    return NextResponse.json({ error: 'Propriété en lecture seule (calculée ou fichier)' }, { status: 400 })
+  }
+
   const col = KNOWN_COLUMNS[property]
+  const normalizedValue = normalizePropertyValueForHubSpot(value, propertyMeta)
   const now = new Date().toISOString()
   const update: Record<string, unknown> = { synced_at: now }
 
   if (col) {
-    // Conversion dates HubSpot → ISO
-    if ((col === 'closedate' || col === 'createdate') && value) {
-      const d = new Date(value)
-      update[col] = isNaN(d.getTime()) ? value : d.toISOString()
-    } else {
-      update[col] = value === '' ? null : value
-    }
+    update[col] = normalizePropertyValueForDbColumn(normalizedValue, propertyMeta)
   }
 
   const { data: existing } = await db
@@ -54,7 +67,7 @@ export async function PATCH(
 
   if (existing !== null) {
     const raw = (existing as { hubspot_raw?: Record<string, unknown> })?.hubspot_raw ?? {}
-    update.hubspot_raw = { ...raw, [property]: value }
+    update.hubspot_raw = { ...raw, [property]: normalizedValue }
   }
 
   const { error: updateErr } = await db
@@ -74,7 +87,7 @@ export async function PATCH(
       await hubspotFetch(`/crm/v3/objects/deals/${dealId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          properties: { [property]: value ?? '' },
+          properties: { [property]: normalizedValue ?? '' },
         }),
       })
     } catch (e) {
