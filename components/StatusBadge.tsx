@@ -1,7 +1,7 @@
 'use client'
 
 const STATUS_CONFIG = {
-  non_assigne:   { label: 'Non assigné',   color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' },
+  non_assigne:   { label: 'Non assigné',   color: '#a89e8a', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' },
   confirme:           { label: 'Assigné / Non confirmé', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.3)' },
   confirme_prospect:  { label: 'Assigné / Confirmé',     color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)' },
   no_show:       { label: 'No-show',       color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)' },

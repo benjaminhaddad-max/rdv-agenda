@@ -166,7 +166,7 @@ export default function ParametresPage() {
         )}
 
         {loading && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a' }}>
             <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
             <div style={{ marginTop: 8, fontSize: 13 }}>Chargement…</div>
           </div>
@@ -226,7 +226,7 @@ export default function ParametresPage() {
                       />
                     </button>
                   </div>
-                  <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 11, color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 11, color: '#a89e8a', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'monospace' }}>{s.key}</span>
                     {s.updated_at && (
                       <span>Modifié le {new Date(s.updated_at).toLocaleString('fr-FR')}</span>

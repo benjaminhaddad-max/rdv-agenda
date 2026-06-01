@@ -144,7 +144,7 @@ export function CRMFieldPicker({
           {/* Search */}
           <div style={{ padding: 8, borderBottom: '1px solid #e5ddc8', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
             <div style={{ position: 'relative' }}>
-              <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
               <input
                 autoFocus
                 type="text"
@@ -163,7 +163,7 @@ export function CRMFieldPicker({
           {/* Hardcoded (favoris) */}
           {hardcoded.length > 0 && (
             <>
-              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', background: '#fafbfc' }}>
+              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#a89e8a', textTransform: 'uppercase', background: '#fafbfc' }}>
                 Filtres principaux
               </div>
               {hardcoded.map(f => {
@@ -184,7 +184,7 @@ export function CRMFieldPicker({
                   >
                     <div>{f.label}</div>
                     {aliases.length > 0 && (
-                      <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: 9, color: '#a89e8a', fontFamily: 'monospace' }}>
                         alias HubSpot : {aliases.join(', ')}
                       </div>
                     )}
@@ -197,7 +197,7 @@ export function CRMFieldPicker({
           {/* Custom props groupées */}
           {otherProps.map(([group, items]) => (
             <div key={group}>
-              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', background: '#fafbfc', borderTop: '1px solid #e5ddc8' }}>
+              <div style={{ padding: '4px 10px', fontSize: 9, fontWeight: 700, color: '#a89e8a', textTransform: 'uppercase', background: '#fafbfc', borderTop: '1px solid #e5ddc8' }}>
                 {group} ({items.length})
               </div>
               {items.slice(0, 50).map(p => {
@@ -219,12 +219,12 @@ export function CRMFieldPicker({
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div>{p.label}</div>
-                    <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{p.name} · {p.type}</div>
+                    <div style={{ fontSize: 9, color: '#a89e8a', fontFamily: 'monospace' }}>{p.name} · {p.type}</div>
                   </button>
                 )
               })}
               {items.length > 50 && (
-                <div style={{ padding: '4px 10px', fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>
+                <div style={{ padding: '4px 10px', fontSize: 10, color: '#a89e8a', fontStyle: 'italic' }}>
                   … {items.length - 50} autres masquées dans ce groupe (affine ta recherche)
                 </div>
               )}
@@ -232,7 +232,7 @@ export function CRMFieldPicker({
           ))}
 
           {hardcoded.length === 0 && otherProps.length === 0 && (
-            <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+            <div style={{ padding: 16, textAlign: 'center', color: '#a89e8a', fontSize: 12 }}>
               Aucune propriété ne correspond.
             </div>
           )}

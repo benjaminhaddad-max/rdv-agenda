@@ -2775,7 +2775,7 @@ export default function CRMPage() {
                 autoFocus
               />
               {newContactEmailChecking && (
-                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#a89e8a' }}>
                   vérification…
                 </span>
               )}
@@ -2882,7 +2882,7 @@ export default function CRMPage() {
                       padding: '10px 22px',
                       background: canCreate ? '#12314d' : '#D4C4A0',
                       border: 'none', borderRadius: 8,
-                      color: canCreate ? '#ffffff' : '#94a3b8',
+                      color: canCreate ? '#ffffff' : '#a89e8a',
                       fontSize: 13, fontWeight: 700,
                       cursor: !canCreate ? 'not-allowed' : (newContactSaving ? 'wait' : 'pointer'),
                       display: 'flex', alignItems: 'center', gap: 6,

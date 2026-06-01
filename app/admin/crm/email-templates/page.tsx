@@ -83,15 +83,15 @@ export default function EmailTemplatesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f7f4ee]">
       <div className="bg-white border-b">
         <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[#0e1e35] flex items-center gap-2">
               <Mail size={22} className="text-[#2ea3f2]" />
               Modèles d&apos;e-mail
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-[#4a6070] mt-0.5">
               {templates.length} modèle{templates.length > 1 ? 's' : ''} — réutilisables dans les campagnes et les e-mails unitaires
             </p>
           </div>
@@ -106,14 +106,14 @@ export default function EmailTemplatesPage() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {loading ? (
-          <div className="text-center py-20 text-slate-400">Chargement…</div>
+          <div className="text-center py-20 text-[#a89e8a]">Chargement…</div>
         ) : templates.length === 0 ? (
           <div className="text-center py-20">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#2ea3f2]/10 text-[#2ea3f2] mb-4">
               <Mail size={36} />
             </div>
             <h2 className="text-lg font-semibold text-slate-700">Aucun modèle</h2>
-            <p className="text-sm text-slate-500 mt-1">Crée ton premier modèle d&apos;e-mail réutilisable.</p>
+            <p className="text-sm text-[#4a6070] mt-1">Crée ton premier modèle d&apos;e-mail réutilisable.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -129,25 +129,25 @@ export default function EmailTemplatesPage() {
                   </div>
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-slate-800 truncate">{t.name}</h3>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded uppercase tracking-wide whitespace-nowrap">
+                      <h3 className="text-sm font-semibold text-[#0e1e35] truncate">{t.name}</h3>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-[#4a6070] rounded uppercase tracking-wide whitespace-nowrap">
                         {CATEGORIES.find(c => c.value === t.category)?.label ?? t.category}
                       </span>
                     </div>
                     {t.subject && (
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">Objet : {t.subject}</p>
+                      <p className="text-xs text-[#4a6070] mt-1 line-clamp-2">Objet : {t.subject}</p>
                     )}
-                    <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-2">
+                    <div className="flex items-center gap-1 text-[11px] text-[#a89e8a] mt-2">
                       <Calendar size={10} />
                       Modifié {formatDistanceToNow(new Date(t.updated_at), { locale: fr, addSuffix: true })}
                     </div>
                   </div>
                 </Link>
-                <div className="px-4 py-2 border-t flex items-center justify-end gap-1 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => duplicate(t)} title="Dupliquer" className="p-1.5 text-slate-500 hover:text-[#0038f0]">
+                <div className="px-4 py-2 border-t flex items-center justify-end gap-1 bg-[#f7f4ee] opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => duplicate(t)} title="Dupliquer" className="p-1.5 text-[#4a6070] hover:text-[#0038f0]">
                     <Copy size={14} />
                   </button>
-                  <button onClick={() => remove(t.id)} title="Supprimer" className="p-1.5 text-slate-500 hover:text-red-600">
+                  <button onClick={() => remove(t.id)} title="Supprimer" className="p-1.5 text-[#4a6070] hover:text-red-600">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -165,7 +165,7 @@ export default function EmailTemplatesPage() {
             </div>
             <div className="p-5 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nom du modèle</label>
+                <label className="block text-xs font-medium text-[#4a6070] mb-1">Nom du modèle</label>
                 <input
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
@@ -176,7 +176,7 @@ export default function EmailTemplatesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Catégorie</label>
+                <label className="block text-xs font-medium text-[#4a6070] mb-1">Catégorie</label>
                 <select
                   value={newCategory}
                   onChange={e => setNewCategory(e.target.value)}
@@ -186,7 +186,7 @@ export default function EmailTemplatesPage() {
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-slate-50 rounded-b-xl">
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-[#f7f4ee] rounded-b-xl">
               <button onClick={() => setShowNew(false)} className="px-4 py-2 text-sm border rounded-md">Annuler</button>
               <button
                 onClick={createTemplate}

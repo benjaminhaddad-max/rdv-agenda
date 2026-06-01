@@ -2078,7 +2078,7 @@ function PropertyPicker({
           </button>
         )}
         {filtered.length === 0 ? (
-          <div style={{ padding: '8px 10px', fontSize: 12, color: '#94a3b8' }}>
+          <div style={{ padding: '8px 10px', fontSize: 12, color: '#a89e8a' }}>
             {query
               ? (canAddManualProp ? 'Aucun résultat dans la liste, vous pouvez l’ajouter manuellement.' : 'Aucun résultat')
               : 'Toutes les propriétés sont déjà ajoutées'}
@@ -2100,7 +2100,7 @@ function PropertyPicker({
             >
               <span style={{ fontWeight: 500 }}>{p.label ?? p.name}</span>
               {p.label && p.label !== p.name && (
-                <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
+                <span style={{ color: '#a89e8a', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
               )}
             </button>
           ))

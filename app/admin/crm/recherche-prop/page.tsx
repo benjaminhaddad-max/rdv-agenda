@@ -182,7 +182,7 @@ export default function RecherchePropPage() {
             <div>
               <label style={labelStyle}>Valeur</label>
               {!opNeedsValue ? (
-                <input value="(pas de valeur requise)" disabled style={{ ...input, color: '#94a3b8' }} />
+                <input value="(pas de valeur requise)" disabled style={{ ...input, color: '#a89e8a' }} />
               ) : isUserProp && owners.length > 0 ? (
                 <select value={value} onChange={e => setValue(e.target.value)} style={input}>
                   <option value="">— Choisir un utilisateur —</option>
@@ -230,7 +230,7 @@ export default function RecherchePropPage() {
           </div>
 
           {pickedProp && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#94a3b8' }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: '#a89e8a' }}>
               <strong>{pickedProp.label}</strong> · <code>{pickedProp.name}</code> · type {pickedProp.type}
               {pickedProp.group_name && <> · groupe {pickedProp.group_name}</>}
             </div>
@@ -245,19 +245,19 @@ export default function RecherchePropPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
                 Résultats {total > 0 && <span style={{ color: '#4a6070', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
-                {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#94a3b8' }}>(via hubspot_raw)</span>}
+                {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#a89e8a' }}>(via hubspot_raw)</span>}
               </div>
               {results.length > 0 && (
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>50 premiers résultats triés par dernière conversion</div>
+                <div style={{ fontSize: 11, color: '#a89e8a' }}>50 premiers résultats triés par dernière conversion</div>
               )}
             </div>
 
             {loading && results.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+              <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a' }}>
                 <Loader2 size={20} className="animate-spin" />
               </div>
             ) : results.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
                 {pickedProp ? 'Aucun contact ne correspond. Essaye un autre opérateur ou une autre valeur.' : 'Choisis une propriété ci-dessus.'}
               </div>
             ) : (
@@ -277,7 +277,7 @@ export default function RecherchePropPage() {
                     <tr key={c.hubspot_contact_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                       <td style={td}>
                         <div style={{ fontWeight: 600 }}>{[c.firstname, c.lastname].filter(Boolean).join(' ') || '—'}</div>
-                        <div style={{ fontSize: 10, color: '#94a3b8' }}>{c.hubspot_contact_id}</div>
+                        <div style={{ fontSize: 10, color: '#a89e8a' }}>{c.hubspot_contact_id}</div>
                       </td>
                       <td style={td}>
                         <div>{c.email || '—'}</div>
@@ -292,13 +292,13 @@ export default function RecherchePropPage() {
                           isUserProp && userIndex.get(c.matched_value) ? (
                             <>
                               <div style={{ fontWeight: 500 }}>{userIndex.get(c.matched_value)}</div>
-                              <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{c.matched_value}</div>
+                              <div style={{ fontSize: 10, color: '#a89e8a', fontFamily: 'monospace' }}>{c.matched_value}</div>
                             </>
                           ) : (
                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#4a6070' }}>{c.matched_value}</span>
                           )
                         ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>
+                          <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>(vide)</span>
                         )}
                       </td>
                       <td style={td}>{c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'}</td>
@@ -362,7 +362,7 @@ function PropertyPicker({
           alignItems: 'center',
           cursor: loading ? 'wait' : 'pointer',
           fontWeight: picked ? 600 : 400,
-          color: picked ? '#1a2f4b' : '#94a3b8',
+          color: picked ? '#1a2f4b' : '#a89e8a',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -390,7 +390,7 @@ function PropertyPicker({
               />
             </div>
             {grouped.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+              <div style={{ padding: 16, textAlign: 'center', color: '#a89e8a', fontSize: 12 }}>
                 Aucune propriété trouvée.
               </div>
             ) : grouped.map(([group, items]) => (
@@ -412,7 +412,7 @@ function PropertyPicker({
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ fontWeight: 500, color: '#1a2f4b' }}>{p.label}</div>
-                    <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 10, color: '#a89e8a' }}>
                       <code>{p.name}</code> · {p.type}
                     </div>
                   </button>
@@ -420,7 +420,7 @@ function PropertyPicker({
               </div>
             ))}
             {properties.length > 200 && (
-              <div style={{ padding: 10, textAlign: 'center', fontSize: 10, color: '#94a3b8', borderTop: '1px solid #e5ddc8' }}>
+              <div style={{ padding: 10, textAlign: 'center', fontSize: 10, color: '#a89e8a', borderTop: '1px solid #e5ddc8' }}>
                 {properties.length - 200} autres propriétés masquées. Affine ta recherche.
               </div>
             )}

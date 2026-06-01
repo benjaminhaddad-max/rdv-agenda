@@ -265,7 +265,7 @@ export default function DoublonsPage() {
                                 checked={isPrimary}
                                 onChange={() => setPrimarySelections(s => ({ ...s, [g.key]: c.hubspot_contact_id }))}
                               />
-                              <span style={{ fontSize: 11, color: isPrimary ? '#2ea3f2' : '#94a3b8' }}>
+                              <span style={{ fontSize: 11, color: isPrimary ? '#2ea3f2' : '#a89e8a' }}>
                                 {isPrimary ? 'Garder' : 'Supprimer'}
                               </span>
                             </label>
@@ -279,13 +279,13 @@ export default function DoublonsPage() {
                             >
                               {fullName(c)}
                             </a>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.origine || '—'}</div>
+                            <div style={{ fontSize: 11, color: '#a89e8a' }}>{c.origine || '—'}</div>
                           </td>
                           <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{c.email || '—'}</td>
                           <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{c.phone || '—'}</td>
                           <td style={{ padding: '10px 12px' }}>
                             <div>{c.classe_actuelle || '—'}</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.zone_localite || '—'}</div>
+                            <div style={{ fontSize: 11, color: '#a89e8a' }}>{c.zone_localite || '—'}</div>
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             {c.hs_lead_status ? (

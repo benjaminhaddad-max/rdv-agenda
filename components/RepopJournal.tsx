@@ -783,8 +783,8 @@ function leadStatusBadgeStyle(status: string): React.CSSProperties {
     'A replanifier':        '#06b6d4',   // cyan
     'En cours':             '#22c55e',   // vert
     'En attente / Réfléchit':'#eab308',  // jaune
-    'Mauvais numéro':       '#94a3b8',   // gris
-    'Disqualifié':          '#94a3b8',
+    'Mauvais numéro':       '#a89e8a',   // gris
+    'Disqualifié':          '#a89e8a',
     'Pas intéressé':        '#4a6070',
     'Hors cible':           '#4a6070',
     'Préinscription':       '#16a34a',

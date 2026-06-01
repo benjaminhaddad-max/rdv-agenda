@@ -108,29 +108,29 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
     } finally { setSendingTest(false) }
   }
 
-  if (loading) return <div className="p-8 text-slate-500">Chargement…</div>
+  if (loading) return <div className="p-8 text-[#4a6070]">Chargement…</div>
   if (!tpl) return <div className="p-8 text-red-600">Modèle introuvable.</div>
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#f7f4ee] flex flex-col">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <Link href="/admin/crm/email-templates" className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <Link href="/admin/crm/email-templates" className="text-sm text-[#4a6070] hover:text-slate-700 flex items-center gap-1">
             <ChevronLeft size={14} /> Modèles
           </Link>
           <div className="flex-1 min-w-0">
             <input
               value={tpl.name}
               onChange={e => update({ name: e.target.value })}
-              className="text-lg font-bold text-slate-800 bg-transparent border-0 outline-none focus:bg-slate-50 px-2 py-1 rounded w-full"
+              className="text-lg font-bold text-[#0e1e35] bg-transparent border-0 outline-none focus:bg-[#f7f4ee] px-2 py-1 rounded w-full"
             />
           </div>
           <div className="flex items-center gap-2">
             {dirty && <span className="text-xs text-amber-600">Non enregistré</span>}
             <button
               onClick={() => setShowTest(true)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-slate-50"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee]"
             >
               <Send size={14} /> Test
             </button>
@@ -147,7 +147,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
         {/* Méta */}
         <div className="max-w-[1600px] mx-auto px-6 pb-3 grid grid-cols-12 gap-3">
           <div className="col-span-7">
-            <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Objet de l&apos;e-mail</label>
+            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Objet de l&apos;e-mail</label>
             <input
               value={tpl.subject}
               onChange={e => update({ subject: e.target.value })}
@@ -156,7 +156,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
             />
           </div>
           <div className="col-span-2">
-            <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Catégorie</label>
+            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Catégorie</label>
             <select
               value={tpl.category || 'general'}
               onChange={e => update({ category: e.target.value })}
@@ -166,7 +166,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
             </select>
           </div>
           <div className="col-span-3">
-            <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Description (interne)</label>
+            <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Description (interne)</label>
             <input
               value={tpl.description || ''}
               onChange={e => update({ description: e.target.value })}
@@ -222,7 +222,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-slate-50 rounded-b-xl">
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-[#f7f4ee] rounded-b-xl">
               <button onClick={() => setShowTest(false)} className="px-4 py-2 text-sm border rounded-md">Fermer</button>
               <button
                 onClick={sendTest}

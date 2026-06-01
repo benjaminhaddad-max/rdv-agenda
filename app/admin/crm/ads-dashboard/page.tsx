@@ -129,7 +129,7 @@ export default function AdsDashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Facebook size={18} style={{ color: '#1877F2' }} />
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Meta Ads</h2>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+            <span style={{ fontSize: 11, color: '#a89e8a' }}>
               {accounts.length} compte{accounts.length > 1 ? 's' : ''} publicitaire{accounts.length > 1 ? 's' : ''} connecté{accounts.length > 1 ? 's' : ''}
             </span>
           </div>
@@ -229,7 +229,7 @@ export default function AdsDashboardPage() {
                       <tbody>
                         {data.insights.length === 0 ? (
                           <tr>
-                            <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                            <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
                               Aucune donnée pour cette période.
                             </td>
                           </tr>
@@ -240,7 +240,7 @@ export default function AdsDashboardPage() {
                             <tr key={id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                               <td style={td}>
                                 <div style={{ fontWeight: 600 }}>{name || '(sans nom)'}</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>{id}</div>
+                                <div style={{ fontSize: 10, color: '#a89e8a' }}>{id}</div>
                               </td>
                               <td style={tdNum}>{fmtNumber(i.impressions)}</td>
                               <td style={tdNum}>{fmtNumber(i.clicks)}</td>
@@ -250,7 +250,7 @@ export default function AdsDashboardPage() {
                               <td style={tdNum}>
                                 <span style={{
                                   fontWeight: 600,
-                                  color: (i.leads || 0) > 0 ? '#0038f0' : '#94a3b8',
+                                  color: (i.leads || 0) > 0 ? '#0038f0' : '#a89e8a',
                                 }}>
                                   {fmtNumber(i.leads || 0)}
                                 </span>
@@ -268,7 +268,7 @@ export default function AdsDashboardPage() {
               )}
 
               {data?.cached && (
-                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6, textAlign: 'right' }}>
+                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 6, textAlign: 'right' }}>
                   Données en cache · récupérées {data.fetched_at ? new Date(data.fetched_at).toLocaleString('fr-FR') : ''}
                   {' · '}
                   <button onClick={() => loadInsights(true)} style={{ background: 'none', border: 'none', color: '#2ea3f2', cursor: 'pointer', padding: 0, fontSize: 10 }}>

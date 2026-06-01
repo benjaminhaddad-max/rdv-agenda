@@ -85,7 +85,7 @@ export default function TeleproConflictsManager() {
       </div>
 
       {loading ? (
-        <div style={{ padding: '40px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Chargement…</div>
+        <div style={{ padding: '40px 0', textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>Chargement…</div>
       ) : conflicts.length === 0 ? (
         <div style={{ padding: '32px 20px', textAlign: 'center', color: '#5b6b7a', fontSize: 14, background: '#f6f9fc', borderRadius: 10 }}>
           Aucun doublon télépro à arbitrer.
@@ -121,7 +121,7 @@ export default function TeleproConflictsManager() {
                       opacity: resolving === c.id ? 0.5 : 1,
                     }}
                   >
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Télépro actuel sur la fiche</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#a89e8a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Télépro actuel sur la fiche</span>
                     <span style={{ fontWeight: 700 }}>{c.existing_telepro?.name || '— inconnu —'}</span>
                   </button>
                   <button

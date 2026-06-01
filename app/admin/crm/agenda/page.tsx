@@ -40,17 +40,17 @@ export default function AgendaPage() {
   }, [fetchCount])
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#f7f4ee] flex flex-col">
       {/* Header principal */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="bg-white border-b border-[#e5ddc8]">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
               <CalendarIcon size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-800">Agenda</h1>
-              <p className="text-xs text-slate-500">Planification et RDV de toute l&apos;équipe</p>
+              <h1 className="text-lg font-bold text-[#0e1e35]">Agenda</h1>
+              <p className="text-xs text-[#4a6070]">Planification et RDV de toute l&apos;équipe</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -77,7 +77,7 @@ export default function AgendaPage() {
       </div>
 
       {/* Barre secondaire — outils */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="bg-white border-b border-[#e5ddc8]">
         <div className="max-w-[1600px] mx-auto px-6 py-2.5 flex items-center gap-3 flex-wrap">
           {/* File d'attente */}
           <button
@@ -85,14 +85,14 @@ export default function AgendaPage() {
             className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
               unassignedCount
                 ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                : 'bg-[#f7f4ee] border-[#e5ddc8] text-[#4a6070] hover:bg-slate-100'
             }`}
           >
             <Inbox size={12} />
             File d&apos;attente
             {unassignedCount !== null && (
               <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
-                unassignedCount > 0 ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'
+                unassignedCount > 0 ? 'bg-blue-500 text-white' : 'bg-slate-200 text-[#4a6070]'
               }`}>
                 {unassignedCount}
               </span>
@@ -102,7 +102,7 @@ export default function AgendaPage() {
           <div className="w-px h-5 bg-slate-200" />
 
           {/* Équipe */}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Équipe</span>
+          <span className="text-[10px] font-bold text-[#a89e8a] uppercase tracking-wider">Équipe</span>
           <ToolBtn icon={<Users size={12} />}     label="Télépros"       onClick={() => setShowTelepros(true)} />
           <ToolBtn icon={<Briefcase size={12} />} label="Closers"        onClick={() => setShowClosers(true)} />
           <ToolBtn icon={<Clock size={12} />}     label="Disponibilités" onClick={() => setShowAvailability(true)} color="green" />
@@ -125,12 +125,12 @@ export default function AgendaPage() {
           className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex justify-end"
           onClick={e => { if (e.target === e.currentTarget) setShowQueue(false) }}
         >
-          <div className="w-full max-w-2xl bg-white border-l border-slate-200 h-full overflow-auto flex flex-col">
+          <div className="w-full max-w-2xl bg-white border-l border-[#e5ddc8] h-full overflow-auto flex flex-col">
             <div className="px-5 py-4 border-b-2 border-[#C9A84C] flex items-center justify-between flex-shrink-0">
               <span className="font-bold text-sm text-[#C9A84C]">📥 File d&apos;attente — RDV non assignés</span>
               <button
                 onClick={() => setShowQueue(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none px-1.5"
+                className="text-[#a89e8a] hover:text-[#4a6070] text-lg leading-none px-1.5"
               >
                 ✕
               </button>

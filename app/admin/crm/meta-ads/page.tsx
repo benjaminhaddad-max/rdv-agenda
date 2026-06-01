@@ -6,7 +6,7 @@ import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, External
 
 export default function MetaAdsPageWrapper() {
   return (
-    <Suspense fallback={<div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>Chargement…</div>}>
+    <Suspense fallback={<div style={{ padding: 60, textAlign: 'center', color: '#a89e8a' }}>Chargement…</div>}>
       <MetaAdsPage />
     </Suspense>
   )
@@ -207,7 +207,7 @@ function MetaAdsPage() {
         )}
 
         {loading && (
-          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: 60, textAlign: 'center', color: '#a89e8a' }}>
             <Loader2 size={28} className="animate-spin" />
             <div style={{ marginTop: 8, fontSize: 13 }}>Chargement…</div>
           </div>
@@ -247,7 +247,7 @@ function MetaAdsPage() {
                         {isExpanded ? <ChevronDown size={14} style={{ color: '#4a6070' }} /> : <ChevronRight size={14} style={{ color: '#4a6070' }} />}
                         <Facebook size={14} style={{ color: '#1877F2' }} />
                         <strong>{p.page_name}</strong>
-                        <span style={{ fontSize: 10, color: '#94a3b8' }}>· {p.page_id}</span>
+                        <span style={{ fontSize: 10, color: '#a89e8a' }}>· {p.page_id}</span>
                         {pageFormCount > 0 && (
                           <span style={{ fontSize: 10, color: '#4a6070', background: '#f7f4ee', padding: '2px 6px', borderRadius: 999 }}>
                             {pageFormCount} form{pageFormCount > 1 ? 's' : ''}
@@ -288,7 +288,7 @@ function MetaAdsPage() {
                   {isExpanded && (() => {
                     const pageForms = forms.filter(f => f.page_id === p.page_id)
                     if (pageForms.length === 0) return (
-                      <div style={{ marginTop: 12, padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                      <div style={{ marginTop: 12, padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#a89e8a', textAlign: 'center' }}>
                         Aucun formulaire trouvé. Clique sur « Refresh forms » pour les charger.
                       </div>
                     )
@@ -307,7 +307,7 @@ function MetaAdsPage() {
                             Formulaires ({filteredForms.length}{search && filteredForms.length !== pageForms.length ? ` / ${pageForms.length}` : ''})
                           </div>
                           <div style={{ position: 'relative', flex: '0 1 280px' }}>
-                            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
                             <input
                               type="text"
                               placeholder="Rechercher un formulaire…"
@@ -318,7 +318,7 @@ function MetaAdsPage() {
                           </div>
                         </div>
                         {filteredForms.length === 0 ? (
-                          <div style={{ padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                          <div style={{ padding: 10, background: '#f7f4ee', borderRadius: 8, fontSize: 12, color: '#a89e8a', textAlign: 'center' }}>
                             Aucun formulaire ne correspond à « {search} »
                           </div>
                         ) : (
@@ -338,10 +338,10 @@ function MetaAdsPage() {
                               <tr key={f.form_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
                                 <td style={td}>
                                   <div style={{ fontWeight: 600 }}>{f.name || '(sans nom)'}</div>
-                                  <div style={{ fontSize: 10, color: '#94a3b8' }}>{f.form_id}</div>
+                                  <div style={{ fontSize: 10, color: '#a89e8a' }}>{f.form_id}</div>
                                 </td>
                                 <td style={td}>
-                                  <span style={badge(f.status === 'ACTIVE' ? '#22c55e' : '#94a3b8')}>{f.status || '?'}</span>
+                                  <span style={badge(f.status === 'ACTIVE' ? '#22c55e' : '#a89e8a')}>{f.status || '?'}</span>
                                 </td>
                                 <td style={td}>
                                   <input
@@ -709,7 +709,7 @@ function MappingModal({
         {/* Search */}
         <div style={{ padding: '10px 20px', borderBottom: '1px solid #e5ddc8' }}>
           <div style={{ position: 'relative' }}>
-            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
             <input
               type="text"
               placeholder="Rechercher une propriété CRM…"
@@ -723,7 +723,7 @@ function MappingModal({
         {/* Body — table de mapping */}
         <div style={{ overflowY: 'auto', padding: '12px 20px', flex: 1 }}>
           {questions.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+            <div style={{ padding: 20, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
               Aucune question trouvée pour ce form. Refresh forms d&apos;abord.
             </div>
           ) : (
@@ -744,7 +744,7 @@ function MappingModal({
                       <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f7f4ee' }}>
                         <td style={{ ...td, width: '50%' }}>
                           <div style={{ fontWeight: 600 }}>{q.label || q.key}</div>
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
+                          <div style={{ fontSize: 10, color: '#a89e8a' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
                         </td>
                         <td style={td}>
                           <select

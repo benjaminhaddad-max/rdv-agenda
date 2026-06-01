@@ -31,7 +31,7 @@ interface Owner {
 type FilterDue = 'today' | 'overdue' | 'week' | 'all'
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low:    'bg-slate-100 text-slate-600',
+  low:    'bg-slate-100 text-[#4a6070]',
   normal: 'bg-blue-100 text-blue-700',
   high:   'bg-orange-100 text-orange-700',
   urgent: 'bg-red-100 text-red-700',
@@ -133,16 +133,16 @@ export default function TasksPage() {
   const undated = tasks.filter(t => !t.due_at)
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f7f4ee]">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[#0e1e35] flex items-center gap-2">
               <CheckSquare size={22} className="text-[#2ea3f2]" />
               Mes tâches
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-[#4a6070] mt-0.5">
               {tasks.length} tâche{tasks.length > 1 ? 's' : ''} en cours
             </p>
           </div>
@@ -150,7 +150,7 @@ export default function TasksPage() {
 
         {/* Filters */}
         <div className="max-w-[1400px] mx-auto px-6 pb-4 flex items-center gap-2 flex-wrap">
-          <Filter size={14} className="text-slate-400" />
+          <Filter size={14} className="text-[#a89e8a]" />
           <FilterPill active={filterDue === 'all'}     onClick={() => setFilterDue('all')}     label="Toutes" />
           <FilterPill active={filterDue === 'today'}   onClick={() => setFilterDue('today')}   label="Aujourd'hui" />
           <FilterPill active={filterDue === 'overdue'} onClick={() => setFilterDue('overdue')} label="En retard" />
@@ -176,8 +176,8 @@ export default function TasksPage() {
       {/* Content */}
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-slate-400">
-            <div className="w-6 h-6 border-2 border-slate-200 border-t-[#2ea3f2] rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-20 text-[#a89e8a]">
+            <div className="w-6 h-6 border-2 border-[#e5ddc8] border-t-[#2ea3f2] rounded-full animate-spin" />
           </div>
         ) : tasks.length === 0 ? (
           <EmptyState />
@@ -186,8 +186,8 @@ export default function TasksPage() {
             <Bucket title="En retard"     icon={<AlertCircle size={16} />} color="text-red-600"   tasks={overdue} onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
             <Bucket title="Aujourd'hui"   icon={<Clock size={16} />}       color="text-[#0038f0]" tasks={today}   onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
             <Bucket title="Demain"        icon={<Clock size={16} />}       color="text-amber-600" tasks={tomorrow} onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Plus tard"     icon={<Clock size={16} />}       color="text-slate-500" tasks={later}    onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
-            <Bucket title="Sans échéance" icon={<Clock size={16} />}       color="text-slate-400" tasks={undated}  onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Plus tard"     icon={<Clock size={16} />}       color="text-[#4a6070]" tasks={later}    onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
+            <Bucket title="Sans échéance" icon={<Clock size={16} />}       color="text-[#a89e8a]" tasks={undated}  onComplete={completeTask} onDuplicate={duplicateTask} ownerLabel={ownerLabel} contactLabel={contactLabel} />
           </div>
         )}
       </div>
@@ -200,7 +200,7 @@ function FilterPill({ active, onClick, label }: { active: boolean; onClick: () =
     <button
       onClick={onClick}
       className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-        active ? 'bg-[#2ea3f2] text-white' : 'bg-white border text-slate-600 hover:bg-slate-50'
+        active ? 'bg-[#2ea3f2] text-white' : 'bg-white border text-[#4a6070] hover:bg-[#f7f4ee]'
       }`}
     >
       {label}
@@ -224,7 +224,7 @@ function Bucket({ title, icon, color, tasks, onComplete, onDuplicate, ownerLabel
       <h2 className={`text-sm font-bold uppercase tracking-wide flex items-center gap-2 mb-3 ${color}`}>
         {icon}
         {title}
-        <span className="text-xs text-slate-400 font-normal">({tasks.length})</span>
+        <span className="text-xs text-[#a89e8a] font-normal">({tasks.length})</span>
       </h2>
       <ul className="space-y-2">
         {tasks.map(t => (
@@ -258,34 +258,34 @@ function TaskRow({ task, onComplete, onDuplicate, ownerLabel, contactLabel }: {
             <div className="font-medium text-sm">{task.title}</div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {task.due_at && (
-                <div className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
+                <div className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-[#4a6070]'}`}>
                   {format(new Date(task.due_at), "PP 'à' HH:mm", { locale: fr })}
-                  <span className="text-slate-400 ml-1">
+                  <span className="text-[#a89e8a] ml-1">
                     ({formatDistanceToNow(new Date(task.due_at), { locale: fr, addSuffix: true })})
                   </span>
                 </div>
               )}
               <button
                 onClick={() => onDuplicate(task.id)}
-                className="text-slate-400 hover:text-[#0038f0] p-1"
+                className="text-[#a89e8a] hover:text-[#0038f0] p-1"
                 title="Dupliquer la tâche"
               >
                 <Copy size={13} />
               </button>
             </div>
           </div>
-          {task.description && <p className="text-sm text-slate-600 mt-1 line-clamp-2">{task.description}</p>}
+          {task.description && <p className="text-sm text-[#4a6070] mt-1 line-clamp-2">{task.description}</p>}
           <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
             {task.priority !== 'normal' && (
               <span className={`px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[task.priority] ?? ''}`}>
                 {task.priority === 'urgent' ? 'Urgent' : task.priority === 'high' ? 'Haute' : 'Basse'}
               </span>
             )}
-            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[#4a6070]">
               {TASK_TYPE_LABELS[task.task_type] ?? task.task_type}
             </span>
             {task.owner_id && (
-              <span className="text-slate-500 flex items-center gap-1">
+              <span className="text-[#4a6070] flex items-center gap-1">
                 <User size={11} /> {ownerLabel(task.owner_id)}
               </span>
             )}
@@ -319,7 +319,7 @@ function EmptyState() {
         <CheckSquare size={36} />
       </div>
       <h2 className="text-lg font-semibold text-slate-700">Aucune tâche en cours</h2>
-      <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+      <p className="text-sm text-[#4a6070] mt-1 max-w-md mx-auto">
         Ouvre la fiche d&apos;un contact ou d&apos;une transaction et clique sur <strong>Tâche</strong> pour en créer une.
       </p>
       <Link

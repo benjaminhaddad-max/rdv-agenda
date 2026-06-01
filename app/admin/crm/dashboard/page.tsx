@@ -59,7 +59,7 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   'NRP3':                 '#fb923c',
   'Délai de réflexion':   '#fde047',
   'À replanifier':        '#0ea5e9',
-  'Perdu':                '#94a3b8',
+  'Perdu':                '#a89e8a',
   '—':                    '#e5ddc8',
 }
 

@@ -166,7 +166,7 @@ export default function ProprietesPage() {
             ))}
           </div>
           <div style={{ position: 'relative', flex: 1, minWidth: 240 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
             <input
               type="text"
               value={search}
@@ -197,7 +197,7 @@ export default function ProprietesPage() {
         )}
 
         {loading ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>Chargement des propriétés…</div>
+          <div style={{ padding: 60, textAlign: 'center', color: '#a89e8a' }}>Chargement des propriétés…</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {grouped.map(([groupName, props]) => (
@@ -229,7 +229,7 @@ export default function ProprietesPage() {
                             <td style={{ padding: '8px 12px' }}>
                               <div style={{ fontWeight: 600 }}>{p.label}</div>
                               {p.description && (
-                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{p.description}</div>
+                                <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 2 }}>{p.description}</div>
                               )}
                             </td>
                             <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12, color: '#4a6070' }}>
@@ -244,7 +244,7 @@ export default function ProprietesPage() {
                               {p.options && Array.isArray(p.options) && p.options.length > 0 ? (
                                 <span>
                                   {p.options.slice(0, 4).map(o => o.label).join(', ')}
-                                  {p.options.length > 4 && <span style={{ color: '#94a3b8' }}> +{p.options.length - 4}</span>}
+                                  {p.options.length > 4 && <span style={{ color: '#a89e8a' }}> +{p.options.length - 4}</span>}
                                 </span>
                               ) : p.hubspot_defined ? (
                                 <span style={{ fontSize: 11, color: '#a89e8a' }}>— HubSpot natif —</span>
@@ -261,7 +261,7 @@ export default function ProprietesPage() {
               </div>
             ))}
             {grouped.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12 }}>
+              <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12 }}>
                 Aucune propriété ne correspond à ta recherche.
               </div>
             )}
@@ -403,16 +403,16 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
             <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
               Valeurs utilisées dans la base
               {actualValues && actualValues.length > 0 && (
-                <span style={{ marginLeft: 6, fontWeight: 500, textTransform: 'none', color: '#94a3b8' }}>
+                <span style={{ marginLeft: 6, fontWeight: 500, textTransform: 'none', color: '#a89e8a' }}>
                   · {actualValues.length} distinctes · {totalCount.toLocaleString('fr-FR')} {property.object_type === 'deals' ? 'deals' : 'contacts'}
                   {valuesSource === 'hubspot_raw' && ' · depuis hubspot_raw'}
                 </span>
               )}
             </div>
             {valuesLoading ? (
-              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Chargement…</div>
+              <div style={{ padding: 20, textAlign: 'center', color: '#a89e8a', fontSize: 12 }}>Chargement…</div>
             ) : !actualValues || actualValues.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12, background: '#fafbfc', border: '1px dashed #e5ddc8', borderRadius: 8 }}>
+              <div style={{ padding: 20, textAlign: 'center', color: '#a89e8a', fontSize: 12, background: '#fafbfc', border: '1px dashed #e5ddc8', borderRadius: 8 }}>
                 Aucune valeur trouvée. La propriété est peut-être vide partout, ou la migration v23
                 (RPC d&apos;extraction) n&apos;a pas été appliquée.
               </div>
@@ -436,19 +436,19 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
                               resolved ? (
                                 <>
                                   <div style={{ fontWeight: 500 }}>{resolved}</div>
-                                  <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{v.value}</div>
+                                  <div style={{ fontSize: 10, color: '#a89e8a', fontFamily: 'monospace' }}>{v.value}</div>
                                 </>
                               ) : (
                                 <span style={{ fontFamily: v.value.length < 40 ? 'inherit' : 'monospace' }}>{v.value}</span>
                               )
                             ) : (
-                              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(vide)</span>
+                              <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>(vide)</span>
                             )}
                           </td>
                           <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                             {Number(v.count).toLocaleString('fr-FR')}
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#a89e8a', fontVariantNumeric: 'tabular-nums' }}>
                             {totalCount > 0 ? ((Number(v.count) / totalCount) * 100).toFixed(1) : '0'}%
                           </td>
                         </tr>
@@ -492,7 +492,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#a89e8a', textTransform: 'uppercase', marginBottom: 2 }}>
         {label}
       </div>
       <div style={{ fontSize: 13, color: '#1a2f4b', fontWeight: 500 }}>
@@ -587,7 +587,7 @@ function CreateModal({ objectType, onClose, onCreated }: {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, padding: 24, position: 'relative' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 6 }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#a89e8a', padding: 6 }}>
           <X size={18} />
         </button>
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, marginBottom: 4 }}>
@@ -672,7 +672,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#1a2f4b' }}>{label}</span>
-      {hint && <span style={{ fontSize: 11, color: '#94a3b8' }}>{hint}</span>}
+      {hint && <span style={{ fontSize: 11, color: '#a89e8a' }}>{hint}</span>}
       {children}
     </label>
   )

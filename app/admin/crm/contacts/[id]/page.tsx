@@ -387,7 +387,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // ── KPI values ─────────────────────────────────────────────────────────
   const leadStatus   = allValues.hs_lead_status as string | undefined
   const leadStatusLabel = formatPropValue(leadStatus, propMeta.hs_lead_status)
-  const leadStatusColor = LEAD_STATUS_COLORS[leadStatusLabel] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+  const leadStatusColor = LEAD_STATUS_COLORS[leadStatusLabel] ?? 'bg-slate-100 text-slate-700 border-[#e5ddc8]'
   const ownerName    = ownerLabel(contact.hubspot_owner_id)
   const createdAt    = contact.contact_createdate ? new Date(contact.contact_createdate) : null
   const lastFormDate = contact.recent_conversion_date ? new Date(contact.recent_conversion_date) : null
@@ -528,7 +528,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-700">
+    <div className="min-h-screen bg-[#f7f4ee] text-slate-700">
       {/* ═════ Header banner avec gradient Diploma Santé ═════ */}
       <div className={`${BRAND_GRADIENT} text-white px-6 pt-3 pb-20 relative`}>
         <div className="max-w-[1600px] mx-auto flex items-center gap-2 text-xs text-white/80">
@@ -601,7 +601,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <QuickAction icon={<StickyNote size={14} />} label="Note"   color="bg-amber-50 text-amber-700 border-amber-200"   onClick={() => setQuickAction('note')} />
               <QuickAction icon={<Mail size={14} />}       label="E-mail" color="bg-blue-50 text-blue-700 border-blue-200"     onClick={() => setQuickAction('email')} />
               <QuickAction icon={<Phone size={14} />}      label="Appel"  color="bg-green-50 text-green-700 border-green-200"  onClick={() => setQuickAction('call')} />
-              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-slate-50 text-slate-700 border-slate-200"  onClick={() => setQuickAction('task')} />
+              <QuickAction icon={<CheckSquare size={14} />} label="Tâche" color="bg-[#f7f4ee] text-slate-700 border-[#e5ddc8]"  onClick={() => setQuickAction('task')} />
               <QuickAction icon={<Calendar size={14} />}   label="RDV"    color="bg-purple-50 text-purple-700 border-purple-200" onClick={() => setQuickAction('meeting')} />
             </div>
 
@@ -616,12 +616,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
                 return (
                   <div key={f.name} className="py-2.5 group">
-                    <dt className="text-[11px] uppercase tracking-wide text-slate-400 mb-0.5 flex items-center justify-between">
+                    <dt className="text-[11px] uppercase tracking-wide text-[#a89e8a] mb-0.5 flex items-center justify-between">
                       <span>{f.label}</span>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setHistoryProp({ name: f.name, label: f.label, options: meta?.options }) }}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#0038f0] transition"
+                        className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0038f0] transition"
                         title="Historique des changements"
                       >
                         <History size={11} />
@@ -657,7 +657,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               })}
             </dl>
 
-            <div className="px-4 py-3 border-t bg-slate-50">
+            <div className="px-4 py-3 border-t bg-[#f7f4ee]">
               <button
                 onClick={() => setShowAllProps(true)}
                 className="text-xs text-[#0038f0] hover:underline font-medium"
@@ -682,13 +682,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="p-3 border-b">
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
                 <input
                   type="text"
                   value={timelineSearch}
                   onChange={e => setTimelineSearch(e.target.value)}
                   placeholder="Rechercher dans la timeline…"
-                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#2ea3f2]/20"
+                  className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-[#f7f4ee] focus:bg-white focus:ring-2 focus:ring-[#2ea3f2]/20"
                 />
               </div>
             </div>
@@ -700,7 +700,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   <div className="absolute left-3.5 top-3 bottom-3 w-px bg-slate-200" />
                   {Object.entries(grouped).map(([month, items]) => (
                     <div key={month} className="mb-6">
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
+                      <div className="text-[11px] font-bold uppercase tracking-widest text-[#a89e8a] mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
                       <ul className="space-y-3">
                         {items.map(t => (
                           <li key={t.id} className="relative">
@@ -715,19 +715,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}
                                   {t.type === 'sms' && <SMSStatusBadges status={t.sendStatus} totalClicks={t.sms?.total_clicks} />}
                                 </div>
-                                <div className="text-xs text-slate-400 whitespace-nowrap">
+                                <div className="text-xs text-[#a89e8a] whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
                                 </div>
                               </div>
-                              {t.subtitle && <div className="text-xs text-slate-500 mt-1">{t.subtitle}</div>}
+                              {t.subtitle && <div className="text-xs text-[#4a6070] mt-1">{t.subtitle}</div>}
                               {t.ownerId && (
-                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                <div className="text-xs text-[#4a6070] mt-1 flex items-center gap-1">
                                   <User size={11} /> {ownerLabel(t.ownerId)}
                                 </div>
                               )}
                               {t.body && (
                                 <div
-                                  className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-slate-50 p-2 rounded"
+                                  className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-[#f7f4ee] p-2 rounded"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
                               )}
@@ -810,7 +810,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div className="font-medium">
                       {a.start_at ? format(new Date(a.start_at as string), 'PPp', { locale: fr }) : '—'}
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5">{a.status as string}</div>
+                    <div className="text-xs text-[#4a6070] mt-0.5">{a.status as string}</div>
                   </li>
                 ))}
               </ul>
@@ -823,9 +823,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             ) : (
               <ul className="space-y-2">
                 {formSubmissions.slice(0, 10).map(f => (
-                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-slate-50">
+                  <li key={f.id} className="border rounded-lg p-3 text-sm bg-[#f7f4ee]">
                     <div className="font-medium">{f.form_title || f.form_id}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className="text-xs text-[#4a6070] mt-0.5">
                       {format(new Date(f.submitted_at), 'PP', { locale: fr })}
                     </div>
                   </li>
@@ -859,9 +859,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               if (s === 'payee' && finalisationStep > 0) return { label: 'Finalisation – lien envoyé', color: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' }
               if (s === 'payee')      return { label: 'Pré-inscrit', color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' }
               if (s === 'en_attente') return { label: 'En attente paiement', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' }
-              if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+              if (s === 'brouillon')  return { label: 'Brouillon', color: 'bg-slate-100 text-[#4a6070]', dot: 'bg-slate-400' }
               if (s === 'annulee')    return { label: 'Inscription annulée', color: 'bg-red-100 text-red-800', dot: 'bg-red-500' }
-              return { label: 'En attente données…', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-300' }
+              return { label: 'En attente données…', color: 'bg-slate-100 text-[#4a6070]', dot: 'bg-slate-300' }
             })()
 
             return (
@@ -882,35 +882,35 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   {/* Formation */}
                   {pi.formation && (
                     <div className="space-y-0.5">
-                      <div className="text-slate-500">Formation</div>
-                      <div className="font-medium text-slate-800">{pi.formation}</div>
+                      <div className="text-[#4a6070]">Formation</div>
+                      <div className="font-medium text-[#0e1e35]">{pi.formation}</div>
                     </div>
                   )}
 
                   {/* Bloc montants */}
                   {(pi.montant != null || acompteEuros > 0) && (
-                    <div className="bg-slate-50 rounded-lg p-2.5 space-y-1.5">
+                    <div className="bg-[#f7f4ee] rounded-lg p-2.5 space-y-1.5">
                       {pi.montant != null && (
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Total formule</span>
+                          <span className="text-[#4a6070]">Total formule</span>
                           <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {acompteEuros > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Acompte payé</span>
+                          <span className="text-[#4a6070]">Acompte payé</span>
                           <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
                         </div>
                       )}
                       {paidAt && (
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Date paiement</span>
+                          <span className="text-[#4a6070]">Date paiement</span>
                           <span>{format(new Date(paidAt), 'PP', { locale: fr })}</span>
                         </div>
                       )}
                       {ext.payment_method && (
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Méthode</span>
+                          <span className="text-[#4a6070]">Méthode</span>
                           <span className="capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
                         </div>
                       )}
@@ -920,13 +920,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   {/* Notes */}
                   {pi.notes && (
                     <div className="space-y-1">
-                      <div className="text-slate-500">Notes</div>
+                      <div className="text-[#4a6070]">Notes</div>
                       <div className="whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
                     </div>
                   )}
 
                   {/* Date detection (footer discret) */}
-                  <div className="text-slate-400 pt-1 border-t flex items-center justify-between">
+                  <div className="text-[#a89e8a] pt-1 border-t flex items-center justify-between">
                     <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
                     {ext.inscription_id && (
                       <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
@@ -1007,8 +1007,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="flex items-center gap-3 text-slate-500">
-        <div className="w-6 h-6 border-2 border-slate-200 border-t-[#2ea3f2] rounded-full animate-spin" />
+      <div className="flex items-center gap-3 text-[#4a6070]">
+        <div className="w-6 h-6 border-2 border-[#e5ddc8] border-t-[#2ea3f2] rounded-full animate-spin" />
         <span>Chargement…</span>
       </div>
     </div>
@@ -1024,15 +1024,15 @@ function KpiCard({ icon, label, value, hint, color, pillColor }: {
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a89e8a]">{label}</div>
         {pillColor ? (
           <div className="mt-1">
             <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full border ${pillColor}`}>{value}</span>
           </div>
         ) : (
-          <div className="text-base font-bold text-slate-800 truncate mt-0.5">{value}</div>
+          <div className="text-base font-bold text-[#0e1e35] truncate mt-0.5">{value}</div>
         )}
-        {hint && <div className="text-[11px] text-slate-500 truncate mt-0.5">{hint}</div>}
+        {hint && <div className="text-[11px] text-[#4a6070] truncate mt-0.5">{hint}</div>}
       </div>
     </div>
   )
@@ -1091,7 +1091,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
       >✓</button>
       <button
         onClick={onCancel}
-        className="px-2.5 border rounded text-xs hover:bg-slate-50"
+        className="px-2.5 border rounded text-xs hover:bg-[#f7f4ee]"
       >✕</button>
     </div>
   )
@@ -1102,10 +1102,10 @@ function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; on
     <button
       onClick={onClick}
       className={`px-3.5 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap ${
-        active ? 'border-[#2ea3f2] text-[#0038f0] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
+        active ? 'border-[#2ea3f2] text-[#0038f0] font-semibold' : 'border-transparent text-[#4a6070] hover:text-slate-700'
       }`}
     >
-      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#2ea3f2]' : 'text-slate-400'}`}>({count})</span>}
+      {label} {count > 0 && <span className={`text-xs ${active ? 'text-[#2ea3f2]' : 'text-[#a89e8a]'}`}>({count})</span>}
     </button>
   )
 }
@@ -1150,7 +1150,7 @@ function SMSStatusBadges({ status, totalClicks }: { status?: string; totalClicks
     sent:    { label: 'Envoyé',    bg: 'bg-green-100 text-green-700 border border-green-200' },
     failed:  { label: 'Échec',     bg: 'bg-red-100 text-red-700 border border-red-200' },
     skipped: { label: 'Ignoré',    bg: 'bg-amber-100 text-amber-700 border border-amber-200' },
-    pending: { label: 'En attente', bg: 'bg-slate-100 text-slate-600 border border-slate-200' },
+    pending: { label: 'En attente', bg: 'bg-slate-100 text-[#4a6070] border border-[#e5ddc8]' },
   }
   if (status && statusMap[status]) items.push(statusMap[status])
   if ((totalClicks ?? 0) > 0) {
@@ -1181,7 +1181,7 @@ function SMSLinksSection({ links }: { links: SMSLink[] }) {
         const isExpanded = expandedToken === key
         const hasClicks = (link.click_count ?? 0) > 0
         return (
-          <div key={key} className="text-xs border rounded-md bg-slate-50 px-2 py-1.5">
+          <div key={key} className="text-xs border rounded-md bg-[#f7f4ee] px-2 py-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-violet-700 font-semibold bg-white px-1.5 py-0.5 rounded text-[10px]">
                 {link.placeholder}
@@ -1195,8 +1195,8 @@ function SMSLinksSection({ links }: { links: SMSLink[] }) {
               >
                 {link.original_url}
               </a>
-              {link.label && <span className="text-slate-400 italic">({link.label})</span>}
-              <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold ${hasClicks ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+              {link.label && <span className="text-[#a89e8a] italic">({link.label})</span>}
+              <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold ${hasClicks ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-[#4a6070]'}`}>
                 {link.click_count ?? 0} clic{(link.click_count ?? 0) > 1 ? 's' : ''}
               </span>
               {hasClicks && link.clicks.length > 0 && (
@@ -1210,7 +1210,7 @@ function SMSLinksSection({ links }: { links: SMSLink[] }) {
               )}
             </div>
             {hasClicks && link.last_clicked_at && (
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-[#4a6070] mt-0.5">
                 Dernier clic : {(() => {
                   try { return formatDistanceToNow(new Date(link.last_clicked_at), { addSuffix: true, locale: fr }) }
                   catch { return link.last_clicked_at }
@@ -1220,14 +1220,14 @@ function SMSLinksSection({ links }: { links: SMSLink[] }) {
             {isExpanded && link.clicks.length > 0 && (
               <ul className="mt-2 space-y-1 border-t pt-2">
                 {link.clicks.map((c, i) => (
-                  <li key={i} className="text-[10px] text-slate-600 flex items-center gap-2">
-                    <span className="text-slate-400">•</span>
+                  <li key={i} className="text-[10px] text-[#4a6070] flex items-center gap-2">
+                    <span className="text-[#a89e8a]">•</span>
                     <span className="font-mono">
                       {format(new Date(c.clicked_at), "d MMM 'à' HH:mm:ss", { locale: fr })}
                     </span>
-                    {c.ip && <span className="text-slate-400">IP {c.ip}</span>}
+                    {c.ip && <span className="text-[#a89e8a]">IP {c.ip}</span>}
                     {c.user_agent && (
-                      <span className="text-slate-400 truncate max-w-[200px]" title={c.user_agent}>
+                      <span className="text-[#a89e8a] truncate max-w-[200px]" title={c.user_agent}>
                         {c.user_agent.split(/[/\s]/)[0]}
                       </span>
                     )}
@@ -1250,7 +1250,7 @@ function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
         const key = link.url + idx
         const isExpanded = expandedKey === key
         return (
-          <div key={key} className="text-xs border rounded-md bg-slate-50 px-2 py-1.5">
+          <div key={key} className="text-xs border rounded-md bg-[#f7f4ee] px-2 py-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <a
                 href={link.url}
@@ -1275,7 +1275,7 @@ function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
               )}
             </div>
             {link.clicks.length > 0 && link.clicks[0]?.at && (
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-[#4a6070] mt-0.5">
                 Dernier clic : {(() => {
                   try { return formatDistanceToNow(new Date(link.clicks[0].at), { addSuffix: true, locale: fr }) }
                   catch { return link.clicks[0].at }
@@ -1285,14 +1285,14 @@ function EmailLinksSection({ links }: { links: EmailCampaignLink[] }) {
             {isExpanded && link.clicks.length > 0 && (
               <ul className="mt-2 space-y-1 border-t pt-2">
                 {link.clicks.map((c, i) => (
-                  <li key={i} className="text-[10px] text-slate-600 flex items-center gap-2">
-                    <span className="text-slate-400">•</span>
+                  <li key={i} className="text-[10px] text-[#4a6070] flex items-center gap-2">
+                    <span className="text-[#a89e8a]">•</span>
                     <span className="font-mono">
                       {format(new Date(c.at), "d MMM 'à' HH:mm:ss", { locale: fr })}
                     </span>
-                    {c.ip && <span className="text-slate-400">IP {c.ip}</span>}
+                    {c.ip && <span className="text-[#a89e8a]">IP {c.ip}</span>}
                     {c.ua && (
-                      <span className="text-slate-400 truncate max-w-[200px]" title={c.ua}>
+                      <span className="text-[#a89e8a] truncate max-w-[200px]" title={c.ua}>
                         {c.ua.split(/[/\s]/)[0]}
                       </span>
                     )}
@@ -1332,7 +1332,7 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
   if (sendStatus === 'FAILED') {
     items.push({ label: 'Échec', bg: 'bg-red-100 text-red-700' })
   } else if (sendStatus === 'SENT') {
-    items.push({ label: 'Envoyé', bg: 'bg-slate-100 text-slate-600' })
+    items.push({ label: 'Envoyé', bg: 'bg-slate-100 text-[#4a6070]' })
   }
   if (stats) {
     if (stats.delivered > 0) items.push({ label: 'Délivré', bg: 'bg-green-100 text-green-700' })
@@ -1400,19 +1400,19 @@ function RightSection({ icon, title, count, accent, children }: {
     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
       <button
         onClick={toggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#f7f4ee]"
       >
         <div className="flex items-center gap-2">
           <div className={`w-7 h-7 rounded-md ${accentColor} flex items-center justify-center`}>
             {icon}
           </div>
           <span className="text-sm font-semibold">{title}</span>
-          <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
+          <span className="text-xs text-[#4a6070] bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
         <div className="flex gap-1 items-center">
-          <span className="text-slate-400 hover:text-slate-600 p-1"><Plus size={14} /></span>
-          <span className="text-slate-400 hover:text-slate-600 p-1"><Settings size={13} /></span>
-          {open ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
+          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Settings size={13} /></span>
+          {open ? <ChevronDown size={14} className="text-[#a89e8a]" /> : <ChevronRight size={14} className="text-[#a89e8a]" />}
         </div>
       </button>
       {open && <div className="p-3 pt-0">{children}</div>}
@@ -1442,24 +1442,24 @@ function DealCard({ deal, stageLabel, pipelineLabel, ownerLabel }: {
           <Briefcase size={14} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-slate-800 truncate">
+          <div className="text-sm font-semibold text-[#0e1e35] truncate">
             {deal.dealname || '(sans nom)'}
           </div>
           {deal.formation && (
-            <div className="text-xs text-slate-500 mt-0.5">{deal.formation as string}</div>
+            <div className="text-xs text-[#4a6070] mt-0.5">{deal.formation as string}</div>
           )}
         </div>
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between text-[11px] mb-1">
           <span className="font-medium text-[#0038f0]">{stageLabel}</span>
-          <span className="text-slate-400">{pipelineLabel}</span>
+          <span className="text-[#a89e8a]">{pipelineLabel}</span>
         </div>
         <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full bg-gradient-to-r from-[#2ea3f2] to-[#0038f0]" style={{ width: `${progress}%` }} />
         </div>
       </div>
-      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
+      <div className="flex items-center justify-between mt-2 text-[11px] text-[#4a6070]">
         <span className="flex items-center gap-1"><User size={10} /> {ownerLabel}</span>
         <span>{deal.createdate ? format(new Date(deal.createdate as string), 'PP', { locale: fr }) : ''}</span>
       </div>
@@ -1488,7 +1488,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
     onUpdated()
   }
   const priorityColor: Record<string, string> = {
-    low:    'bg-slate-100 text-slate-600',
+    low:    'bg-slate-100 text-[#4a6070]',
     normal: 'bg-blue-100 text-blue-700',
     high:   'bg-orange-100 text-orange-700',
     urgent: 'bg-red-100 text-red-700',
@@ -1503,7 +1503,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
         <Plus size={12} /> Créer une tâche
       </button>
       {tasks.length === 0 ? (
-        <div className="text-xs text-slate-400 text-center py-3 px-2 border border-dashed rounded-lg">
+        <div className="text-xs text-[#a89e8a] text-center py-3 px-2 border border-dashed rounded-lg">
           Aucune tâche en cours.
         </div>
       ) : (
@@ -1523,7 +1523,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium leading-tight">{t.title}</div>
-                    {t.description && <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{t.description}</div>}
+                    {t.description && <div className="text-xs text-[#4a6070] mt-0.5 line-clamp-2">{t.description}</div>}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {t.priority !== 'normal' && (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityColor[t.priority] ?? ''}`}>
@@ -1531,12 +1531,12 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
                         </span>
                       )}
                       {t.due_at && (
-                        <span className={`text-[10px] ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                        <span className={`text-[10px] ${isOverdue ? 'text-red-600 font-medium' : 'text-[#4a6070]'}`}>
                           {format(new Date(t.due_at), "PP 'à' HH:mm", { locale: fr })}
                         </span>
                       )}
                       {t.owner_id && (
-                        <span className="text-[10px] text-slate-500 flex items-center gap-0.5">
+                        <span className="text-[10px] text-[#4a6070] flex items-center gap-0.5">
                           <User size={9} /> {ownerLabel(t.owner_id)}
                         </span>
                       )}
@@ -1555,18 +1555,18 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
 function EmptyTimeline() {
   return (
     <div className="text-center py-12 px-6">
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-3">
+      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-[#a89e8a] mb-3">
         <TrendingUp size={28} />
       </div>
-      <p className="text-sm font-medium text-slate-600">Pas encore d&apos;activité</p>
-      <p className="text-xs text-slate-400 mt-1">Les notes, appels, emails, formulaires apparaîtront ici.</p>
+      <p className="text-sm font-medium text-[#4a6070]">Pas encore d&apos;activité</p>
+      <p className="text-xs text-[#a89e8a] mt-1">Les notes, appels, emails, formulaires apparaîtront ici.</p>
     </div>
   )
 }
 
 function EmptyRight({ text }: { text: string }) {
   return (
-    <div className="text-xs text-slate-400 text-center py-4 px-2 border border-dashed rounded-lg">{text}</div>
+    <div className="text-xs text-[#a89e8a] text-center py-4 px-2 border border-dashed rounded-lg">{text}</div>
   )
 }
 
@@ -1597,13 +1597,13 @@ function PropertiesModal({
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
             <h2 className="text-lg font-bold">Toutes les propriétés</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{properties.length} propriétés synchronisées depuis HubSpot</p>
+            <p className="text-xs text-[#4a6070] mt-0.5">{properties.length} propriétés synchronisées depuis HubSpot</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+          <button onClick={onClose} className="text-[#a89e8a] hover:text-slate-700 text-xl">✕</button>
         </div>
         <div className="px-5 py-3 border-b">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
             <input
               type="text"
               value={propSearch}
@@ -1624,9 +1624,9 @@ function PropertiesModal({
             <div key={group} className="mb-3 border rounded-lg overflow-hidden">
               <button
                 onClick={() => onToggle(group)}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-slate-50 hover:bg-slate-100 text-sm font-semibold"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f7f4ee] hover:bg-slate-100 text-sm font-semibold"
               >
-                <span>{formatGroup(group)} <span className="text-xs text-slate-500 ml-1">({props.length})</span></span>
+                <span>{formatGroup(group)} <span className="text-xs text-[#4a6070] ml-1">({props.length})</span></span>
                 {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               </button>
               {!collapsed[group] && (
@@ -1636,13 +1636,13 @@ function PropertiesModal({
                     const isEditing = editing === p.name
                     return (
                       <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#2ea3f2]/10/30 group">
-                        <dt className="col-span-2 text-xs text-slate-500 flex items-center justify-between gap-1" title={p.name}>
+                        <dt className="col-span-2 text-xs text-[#4a6070] flex items-center justify-between gap-1" title={p.name}>
                           <span className="truncate">{p.label || p.name}</span>
                           {onShowHistory && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onShowHistory(p) }}
-                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-[#0038f0] flex-shrink-0"
+                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0038f0] flex-shrink-0"
                               title="Historique"
                             >
                               <History size={11} />

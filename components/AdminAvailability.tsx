@@ -362,7 +362,7 @@ function CloserAvailabilityCard({
             {summary}
           </div>
         </div>
-        {expanded ? <ChevronUp size={18} style={{ color: '#94a3b8' }} /> : <ChevronDown size={18} style={{ color: '#94a3b8' }} />}
+        {expanded ? <ChevronUp size={18} style={{ color: '#a89e8a' }} /> : <ChevronDown size={18} style={{ color: '#a89e8a' }} />}
       </div>
 
       {expanded && (
@@ -420,7 +420,7 @@ function CloserAvailabilityCard({
                       >
                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
-                      <span style={{ color: '#94a3b8', fontSize: 12 }}>→</span>
+                      <span style={{ color: '#a89e8a', fontSize: 12 }}>→</span>
                       <select
                         value={rule.end_time}
                         onChange={e => updateRule(day.value, 'end_time', e.target.value)}
@@ -430,7 +430,7 @@ function CloserAvailabilityCard({
                       </select>
                     </>
                   ) : (
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Indisponible</span>
+                    <span style={{ fontSize: 12, color: '#a89e8a' }}>Indisponible</span>
                   )}
                 </div>
               )
@@ -487,7 +487,7 @@ function CloserAvailabilityCard({
                   }}>
                     <Ban size={11} />
                     {format(new Date(b.blocked_date), 'd MMM', { locale: fr })}
-                    {b.reason && <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>· {b.reason}</span>}
+                    {b.reason && <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>· {b.reason}</span>}
                     <button onClick={() => removeBlockedDate(b.id)} style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 0, display: 'flex' }}>
                       <X size={11} />
                     </button>
@@ -495,11 +495,11 @@ function CloserAvailabilityCard({
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>Aucun jour bloqué.</div>
+              <div style={{ fontSize: 12, color: '#a89e8a', fontStyle: 'italic' }}>Aucun jour bloqué.</div>
             )}
           </div>
 
-          {!loaded && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>Chargement…</div>}
+          {!loaded && <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 10 }}>Chargement…</div>}
         </div>
       )}
     </div>

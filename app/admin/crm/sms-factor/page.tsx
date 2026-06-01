@@ -128,7 +128,7 @@ export default function SMSFactorPage() {
           </div>
         ) : campaigns.length === 0 ? (
           <div style={card({ padding: 40, textAlign: 'center' })}>
-            <MessageSquare size={36} style={{ color: '#94a3b8', margin: '0 auto 10px' }} />
+            <MessageSquare size={36} style={{ color: '#a89e8a', margin: '0 auto 10px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune campagne SMS</div>
             <div style={{ fontSize: 13, color: '#4a6070' }}>
               Clique sur « Nouvelle campagne SMS » pour démarrer.
@@ -231,7 +231,7 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
                 <LinkIcon size={10} /> {campaign.tracked_links.length} lien{campaign.tracked_links.length > 1 ? 's' : ''} tracké{campaign.tracked_links.length > 1 ? 's' : ''}
               </span>
             )}
-            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+            <span style={{ fontSize: 10, color: '#a89e8a' }}>
               {new Date(campaign.created_at).toLocaleString('fr-FR')}
             </span>
           </div>
@@ -254,7 +254,7 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
                   <span style={{ color: '#7c3aed', fontWeight: 600 }} title={`${campaign.clicked_recipients ?? 0} destinataire(s) ont cliqué`}>
                     <LinkIcon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {campaign.clicks_total ?? 0} clic{(campaign.clicks_total ?? 0) > 1 ? 's' : ''}
                     {campaign.clicked_recipients !== undefined && campaign.clicked_recipients > 0 && (
-                      <span style={{ color: '#94a3b8', fontWeight: 400 }}> ({campaign.clicked_recipients} destinataire{campaign.clicked_recipients > 1 ? 's' : ''})</span>
+                      <span style={{ color: '#a89e8a', fontWeight: 400 }}> ({campaign.clicked_recipients} destinataire{campaign.clicked_recipients > 1 ? 's' : ''})</span>
                     )}
                   </span>
                 )}
@@ -302,10 +302,10 @@ function StatusBadge({ status }: { status: string }) {
     sending:   { color: '#2ea3f2', label: 'En cours…' },
     sent:      { color: '#22c55e', label: 'Envoyée' },
     failed:    { color: '#dc2626', label: 'Échec' },
-    paused:    { color: '#94a3b8', label: 'Pause' },
-    archived:  { color: '#94a3b8', label: 'Archivée' },
+    paused:    { color: '#a89e8a', label: 'Pause' },
+    archived:  { color: '#a89e8a', label: 'Archivée' },
   }
-  const m = map[status] || { color: '#94a3b8', label: status }
+  const m = map[status] || { color: '#a89e8a', label: status }
   return (
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: m.color + '22', color: m.color, fontSize: 10, fontWeight: 600 }}>
       {m.label}
@@ -626,7 +626,7 @@ function NewCampaignModal({ onClose, onCreated }: {
               <select value={sender} onChange={e => setSender(e.target.value)} style={input}>
                 {SMS_SENDERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
                 Pré-validés chez SMS Factor.
               </div>
             </Field>
@@ -644,7 +644,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                   label="Marketing"
                 />
               </div>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
                 {campaignType === 'marketing'
                   ? 'Envoi 8h–20h L–S uniquement. Mention STOP ajoutée auto par SMS Factor.'
                   : 'Pas de fenêtre horaire ni mention STOP.'}
@@ -809,7 +809,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                       <span style={{ color: '#4a6070', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.url}>
                         {l.url}
                       </span>
-                      {l.label && <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>({l.label})</span>}
+                      {l.label && <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>({l.label})</span>}
                       <span style={{
                         fontSize: 10,
                         fontWeight: 600,
@@ -877,7 +877,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                   min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
                   style={input}
                 />
-                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
                   La campagne sera envoyée automatiquement par le cron (vérifie toutes les minutes).
                   {campaignType === 'marketing' && <> Marketing : envoi limité à 8h–20h L–S.</>}
                 </div>
@@ -912,7 +912,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                     ))}
                   </select>
                 </Field>
-                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: '#a89e8a', marginTop: 4 }}>
                   Les filtres sont préchargés et éditables ci-dessous.
                 </div>
               </div>
@@ -959,7 +959,7 @@ function NewCampaignModal({ onClose, onCreated }: {
                 <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
                   <strong style={{ color: '#22c55e' }}>{phonesParsed.valid.length}</strong> numéros valides
                   {phonesParsed.invalid > 0 && <> · <strong style={{ color: '#dc2626' }}>{phonesParsed.invalid}</strong> invalides ignorés</>}
-                  {phonesParsed.duplicates > 0 && <> · <strong style={{ color: '#94a3b8' }}>{phonesParsed.duplicates}</strong> doublons</>}
+                  {phonesParsed.duplicates > 0 && <> · <strong style={{ color: '#a89e8a' }}>{phonesParsed.duplicates}</strong> doublons</>}
                 </div>
               </div>
             )}

@@ -170,17 +170,17 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f7f4ee]">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="bg-white border-b border-[#e5ddc8]">
         <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
               <Users size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-800">Utilisateurs</h1>
-              <p className="text-xs text-slate-500">{users.length} {users.length > 1 ? 'comptes' : 'compte'} ayant accès au CRM</p>
+              <h1 className="text-lg font-bold text-[#0e1e35]">Utilisateurs</h1>
+              <p className="text-xs text-[#4a6070]">{users.length} {users.length > 1 ? 'comptes' : 'compte'} ayant accès au CRM</p>
             </div>
           </div>
           <button
@@ -199,10 +199,10 @@ export default function UsersPage() {
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-[#e5ddc8] rounded-xl overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr className="text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-[#f7f4ee] border-b border-[#e5ddc8]">
+              <tr className="text-xs uppercase tracking-wide text-[#4a6070]">
                 <th className="text-left px-4 py-3 font-semibold">Nom</th>
                 <th className="text-left px-4 py-3 font-semibold">Email</th>
                 <th className="text-left px-4 py-3 font-semibold">Rôle</th>
@@ -215,13 +215,13 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-slate-400">Chargement…</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#a89e8a]">Chargement…</td></tr>
               )}
               {!loading && users.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-slate-400">Aucun utilisateur.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#a89e8a]">Aucun utilisateur.</td></tr>
               )}
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50">
+                <tr key={u.id} className="hover:bg-[#f7f4ee]">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div
@@ -230,10 +230,10 @@ export default function UsersPage() {
                       >
                         {u.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
                       </div>
-                      <div className="font-semibold text-slate-800">{u.name}</div>
+                      <div className="font-semibold text-[#0e1e35]">{u.name}</div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                  <td className="px-4 py-3 text-[#4a6070]">{u.email}</td>
                   <td className="px-4 py-3">
                     <select
                       value={u.role}
@@ -245,7 +245,7 @@ export default function UsersPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 font-mono text-xs">{u.hubspot_owner_id || '—'}</td>
+                  <td className="px-4 py-3 text-[#4a6070] font-mono text-xs">{u.hubspot_owner_id || '—'}</td>
                   <td className="px-4 py-3">
                     <select
                       value={u.crm_brand ?? ''}
@@ -269,7 +269,7 @@ export default function UsersPage() {
                         Défaut
                       </label>
                     ) : (
-                      <span className="text-slate-400 text-xs">—</span>
+                      <span className="text-[#a89e8a] text-xs">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -306,9 +306,9 @@ export default function UsersPage() {
           <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-2 mb-2">
               <Mail size={16} className="text-[#C9A84C]" />
-              <h2 className="text-base font-bold text-slate-800">Ajouter un utilisateur</h2>
+              <h2 className="text-base font-bold text-[#0e1e35]">Ajouter un utilisateur</h2>
             </div>
-            <p className="text-xs text-slate-500 mb-5">
+            <p className="text-xs text-[#4a6070] mb-5">
               Un email d&apos;invitation sera envoyé pour qu&apos;il choisisse son mot de passe.
             </p>
 
@@ -318,7 +318,7 @@ export default function UsersPage() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Jean Dupont"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Email">
@@ -327,7 +327,7 @@ export default function UsersPage() {
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="jean@diploma-sante.fr"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Rôle">
@@ -339,7 +339,7 @@ export default function UsersPage() {
                     is_default_brand_telepro:
                       (e.target.value as User['role']) === 'telepro' ? f.is_default_brand_telepro : false,
                   }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 >
                   {ROLES.map(r => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -351,14 +351,14 @@ export default function UsersPage() {
                   value={form.hubspot_owner_id}
                   onChange={e => setForm(f => ({ ...f, hubspot_owner_id: e.target.value }))}
                   placeholder="844126942"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 />
               </Field>
               <Field label="Marque CRM (optionnel)">
                 <select
                   value={form.crm_brand}
                   onChange={e => setForm(f => ({ ...f, crm_brand: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
                 >
                   {BRAND_OPTIONS.map(b => (
                     <option key={b.id} value={b.id}>{b.label}</option>
@@ -388,7 +388,7 @@ export default function UsersPage() {
               <button
                 onClick={() => setShowCreate(false)}
                 disabled={creating}
-                className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 text-sm text-[#4a6070] border border-slate-300 rounded-lg hover:bg-[#f7f4ee] transition-colors"
               >
                 Annuler
               </button>
@@ -410,7 +410,7 @@ export default function UsersPage() {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
+      <div className="text-xs font-semibold text-[#4a6070] uppercase tracking-wide mb-1">
         {label}
       </div>
       {children}

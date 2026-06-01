@@ -138,7 +138,7 @@ export default function OrigineMatchesManager() {
       )}
 
       {loading ? (
-        <div style={{ padding: '48px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+        <div style={{ padding: '48px 0', textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
           Analyse en cours… (peut prendre 10-30s sur 345 contacts)
         </div>
       ) : !data || data.matches.length === 0 ? (
@@ -158,7 +158,7 @@ export default function OrigineMatchesManager() {
                 {/* Contact sans origine */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
+                    <div style={{ fontSize: 11, color: '#a89e8a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
                       Sans origine
                     </div>
                     <div style={{ fontWeight: 700, color: '#12314d', fontSize: 14 }}>{fullName(m.contact)}</div>
