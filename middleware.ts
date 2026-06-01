@@ -5,10 +5,16 @@ import { createClient } from '@supabase/supabase-js'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Endpoint d'import Nomad: toujours public (auth par x-nomad-key côté route).
+  // Bypass placé tout en haut pour éviter toute interférence des autres gardes.
+  if (pathname.includes('/api/crm/contacts/nomad-import')) {
+    return NextResponse.next()
+  }
+
   // Skip static files & Next.js internals
   if (
     pathname.startsWith('/_next/') ||
-    /\.(ico|svg|png|jpg|jpeg|css|js|woff2?)$/.test(pathname)
+    /\.(ico|svg|png|jpg|jpeg|gif|webp|css|js|woff2?|ttf|eot|otf|pdf|txt|xml)$/.test(pathname)
   ) {
     return NextResponse.next()
   }
@@ -20,12 +26,17 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/book/') ||
     pathname.startsWith('/confirm/') ||
     pathname.startsWith('/reschedule/') ||
+    pathname.startsWith('/reset-password') ||
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
     pathname.startsWith('/r/')
-  const isPublicApi = pathname.startsWith('/api/') &&
-    !pathname.startsWith('/api/admin/') &&
-    !pathname.startsWith('/api/crm/')
+  const isNomadImportApi = pathname.startsWith('/api/crm/contacts/nomad-import')
+  const isPublicApi = (
+    isNomadImportApi ||
+    (pathname.startsWith('/api/') &&
+      !pathname.startsWith('/api/admin/') &&
+      !pathname.startsWith('/api/crm/'))
+  )
   if (isPublicPath || isPublicApi) {
     return NextResponse.next()
   }
@@ -69,6 +80,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/api/crm/')) {
+    if (pathname.startsWith('/api/crm/contacts/nomad-import')) {
+      return response
+    }
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
