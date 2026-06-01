@@ -1313,7 +1313,7 @@ export default function CRMContactsTable({
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
             <ContactAvatar name={name} size={30} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {name}
                 </span>
@@ -1321,22 +1321,46 @@ export default function CRMContactsTable({
                   <button
                     title="Aperçu"
                     onClick={e => { e.stopPropagation(); onOpenDrawer(contact) }}
-                    style={{ background: 'none', border: 'none', padding: '1px 3px', cursor: 'pointer', color: '#a0aec0', display: 'flex', alignItems: 'center', borderRadius: 4, flexShrink: 0 }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#4cabdb' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0aec0' }}
+                    style={{
+                      background: 'rgba(76,171,219,0.10)',
+                      border: '1px solid rgba(76,171,219,0.28)',
+                      borderRadius: 6,
+                      padding: '1px 7px',
+                      cursor: 'pointer',
+                      color: '#2d7fa6',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      flexShrink: 0,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      fontFamily: 'inherit',
+                    }}
                   >
-                    <Eye size={12} />
+                    <Eye size={10} /> Aperçu
                   </button>
                 )}
                 <a
                   href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                   title="Ouvrir la fiche contact"
                   onClick={e => e.stopPropagation()}
-                  style={{ color: '#a0aec0', display: 'flex', alignItems: 'center', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#f97316' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a0aec0' }}
+                  style={{
+                    color: '#12314d',
+                    background: 'rgba(18,49,77,0.06)',
+                    border: '1px solid rgba(18,49,77,0.20)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '1px 7px',
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    textDecoration: 'none',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                  }}
                 >
-                  <ExternalLink size={11} />
+                  <ExternalLink size={10} /> Ouvrir
                 </a>
               </div>
               {contact.email && (
