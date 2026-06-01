@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Loader2, User, Briefcase } from 'lucide-react'
+import { Search, Loader2, User, Briefcase, Building2, SlidersHorizontal } from 'lucide-react'
 
 type ContactHit = {
   hubspot_contact_id: string
@@ -21,6 +21,8 @@ type DealHit = {
   } | null
 }
 
+type SearchTab = 'all' | 'contacts' | 'companies' | 'deals'
+
 function contactLabel(c: ContactHit): string {
   const name = [c.firstname, c.lastname].filter(Boolean).join(' ').trim()
   return name || c.email || c.hubspot_contact_id
@@ -28,6 +30,12 @@ function contactLabel(c: ContactHit): string {
 
 function dealLabel(d: DealHit): string {
   return d.dealname || d.formation || d.hubspot_deal_id
+}
+
+function initialsFromText(v: string): string {
+  const parts = v.split(' ').map((p) => p.trim()).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'
 }
 
 export default function CRMGlobalSearchBar() {
@@ -42,6 +50,7 @@ export default function CRMGlobalSearchBar() {
   const [loading, setLoading] = useState(false)
   const [contacts, setContacts] = useState<ContactHit[]>([])
   const [deals, setDeals] = useState<DealHit[]>([])
+  const [activeTab, setActiveTab] = useState<SearchTab>('all')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 220)
@@ -130,12 +139,23 @@ export default function CRMGlobalSearchBar() {
   }, [debouncedQuery])
 
   const hasResults = contacts.length > 0 || deals.length > 0
+  const contactCount = contacts.length
+  const dealsCount = deals.length
+  const companiesCount = 0
 
   const firstResultHref = useMemo(() => {
+    if (activeTab === 'contacts') {
+      if (contacts[0]?.hubspot_contact_id) return `/admin/crm/contacts/${contacts[0].hubspot_contact_id}`
+      return null
+    }
+    if (activeTab === 'deals') {
+      if (deals[0]?.hubspot_deal_id) return `/admin/crm/deals/${deals[0].hubspot_deal_id}`
+      return null
+    }
     if (contacts[0]?.hubspot_contact_id) return `/admin/crm/contacts/${contacts[0].hubspot_contact_id}`
     if (deals[0]?.hubspot_deal_id) return `/admin/crm/deals/${deals[0].hubspot_deal_id}`
     return null
-  }, [contacts, deals])
+  }, [contacts, deals, activeTab])
 
   function go(href: string) {
     setOpen(false)
@@ -223,6 +243,90 @@ export default function CRMGlobalSearchBar() {
               overflow: 'hidden',
             }}
           >
+            {!loading && (
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid #f0ebe0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setActiveTab('contacts')}
+                  style={{
+                    border: '1px solid #d8ccb1',
+                    background: activeTab === 'contacts' ? 'rgba(201,168,76,0.12)' : '#fff',
+                    color: '#0e1e35',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                  }}
+                >
+                  <User size={12} />
+                  Contacts
+                </button>
+                <button
+                  onClick={() => setActiveTab('companies')}
+                  style={{
+                    border: '1px solid #d8ccb1',
+                    background: activeTab === 'companies' ? 'rgba(201,168,76,0.12)' : '#fff',
+                    color: '#0e1e35',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                  }}
+                >
+                  <Building2 size={12} />
+                  Entreprises
+                </button>
+                <button
+                  onClick={() => setActiveTab('deals')}
+                  style={{
+                    border: '1px solid #d8ccb1',
+                    background: activeTab === 'deals' ? 'rgba(201,168,76,0.12)' : '#fff',
+                    color: '#0e1e35',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                  }}
+                >
+                  <Briefcase size={12} />
+                  Transactions
+                </button>
+                <button
+                  onClick={() => setActiveTab('all')}
+                  title="Réinitialiser les filtres"
+                  style={{
+                    marginLeft: 'auto',
+                    border: '1px solid #d8ccb1',
+                    background: activeTab === 'all' ? 'rgba(201,168,76,0.12)' : '#fff',
+                    color: '#0e1e35',
+                    borderRadius: 6,
+                    width: 30,
+                    height: 26,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <SlidersHorizontal size={12} />
+                </button>
+              </div>
+            )}
+
             {loading ? (
               <div style={{ padding: '14px 12px', fontSize: 13, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Loader2 size={14} className="animate-spin" />
@@ -232,12 +336,16 @@ export default function CRMGlobalSearchBar() {
               <div style={{ padding: '12px', fontSize: 13, color: '#4a6070' }}>
                 Aucun résultat.
               </div>
+            ) : activeTab === 'companies' ? (
+              <div style={{ padding: '12px', fontSize: 13, color: '#4a6070' }}>
+                Aucune entreprise pour cette recherche ({companiesCount}).
+              </div>
             ) : (
               <div>
-                {contacts.length > 0 && (
+                {(activeTab === 'all' || activeTab === 'contacts') && contacts.length > 0 && (
                   <div style={{ borderBottom: '1px solid #f0ebe0' }}>
                     <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Contacts
+                      Contacts {activeTab === 'all' ? `· ${contactCount}` : ''}
                     </div>
                     {contacts.map((c) => (
                       <button
@@ -258,17 +366,36 @@ export default function CRMGlobalSearchBar() {
                           fontSize: 13,
                         }}
                       >
-                        <User size={13} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                        <span>{contactLabel(c)}</span>
+                        <span style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          background: '#dcecf0',
+                          color: '#355269',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>
+                          {initialsFromText(contactLabel(c))}
+                        </span>
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contactLabel(c)}</span>
+                          <span style={{ color: '#4a6070', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Contact {c.email ? `• ${c.email}` : ''}
+                          </span>
+                        </span>
                       </button>
                     ))}
                   </div>
                 )}
 
-                {deals.length > 0 && (
+                {(activeTab === 'all' || activeTab === 'deals') && deals.length > 0 && (
                   <div>
                     <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Transactions
+                      Transactions {activeTab === 'all' ? `· ${dealsCount}` : ''}
                     </div>
                     {deals.map((d) => (
                       <button
@@ -289,14 +416,25 @@ export default function CRMGlobalSearchBar() {
                           fontSize: 13,
                         }}
                       >
-                        <Briefcase size={13} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                        <span>
-                          {dealLabel(d)}
-                          {d.contact && (
-                            <span style={{ color: '#4a6070' }}>
-                              {' '}· {[d.contact.firstname, d.contact.lastname].filter(Boolean).join(' ')}
-                            </span>
-                          )}
+                        <span style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          background: '#dcecf0',
+                          color: '#355269',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <Briefcase size={13} />
+                        </span>
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dealLabel(d)}</span>
+                          <span style={{ color: '#4a6070', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Transaction
+                            {d.contact ? ` • ${[d.contact.firstname, d.contact.lastname].filter(Boolean).join(' ')}` : ''}
+                          </span>
                         </span>
                       </button>
                     ))}
