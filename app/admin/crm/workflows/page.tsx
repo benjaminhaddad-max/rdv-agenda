@@ -30,6 +30,73 @@ const TRIGGER_LABELS: Record<string, string> = {
   manual:            'Manuel',
 }
 
+const SYSTEM_LOGICS: Array<{
+  name: string
+  trigger: string
+  action: string
+}> = [
+  {
+    name: 'Nouveau contact CRM -> statut Nouveau',
+    trigger: 'Création contact (API CRM, import, Meta, sync).',
+    action: "Affecte automatiquement hs_lead_status = 'Nouveau' quand absent.",
+  },
+  {
+    name: 'Soumission formulaire -> création/maj contact',
+    trigger: "POST /api/forms/[id]/submit.",
+    action: 'Déduplication email/téléphone puis création ou mise à jour du contact.',
+  },
+  {
+    name: "Formulaire d'inscription -> Pré-inscrit 2026/2027",
+    trigger: "Nom/slug de formulaire contenant inscription ou pré-inscription.",
+    action: "Passe le lead en 'Pré-inscrit 2026/2027' (si vide ou Nouveau).",
+  },
+  {
+    name: 'Soumission formulaire -> conversion first/recent',
+    trigger: 'Chaque soumission formulaire.',
+    action: 'Met à jour first_conversion_* et recent_conversion_*.',
+  },
+  {
+    name: 'Soumission formulaire -> timeline CRM',
+    trigger: 'Chaque soumission formulaire.',
+    action: 'Upsert dans crm_form_submissions pour affichage activité contact.',
+  },
+  {
+    name: 'Leads Meta Ads -> ingestion CRM',
+    trigger: 'Webhook Meta + cron de secours meta-leads-poll.',
+    action: 'Crée/maj contact, mappe les champs, applique source et attribution télépro.',
+  },
+  {
+    name: 'Lead Meta -> déclenchement workflow lié au form',
+    trigger: 'Lead Meta avec form_id correspondant.',
+    action: 'Enroll dans le workflow actif relié au formulaire.',
+  },
+  {
+    name: 'Sync Diploma -> réconciliation pré-inscriptions',
+    trigger: 'Cron diploma-sync (et webhook Diploma).',
+    action: 'Match email, crée contact si besoin, upsert pré-inscription et deal dpl_*.',
+  },
+  {
+    name: "Sync Diploma -> statut forcé Pré-inscrit 2026-2027",
+    trigger: "Inscription Diploma en statut payée ou en cours.",
+    action: "Force hs_lead_status = 'Pré-inscrit 2026-2027' (anti-régression).",
+  },
+  {
+    name: 'Webhook HubSpot temps réel -> miroir CRM',
+    trigger: 'Events HubSpot contact/deal (création, update, suppression).',
+    action: 'Upsert/suppression des enregistrements CRM concernés.',
+  },
+  {
+    name: 'Import CSV contacts -> normalisation + statut défaut',
+    trigger: 'Import en masse CSV.',
+    action: "Normalise les données, déduplique, et met 'Nouveau' si statut absent.",
+  },
+  {
+    name: 'Prise de RDV Linova -> marquage lead Linova',
+    trigger: 'Création de RDV Linova.',
+    action: 'Renseigne source/origine Linova, conversion Linova, et télépro par défaut.',
+  },
+]
+
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Wf[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,6 +170,65 @@ export default function WorkflowsPage() {
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 32 }}>
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #cbd6e2',
+            borderRadius: 12,
+            padding: 18,
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <FileText size={15} style={{ color: '#ccac71' }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#33475b' }}>
+              Logiques système déjà en place
+            </div>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#516f90',
+                background: '#f5f8fa',
+                border: '1px solid #cbd6e2',
+                borderRadius: 999,
+                padding: '3px 8px',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+              }}
+            >
+              {SYSTEM_LOGICS.length} logiques
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#516f90', marginBottom: 12 }}>
+            Référence métier commune: ces automatisations sont actives côté système en parallèle des workflows éditables.
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {SYSTEM_LOGICS.map((logic) => (
+              <div
+                key={logic.name}
+                style={{
+                  border: '1px solid #e7edf3',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  background: '#fafcfe',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#33475b', marginBottom: 4 }}>
+                  {logic.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#516f90' }}>
+                  <strong style={{ color: '#33475b' }}>Déclencheur:</strong> {logic.trigger}
+                </div>
+                <div style={{ fontSize: 11, color: '#516f90' }}>
+                  <strong style={{ color: '#33475b' }}>Action:</strong> {logic.action}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {loading ? (
           <div style={{ color: '#4a6070', fontSize: 13 }}>Chargement…</div>
         ) : workflows.length === 0 ? (
