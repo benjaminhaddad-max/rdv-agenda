@@ -99,6 +99,11 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   const [tab, setTab] = useState<'builder' | 'settings' | 'embed' | 'submissions'>('builder')
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null)
   const [submissionCount, setSubmissionCount] = useState<number>(0)
+  const looksLikeFileUrl = (value: string | null | undefined): boolean => {
+    const v = String(value || '').trim().toLowerCase()
+    if (!v) return false
+    return /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)(\?|#|$)/.test(v)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -108,12 +113,18 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
         fetch(`/api/forms/${id}/submissions?limit=1`).catch(() => null),
       ])
       const data = await formRes.json()
-      setForm(data)
+      const normalized = {
+        ...data,
+        // Compatibilité env sans colonne redirect_file_url:
+        // si redirect_url pointe vers un fichier, on le reflète dans le champ fichier.
+        redirect_file_url: data.redirect_file_url ?? (looksLikeFileUrl(data.redirect_url) ? data.redirect_url : null),
+      }
+      setForm(normalized)
       if (subsRes?.ok) {
         const sub = await subsRes.json()
-        setSubmissionCount(sub.total ?? data.submission_count ?? 0)
+        setSubmissionCount(sub.total ?? normalized.submission_count ?? 0)
       } else {
-        setSubmissionCount(data.submission_count ?? 0)
+        setSubmissionCount(normalized.submission_count ?? 0)
       }
     } finally { setLoading(false) }
   }, [id])

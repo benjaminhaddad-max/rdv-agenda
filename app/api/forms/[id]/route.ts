@@ -59,11 +59,19 @@ export async function PATCH(req: Request, { params }: Params) {
     const errMsg = String(error?.message || '').toLowerCase()
     const optionalColumns: Array<'folder' | 'redirect_file_url'> = ['folder', 'redirect_file_url']
     let removed = false
+    let missingRedirectFileColumn = false
     for (const col of optionalColumns) {
       if (errMsg.includes(col)) {
+        if (col === 'redirect_file_url') missingRedirectFileColumn = true
         delete patch[col]
         removed = true
       }
+    }
+    // Compatibilité environnement sans colonne redirect_file_url :
+    // on mappe le champ fichier sur redirect_url pour garder le comportement.
+    if (missingRedirectFileColumn && !('redirect_url' in patch) && ('redirect_file_url' in body)) {
+      const requested = String(body.redirect_file_url ?? '').trim()
+      patch.redirect_url = requested || null
     }
     if (error && removed) {
       if (Object.keys(patch).length > 0) {
