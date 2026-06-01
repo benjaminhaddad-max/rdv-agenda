@@ -1,15 +1,13 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Calendar as CalendarIcon, Clock, Users, Briefcase, Plus, Inbox, Link2, BookOpen, Package } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock, Users, Briefcase, Plus, Inbox, Link2 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
 import TeleproManager from '@/components/TeleproManager'
 import CloserManager from '@/components/CloserManager'
 import UnassignedQueue from '@/components/UnassignedQueue'
 import SiteContenusPanel from '@/components/SiteContenusPanel'
-import PlatformGuide from '@/components/PlatformGuide'
-import ResourcesPanel from '@/components/ResourcesPanel'
 
 export default function AgendaPage() {
   const [calendarKey, setCalendarKey] = useState(0)
@@ -18,8 +16,6 @@ export default function AgendaPage() {
   const [showClosers, setShowClosers] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showSite, setShowSite] = useState(false)
-  const [showGuide, setShowGuide] = useState(false)
-  const [showResources, setShowResources] = useState(false)
   const [unassignedCount, setUnassignedCount] = useState<number | null>(null)
 
   const fetchCount = useCallback(async () => {
@@ -53,26 +49,12 @@ export default function AgendaPage() {
               <p className="text-xs text-slate-500">Planification et RDV de toute l&apos;équipe</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setShowResources(true)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-            >
-              <Package size={13} /> Boîte à outils
-            </button>
-            <button
-              onClick={() => setShowGuide(true)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 transition-colors"
-            >
-              <BookOpen size={13} /> Guide
-            </button>
-            <a
-              href="/telepro"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-[#ccac71] hover:bg-[#b89a5e] text-white transition-colors"
-            >
-              <Plus size={13} /> Nouveau RDV
-            </a>
-          </div>
+          <a
+            href="/telepro"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-[#ccac71] hover:bg-[#b89a5e] text-white transition-colors"
+          >
+            <Plus size={13} /> Nouveau RDV
+          </a>
         </div>
       </div>
 
@@ -147,8 +129,6 @@ export default function AgendaPage() {
       {showTelepros     && <TeleproManager    onClose={() => setShowTelepros(false)} />}
       {showClosers      && <CloserManager     onClose={() => setShowClosers(false)} />}
       {showSite         && <SiteContenusPanel onClose={() => setShowSite(false)} />}
-      {showGuide        && <PlatformGuide     onClose={() => setShowGuide(false)} />}
-      {showResources    && <ResourcesPanel role="admin" onClose={() => setShowResources(false)} />}
     </div>
   )
 }
