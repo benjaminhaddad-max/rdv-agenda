@@ -69,9 +69,13 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     // Compatibilité environnement sans colonne redirect_file_url :
     // on mappe le champ fichier sur redirect_url pour garder le comportement.
-    if (missingRedirectFileColumn && !('redirect_url' in patch) && ('redirect_file_url' in body)) {
-      const requested = String(body.redirect_file_url ?? '').trim()
-      patch.redirect_url = requested || null
+    if (missingRedirectFileColumn && ('redirect_file_url' in body)) {
+      const requestedFile = String(body.redirect_file_url ?? '').trim()
+      const requestedUrl = String(body.redirect_url ?? '').trim()
+      // Si un fichier est fourni, il est prioritaire (même si redirect_url est présent mais vide).
+      // Sinon, on conserve la valeur d'URL classique.
+      if (requestedFile) patch.redirect_url = requestedFile
+      else if (!requestedUrl) patch.redirect_url = null
     }
     if (error && removed) {
       if (Object.keys(patch).length > 0) {
