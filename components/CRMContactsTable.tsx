@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall } from 'lucide-react'
+import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
@@ -935,6 +935,7 @@ export default function CRMContactsTable({
   const [savingStage,       setSavingStage]        = useState<string | null>(null)
   const [savingContactField,setSavingContactField] = useState<string | null>(null)
   const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
+  const [actionError,       setActionError]        = useState<string | null>(null)
   const [renderedCount,     setRenderedCount]      = useState(RENDER_CHUNK)
 
   // Prefetch debounce : on hover plus de 150ms → on tire la fiche en arriere-plan
@@ -952,6 +953,12 @@ export default function CRMContactsTable({
   useEffect(() => () => {
     if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
   }, [])
+
+  useEffect(() => {
+    if (!actionError) return
+    const t = setTimeout(() => setActionError(null), 4000)
+    return () => clearTimeout(t)
+  }, [actionError])
 
   // Progressive rendering: mount a first chunk quickly, then append rows on scroll.
   useEffect(() => {
@@ -1124,12 +1131,23 @@ export default function CRMContactsTable({
   async function handleStageChange(dealId: string, stageId: string) {
     setSavingStage(dealId)
     try {
-      await fetch(`/api/crm/deals/${dealId}`, {
+      const res = await fetch(`/api/crm/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dealstage: stageId }),
       })
+      if (!res.ok) {
+        let message = 'Impossible de changer l’etape.'
+        try {
+          const data = await res.json()
+          if (data?.error && typeof data.error === 'string') message = data.error
+        } catch {}
+        throw new Error(message)
+      }
       onRefresh?.()
+      setActionError(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde.')
     } finally {
       setSavingStage(null)
     }
@@ -1138,12 +1156,23 @@ export default function CRMContactsTable({
   async function handleContactFieldChange(contactId: string, field: string, value: string) {
     setSavingContactField(`${contactId}:${field}`)
     try {
-      await fetch(`/api/crm/contacts/${contactId}`, {
+      const res = await fetch(`/api/crm/contacts/${contactId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       })
+      if (!res.ok) {
+        let message = 'Impossible de sauvegarder le contact.'
+        try {
+          const data = await res.json()
+          if (data?.error && typeof data.error === 'string') message = data.error
+        } catch {}
+        throw new Error(message)
+      }
       onRefresh?.()
+      setActionError(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde.')
     } finally {
       setSavingContactField(null)
     }
@@ -1152,12 +1181,23 @@ export default function CRMContactsTable({
   async function handleDealFieldChange(dealId: string, field: string, value: string) {
     setSavingDealField(`${dealId}:${field}`)
     try {
-      await fetch(`/api/crm/deals/${dealId}`, {
+      const res = await fetch(`/api/crm/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       })
+      if (!res.ok) {
+        let message = 'Impossible de sauvegarder la transaction.'
+        try {
+          const data = await res.json()
+          if (data?.error && typeof data.error === 'string') message = data.error
+        } catch {}
+        throw new Error(message)
+      }
       onRefresh?.()
+      setActionError(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde.')
     } finally {
       setSavingDealField(null)
     }
@@ -1326,6 +1366,56 @@ export default function CRMContactsTable({
                   {contact.email}
                 </div>
               )}
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}
+              >
+                <button
+                  onClick={() => {
+                    if (onOpenDrawer) onOpenDrawer(contact)
+                    else toggleExpand(contact.hubspot_contact_id)
+                  }}
+                  style={{
+                    background: 'rgba(76,171,219,0.10)',
+                    border: '1px solid rgba(76,171,219,0.28)',
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                    color: '#2d7fa6',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                  title="Aperçu rapide"
+                >
+                  <Eye size={10} /> Aperçu
+                </button>
+                <a
+                  href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: 'rgba(18,49,77,0.06)',
+                    border: '1px solid rgba(18,49,77,0.20)',
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                    color: '#12314d',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontFamily: 'inherit',
+                  }}
+                  title="Ouvrir la fiche complète"
+                >
+                  <ExternalLink size={10} /> Ouvrir
+                </a>
+              </div>
             </div>
           </div>
         )
@@ -1445,10 +1535,10 @@ export default function CRMContactsTable({
         const tVal    = (contact.telepro_user_id || (deal ? deal.teleprospecteur : '') || '')
         const tSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`
-          : savingContactField === `${contact.hubspot_contact_id}:teleprospecteur`
+          : savingContactField === `${contact.hubspot_contact_id}:telepro_user_id`
         const tOnSel  = (v: string) => deal
           ? handleDealFieldChange(deal.hubspot_deal_id, 'teleprospecteur', v)
-          : handleContactFieldChange(contact.hubspot_contact_id, 'teleprospecteur', v)
+          : handleContactFieldChange(contact.hubspot_contact_id, 'telepro_user_id', v)
         return (
           <InlineCellSelect
             value={tVal}
@@ -1539,6 +1629,20 @@ export default function CRMContactsTable({
 
   return (
     <>
+      {actionError && (
+        <div style={{
+          margin: '0 4px 8px',
+          background: 'rgba(239,68,68,0.10)',
+          border: '1px solid rgba(239,68,68,0.35)',
+          color: '#b91c1c',
+          borderRadius: 8,
+          padding: '8px 10px',
+          fontSize: 12,
+          fontWeight: 600,
+        }}>
+          {actionError}
+        </div>
+      )}
       {/* Toolbar : gestion des colonnes affichées */}
       <div ref={colMenuRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4px 8px', position: 'relative' }}>
         <button
@@ -1663,7 +1767,7 @@ export default function CRMContactsTable({
             {dynamicCols.map(name => (
               <col key={`dyn-${name}`} style={{ width: 160 }} />
             ))}
-            <col style={{ width: 50 }} />
+            <col style={{ width: 240 }} />
           </colgroup>
 
           {/* Header with drag-and-drop */}
@@ -1809,7 +1913,7 @@ export default function CRMContactsTable({
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                width: 50,
+                width: 240,
               }} />
             </tr>
           </thead>
@@ -1917,14 +2021,61 @@ export default function CRMContactsTable({
 
                     {/* Actions */}
                     <td style={{ padding: '6px 8px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                      <ActionsMenu
-                        contact={contact}
-                        name={name}
-                        mode={mode}
-                        onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
-                        onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
-                        onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
-                      />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        <button
+                          onClick={() => {
+                            if (onOpenDrawer) onOpenDrawer(contact)
+                            else toggleExpand(contact.hubspot_contact_id)
+                          }}
+                          style={{
+                            background: 'rgba(76,171,219,0.10)',
+                            border: '1px solid rgba(76,171,219,0.28)',
+                            borderRadius: 7,
+                            padding: '5px 9px',
+                            color: '#2d7fa6',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                          title="Aperçu rapide"
+                        >
+                          <Eye size={11} /> Aperçu
+                        </button>
+                        <a
+                          href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            background: 'rgba(18,49,77,0.06)',
+                            border: '1px solid rgba(18,49,77,0.20)',
+                            borderRadius: 7,
+                            padding: '5px 9px',
+                            color: '#12314d',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontFamily: 'inherit',
+                          }}
+                          title="Ouvrir la fiche complète"
+                        >
+                          <ExternalLink size={11} /> Ouvrir
+                        </a>
+                        <ActionsMenu
+                          contact={contact}
+                          name={name}
+                          mode={mode}
+                          onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
+                          onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                          onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                        />
+                      </div>
                     </td>
                   </tr>
 
