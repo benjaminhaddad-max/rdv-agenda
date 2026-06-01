@@ -94,11 +94,33 @@ export default function CRMGlobalSearchBar() {
         signal: ac.signal,
         cache: 'no-store',
       }),
+      debouncedQuery.includes('@')
+        ? fetch(`/api/crm/contacts/check?email=${encodeURIComponent(debouncedQuery)}`, {
+            signal: ac.signal,
+            cache: 'no-store',
+          })
+        : Promise.resolve(null as Response | null),
     ])
-      .then(async ([contactsRes, dealsRes]) => {
+      .then(async ([contactsRes, dealsRes, exactContactRes]) => {
         const contactsJson = contactsRes.ok ? await contactsRes.json().catch(() => ({})) : {}
         const dealsJson = dealsRes.ok ? await dealsRes.json().catch(() => ({})) : {}
-        setContacts(Array.isArray(contactsJson?.data) ? contactsJson.data : [])
+        const baseContacts: ContactHit[] = Array.isArray(contactsJson?.data) ? contactsJson.data : []
+        let exactContact: ContactHit | null = null
+        if (exactContactRes && exactContactRes.ok) {
+          const exactJson = await exactContactRes.json().catch(() => ({}))
+          if (exactJson?.exists && exactJson?.contact?.id) {
+            exactContact = {
+              hubspot_contact_id: String(exactJson.contact.id),
+              firstname: exactJson.contact.firstname ?? null,
+              lastname: exactJson.contact.lastname ?? null,
+              email: exactJson.contact.email ?? debouncedQuery,
+            }
+          }
+        }
+        const mergedContacts = exactContact
+          ? [exactContact, ...baseContacts.filter((c) => c.hubspot_contact_id !== exactContact!.hubspot_contact_id)]
+          : baseContacts
+        setContacts(mergedContacts)
         setDeals(Array.isArray(dealsJson?.data) ? dealsJson.data : [])
       })
       .catch(() => {})
