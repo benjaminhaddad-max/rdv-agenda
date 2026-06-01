@@ -216,8 +216,8 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   'Perdu':                'bg-gray-100 text-gray-800 border-gray-200',
 }
 
-// Charte Diploma Santé : gold + navy
-const BRAND_GRADIENT = 'bg-gradient-to-br from-[#C9A84C] to-[#0e1e35]'
+// Charte Diploma Santé : base navy, gold en accents uniquement
+const BRAND_GRADIENT = 'bg-gradient-to-br from-[#0e1e35] to-[#1f3553]'
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
