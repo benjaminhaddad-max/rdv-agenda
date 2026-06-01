@@ -55,9 +55,15 @@ interface Contact {
   hubspot_owner_id: string | null
   classe_actuelle: string | null
   phone: string | null
+  zone_localite?: string | null
+  departement?: string | null
+  formation_souhaitee?: string | null
+  hs_lead_status?: string | null
+  origine?: string | null
+  hubspot_raw?: Record<string, unknown> | null
 }
 
-const CONTACT_COLUMNS = 'hubspot_contact_id, email, firstname, lastname, hubspot_owner_id, classe_actuelle, phone'
+const CONTACT_COLUMNS = 'hubspot_contact_id, email, firstname, lastname, hubspot_owner_id, classe_actuelle, phone, zone_localite, departement, formation_souhaitee, hs_lead_status, origine, hubspot_raw'
 
 export async function loadContact(db: SupabaseClient, contactId: string): Promise<Contact | null> {
   const { data } = await db
@@ -69,7 +75,7 @@ export async function loadContact(db: SupabaseClient, contactId: string): Promis
 }
 
 function buildVars(contact: Contact | null) {
-  return {
+  const vars: Record<string, string | number | null> = {
     prenom:           contact?.firstname || '',
     firstname:        contact?.firstname || '',
     nom:              contact?.lastname || '',
@@ -78,7 +84,33 @@ function buildVars(contact: Contact | null) {
     classe:           contact?.classe_actuelle || '',
     classe_actuelle:  contact?.classe_actuelle || '',
     phone:            contact?.phone || '',
+    zone:             contact?.zone_localite || '',
+    zone_localite:    contact?.zone_localite || '',
+    departement:      contact?.departement || '',
+    formation:        contact?.formation_souhaitee || '',
+    formation_souhaitee: contact?.formation_souhaitee || '',
+    lead_status:      contact?.hs_lead_status || '',
+    hs_lead_status:   contact?.hs_lead_status || '',
+    origine:          contact?.origine || '',
+    contact_owner:    contact?.hubspot_owner_id || '',
+    hubspot_owner_id: contact?.hubspot_owner_id || '',
   }
+
+  // Expose dynamiquement les propriétés HubSpot (hubspot_raw) comme variables
+  // pour permettre {{nom_de_propriete}} dans les templates.
+  const raw = contact?.hubspot_raw
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw)) {
+      if (!key) continue
+      if (value === null || value === undefined) continue
+      if (typeof value === 'string' || typeof value === 'number') {
+        vars[key] = value
+      } else if (typeof value === 'boolean') {
+        vars[key] = value ? 'true' : 'false'
+      }
+    }
+  }
+  return vars
 }
 
 async function loadStep(db: SupabaseClient, workflowId: string, seq: number): Promise<Step | null> {
@@ -494,8 +526,15 @@ export async function enrollContact(
   if (!wf) return { enrolled: false, reason: 'workflow not found' }
   if (wf.status !== 'active') return { enrolled: false, reason: 'workflow not active' }
 
-  // TODO: appliquer enrollment_filters (vérifier que le contact match avant d'entrer)
-  //       pour l'instant on enroll directement.
+  // Applique les filtres d'enrôlement AVANT toute création d'execution.
+  const enrollmentFilters = (wf.enrollment_filters ?? null) as Record<string, unknown> | null
+  if (enrollmentFilters && Object.keys(enrollmentFilters).length > 0) {
+    const contact = await loadContact(db, contactId)
+    if (!contact) return { enrolled: false, reason: 'contact not found' }
+    if (!contactMatchesFilters(contact, enrollmentFilters)) {
+      return { enrolled: false, reason: 'enrollment filters not matched' }
+    }
+  }
 
   // Si re_enroll=false, le UNIQUE(workflow_id, contact_id) protège déjà.
   const { data: insert, error } = await db
