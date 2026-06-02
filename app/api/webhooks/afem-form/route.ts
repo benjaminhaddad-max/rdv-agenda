@@ -232,6 +232,7 @@ export async function POST(req: NextRequest) {
   if (departement) updatedRaw.departement = departement
   updatedRaw.origine = 'Site AFEM'
   updatedRaw.source = 'AFEM'
+  if (!existing) updatedRaw.hs_lead_status = 'Nouveau'
 
   const eventName = 'Formulaire AFEM'
   const conversionMeta = buildConversionFieldsForSubmission(
