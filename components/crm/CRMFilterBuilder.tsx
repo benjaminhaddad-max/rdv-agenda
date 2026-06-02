@@ -258,7 +258,7 @@ export default function CRMFilterBuilder({
                   case 'stage':       valueOptions = allStageOptions; break
                   case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                   case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
-                  case 'closer':        valueOptions = closerOptions; break
+                  case 'closer_contact': valueOptions = closerOptions; break
                   case 'contact_owner': valueOptions = closerOptions; break
                   case 'telepro':       valueOptions = teleproOptions; break
                   case 'lead_status': valueOptions = leadStatusOptions; break

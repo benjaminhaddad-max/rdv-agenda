@@ -74,7 +74,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         switch (rule.field) {
           case 'stage':       p.set('stage', val); break
           case 'formation':   p.set('formation', val); break
-          case 'closer':        p.set('closer_hs_id', val); break
+          case 'closer':        p.set('closer_contact_hs_id', val); break
           case 'closer_contact': p.set('closer_contact_hs_id', val); break
           case 'contact_owner': p.set('contact_owner_hs_id', val); break
           case 'telepro':       p.set('telepro_hs_id', val); break
@@ -92,7 +92,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         switch (rule.field) {
           case 'stage':         p.set('stage_not', val); break
           case 'formation':     p.set('formation_not', val); break
-          case 'closer':        p.set('closer_not', val); break
+          case 'closer':        p.set('closer_contact_not', val); break
           case 'closer_contact': p.set('closer_contact_not', val); break
           case 'contact_owner': p.set('contact_owner_not', val); break
           case 'telepro':       p.set('telepro_not', val); break

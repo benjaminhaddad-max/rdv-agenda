@@ -22,7 +22,7 @@ const EXPORT_COLUMNS = [
   { key: 'etape',               label: 'Étape' },
   { key: 'lead_status',         label: 'Statut lead' },
   { key: 'origine',             label: 'Origine' },
-  { key: 'closer',              label: 'Closer' },
+  { key: 'closer',              label: 'Closer du contact' },
   { key: 'telepro',             label: 'Télépro' },
   { key: 'createdat_contact',   label: 'Date création (contact)' },
   { key: 'createdat_deal',      label: 'Date création (deal)' },

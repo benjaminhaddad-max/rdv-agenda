@@ -238,17 +238,22 @@ export default function CRMPage() {
 
   // Colonnes dynamiques (propriétés HubSpot ajoutées par l'utilisateur via le menu Colonnes)
   // Persisté en localStorage
+  const BLOCKED_EXTRA_COLUMN_PROPS = new Set(['closer', 'closer_hs_id', 'hubspot_owner_id', 'contact_owner_hs_id'])
   const [extraColumns, setExtraColumns] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
     try {
       const saved = localStorage.getItem('crm-extra-columns')
-      if (saved) return JSON.parse(saved) as string[]
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[]
+        return parsed.filter(p => !BLOCKED_EXTRA_COLUMN_PROPS.has(p))
+      }
     } catch { /* ignore */ }
     return []
   })
   function persistExtraColumns(next: string[]) {
-    setExtraColumns(next)
-    localStorage.setItem('crm-extra-columns', JSON.stringify(next))
+    const clean = next.filter(p => !BLOCKED_EXTRA_COLUMN_PROPS.has(p))
+    setExtraColumns(clean)
+    localStorage.setItem('crm-extra-columns', JSON.stringify(clean))
   }
 
   // ── Outils modals ──────────────────────────────────────────────────────────
@@ -1200,7 +1205,7 @@ export default function CRMPage() {
             case 'stage':       setStage(val); break
             case 'formation':   setFormation(val); break
             case 'classe':      setClasse(val); break
-            case 'closer':        setCloserHsId(val); break
+            case 'closer':
             case 'closer_contact': setCloserContactHsId(val); break
             case 'contact_owner': setContactOwnerHsId(val); break
             case 'telepro':       setTeleproHsId(val); break
@@ -1219,7 +1224,7 @@ export default function CRMPage() {
           switch (ruleField) {
             case 'stage':         setStageNot(val); break
             case 'formation':     setFormationNot(val); break
-            case 'closer':        setCloserNot(val); break
+            case 'closer':
             case 'closer_contact': setCloserContactNot(val); break
             case 'contact_owner': setContactOwnerNot(val); break
             case 'telepro':       setTeleproNot(val); break
@@ -1390,7 +1395,7 @@ export default function CRMPage() {
 
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
   const hasActiveFilters = (
-    search || stage || closerHsId || closerContactHsId || contactOwnerHsId || teleproHsId ||
+    search || stage || closerContactHsId || contactOwnerHsId || teleproHsId ||
     formation || classe || period || noTelepro || ownerExclude || recentFormMonths > 0 ||
     recentFormDays > 0 || createdBeforeDays > 0 || leadStatus || source || formEvent ||
     zoneFilter || deptFilter || formEventNot ||
@@ -1906,7 +1911,7 @@ export default function CRMPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
-          <FilterMultiSelect value={closerHsId} onChange={v => { setCloserHsId(v); scheduleRefetch() }} options={closerOptions} />
+          <FilterMultiSelect value={closerContactHsId} onChange={v => { setCloserContactHsId(v); scheduleRefetch() }} options={closerOptions} />
           <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         </div>
@@ -1918,7 +1923,7 @@ export default function CRMPage() {
             {recentFormDays > 0 && <FilterPill label={`Form. < ${recentFormDays} j`} onRemove={() => { setRecentFormDays(0); scheduleRefetch() }} />}
             {createdBeforeDays > 0 && <FilterPill label={`Créé > ${createdBeforeDays} j`} onRemove={() => { setCreatedBeforeDays(0); scheduleRefetch() }} />}
             {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
-            {closerHsId && <FilterPill label={closerHsId.includes(',') ? `${closerHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerHsId)?.label ?? 'Closer'} onRemove={() => { setCloserHsId(''); scheduleRefetch() }} />}
+            {closerContactHsId && <FilterPill label={closerContactHsId.includes(',') ? `${closerContactHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerContactHsId)?.label ?? 'Closer du contact'} onRemove={() => { setCloserContactHsId(''); scheduleRefetch() }} />}
             {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
             {formEvent && <FilterPill label={formEvent.includes(',') ? `${formEvent.split(',').length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
             {formEventNot && <FilterPill label={`Formulaire ≠ ${formEventNot.includes(',') ? `${formEventNot.split(',').length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
@@ -2280,7 +2285,7 @@ export default function CRMPage() {
                         case 'stage':       valueOptions = allStageOptions; break
                         case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                         case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
-                        case 'closer':        valueOptions = closerOptions.filter(o => o.id); break
+                        case 'closer':
                         case 'closer_contact': valueOptions = closerOptions.filter(o => o.id); break
                         case 'contact_owner': valueOptions = closerOptions.filter(o => o.id); break
                         case 'telepro':       valueOptions = teleproOptions.filter(o => o.id); break
@@ -2719,8 +2724,15 @@ export default function CRMPage() {
                     colMap.push({ key: 'origine', extract: c => c.origine ?? '' })
                     break
                   case 'closer':
-                    headers.push('Closer')
-                    colMap.push({ key: 'closer', extract: c => c.deal?.closer?.name ?? c.contact_owner?.name ?? '' })
+                    headers.push('Closer du contact')
+                    colMap.push({
+                      key: 'closer',
+                      extract: c => {
+                        const id = c.closer_du_contact_owner_id
+                        if (!id) return c.deal?.closer?.name ?? ''
+                        return closerOptions.find(o => o.id === id)?.label ?? id
+                      },
+                    })
                     break
                   case 'telepro':
                     headers.push('Télépro')

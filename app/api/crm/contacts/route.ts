@@ -609,6 +609,7 @@ export async function GET(req: NextRequest) {
     lead_status:         { col: 'hs_lead_status' },
     origine:             { col: 'origine' },
     closer:              { col: 'hubspot_owner_id' },
+    closer_du_contact:   { col: 'closer_du_contact_owner_id' },
     createdat_contact:   { col: 'contact_createdate' },
     createdat_deal:      { col: 'createdate', foreignTable: 'crm_deals' },
     form_submission:     { col: 'recent_conversion_date' },
@@ -787,6 +788,7 @@ export async function GET(req: NextRequest) {
     lead_status: 'hs_lead_status',
     origine: 'origine',
     closer: 'hubspot_owner_id',
+    closer_du_contact: 'closer_du_contact_owner_id',
     createdat_contact: 'contact_createdate',
     createdat_deal: 'deal_createdate',
     form_submission: 'recent_conversion_date',
@@ -899,10 +901,12 @@ export async function GET(req: NextRequest) {
           : (mvCount ?? 0)
 
         const enriched = pageRows.map((c) => {
+          const closerContactId = typeof c.closer_du_contact_owner_id === 'string' ? c.closer_du_contact_owner_id : null
           const dealOwnerId = typeof c.deal_hubspot_owner_id === 'string' ? c.deal_hubspot_owner_id : null
           const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
           const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
-          const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
+          const closerRef = closerContactId || dealOwnerId
+          const closer = closerRef ? userByOwnerId[closerRef] ?? null : null
           const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
           const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
           return {
@@ -999,6 +1003,7 @@ export async function GET(req: NextRequest) {
     lead_status: 'hs_lead_status',
     origine: 'origine',
     closer: 'hubspot_owner_id',
+    closer_du_contact: 'closer_du_contact_owner_id',
     createdat_contact: 'contact_createdate',
     createdat_deal: 'deal_createdate',
     form_submission: 'recent_conversion_date',
@@ -1165,10 +1170,12 @@ export async function GET(req: NextRequest) {
             const enriched = ordered.map((c) => {
               const contactId = c.hubspot_contact_id as string
               const deal = dealByContactId[contactId] ?? null
+              const closerContactId = typeof c.closer_du_contact_owner_id === 'string' ? c.closer_du_contact_owner_id : null
               const dealOwnerId = typeof deal?.hubspot_owner_id === 'string' ? deal.hubspot_owner_id : null
               const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
               const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
-              const closer = dealOwnerId ? userByOwnerId[dealOwnerId] ?? null : null
+              const closerRef = closerContactId || dealOwnerId
+              const closer = closerRef ? userByOwnerId[closerRef] ?? null : null
               const telepro = teleproUserId ? (userByUserId[teleproUserId] ?? userByOwnerId[teleproUserId] ?? null) : null
               const contactOwner = contactOwnerId ? userByOwnerId[contactOwnerId] ?? null : null
               return {
@@ -2006,7 +2013,8 @@ export async function GET(req: NextRequest) {
     const enriched = pageContacts.map((c: any) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const deal         = dealByContactId[c.hubspot_contact_id] ?? (c.crm_deals as any[])?.[0] ?? null
-      const closer       = deal?.hubspot_owner_id ? userByOwnerId[deal.hubspot_owner_id] ?? null : null
+      const closerRef    = String(c.closer_du_contact_owner_id ?? deal?.hubspot_owner_id ?? '').trim()
+      const closer       = closerRef ? userByOwnerId[closerRef] ?? null : null
       // Telepro = colonne native crm_contacts.telepro_user_id (independance HubSpot).
       // Resolution via userByUserId puis fallback userByOwnerId pour couvrir les 2 conventions.
       const telepro      = c.telepro_user_id      ? (userByUserId[c.telepro_user_id]    ?? userByOwnerId[c.telepro_user_id]   ?? null) : null

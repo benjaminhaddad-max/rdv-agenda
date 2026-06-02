@@ -86,7 +86,7 @@ export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
 // ── Système de filtres avancés ─────────────────────────────────────────────
 
 export type CRMFilterField =
-  | 'stage' | 'formation' | 'classe' | 'closer' | 'closer_contact' | 'contact_owner' | 'telepro'
+  | 'stage' | 'formation' | 'classe' | 'closer_contact' | 'closer' | 'contact_owner' | 'telepro'
   | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
   | 'pipeline' | 'prior_preinscription' | 'form_event'
 
@@ -117,7 +117,6 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'formation',          label: 'Formation souhaitée',           type: 'select' },
   { key: 'classe',             label: 'Classe actuelle',               type: 'select' },
   { key: 'contact_owner',      label: 'Propriétaire du contact',       type: 'select' },
-  { key: 'closer',             label: 'Propriétaire de la transaction',type: 'select' },
   { key: 'closer_contact',     label: 'Closer du contact',             type: 'select' },
   { key: 'telepro',            label: 'Télépro',                       type: 'select' },
   { key: 'lead_status',        label: 'Statut du lead',                type: 'select' },

@@ -905,7 +905,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
 
 const SORTABLE_COLS = new Set<ColKey>([
   'contact', 'formation_souhaitee', 'classe', 'zone', 'departement',
-  'lead_status', 'origine', 'closer', 'createdat_contact', 'createdat_deal', 'form_submission',
+  'lead_status', 'origine', 'closer', 'closer_du_contact', 'createdat_contact', 'createdat_deal', 'form_submission',
 ])
 
 const DEFAULT_COL_ORDER: ColKey[] = [
@@ -913,8 +913,16 @@ const DEFAULT_COL_ORDER: ColKey[] = [
   'zone','departement','etape','lead_status','parcoursup_verdict','origine','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
 
-// Colonnes cachées par défaut (l'utilisateur peut les afficher via le menu Colonnes)
-const DEFAULT_HIDDEN_COLS: ColKey[] = ['closer_du_contact']
+// Propriétés HubSpot à ne pas proposer comme colonnes dynamiques (doublons / obsolètes)
+const BLOCKED_EXTRA_COLUMN_PROPS = new Set([
+  'closer',
+  'closer_hs_id',
+  'hubspot_owner_id',
+  'contact_owner_hs_id',
+])
+
+// Colonnes cachées par défaut
+const DEFAULT_HIDDEN_COLS: ColKey[] = []
 
 const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
 const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
@@ -948,7 +956,7 @@ function mergeMixedColOrder(
         seenNative.add(key)
       } else if (isDynToken(entry)) {
         const prop = entry.slice(2)
-        if (!validExtra.has(prop) || seenDyn.has(prop)) continue
+        if (BLOCKED_EXTRA_COLUMN_PROPS.has(prop) || !validExtra.has(prop) || seenDyn.has(prop)) continue
         result.push(toDynToken(prop))
         seenDyn.add(prop)
       }
@@ -957,7 +965,8 @@ function mergeMixedColOrder(
       if (!seenNative.has(key)) result.push(toNativeToken(key))
     }
     for (const prop of extraCols) {
-      if (!seenDyn.has(prop)) result.push(toDynToken(prop))
+      if (BLOCKED_EXTRA_COLUMN_PROPS.has(prop) || seenDyn.has(prop)) continue
+      result.push(toDynToken(prop))
     }
     return result
   }
@@ -1641,8 +1650,6 @@ export default function CRMContactsTable({
         )
 
       case 'closer': {
-        // Lit le propriétaire du CONTACT en priorité (source de vérité),
-        // fallback sur l'owner du deal pour rétro-compat.
         const cVal    = (contact.hubspot_owner_id || deal?.hubspot_owner_id || '')
         const cSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:hubspot_owner_id`
@@ -1926,7 +1933,10 @@ export default function CRMContactsTable({
                 {allCrmProps && allCrmProps.length > 0 ? (
                   <PropertyPicker
                     allProps={allCrmProps}
-                    excludeNames={new Set(extraColumns ?? [])}
+                    excludeNames={new Set([
+                      ...BLOCKED_EXTRA_COLUMN_PROPS,
+                      ...(extraColumns ?? []),
+                    ])}
                     onPick={(name) => {
                       const next = [...(extraColumns ?? []), name]
                       onExtraColumnsChange(next)

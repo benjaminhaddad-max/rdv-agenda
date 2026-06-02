@@ -34,7 +34,7 @@ const HUBSPOT_NAME_TO_FILTER_KEY: Record<string, string> = {
   origine:             'source',
   zone_localite:       'zone',
   hubspot_owner_id:    'contact_owner',
-  closer_hs_id:        'closer',
+  closer_hs_id:        'closer_contact',
   contact_owner_hs_id: 'contact_owner',
   // pipeline, departement → noms identiques aux clés hardcodées
 }
