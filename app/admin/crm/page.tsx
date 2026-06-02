@@ -1770,6 +1770,65 @@ export default function CRMPage() {
           )
         })}
 
+        {/* HubSpot-style "+" tab to create a new view */}
+        {creatingView ? (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '6px 10px', flexShrink: 0,
+              borderBottom: '2px solid #C9A84C',
+            }}
+          >
+            <input
+              autoFocus
+              value={newViewName}
+              onChange={e => setNewViewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') createCRMView(newViewName)
+                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+              }}
+              placeholder="Nom de la vue…"
+              style={{
+                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
+                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
+                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 140,
+              }}
+            />
+            <button
+              onClick={() => createCRMView(newViewName)}
+              title="Créer la vue"
+              style={{ background: '#C9A84C', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}
+            >
+              <Check size={12} color="#f7f4ee" />
+            </button>
+            <button
+              onClick={() => { setCreatingView(false); setNewViewName('') }}
+              title="Annuler"
+              style={{ background: 'none', border: 'none', padding: 0, color: '#3D5275', cursor: 'pointer', display: 'flex' }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setCreatingView(true); setNewViewName('') }}
+            title="Créer une vue à partir des filtres actuels"
+            style={{
+              padding: '10px 12px',
+              background: 'none', border: 'none',
+              color: '#3D5275', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
+              borderBottom: '2px solid transparent',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#3D5275')}
+          >
+            <Plus size={14} /> Vue
+          </button>
+        )}
+
         {/* Separator */}
         <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 6px', flexShrink: 0 }} />
 
@@ -1823,34 +1882,10 @@ export default function CRMPage() {
           </button>
         )}
 
-        {/* Create new view */}
-        {creatingView ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', flexShrink: 0 }}>
-            <input
-              autoFocus
-              value={newViewName}
-              onChange={e => setNewViewName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') createCRMView(newViewName)
-                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
-              }}
-              placeholder="Nom de la vue…"
-              style={{
-                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
-                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
-                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
-              }}
-            />
-            <button onClick={() => createCRMView(newViewName)} style={{ background: '#C9A84C', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}>
-              <Check size={12} color="#f7f4ee" />
-            </button>
-            <button onClick={() => { setCreatingView(false); setNewViewName('') }} style={{ background: 'none', border: 'none', padding: 0, color: '#3D5275', cursor: 'pointer', display: 'flex' }}>
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
+        {/* Create new view (legacy entry — duplique le bouton "+ Vue" dans la barre d'onglets) */}
+        {creatingView ? null : (
           <button
-            onClick={() => setCreatingView(true)}
+            onClick={() => { setCreatingView(true); setNewViewName('') }}
             style={{
               padding: '8px 12px', background: 'none', border: 'none',
               color: '#0F1F3D', cursor: 'pointer', display: 'flex',
