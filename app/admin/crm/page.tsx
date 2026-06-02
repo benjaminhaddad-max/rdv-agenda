@@ -2406,8 +2406,15 @@ export default function CRMPage() {
                     return (
                       <div key={rule.id}>
                         {ri > 0 && <div style={{ fontSize: 11, color: '#0F1F3D', padding: '4px 0 4px 4px' }}>et</div>}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', position: 'relative' }}>
-                          <button onClick={() => removeRule(group.id, rule.id)} style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} /></button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8, padding: '24px 10px 8px', position: 'relative' }}>
+                          {/* z-index 5 : le CRMFieldPicker (position: relative) est rendu APRÈS
+                              et le recouvrait → bouton invisible / inactif. */}
+                          <button
+                            type="button"
+                            onClick={() => removeRule(group.id, rule.id)}
+                            title="Supprimer ce filtre"
+                            style={{ position: 'absolute', top: 4, right: 4, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
+                          ><X size={13} /></button>
                           <CRMFieldPicker
                             value={normalizedField}
                             onChange={(field) => {
