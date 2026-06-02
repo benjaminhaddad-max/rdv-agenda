@@ -159,6 +159,18 @@ export async function POST(req: Request, { params }: Params) {
     if (v) trackingForContactRaw[k] = v
   }
 
+  // ── Origine derivee du tracking ─────────────────────────────────────────
+  // Regle metier : la presence d'un click ID Google (gclid / gbraid / wbraid)
+  // ou Meta (fbclid) force l'origine du contact sur la campagne payante
+  // correspondante. Google prime sur Meta si jamais les deux sont presents
+  // (cas rare : navigation cross-pub avec cookie residuel).
+  let origineFromTracking: string | null = null
+  if (adClickIds.gclid || adClickIds.gbraid || adClickIds.wbraid) {
+    origineFromTracking = 'Campagne ADS Google'
+  } else if (adClickIds.fbclid) {
+    origineFromTracking = 'Campagne ADS META'
+  }
+
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
     .from('forms')
@@ -294,6 +306,12 @@ export async function POST(req: Request, { params }: Params) {
           updateData[k] = v
         }
       }
+      // Origine forcee si un click ID Google/Meta est present.
+      // Le tracking publicitaire prime sur l'origine eventuellement remontee
+      // par le formulaire (qui est souvent vide ou generique "Formulaire web").
+      if (origineFromTracking) {
+        updateData.origine = origineFromTracking
+      }
       // Merge tracking publicitaire dans hubspot_raw (sans ecraser les IDs
       // d'attribution deja captures lors d'une 1re soumission).
       if (Object.keys(trackingForContactRaw).length > 0) {
@@ -324,7 +342,7 @@ export async function POST(req: Request, { params }: Params) {
         contact_createdate: nowIso,
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,
-        origine:            'Formulaire web',
+        origine:            origineFromTracking ?? 'Formulaire web',
       }
       if (Object.keys(trackingForContactRaw).length > 0) {
         insertData.hubspot_raw = trackingForContactRaw
