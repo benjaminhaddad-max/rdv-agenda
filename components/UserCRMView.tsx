@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { RefreshCw, Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
+import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
 
 // ── Constantes ──────────────────────────────────────────────────────────────
 // Charte Diploma Santé 2026
@@ -120,6 +121,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
   const [filterLeadStatus, setFilterLeadStatus] = useState('')
   const [filterFormation, setFilterFormation]   = useState('')
   const [filterSource, setFilterSource]         = useState(initialSourceFilter ?? '')
+  const [filterParcoursupVerdict, setFilterParcoursupVerdict] = useState('')
   // Filtres spécifiques contacts (mode télépro : "Mes Contacts")
   const [filterClasse, setFilterClasse]         = useState('')
   const [filterPeriod, setFilterPeriod]         = useState('')
@@ -209,6 +211,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       if (filterSource)       params.set('source',      filterSource)
       if (filterClasse)       params.set('classe',      filterClasse)
       if (filterPeriod)       params.set('period',      filterPeriod)
+      if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
 
       const res = await fetch(`/api/crm/contacts?${params}`, { signal: requestAbort.signal })
@@ -226,7 +229,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, isContactsView, onTotalChange, extraColumns])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -251,6 +254,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       if (filterSource) params.set('source', filterSource)
       if (filterClasse) params.set('classe', filterClasse)
       if (filterPeriod) params.set('period', filterPeriod)
+      if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
 
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (!res.ok) return
@@ -272,6 +276,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     filterSource,
     filterClasse,
     filterPeriod,
+    filterParcoursupVerdict,
     onTotalChange,
   ])
 
@@ -344,12 +349,13 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     setFilterSource(initialSourceFilter ?? '')
     setFilterClasse('')
     setFilterPeriod('')
+    setFilterParcoursupVerdict('')
     setSearch('')
     setDebouncedSearch('')
     setPage(0)
   }
 
-  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || debouncedSearch)
+  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterParcoursupVerdict || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
@@ -516,6 +522,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
               <option value="365d">12 derniers mois</option>
             </FilterSelect>
           )}
+
+          {/* Verdict Parcoursup 2026 (telepro + closer) */}
+          <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
+            <option value="">Tous les verdicts Parcoursup</option>
+            {PARCOURSUP_VERDICT_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </FilterSelect>
 
           {/* Reset */}
           {hasActiveFilters && (

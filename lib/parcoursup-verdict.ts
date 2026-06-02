@@ -45,6 +45,62 @@ export function parcoursupVerdictDefaultLabel(status: string): string | null {
 // Recupere le verdict Parcoursup pour une liste de contacts.
 // Source : crm_pre_inscriptions.external_data.parcoursup.verdict
 // (avec override CRM `parcoursup_crm_override.verdict` prioritaire).
+// Codes de statut utilisés côté plateforme + côté CRM (override manuel).
+// 'aucun' est une valeur virtuelle : aucune réponse / verdict absent.
+export const PARCOURSUP_VERDICT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'ok_valide',  label: 'OK VALIDÉ' },
+  { value: 'ok_attente', label: 'OK EN ATTENTE' },
+  { value: 'good',       label: 'GOOD EN PRINCIPE' },
+  { value: 'attention',  label: 'ATTENTION JUSTE' },
+  { value: 'bascule',    label: 'BASCULE COMPLÈTE PAES' },
+  { value: 'aucun',      label: 'Sans verdict' },
+]
+
+// Récupère la liste des hubspot_contact_id qui ont un verdict Parcoursup
+// correspondant à l'un des statuts demandés (saison 2026-2027).
+// Si la valeur "aucun" est demandée, on retourne l'ensemble des contacts
+// ayant une pré-inscription SANS verdict.
+export async function fetchContactIdsByParcoursupVerdict(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  statuses: string[],
+): Promise<string[]> {
+  const wanted = new Set(statuses.map(s => s.trim().toLowerCase()).filter(Boolean))
+  if (wanted.size === 0) return []
+  const wantsNoVerdict = wanted.has('aucun')
+
+  const out = new Set<string>()
+  const PAGE = 1000
+  let offset = 0
+  while (true) {
+    const { data, error } = await db
+      .from('crm_pre_inscriptions')
+      .select('hubspot_contact_id, external_data')
+      .eq('saison', PARCOURSUP_SAISON)
+      .range(offset, offset + PAGE - 1)
+    if (error) break
+    const rows = (data ?? []) as Array<{
+      hubspot_contact_id: string | null
+      external_data: Record<string, unknown> | null
+    }>
+    for (const row of rows) {
+      const cid = row.hubspot_contact_id
+      if (!cid) continue
+      const ext = row.external_data || {}
+      const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
+      const raw = ext.parcoursup as Record<string, unknown> | undefined
+      const source = (override ?? raw) || null
+      const verdict = source ? (source.verdict as Record<string, unknown> | undefined) : undefined
+      const status = typeof verdict?.status === 'string' ? verdict.status.toLowerCase() : ''
+      if (status && wanted.has(status)) out.add(cid)
+      else if (!status && wantsNoVerdict) out.add(cid)
+    }
+    if (rows.length < PAGE) break
+    offset += PAGE
+  }
+  return Array.from(out)
+}
+
 export async function fetchParcoursupVerdictsByContactId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,

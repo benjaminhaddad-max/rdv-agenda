@@ -7,7 +7,7 @@ import { getApiUserContext } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
-import { fetchParcoursupVerdictsByContactId } from '@/lib/parcoursup-verdict'
+import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -94,6 +94,7 @@ export async function GET(req: NextRequest) {
   const hasAllClassesParam = searchParams.has('all_classes')
   const leadStatus       = searchParams.get('lead_status') ?? ''
   const source           = searchParams.get('source') ?? ''
+  const parcoursupVerdictFilter = searchParams.get('parcoursup_verdict') ?? ''
   const metaAdsOnlyParam = searchParams.get('meta_ads_only') === '1'
   const viewIdParam      = searchParams.get('view_id') ?? ''
   const zone             = searchParams.get('zone') ?? ''
@@ -614,6 +615,21 @@ export async function GET(req: NextRequest) {
     synced_at:           { col: 'synced_at' },
   }
   const sortInfo = SORT_MAP[sortBy] ?? SORT_MAP['createdat_contact']
+  // Filtre Verdict Parcoursup : on résout d'abord les contact_id correspondants
+  // depuis crm_pre_inscriptions (saison 2026-2027). On les passera ensuite à
+  // chaque moteur de requête comme filtre .in('hubspot_contact_id', ...).
+  // Null = pas de filtre, [] = filtre demandé mais 0 match (=> page vide).
+  let parcoursupVerdictContactIds: string[] | null = null
+  if (parcoursupVerdictFilter) {
+    const statuses = parcoursupVerdictFilter
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean)
+    if (statuses.length > 0) {
+      parcoursupVerdictContactIds = await fetchContactIdsByParcoursupVerdict(db, statuses)
+    }
+  }
+
   const hasSelectiveFilter = !!(
     search || teleproId || teleproHsId || teleproOwnerHsId || teleproNot ||
     closerHsId || closerContactHsId || closerContactNot ||
@@ -627,6 +643,7 @@ export async function GET(req: NextRequest) {
     formEvent || formEventNot ||
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
     formEventNames !== null || formEventMetaOnlyIds !== null ||
+    parcoursupVerdictContactIds !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
   const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
@@ -667,6 +684,13 @@ export async function GET(req: NextRequest) {
     if (withTelepro) fastQ = fastQ.not('telepro_user_id', 'is', null)
     if (forcedScopedOrFilter) fastQ = fastQ.or(forcedScopedOrFilter)
     if (ownerScopeOrFilter) fastQ = fastQ.or(ownerScopeOrFilter)
+    if (parcoursupVerdictContactIds !== null) {
+      if (parcoursupVerdictContactIds.length === 0) {
+        fastQ = fastQ.eq('hubspot_contact_id', '__none__')
+      } else {
+        fastQ = fastQ.in('hubspot_contact_id', parcoursupVerdictContactIds)
+      }
+    }
     if (leadStatus) {
       const vals = fastSplit(leadStatus)
       fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
@@ -818,6 +842,13 @@ export async function GET(req: NextRequest) {
       if (leadStatus) {
         const vals = splitMultiFast(leadStatus)
         fastMvQ = vals.length > 1 ? fastMvQ.in('hs_lead_status', vals) : fastMvQ.eq('hs_lead_status', leadStatus)
+      }
+      if (parcoursupVerdictContactIds !== null) {
+        if (parcoursupVerdictContactIds.length === 0) {
+          fastMvQ = fastMvQ.eq('hubspot_contact_id', '__none__')
+        } else {
+          fastMvQ = fastMvQ.in('hubspot_contact_id', parcoursupVerdictContactIds)
+        }
       }
       if (source) {
         const vals = splitMultiFast(source)
@@ -1000,6 +1031,13 @@ export async function GET(req: NextRequest) {
     if (contactOwnerHsId) pushIn('hubspot_owner_id', contactOwnerHsId)
     if (closerContactHsId) pushIn('closer_du_contact_owner_id', closerContactHsId)
     if (leadStatus) pushIn('hs_lead_status', leadStatus)
+    if (parcoursupVerdictContactIds !== null) {
+      if (parcoursupVerdictContactIds.length === 0) {
+        filterParts.push('hubspot_contact_id:=__none__')
+      } else {
+        pushIn('hubspot_contact_id', parcoursupVerdictContactIds.join(','))
+      }
+    }
     if (source) pushIn('origine', source)
     if (zone) pushIn('zone_localite', zone)
     if (departement) pushIn('departement', departement)
@@ -1692,6 +1730,15 @@ export async function GET(req: NextRequest) {
         }
         query = query.or(orParts.join(','))
       }
+    }
+  }
+
+  // Verdict Parcoursup 2026 — filtre par contact_id pré-résolu
+  if (parcoursupVerdictContactIds !== null) {
+    if (parcoursupVerdictContactIds.length === 0) {
+      query = query.eq('hubspot_contact_id', '__none__')
+    } else {
+      query = query.in('hubspot_contact_id', parcoursupVerdictContactIds)
     }
   }
 
