@@ -645,13 +645,20 @@ export default function CRMPage() {
     return () => clearTimeout(t)
   }, [filterPanelOpen, fieldOptionsLoaded, loading])
 
-  // Charge les propriétés CRM uniquement quand le panel de filtres est ouvert.
-  useEffect(() => {
-    if (!filterPanelOpen || allCrmProps.length > 0) return
+  // Charge le catalogue des propriétés CRM (utilisé par le panel "Filtres
+  // avancés" ET par le menu "Colonnes" de la table). Idempotent : si la liste
+  // est déjà en mémoire, on ne refetch pas.
+  const ensureCrmPropsLoaded = useCallback(() => {
+    if (allCrmProps.length > 0) return
     fetch('/api/crm/properties?object=contacts&limit=2000').then(r => r.json()).then(d => {
       if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
-  }, [filterPanelOpen, allCrmProps.length])
+  }, [allCrmProps.length])
+
+  useEffect(() => {
+    if (!filterPanelOpen) return
+    ensureCrmPropsLoaded()
+  }, [filterPanelOpen, ensureCrmPropsLoaded])
 
   // Debounce recherche pour éviter un fetch par frappe.
   useEffect(() => {
@@ -2060,6 +2067,7 @@ export default function CRMPage() {
           allCrmProps={allCrmProps}
           extraColumns={extraColumns}
           onExtraColumnsChange={persistExtraColumns}
+          onRequestProps={ensureCrmPropsLoaded}
         /></div>
 
         {/* Pagination */}

@@ -490,6 +490,10 @@ interface Props {
   allCrmProps?: Array<{ name: string; label?: string; type?: string; groupName?: string }>
   extraColumns?: string[]
   onExtraColumnsChange?: (next: string[]) => void
+  // Le parent peut charger paresseusement le catalogue des propriétés
+  // quand l'utilisateur ouvre le menu Colonnes (pas seulement quand il
+  // ouvre le panneau "Filtres avancés").
+  onRequestProps?: () => void
 }
 
 // ── Formatage numéro de téléphone ─────────────────────────────────────────────
@@ -924,6 +928,7 @@ export default function CRMContactsTable({
   allCrmProps,
   extraColumns,
   onExtraColumnsChange,
+  onRequestProps,
 }: Props) {
   const RENDER_CHUNK = 120
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
@@ -1052,6 +1057,13 @@ export default function CRMContactsTable({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [colMenuOpen])
+
+  // Charge paresseusement le catalogue de propriétés HubSpot quand
+  // l'utilisateur ouvre le menu Colonnes — pour que le picker
+  // "Propriétés du contact" soit toujours utilisable.
+  useEffect(() => {
+    if (colMenuOpen) onRequestProps?.()
+  }, [colMenuOpen, onRequestProps])
 
   // ── Chargement des préférences utilisateur depuis Supabase ────────────────
   useEffect(() => {
@@ -1652,14 +1664,14 @@ export default function CRMContactsTable({
             })}
 
             {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
-            {allCrmProps && allCrmProps.length > 0 && onExtraColumnsChange && (
+            {onExtraColumnsChange && (
               <>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
                   Propriétés du contact
                 </div>
                 {/* Liste des extra columns actives + bouton retirer */}
                 {(extraColumns ?? []).map(propName => {
-                  const meta = allCrmProps.find(p => p.name === propName)
+                  const meta = allCrmProps?.find(p => p.name === propName)
                   return (
                     <div key={propName} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
@@ -1680,15 +1692,26 @@ export default function CRMContactsTable({
                     </div>
                   )
                 })}
-                {/* Picker : ajouter une propriété */}
-                <PropertyPicker
-                  allProps={allCrmProps}
-                  excludeNames={new Set(extraColumns ?? [])}
-                  onPick={(name) => {
-                    const next = [...(extraColumns ?? []), name]
-                    onExtraColumnsChange(next)
-                  }}
-                />
+                {/* Picker : ajouter une propriété (toujours visible, charge
+                    paresseusement le catalogue à l'ouverture du menu) */}
+                {allCrmProps && allCrmProps.length > 0 ? (
+                  <PropertyPicker
+                    allProps={allCrmProps}
+                    excludeNames={new Set(extraColumns ?? [])}
+                    onPick={(name) => {
+                      const next = [...(extraColumns ?? []), name]
+                      onExtraColumnsChange(next)
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    marginTop: 8, padding: '8px 10px',
+                    border: '1px dashed #cbd6e2', borderRadius: 6,
+                    fontSize: 11, color: '#7c98b6', textAlign: 'center',
+                  }}>
+                    Chargement des propriétés HubSpot…
+                  </div>
+                )}
               </>
             )}
           </div>
