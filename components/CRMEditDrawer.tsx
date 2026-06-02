@@ -163,6 +163,7 @@ interface HubspotOwnerMeta {
 
 interface CurrentApiUser {
   crm_brand?: string | null
+  role?: string | null
 }
 
 interface Props {
@@ -928,7 +929,13 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
       || (assignedNameNorm.includes('meryeme') && (assignedNameNorm.includes('benramdane') || assignedNameNorm.includes('benramdae')))
     )
   const isLinovaBrandUser = String(currentUser?.crm_brand || '').toLowerCase() === 'linova'
-  const shouldUseLinovaBooking = isAssignedToMeryeme || isLinovaBrandUser
+  const isAdminUser = String(currentUser?.role || '').toLowerCase() === 'admin'
+  // L'admin voit les DEUX boutons (Diploma + Linova) sur n'importe quel contact.
+  // Les autres profils suivent la regle metier : flux Linova uniquement quand
+  // le lead est attribue a Meryeme (ou que l'utilisateur est sur la marque Linova).
+  const shouldUseLinovaBooking = !isAdminUser && (isAssignedToMeryeme || isLinovaBrandUser)
+  const showLinovaButton = isAdminUser || shouldUseLinovaBooking
+  const showDiplomaButton = isAdminUser || !shouldUseLinovaBooking
 
   async function patchContact(fields: Record<string, string | null>) {
     const res = await fetch(`/api/crm/contacts/${c.hubspot_contact_id}`, {
@@ -1184,42 +1191,62 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
             </div>
           )}
 
-          {/* ── Bouton Prendre un RDV ────────────────────────────────────── */}
-          <div style={{ marginBottom: 16 }}>
-            <button
-              onClick={() => {
-                if (shouldUseLinovaBooking) {
-                  setShowLinovaModal(true)
-                  return
-                }
-                setShowBooking(b => !b)
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: (showBooking && !shouldUseLinovaBooking) ? 'rgba(204,172,113,0.15)' : `linear-gradient(135deg, ${GOLD}, #b8963f)`,
-                border: (showBooking && !shouldUseLinovaBooking) ? `1px solid ${GOLD}` : 'none',
-                borderRadius: 10,
-                color: (showBooking && !shouldUseLinovaBooking) ? GOLD : '#ffffff',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-              }}
-            >
-              <Calendar size={14} />
-              {shouldUseLinovaBooking
-                ? 'Programmer RDV admission Linova'
-                : (showBooking ? 'Fermer le formulaire de RDV' : 'Prendre un rendez-vous')}
-            </button>
+          {/* ── Boutons Prendre un RDV ───────────────────────────────────── */}
+          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {showDiplomaButton && (
+              <button
+                onClick={() => setShowBooking(b => !b)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: showBooking ? 'rgba(204,172,113,0.15)' : `linear-gradient(135deg, ${GOLD}, #b8963f)`,
+                  border: showBooking ? `1px solid ${GOLD}` : 'none',
+                  borderRadius: 10,
+                  color: showBooking ? GOLD : '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <Calendar size={14} />
+                {isAdminUser
+                  ? (showBooking ? 'Fermer le formulaire de RDV' : 'Programmer RDV Diploma')
+                  : (showBooking ? 'Fermer le formulaire de RDV' : 'Prendre un rendez-vous')}
+              </button>
+            )}
+            {showLinovaButton && (
+              <button
+                onClick={() => setShowLinovaModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'linear-gradient(135deg, #0e1e35, #1f3553)',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <Calendar size={14} />
+                Programmer RDV admission Linova
+              </button>
+            )}
           </div>
 
           {/* ── Formulaire de booking inline ──────────────────────────────── */}
-          {showBooking && !shouldUseLinovaBooking && (
+          {showBooking && showDiplomaButton && (
             <div style={{
               marginBottom: 20,
               padding: '14px',
