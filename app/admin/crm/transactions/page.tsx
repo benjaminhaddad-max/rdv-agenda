@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, X, ChevronDown, ChevronUp, LayoutDashboard, Users, ExternalLink,
@@ -75,7 +75,7 @@ type ViewMode = 'board' | 'list'
 
 // ── Advanced Filter System ───────────────────────────────────────────────────
 
-type FilterField = 'stage' | 'formation' | 'classe' | 'zone' | 'closer' | 'dealname'
+type FilterField = 'stage' | 'formation' | 'classe' | 'zone' | 'closer' | 'dealname' | 'parcoursup_verdict'
 type FilterOperator = 'is' | 'is_not' | 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty'
 
 interface FilterRule {
@@ -86,12 +86,23 @@ interface FilterRule {
 }
 
 const FILTER_FIELDS: { key: FilterField; label: string; type: 'select' | 'text' }[] = [
-  { key: 'stage',     label: 'Étape',            type: 'select' },
-  { key: 'formation', label: 'Formation',        type: 'select' },
-  { key: 'classe',    label: 'Classe actuelle',  type: 'select' },
-  { key: 'zone',      label: 'Zone / Localité',  type: 'text' },
-  { key: 'closer',    label: 'Closer',           type: 'text' },
-  { key: 'dealname',  label: 'Nom transaction',  type: 'text' },
+  { key: 'stage',              label: 'Étape',                type: 'select' },
+  { key: 'formation',          label: 'Formation',            type: 'select' },
+  { key: 'classe',             label: 'Classe actuelle',      type: 'select' },
+  { key: 'parcoursup_verdict', label: 'Verdict Parcoursup',   type: 'select' },
+  { key: 'zone',               label: 'Zone / Localité',      type: 'text' },
+  { key: 'closer',             label: 'Closer',               type: 'text' },
+  { key: 'dealname',           label: 'Nom transaction',      type: 'text' },
+]
+
+// Verdict Parcoursup options (statuts plateforme + 'aucun' pour "Sans verdict")
+const PARCOURSUP_VERDICT_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: 'ok_valide',  label: 'OK VALIDÉ' },
+  { value: 'ok_attente', label: 'OK EN ATTENTE' },
+  { value: 'good',       label: 'GOOD EN PRINCIPE' },
+  { value: 'attention',  label: 'ATTENTION JUSTE' },
+  { value: 'bascule',    label: 'BASCULE COMPLÈTE PAES' },
+  { value: 'aucun',      label: 'Sans verdict' },
 ]
 
 const OPERATORS_SELECT: { key: FilterOperator; label: string }[] = [
@@ -111,10 +122,11 @@ const OPERATORS_TEXT: { key: FilterOperator; label: string }[] = [
 
 function getFieldOptions(field: FilterField): string[] {
   switch (field) {
-    case 'stage':     return Object.keys(STAGE_MAP)
-    case 'formation': return FORMATION_OPTIONS.filter(Boolean)
-    case 'classe':    return CLASSE_OPTIONS.filter(Boolean)
-    default:          return []
+    case 'stage':              return Object.keys(STAGE_MAP)
+    case 'formation':          return FORMATION_OPTIONS.filter(Boolean)
+    case 'classe':             return CLASSE_OPTIONS.filter(Boolean)
+    case 'parcoursup_verdict': return PARCOURSUP_VERDICT_FILTER_OPTIONS.map(o => o.value)
+    default:                   return []
   }
 }
 
@@ -122,6 +134,9 @@ function formatFieldValue(field: FilterField, value: string): string {
   if (field === 'stage') {
     const s = STAGE_MAP[value]
     return s ? `${s.emoji} ${s.label}` : value
+  }
+  if (field === 'parcoursup_verdict') {
+    return PARCOURSUP_VERDICT_FILTER_OPTIONS.find(o => o.value === value)?.label ?? value
   }
   return value
 }
@@ -168,13 +183,14 @@ function persistViews(views: SavedView[]) {
 }
 
 // Convert filter rules to simple query params for the API
-function rulesToParams(rules: FilterRule[]): { search: string; stage: string; formation: string; classe: string } {
-  const params = { search: '', stage: '', formation: '', classe: '' }
+function rulesToParams(rules: FilterRule[]): { search: string; stage: string; formation: string; classe: string; parcoursupVerdict: string } {
+  const params = { search: '', stage: '', formation: '', classe: '', parcoursupVerdict: '' }
   for (const rule of rules) {
     if (rule.operator === 'is') {
       if (rule.field === 'stage') params.stage = rule.value
       else if (rule.field === 'formation') params.formation = rule.value
       else if (rule.field === 'classe') params.classe = rule.value
+      else if (rule.field === 'parcoursup_verdict') params.parcoursupVerdict = rule.value
       else if (rule.field === 'dealname') params.search = rule.value
     } else if (rule.operator === 'contains' && rule.field === 'dealname') {
       params.search = rule.value
@@ -183,17 +199,28 @@ function rulesToParams(rules: FilterRule[]): { search: string; stage: string; fo
   return params
 }
 
+// Helper : extrait le status verdict d'un deal (override prioritaire)
+function dealParcoursupStatus(deal: Transaction | TransactionDetail): string {
+  const v = (deal as TransactionDetail).contact?.parcoursup_verdict
+  return v?.status ? String(v.status).toLowerCase() : ''
+}
+
 // Check if a deal matches filter rules (for board client-side filtering)
 function dealMatchesRules(deal: Transaction | TransactionDetail, rules: FilterRule[]): boolean {
   for (const rule of rules) {
     let fieldVal = ''
     switch (rule.field) {
-      case 'stage':     fieldVal = deal.dealstage ?? ''; break
-      case 'formation': fieldVal = deal.formation ?? ''; break
-      case 'classe':    fieldVal = deal.contact?.classe_actuelle ?? ''; break
-      case 'zone':      fieldVal = deal.contact?.zone_localite ?? deal.contact?.departement ?? ''; break
-      case 'closer':    fieldVal = deal.closer?.name ?? ''; break
-      case 'dealname':  fieldVal = deal.dealname ?? ''; break
+      case 'stage':              fieldVal = deal.dealstage ?? ''; break
+      case 'formation':          fieldVal = deal.formation ?? ''; break
+      case 'classe':             fieldVal = deal.contact?.classe_actuelle ?? ''; break
+      case 'zone':               fieldVal = deal.contact?.zone_localite ?? deal.contact?.departement ?? ''; break
+      case 'closer':             fieldVal = deal.closer?.name ?? ''; break
+      case 'dealname':           fieldVal = deal.dealname ?? ''; break
+      case 'parcoursup_verdict': fieldVal = dealParcoursupStatus(deal); break
+    }
+    // 'aucun' = absence de verdict (string vide normalisée)
+    if (rule.field === 'parcoursup_verdict' && fieldVal === '') {
+      fieldVal = 'aucun'
     }
     const v = rule.value?.toLowerCase() ?? ''
     const fv = fieldVal.toLowerCase()
@@ -748,6 +775,19 @@ export default function TransactionsPage() {
     const p = rulesToParams(rules)
     setSearch(p.search); setStage(p.stage); setFormation(p.formation); setClasse(p.classe)
   }
+
+  // Filtrage client-side des colonnes du board selon les filterRules.
+  // Les filtres avancés (Étape, Formation, Classe, Verdict Parcoursup, etc.)
+  // sont appliqués localement car fetchBoard n'envoie pas tous les params
+  // au serveur (perf : 1 seul fetch pour toutes les colonnes).
+  const filteredBoardColumns = useMemo(() => {
+    if (filterRules.length === 0) return boardColumns
+    const out: Record<string, TransactionDetail[]> = {}
+    for (const [stageId, deals] of Object.entries(boardColumns)) {
+      out[stageId] = deals.filter(d => dealMatchesRules(d, filterRules))
+    }
+    return out
+  }, [boardColumns, filterRules])
 
   // Check if current rules differ from active view
   const activeView = views.find(v => v.id === activeViewId)
@@ -1403,7 +1443,7 @@ export default function TransactionsPage() {
             </div>
           ) : (
             <TransactionBoard
-              columns={boardColumns}
+              columns={filteredBoardColumns}
               onStageChange={handleStageChange}
               onBatchStageChange={handleBatchStageChange}
               onSelectDeal={handleSelectDeal}
