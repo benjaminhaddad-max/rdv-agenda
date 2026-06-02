@@ -114,6 +114,51 @@ export async function POST(req: Request, { params }: Params) {
   const body = await req.json().catch(() => ({}))
   const data = (body.data || {}) as Record<string, unknown>
 
+  // ── Attribution publicitaire ─────────────────────────────────────────────
+  // Le frontend envoie {gclid, fbclid, msclkid, ttclid, li_fat_id, sccid,
+  // gbraid, wbraid} depuis l'URL ou le cookie 90j pose par diploma-tracker.js
+  // a la 1re visite. On les mappe sur les noms de proprietes que la fiche
+  // contact (section "Tracking publicitaire") sait afficher.
+  const rawAttribution = (body.attribution || {}) as Record<string, unknown>
+  const cleanStr = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null
+    const s = String(v).trim()
+    return s.length ? s.slice(0, 500) : null
+  }
+  const adClickIds = {
+    gclid:    cleanStr(rawAttribution.gclid),
+    gbraid:   cleanStr(rawAttribution.gbraid),
+    wbraid:   cleanStr(rawAttribution.wbraid),
+    fbclid:   cleanStr(rawAttribution.fbclid),
+    msclkid:  cleanStr(rawAttribution.msclkid),
+    ttclid:   cleanStr(rawAttribution.ttclid),
+    li_fat_id: cleanStr(rawAttribution.li_fat_id),
+    sccid:    cleanStr(rawAttribution.sccid),
+  }
+  // Mapping vers les memes cles que HubSpot pour que la section "Tracking
+  // publicitaire" sur la fiche contact affiche ces IDs sans modif UI.
+  const trackingForContactRaw: Record<string, string> = {}
+  if (adClickIds.gclid) {
+    trackingForContactRaw.gclid = adClickIds.gclid
+    trackingForContactRaw.hs_google_click_id = adClickIds.gclid
+  }
+  if (adClickIds.gbraid) trackingForContactRaw.gbraid = adClickIds.gbraid
+  if (adClickIds.wbraid) trackingForContactRaw.wbraid = adClickIds.wbraid
+  if (adClickIds.fbclid) {
+    trackingForContactRaw.fbclid = adClickIds.fbclid
+    trackingForContactRaw.hs_facebook_click_id = adClickIds.fbclid
+  }
+  if (adClickIds.msclkid)   trackingForContactRaw.hs_bing_click_id = adClickIds.msclkid
+  if (adClickIds.ttclid)    trackingForContactRaw.hs_tiktok_click_id = adClickIds.ttclid
+  if (adClickIds.li_fat_id) trackingForContactRaw.hs_linkedin_click_id = adClickIds.li_fat_id
+  if (adClickIds.sccid)     trackingForContactRaw.lead_id_snapchat = adClickIds.sccid
+  // UTM aussi recopiees dans hubspot_raw pour la section Tracking publicitaire
+  const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as const
+  for (const k of utmKeys) {
+    const v = cleanStr((body as Record<string, unknown>)[k])
+    if (v) trackingForContactRaw[k] = v
+  }
+
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
     .from('forms')
@@ -249,6 +294,24 @@ export async function POST(req: Request, { params }: Params) {
           updateData[k] = v
         }
       }
+      // Merge tracking publicitaire dans hubspot_raw (sans ecraser les IDs
+      // d'attribution deja captures lors d'une 1re soumission).
+      if (Object.keys(trackingForContactRaw).length > 0) {
+        const { data: existingRaw } = await db
+          .from('crm_contacts')
+          .select('hubspot_raw')
+          .eq('hubspot_contact_id', existing.hubspot_contact_id)
+          .maybeSingle()
+        const currentRaw = (existingRaw?.hubspot_raw && typeof existingRaw.hubspot_raw === 'object')
+          ? (existingRaw.hubspot_raw as Record<string, unknown>)
+          : {}
+        // First-touch wins : on n'ecrase pas un click ID deja present
+        const mergedRaw: Record<string, unknown> = { ...currentRaw }
+        for (const [k, v] of Object.entries(trackingForContactRaw)) {
+          if (!mergedRaw[k]) mergedRaw[k] = v
+        }
+        updateData.hubspot_raw = mergedRaw
+      }
       await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
       contactId = existing.hubspot_contact_id
     } else {
@@ -262,6 +325,9 @@ export async function POST(req: Request, { params }: Params) {
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,
         origine:            'Formulaire web',
+      }
+      if (Object.keys(trackingForContactRaw).length > 0) {
+        insertData.hubspot_raw = trackingForContactRaw
       }
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
@@ -280,7 +346,15 @@ export async function POST(req: Request, { params }: Params) {
   // 6. Enregistre la soumission
   // contact_id est de type UUID dans form_submissions mais crm_contacts utilise hubspot_contact_id (text)
   // → on stocke l'ID texte dans la colonne `data._contact_id` à la place et on laisse contact_id null
-  const submissionData = { ...data, _contact_id: contactId }
+  const trackingForSubmission: Record<string, string> = {}
+  for (const [k, v] of Object.entries(adClickIds)) {
+    if (v) trackingForSubmission[k] = v
+  }
+  const submissionData = {
+    ...data,
+    _contact_id: contactId,
+    ...(Object.keys(trackingForSubmission).length > 0 ? { _tracking: trackingForSubmission } : {}),
+  }
   const submissionRow = {
     form_id: form.id,
     data: submissionData,

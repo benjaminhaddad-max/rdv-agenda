@@ -91,6 +91,30 @@ export default function FormRenderer({
         if (v) utm[k] = v
       }
 
+      // ── Attribution publicitaire ──────────────────────────────────────
+      // Recupere les click IDs (gclid, fbclid, msclkid, ttclid, li_fat_id,
+      // sccid, gbraid, wbraid) depuis l'URL d'abord, puis le cookie pose
+      // par diploma-tracker.js a la 1re visite (cookie 90 jours).
+      // On lit aussi les cookies meme si le tracker n'est pas charge sur
+      // cette page (ex: form en embed) — c'est la meme convention.
+      const AD_PARAMS = ['gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', 'sccid']
+      const readCookie = (name: string): string | null => {
+        try {
+          const prefix = `${name}=`
+          const cookies = document.cookie.split(';')
+          for (const c of cookies) {
+            const t = c.trim()
+            if (t.indexOf(prefix) === 0) return decodeURIComponent(t.substring(prefix.length))
+          }
+        } catch { /* ignore */ }
+        return null
+      }
+      const attribution: Record<string, string> = {}
+      for (const k of AD_PARAMS) {
+        const v = params.get(k) || readCookie(`_dpa_${k}`)
+        if (v) attribution[k] = v
+      }
+
       const res = await fetch(`/api/forms/${slug}/submit`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -99,6 +123,7 @@ export default function FormRenderer({
           hp,
           source_url: window.location.href,
           ...utm,
+          attribution,
         }),
       })
       const data = await res.json()

@@ -173,15 +173,15 @@ const SYSTEM_LOGICS: SystemLogic[] = [
   },
   {
     id: 'diploma-force-preinscrit',
-    name: 'Sync Diploma -> statut forcé Pré-inscrit 2026-2027',
+    name: 'Sync Diploma -> statut forcé Pré-inscrit 2026/2027',
     category: 'qualification',
     trigger: 'Inscription Diploma en statut payée ou en cours.',
-    action: "Force hs_lead_status = 'Pré-inscrit 2026-2027' (anti-régression).",
+    action: "Force hs_lead_status = 'Pré-inscrit 2026/2027' (anti-régression).",
     why: 'Empêche qu’un flux secondaire repasse un inscrit en Nouveau.',
     path: [
       'Le sync identifie les contacts liés à payée/en cours.',
       "Une liste de contact_ids est consolidée.",
-      "Mise à jour batch: hs_lead_status = 'Pré-inscrit 2026-2027'.",
+      "Mise à jour batch: hs_lead_status = 'Pré-inscrit 2026/2027'.",
       'Le synced_at est rafraîchi pour traçabilité.',
     ],
     sources: ['/api/cron/diploma-sync'],

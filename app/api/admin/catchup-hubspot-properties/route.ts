@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeOrigineValue } from '@/lib/origine-normalization'
+import { normalizeLeadStatus } from '@/lib/lead-status-normalization'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -190,6 +191,8 @@ export async function POST(req: NextRequest) {
       for (const propName of selectedProps) {
         const val = propName === 'origine'
           ? normalizeOrigineValue(props[propName])
+          : propName === 'hs_lead_status'
+          ? normalizeLeadStatus(props[propName])
           : normalizeValue(props[propName])
         mergedRaw[propName] = val
         const col = HUBSPOT_TO_COLUMN[propName]
