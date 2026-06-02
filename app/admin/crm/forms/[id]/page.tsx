@@ -78,22 +78,85 @@ const FIELD_TYPES = [
   { type: 'hidden',   label: 'Caché (UTM, tracking)', icon: EyeOff },
 ]
 
-// Champs CRM standards auxquels on peut mapper
+// Champs CRM standards auxquels on peut mapper.
+// Pour mapper sur une propriété HubSpot custom non listée ici, choisis
+// "✏️ Saisir un champ personnalisé…" et tape le nom technique HubSpot
+// (ex: "diploma_sante___formation_demandee").
 const CRM_FIELDS = [
-  { value: '',              label: '— Ne pas mapper —' },
-  { value: 'firstname',     label: 'Prénom' },
-  { value: 'lastname',      label: 'Nom' },
-  { value: 'email',         label: 'Email' },
-  { value: 'phone',         label: 'Téléphone' },
-  { value: 'departement',   label: 'Département' },
-  { value: 'classe_actuelle', label: 'Classe actuelle' },
-  { value: 'formation',     label: 'Formation souhaitée' },
-  { value: 'zone_localite', label: 'Zone / Localité' },
-  { value: 'email_parent',  label: 'Email parent' },
+  { value: '',                     label: '— Ne pas mapper —' },
+  // Identité
+  { value: 'firstname',            label: 'Prénom' },
+  { value: 'lastname',             label: 'Nom' },
+  { value: 'email',                label: 'Email' },
+  { value: 'phone',                label: 'Téléphone' },
+  { value: 'mobilephone',          label: 'Téléphone mobile' },
+  // Parent
+  { value: 'email_parent',         label: 'Email parent' },
+  { value: 'parent__tudiant',      label: 'Parent / Étudiant' },
+  // Localisation
+  { value: 'departement',          label: 'Département' },
+  { value: 'zone_localite',        label: 'Zone / Localité' },
+  { value: 'address',              label: 'Adresse' },
+  { value: 'city',                 label: 'Ville' },
+  { value: 'zip',                  label: 'Code postal' },
+  { value: 'country',              label: 'Pays' },
+  // Scolarité
+  { value: 'classe_actuelle',      label: 'Classe actuelle' },
+  { value: 'formation_souhaitee',  label: 'Formation souhaitée' },
+  { value: 'formation_demandee',   label: 'Formation demandée' },
+  // Lead / Source
+  { value: 'origine',              label: 'Origine' },
+  { value: 'source',               label: 'Source' },
+  { value: 'hs_lead_status',       label: 'Statut du lead' },
+  { value: 'lifecyclestage',       label: 'Étape du cycle de vie' },
+  // Pro
+  { value: 'company',              label: 'Entreprise' },
+  { value: 'jobtitle',             label: 'Poste' },
+  { value: 'website',              label: 'Site web' },
+  // Custom
+  { value: '__custom__',           label: '✏️ Saisir un champ personnalisé…' },
 ]
 
 const DEFAULT_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature-formulaire/'
 const DEFAULT_NON_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature/'
+
+// Listes d'options pré-remplies pour accélérer la création de formulaires.
+// L'utilisateur peut ensuite éditer / supprimer / réordonner manuellement.
+const OPTION_PRESETS: Array<{ id: string; label: string; options: Array<{ value: string; label: string }> }> = [
+  {
+    id: 'specialites_bac',
+    label: 'Spécialités Bac (Terminale)',
+    options: [
+      'Mathématiques',
+      'Physique-Chimie',
+      'SVT (Sciences de la Vie et de la Terre)',
+      'Sciences de l’Ingénieur (SI)',
+      'NSI (Numérique et Sciences Informatiques)',
+      'SES (Sciences Économiques et Sociales)',
+      'HGGSP (Histoire-Géo, Géopolitique, Sciences Politiques)',
+      'HLP (Humanités, Littérature et Philosophie)',
+      'LLCER (Langues, Littératures et Cultures Étrangères)',
+      'LLCA (Langues, Littératures et Cultures de l’Antiquité)',
+      'Arts',
+      'EPS (Éducation Physique et Sportive)',
+      'Biologie-Écologie',
+      'Autre',
+    ].map(label => ({ value: slugifyOpt(label), label })),
+  },
+  {
+    id: 'classe_actuelle',
+    label: 'Classe actuelle',
+    options: [
+      'Seconde', 'Première', 'Terminale', 'Bac obtenu',
+      'PASS / LAS', 'Étudiant en santé', 'Réorientation', 'Autre',
+    ].map(label => ({ value: slugifyOpt(label), label })),
+  },
+  {
+    id: 'civilite',
+    label: 'Civilité',
+    options: ['M.', 'Mme'].map(label => ({ value: slugifyOpt(label), label })),
+  },
+]
 
 function normalizeRuleValue(value: string | null | undefined): string {
   return String(value || '')
@@ -601,9 +664,37 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
       </MiniField>
 
       <MiniField label="Mapping CRM">
-        <select value={field.crm_field || ''} onChange={e => onUpdate({ crm_field: e.target.value || null })} style={miniInput}>
-          {CRM_FIELDS.map(cf => <option key={cf.value} value={cf.value}>{cf.label}</option>)}
-        </select>
+        {(() => {
+          const presetValues = new Set(CRM_FIELDS.map(c => c.value).filter(v => v && v !== '__custom__'))
+          const currentValue = field.crm_field || ''
+          const isCustom = currentValue !== '' && !presetValues.has(currentValue)
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <select
+                value={isCustom ? '__custom__' : currentValue}
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === '__custom__') {
+                    if (!isCustom) onUpdate({ crm_field: ' ' })
+                  } else {
+                    onUpdate({ crm_field: v || null })
+                  }
+                }}
+                style={miniInput}
+              >
+                {CRM_FIELDS.map(cf => <option key={cf.value} value={cf.value}>{cf.label}</option>)}
+              </select>
+              {isCustom && (
+                <input
+                  value={currentValue.trim()}
+                  onChange={e => onUpdate({ crm_field: e.target.value || ' ' })}
+                  placeholder="ex: diploma_sante___formation_demandee"
+                  style={{ ...miniInput, fontFamily: 'ui-monospace, monospace' }}
+                />
+              )}
+            </div>
+          )
+        })()}
       </MiniField>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0e1e35', marginTop: 10, cursor: 'pointer' }}>
@@ -613,6 +704,27 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
       {hasOptions && (
         <>
           <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 }}>Options</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: '#7d8c9e' }}>Pré-remplir :</span>
+            <select
+              value=""
+              onChange={e => {
+                const preset = OPTION_PRESETS.find(p => p.id === e.target.value)
+                if (!preset) return
+                const merged = [
+                  ...field.options.filter(o =>
+                    !preset.options.some(po => po.value === o.value || po.label === o.label),
+                  ),
+                  ...preset.options,
+                ]
+                onUpdate({ options: merged })
+              }}
+              style={{ ...miniInput, flex: 1 }}
+            >
+              <option value="">— Choisir un preset —</option>
+              {OPTION_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
           {field.options.map((opt, idx) => (
             <div key={idx} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
               <input
