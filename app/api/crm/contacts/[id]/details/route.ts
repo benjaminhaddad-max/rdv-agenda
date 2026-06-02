@@ -116,7 +116,7 @@ export async function GET(
     formSubmissions,
     tasks,
     emailEvents,
-    preInscriptions,
+    preInscriptionsRes,
     smsRecipients,
     emailRecipients,
   ] = await Promise.all([
@@ -161,11 +161,11 @@ export async function GET(
     // normalise). Quand !phase, linkedContactIds contient les doublons. Sinon
     // juste le contact courant.
     wantCore
-      ? safeRows(db.from('crm_pre_inscriptions')
+      ? db.from('crm_pre_inscriptions')
           .select('id, hubspot_contact_id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
           .in('hubspot_contact_id', linkedContactIds)
-          .order('saison', { ascending: false }))
-      : emptyArr,
+          .order('saison', { ascending: false })
+      : Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null }),
 
     wantExtended
       ? safeRows(db.from('sms_campaign_recipients')
@@ -185,6 +185,18 @@ export async function GET(
   ])
 
   const deals = dealsRes.data ?? []
+  let preInscriptions = preInscriptionsRes.data ?? []
+  // Garde-fou: si une erreur DB survient sur la requete .in(...) (ex: cast/type
+  // edge case), on refait une requete simple sur la fiche courante pour ne pas
+  // perdre l'affichage des inscriptions/parcoursup dans l'UI.
+  if (wantCore && preInscriptionsRes.error) {
+    const fallback = await db
+      .from('crm_pre_inscriptions')
+      .select('id, hubspot_contact_id, saison, detected_at, paiement_status, formation, montant, notes, external_data, updated_at')
+      .eq('hubspot_contact_id', contactId)
+      .order('saison', { ascending: false })
+    preInscriptions = fallback.data ?? []
+  }
 
   // 2-bis. SMS history : pour chaque message envoye au contact, on rapatrie
   // la campagne (nom, sender, type) + les liens trackes du destinataire avec

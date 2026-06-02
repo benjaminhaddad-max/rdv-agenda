@@ -69,6 +69,33 @@ interface DiplomaInscription {
   finalisation_sent_at: string | null
   finalisation_payment_received: boolean | null
   finalisation_data: Record<string, unknown> | null
+  parcoursup: {
+    verdict?: {
+      status?: string | null
+      label?: string | null
+      ratio_pct?: number | null
+      formation?: string | null
+      manual?: boolean | null
+    } | null
+    voeux_alert?: {
+      flagged?: boolean | null
+      formations?: string[] | null
+    } | null
+    q1?: {
+      proposition?: string | null
+      formations?: string[] | null
+      va_valider?: string | null
+    } | null
+    q3?: {
+      voeux?: Array<{
+        formation?: string | null
+        mineure?: string | null
+        rang?: number | null
+        rang_dernier_admis?: number | null
+      }> | null
+    } | null
+    updated_at?: string | null
+  } | null
   current_step: number | null
   stripe_payment_status: string | null
   cgv_accepted_at: string | null
@@ -81,7 +108,7 @@ async function pullDiploma(): Promise<DiplomaInscription[]> {
   let offset = 0
   while (true) {
     const r = await fetch(
-      `https://admission.diploma-sante.fr/api/list-inscriptions?limit=500&offset=${offset}`,
+      `https://admission.diploma-sante.fr/api/list-inscriptions?limit=500&offset=${offset}&include=parcoursup`,
       { headers: { 'x-api-key': DIPLOMA_KEY! } }
     )
     if (!r.ok) throw new Error(`Diploma API ${r.status}: ${await r.text()}`)
@@ -208,6 +235,7 @@ export async function GET(req: NextRequest) {
           created_at: ins.created_at || null,
           updated_at: ins.updated_at || null,
           finalisation_data: ins.finalisation_data || null,
+          parcoursup: ins.parcoursup || null,
         },
         detected_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -288,12 +316,47 @@ export async function GET(req: NextRequest) {
     }
 
     const rowsToUpsert = [...dedupMap.values()]
+    const contactIdsForRows = [...new Set(rowsToUpsert.map(r => String(r.hubspot_contact_id)).filter(Boolean))]
+
+    // Preserve les éventuelles éditions manuelles CRM (API externe = read-only)
+    // et garde-fou: ne jamais écraser un parcoursup existant avec null.
+    const existingByContact = new Map<string, Record<string, unknown>>()
+    if (contactIdsForRows.length > 0) {
+      const { data: existingRows } = await db
+        .from('crm_pre_inscriptions')
+        .select('hubspot_contact_id, external_data')
+        .eq('saison', SAISON)
+        .in('hubspot_contact_id', contactIdsForRows)
+
+      for (const row of existingRows ?? []) {
+        if (!row.hubspot_contact_id) continue
+        existingByContact.set(String(row.hubspot_contact_id), (row.external_data as Record<string, unknown>) || {})
+      }
+    }
+    const mergedRowsToUpsert = rowsToUpsert.map(row => {
+      const previousExternal = existingByContact.get(String(row.hubspot_contact_id)) || {}
+      const nextExternal = { ...(row.external_data as Record<string, unknown>) }
+      const previousOverride = previousExternal.parcoursup_crm_override
+      const previousParcoursup = previousExternal.parcoursup
+
+      if (previousOverride) {
+        nextExternal.parcoursup_crm_override = previousOverride
+      }
+      if ((nextExternal.parcoursup == null) && previousParcoursup != null) {
+        nextExternal.parcoursup = previousParcoursup
+      }
+
+      return {
+        ...row,
+        external_data: nextExternal,
+      }
+    })
 
     // 4. Upsert pre_inscriptions
-    if (rowsToUpsert.length > 0) {
+    if (mergedRowsToUpsert.length > 0) {
       const CHUNK = 200
-      for (let k = 0; k < rowsToUpsert.length; k += CHUNK) {
-        const chunk = rowsToUpsert.slice(k, k + CHUNK)
+      for (let k = 0; k < mergedRowsToUpsert.length; k += CHUNK) {
+        const chunk = mergedRowsToUpsert.slice(k, k + CHUNK)
         const { error } = await db
           .from('crm_pre_inscriptions')
           .upsert(chunk, { onConflict: 'hubspot_contact_id,saison' })
@@ -307,7 +370,7 @@ export async function GET(req: NextRequest) {
     // 6. Log dans crm_sync_log (best-effort, on ne fait pas echouer le cron si log echoue)
     try {
       await db.from('crm_sync_log').insert({
-        contacts_upserted: rowsToUpsert.length, // proxy : nb pre_inscriptions upsertes
+        contacts_upserted: mergedRowsToUpsert.length, // proxy : nb pre_inscriptions upsertes
         deals_upserted:    dealsUpdated,         // nb deals mis a jour
         duration_ms:       durationMs,
         error_message:     null,
@@ -320,8 +383,8 @@ export async function GET(req: NextRequest) {
       durationMs,
       diploma_total: all.length,
       targets: targets.length,
-      pre_inscriptions_upserted: rowsToUpsert.length,
-      pre_inscriptions_dedup_dropped: targets.length - rowsToUpsert.length - skipNoEmail - skipNoContact,
+      pre_inscriptions_upserted: mergedRowsToUpsert.length,
+      pre_inscriptions_dedup_dropped: targets.length - mergedRowsToUpsert.length - skipNoEmail - skipNoContact,
       deals_updated: dealsUpdated,
       deals_skip_no_deal_id: 0,
       skip_no_email: skipNoEmail,

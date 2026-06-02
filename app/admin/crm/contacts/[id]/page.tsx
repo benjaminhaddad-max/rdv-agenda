@@ -8,7 +8,7 @@ import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
-  GraduationCap,
+  GraduationCap, AlertTriangle, Circle, Pencil,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
@@ -181,6 +181,35 @@ interface PreInscription {
   updated_at: string
 }
 
+interface ParcoursupVerdict {
+  status?: string | null
+  label?: string | null
+  ratio_pct?: number | null
+  formation?: string | null
+  manual?: boolean | null
+}
+
+interface ParcoursupQ1 {
+  proposition?: string | null
+  formations?: string[] | null
+  va_valider?: string | null
+}
+
+interface ParcoursupQ3Voeu {
+  formation?: string | null
+  mineure?: string | null
+  rang?: number | null
+  rang_dernier_admis?: number | null
+}
+
+interface ParcoursupPayload {
+  verdict?: ParcoursupVerdict | null
+  voeux_alert?: { flagged?: boolean | null; formations?: string[] | null } | null
+  q1?: ParcoursupQ1 | null
+  q3?: { voeux?: ParcoursupQ3Voeu[] | null } | null
+  updated_at?: string | null
+}
+
 type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting'
 
 const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
@@ -235,6 +264,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
   const [showLinovaModal, setShowLinovaModal] = useState(false)
+  const [parcoursupEditor, setParcoursupEditor] = useState<{ preInscriptionId: number; data: ParcoursupPayload } | null>(null)
+  const [savingParcoursup, setSavingParcoursup] = useState(false)
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
@@ -387,6 +418,24 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveParcoursup = async (preInscriptionId: number, payload: ParcoursupPayload) => {
+    setSavingParcoursup(true)
+    try {
+      const res = await fetch(`/api/crm/contacts/${id}/parcoursup`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preInscriptionId, parcoursup: payload }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      await load({ force: true })
+      setParcoursupEditor(null)
+    } catch (e) {
+      alert(`Échec sauvegarde Parcoursup : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingParcoursup(false)
     }
   }
 
@@ -865,6 +914,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             // ensemble dans finalisation_data des que l'eleve valide la 1ere etape).
             const finData = (ext.finalisation_data as Record<string, unknown> | null | undefined) ?? null
             const formStarted = !!finData?.fin_echeances
+            const parcoursupOverride = ext.parcoursup_crm_override as ParcoursupPayload | undefined
+            const parcoursupRaw = ext.parcoursup as ParcoursupPayload | undefined
+            const parcoursupData = (parcoursupOverride ?? parcoursupRaw) || null
+            const showParcoursup2026 = !!parcoursupData
 
             const status = (() => {
               const s = pi.paiement_status
@@ -882,75 +935,96 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             })()
 
             return (
-              <RightSection
-                key={pi.id}
-                icon={<GraduationCap size={14} />}
-                title={`Inscription ${yyShort}`}
-                count={1}
-                accent="brand"
-              >
-                <div className="space-y-3 text-xs">
-                  {/* Statut en haut */}
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
-                    <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
-                    <span className="font-semibold">{status.label}</span>
-                  </div>
-
-                  {/* Formation */}
-                  {pi.formation && (
-                    <div className="space-y-0.5">
-                      <div className="text-[#4a6070]">Formation</div>
-                      <div className="font-medium text-[#0e1e35]">{pi.formation}</div>
+              <div key={`pi-block-${pi.id}`} className="space-y-3">
+                <RightSection
+                  icon={<GraduationCap size={14} />}
+                  title={`Inscription ${yyShort}`}
+                  count={1}
+                  accent="brand"
+                >
+                  <div className="space-y-3 text-xs">
+                    {/* Statut en haut */}
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${status.color}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full ${status.dot}`} />
+                      <span className="font-semibold">{status.label}</span>
                     </div>
-                  )}
 
-                  {/* Bloc montants */}
-                  {(pi.montant != null || acompteEuros > 0) && (
-                    <div className="bg-[#f7f4ee] rounded-lg p-2.5 space-y-1.5">
-                      {pi.montant != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#4a6070]">Total formule</span>
-                          <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
-                        </div>
-                      )}
-                      {acompteEuros > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#4a6070]">Acompte payé</span>
-                          <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
-                        </div>
-                      )}
-                      {paidAt && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#4a6070]">Date paiement</span>
-                          <span>{format(new Date(paidAt), 'PP', { locale: fr })}</span>
-                        </div>
-                      )}
-                      {ext.payment_method && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#4a6070]">Méthode</span>
-                          <span className="capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {pi.notes && (
-                    <div className="space-y-1">
-                      <div className="text-[#4a6070]">Notes</div>
-                      <div className="whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
-                    </div>
-                  )}
-
-                  {/* Date detection (footer discret) */}
-                  <div className="text-[#a89e8a] pt-1 border-t flex items-center justify-between">
-                    <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
-                    {ext.inscription_id && (
-                      <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
+                    {/* Formation */}
+                    {pi.formation && (
+                      <div className="space-y-0.5">
+                        <div className="text-[#4a6070]">Formation</div>
+                        <div className="font-medium text-[#0e1e35]">{pi.formation}</div>
+                      </div>
                     )}
+
+                    {/* Bloc montants */}
+                    {(pi.montant != null || acompteEuros > 0) && (
+                      <div className="bg-[#f7f4ee] rounded-lg p-2.5 space-y-1.5">
+                        {pi.montant != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#4a6070]">Total formule</span>
+                            <span className="font-semibold">{Number(pi.montant).toLocaleString('fr-FR')} €</span>
+                          </div>
+                        )}
+                        {acompteEuros > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#4a6070]">Acompte payé</span>
+                            <span className="font-medium text-emerald-700">{acompteEuros.toLocaleString('fr-FR')} €</span>
+                          </div>
+                        )}
+                        {paidAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#4a6070]">Date paiement</span>
+                            <span>{format(new Date(paidAt), 'PP', { locale: fr })}</span>
+                          </div>
+                        )}
+                        {ext.payment_method && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#4a6070]">Méthode</span>
+                            <span className="capitalize">{String(ext.payment_method).replace(/_/g, ' ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {pi.notes && (
+                      <div className="space-y-1">
+                        <div className="text-[#4a6070]">Notes</div>
+                        <div className="whitespace-pre-wrap text-slate-700 bg-amber-50 rounded p-2 leading-relaxed">{pi.notes}</div>
+                      </div>
+                    )}
+
+                    {/* Date detection (footer discret) */}
+                    <div className="text-[#a89e8a] pt-1 border-t flex items-center justify-between">
+                      <span>Détectée le {format(new Date(pi.detected_at), 'd MMM yyyy', { locale: fr })}</span>
+                      {ext.inscription_id && (
+                        <span title="ID plateforme">{String(ext.inscription_id).slice(0, 8)}…</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </RightSection>
+                </RightSection>
+
+                {showParcoursup2026 && (
+                  <RightSection
+                    icon={<GraduationCap size={14} />}
+                    title="Parcoursup 2026"
+                    count={1}
+                    accent="brand"
+                  >
+                    <ParcoursupSummaryCard
+                      data={parcoursupData}
+                      inscriptionId={ext.inscription_id as string | undefined}
+                      onEdit={() => {
+                        const clone = (typeof globalThis.structuredClone === 'function')
+                          ? globalThis.structuredClone(parcoursupData)
+                          : JSON.parse(JSON.stringify(parcoursupData))
+                        setParcoursupEditor({ preInscriptionId: pi.id, data: clone })
+                      }}
+                    />
+                  </RightSection>
+                )}
+              </div>
             )
           })}
         </aside>
@@ -980,6 +1054,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           }}
           onClose={() => setShowLinovaModal(false)}
           onSaved={() => load({ force: true })}
+        />
+      )}
+
+      {parcoursupEditor && (
+        <ParcoursupEditorModal
+          value={parcoursupEditor.data}
+          saving={savingParcoursup}
+          onClose={() => setParcoursupEditor(null)}
+          onSave={(next) => saveParcoursup(parcoursupEditor.preInscriptionId, next)}
         />
       )}
 
@@ -1662,6 +1745,368 @@ function EmptyTimeline() {
 function EmptyRight({ text }: { text: string }) {
   return (
     <div className="text-xs text-[#a89e8a] text-center py-4 px-2 border border-dashed rounded-lg">{text}</div>
+  )
+}
+
+function parcoursupVerdictStyles(status?: string | null) {
+  const v = String(status || '').toLowerCase()
+  if (v === 'ok_valide') return 'bg-green-100 text-green-800 border-green-200'
+  if (v === 'ok_attente') return 'bg-blue-100 text-blue-800 border-blue-200'
+  if (v === 'good') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+  if (v === 'attention') return 'bg-amber-100 text-amber-800 border-amber-200'
+  if (v === 'bascule') return 'bg-red-100 text-red-800 border-red-200'
+  return 'bg-slate-100 text-slate-700 border-slate-200'
+}
+
+function normalizedParcoursup(data: ParcoursupPayload): ParcoursupPayload {
+  const toStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return []
+    return value.map(v => String(v || '').trim()).filter(Boolean)
+  }
+  const toVoeuxArray = (value: unknown): ParcoursupQ3Voeu[] => {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter(v => !!v && typeof v === 'object')
+      .map(v => v as ParcoursupQ3Voeu)
+  }
+
+  return {
+    verdict: (data.verdict && typeof data.verdict === 'object') ? data.verdict : {},
+    voeux_alert: {
+      flagged: !!data.voeux_alert?.flagged,
+      formations: toStringArray(data.voeux_alert?.formations),
+    },
+    q1: {
+      proposition: data.q1?.proposition ?? null,
+      formations: toStringArray(data.q1?.formations),
+      va_valider: data.q1?.va_valider ?? null,
+    },
+    q3: { voeux: toVoeuxArray(data.q3?.voeux) },
+    updated_at: data.updated_at ?? null,
+  }
+}
+
+function ParcoursupSummaryCard({
+  data,
+  inscriptionId,
+  onEdit,
+}: {
+  data: ParcoursupPayload
+  inscriptionId?: string
+  onEdit: () => void
+}) {
+  const p = normalizedParcoursup(data)
+  const verdictLabel = p.verdict?.label || 'En attente de verdict'
+  const proposition = p.q1?.proposition || '—'
+  const vaValider = p.q1?.va_valider || '—'
+  const formations = p.q1?.formations ?? []
+  const voeux = p.q3?.voeux ?? []
+  const flagged = !!p.voeux_alert?.flagged
+  const flaggedFormations = (p.voeux_alert?.formations ?? []).filter(Boolean)
+  const link = inscriptionId ? `https://admission.diploma-sante.fr/#/parcoursup/${inscriptionId}` : null
+
+  return (
+    <div className="space-y-3 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border font-semibold ${parcoursupVerdictStyles(p.verdict?.status)}`}>
+          <Circle size={10} />
+          {verdictLabel}
+        </span>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border bg-white hover:bg-slate-50"
+        >
+          <Pencil size={11} />
+          Modifier
+        </button>
+      </div>
+
+      {link && (
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-[11px] break-all text-[#0038f0] hover:underline"
+        >
+          {link}
+        </a>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded border bg-slate-50 px-2 py-1.5">
+          <div className="text-slate-500">Proposition reçue ?</div>
+          <div className="font-semibold text-slate-800 capitalize">{proposition}</div>
+        </div>
+        <div className="rounded border bg-slate-50 px-2 py-1.5">
+          <div className="text-slate-500">Validera</div>
+          <div className="font-semibold text-slate-800">{vaValider}</div>
+        </div>
+      </div>
+
+      {formations.length > 0 && (
+        <div>
+          <div className="text-slate-500 mb-1">Formations avec proposition</div>
+          <div className="flex flex-wrap gap-1">
+            {formations.map((f, idx) => (
+              <span key={`${f}-${idx}`} className="px-2 py-1 rounded border bg-[#ccac71]/10 border-[#ccac71]/30 text-slate-800">
+                {f}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {voeux.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="grid grid-cols-[minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(70px,0.9fr)_minmax(90px,1.1fr)] gap-2 bg-slate-50 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-500">
+            <span className="min-w-0">Formation</span>
+            <span className="min-w-0">Mineure</span>
+            <span className="text-right">Rang</span>
+            <span className="text-right">Dern. admis</span>
+          </div>
+          <div className="divide-y">
+            {voeux.slice(0, 8).map((v, idx) => (
+              <div key={`voeu-${idx}`} className="grid grid-cols-[minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(70px,0.9fr)_minmax(90px,1.1fr)] gap-2 px-2 py-1.5 text-[11px]">
+                <span className="text-slate-800 min-w-0 break-words">{v.formation || '—'}</span>
+                <span className="text-slate-600 min-w-0 break-words">{v.mineure || '—'}</span>
+                <span className="font-semibold text-slate-800 text-right tabular-nums">{v.rang ?? '—'}</span>
+                <span className="text-slate-700 text-right tabular-nums">{v.rang_dernier_admis ?? '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {flagged && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+          <div className="flex items-center gap-1 text-red-700 font-semibold">
+            <AlertTriangle size={12} />
+            ATTENTION — Voeux à vérifier
+          </div>
+          {flaggedFormations.length > 0 && (
+            <div className="mt-1 text-red-700">
+              {flaggedFormations.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {p.updated_at && (
+        <div className="text-slate-400 text-right">
+          Mis à jour le {(() => {
+            try {
+              return format(new Date(p.updated_at as string), 'dd/MM/yyyy HH:mm', { locale: fr })
+            } catch {
+              return String(p.updated_at)
+            }
+          })()}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ParcoursupEditorModal({
+  value,
+  saving,
+  onClose,
+  onSave,
+}: {
+  value: ParcoursupPayload
+  saving: boolean
+  onClose: () => void
+  onSave: (next: ParcoursupPayload) => void
+}) {
+  const [draft, setDraft] = useState<ParcoursupPayload>(normalizedParcoursup(value))
+  useEffect(() => { setDraft(normalizedParcoursup(value)) }, [value])
+  const verdictChoices: Array<{ value: string; label: string; manual: boolean; status?: string; verdictLabel?: string }> = [
+    { value: 'auto', label: '🔄 Auto (recalculé)', manual: false },
+    { value: 'ok_valide', label: '✅ OK VALIDÉ', manual: true, status: 'ok_valide', verdictLabel: 'OK VALIDÉ' },
+    { value: 'ok_attente', label: '🔵 OK EN ATTENTE', manual: true, status: 'ok_attente', verdictLabel: 'OK EN ATTENTE' },
+    { value: 'good', label: '🟢 GOOD EN PRINCIPE', manual: true, status: 'good', verdictLabel: 'GOOD EN PRINCIPE' },
+    { value: 'attention', label: '🟠 ATTENTION JUSTE', manual: true, status: 'attention', verdictLabel: 'ATTENTION JUSTE' },
+    { value: 'bascule', label: '🔴 BASCULE COMPLÈTE PAES', manual: true, status: 'bascule', verdictLabel: 'BASCULE COMPLÈTE PAES' },
+  ]
+
+  const baseChoices = [
+    'PASS — Université Paris Cité',
+    'PASS — Sorbonne Université',
+    'PASS — Université Paris-Saclay (Orsay)',
+    'PASS — Sorbonne Paris Nord (Bobigny)',
+    'PASS — Autre université',
+    'LSPS — Université Paris-Est Créteil (UPEC)',
+    'LSPS — Université Versailles Saint-Quentin (UVSQ)',
+    'LSPS — Sorbonne Paris Nord (Bobigny)',
+    'LAS — Université Paris Cité',
+    'LAS — Université Paris-Saclay',
+    'LAS — Université Paris-Est',
+    'LAS — Sorbonne Université',
+  ]
+  const baseParcoursChoices = [
+    'Biologie, Physique et Chimie (BPC)',
+    'Mathématiques-Informatique',
+    'Sciences fondamentales',
+    'Sciences de la vie',
+    'Droit',
+    'Économie-Gestion',
+    'Psychologie',
+    'STAPS',
+    'SVT',
+    'Autre',
+  ]
+  const selectedFormations = draft.q1?.formations ?? []
+  const formationChoices = [...new Set([...baseChoices, ...selectedFormations])]
+  const voeux = draft.q3?.voeux ?? []
+  const parcoursChoices = [...new Set([...baseParcoursChoices, ...voeux.map(v => String(v.mineure || '').trim()).filter(Boolean)])]
+
+  const setQ1 = (patch: Partial<ParcoursupQ1>) => {
+    setDraft(prev => ({ ...prev, q1: { ...(prev.q1 ?? {}), ...patch } }))
+  }
+
+  const toggleFormation = (label: string) => {
+    const next = new Set(draft.q1?.formations ?? [])
+    if (next.has(label)) next.delete(label)
+    else next.add(label)
+    setQ1({ formations: [...next] })
+  }
+
+  const patchVoeu = (index: number, patch: Partial<ParcoursupQ3Voeu>) => {
+    const next = [...voeux]
+    next[index] = { ...(next[index] ?? {}), ...patch }
+    setDraft(prev => ({ ...prev, q3: { ...(prev.q3 ?? {}), voeux: next } }))
+  }
+
+  const removeVoeu = (index: number) => {
+    const next = voeux.filter((_, i) => i !== index)
+    setDraft(prev => ({ ...prev, q3: { ...(prev.q3 ?? {}), voeux: next } }))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b flex items-center justify-between">
+          <h2 className="text-lg font-bold">Parcoursup 2026</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+        </div>
+        <div className="p-5 overflow-y-auto space-y-4 text-sm">
+          <div className="grid grid-cols-3 gap-3">
+            <label className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Verdict</div>
+              <select
+                value={draft.verdict?.manual ? (draft.verdict?.status || 'ok_attente') : 'auto'}
+                onChange={e => {
+                  const next = verdictChoices.find(v => v.value === e.target.value) ?? verdictChoices[0]
+                  setDraft(prev => ({
+                    ...prev,
+                    verdict: {
+                      ...(prev.verdict ?? {}),
+                      manual: next.manual,
+                      status: next.status ?? prev.verdict?.status ?? null,
+                      label: next.verdictLabel ?? prev.verdict?.label ?? null,
+                    },
+                  }))
+                }}
+                className="w-full border rounded px-2 py-2"
+              >
+                {verdictChoices.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Proposition reçue ?</div>
+              <select
+                value={draft.q1?.proposition ?? ''}
+                onChange={e => setQ1({ proposition: e.target.value || null })}
+                className="w-full border rounded px-2 py-2"
+              >
+                <option value="">—</option>
+                <option value="oui">Oui</option>
+                <option value="non">Non</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Validera</div>
+              <input
+                value={draft.q1?.va_valider ?? ''}
+                onChange={e => setQ1({ va_valider: e.target.value || null })}
+                className="w-full border rounded px-2 py-2"
+                placeholder="Pas encore décidé"
+              />
+            </label>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Formations avec proposition</div>
+            <div className="grid grid-cols-3 gap-2">
+              {formationChoices.map(label => {
+                const checked = (draft.q1?.formations ?? []).includes(label)
+                return (
+                  <label key={label} className={`flex items-center gap-2 border rounded px-2 py-1.5 cursor-pointer ${checked ? 'bg-[#ccac71]/10 border-[#ccac71]/40' : 'bg-white'}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleFormation(label)} />
+                    <span>{label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Voeux en attente</div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-wide text-slate-500 px-1">
+                <span className="col-span-4">Formation</span>
+                <span className="col-span-4">Mineure/Majeure/Parcours</span>
+                <span className="col-span-1 text-center">Mon rang</span>
+                <span className="col-span-2 text-center">Dernier admis</span>
+                <span className="col-span-1" />
+              </div>
+              {voeux.map((v, idx) => (
+                <div key={`edit-voeu-${idx}`} className="grid grid-cols-12 gap-2">
+                  <select
+                    className="col-span-4 border rounded px-2 py-1.5 bg-white"
+                    value={v.formation ?? ''}
+                    onChange={e => patchVoeu(idx, { formation: e.target.value || null })}
+                  >
+                    <option value="">Formation</option>
+                    {formationChoices.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                  <select
+                    className="col-span-4 border rounded px-2 py-1.5 bg-white"
+                    value={v.mineure ?? ''}
+                    onChange={e => patchVoeu(idx, { mineure: e.target.value || null })}
+                  >
+                    <option value="">Mineure/Majeure</option>
+                    {parcoursChoices.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                  <input className="col-span-1 border rounded px-2 py-1.5" value={v.rang ?? ''} onChange={e => patchVoeu(idx, { rang: e.target.value ? Number(e.target.value) : null })} placeholder="Rang" />
+                  <input className="col-span-2 border rounded px-2 py-1.5" value={v.rang_dernier_admis ?? ''} onChange={e => patchVoeu(idx, { rang_dernier_admis: e.target.value ? Number(e.target.value) : null })} placeholder="Dern. admis" />
+                  <button className="col-span-1 border rounded text-red-600 hover:bg-red-50" onClick={() => removeVoeu(idx)} type="button">✕</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="border rounded px-2 py-1.5 text-xs hover:bg-slate-50"
+                onClick={() => setDraft(prev => ({ ...prev, q3: { ...(prev.q3 ?? {}), voeux: [...(prev.q3?.voeux ?? []), {}] } }))}
+              >
+                + Ajouter un voeu
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-2 text-sm border rounded hover:bg-slate-50">Annuler</button>
+          <button
+            onClick={() => onSave({ ...draft, updated_at: new Date().toISOString() })}
+            disabled={saving}
+            className="px-3 py-2 text-sm rounded bg-[#0038f0] text-white disabled:opacity-60"
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
