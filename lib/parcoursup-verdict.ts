@@ -52,33 +52,39 @@ export async function fetchParcoursupVerdictsByContactId(
 ): Promise<Record<string, ParcoursupVerdictCell>> {
   const out: Record<string, ParcoursupVerdictCell> = {}
   if (!contactIds || contactIds.length === 0) return out
-  const { data } = await db
-    .from('crm_pre_inscriptions')
-    .select('hubspot_contact_id, external_data, updated_at')
-    .in('hubspot_contact_id', contactIds)
-    .eq('saison', PARCOURSUP_SAISON)
 
-  const rows = (data ?? []) as Array<{
-    hubspot_contact_id: string | null
-    external_data: Record<string, unknown> | null
-    updated_at: string | null
-  }>
-  for (const row of rows) {
-    const cid = row.hubspot_contact_id
-    if (!cid) continue
-    const ext = row.external_data || {}
-    const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
-    const raw = ext.parcoursup as Record<string, unknown> | undefined
-    const source = (override ?? raw) || null
-    if (!source) continue
-    const verdict = source.verdict as Record<string, unknown> | undefined
-    if (!verdict) continue
-    const status = typeof verdict.status === 'string' ? verdict.status : null
-    const label = typeof verdict.label === 'string' ? verdict.label : null
-    if (!status && !label) continue
-    // En cas de doublons (rare) on garde la premiere valeur trouvee.
-    if (!out[cid]) {
-      out[cid] = { status, label }
+  const BATCH = 200
+  for (let i = 0; i < contactIds.length; i += BATCH) {
+    const batch = contactIds.slice(i, i + BATCH)
+    const { data, error } = await db
+      .from('crm_pre_inscriptions')
+      .select('hubspot_contact_id, external_data, updated_at')
+      .in('hubspot_contact_id', batch)
+      .eq('saison', PARCOURSUP_SAISON)
+
+    if (error) continue
+
+    const rows = (data ?? []) as Array<{
+      hubspot_contact_id: string | null
+      external_data: Record<string, unknown> | null
+      updated_at: string | null
+    }>
+    for (const row of rows) {
+      const cid = row.hubspot_contact_id
+      if (!cid) continue
+      const ext = row.external_data || {}
+      const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
+      const raw = ext.parcoursup as Record<string, unknown> | undefined
+      const source = (override ?? raw) || null
+      if (!source) continue
+      const verdict = source.verdict as Record<string, unknown> | undefined
+      if (!verdict) continue
+      const status = typeof verdict.status === 'string' ? verdict.status : null
+      const label = typeof verdict.label === 'string' ? verdict.label : null
+      if (!status && !label) continue
+      if (!out[cid]) {
+        out[cid] = { status, label }
+      }
     }
   }
   return out
