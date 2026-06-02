@@ -9,6 +9,7 @@ import {
   parcoursupVerdictBadgeStyle,
   parcoursupVerdictDefaultLabel,
 } from '@/lib/parcoursup-verdict'
+import { isUserTypeProperty } from '@/lib/crm-user-resolver'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
@@ -896,8 +897,8 @@ const COL_WIDTHS: Record<ColKey, number> = {
   closer:               120,
   closer_du_contact:    140,
   telepro:              110,
-  createdat_contact:     100,
-  createdat_deal:        100,
+  createdat_contact:     150,
+  createdat_deal:        150,
   form_submission:      160,
   parcoursup_verdict:    160,
 }
@@ -914,6 +915,58 @@ const DEFAULT_COL_ORDER: ColKey[] = [
 
 // Colonnes cachées par défaut (l'utilisateur peut les afficher via le menu Colonnes)
 const DEFAULT_HIDDEN_COLS: ColKey[] = ['closer_du_contact']
+
+const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
+const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
+const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
+  'classe', 'zone', 'etape', 'lead_status', 'origine', 'closer', 'closer_du_contact', 'telepro',
+])
+
+function toNativeToken(key: ColKey) { return `n:${key}` as const }
+function toDynToken(prop: string) { return `d:${prop}` as const }
+function isNativeToken(s: string) { return s.startsWith('n:') }
+function isDynToken(s: string) { return s.startsWith('d:') }
+
+/** Fusionne ordre sauvegardé, colonnes natives et propriétés HubSpot dynamiques. */
+function mergeMixedColOrder(
+  prev: string[] | null,
+  nativeOrder: ColKey[],
+  extraCols: string[],
+): string[] {
+  const knownNatives = new Set(DEFAULT_COL_ORDER)
+  const validExtra = new Set(extraCols)
+
+  if (prev && prev.length > 0) {
+    const result: string[] = []
+    const seenNative = new Set<ColKey>()
+    const seenDyn = new Set<string>()
+    for (const entry of prev) {
+      if (isNativeToken(entry)) {
+        const key = entry.slice(2) as ColKey
+        if (!knownNatives.has(key) || !nativeOrder.includes(key) || seenNative.has(key)) continue
+        result.push(toNativeToken(key))
+        seenNative.add(key)
+      } else if (isDynToken(entry)) {
+        const prop = entry.slice(2)
+        if (!validExtra.has(prop) || seenDyn.has(prop)) continue
+        result.push(toDynToken(prop))
+        seenDyn.add(prop)
+      }
+    }
+    for (const key of nativeOrder) {
+      if (!seenNative.has(key)) result.push(toNativeToken(key))
+    }
+    for (const prop of extraCols) {
+      if (!seenDyn.has(prop)) result.push(toDynToken(prop))
+    }
+    return result
+  }
+
+  return [
+    ...nativeOrder.map(toNativeToken),
+    ...extraCols.map(toDynToken),
+  ]
+}
 
 export default function CRMContactsTable({
   contacts,
@@ -1020,6 +1073,27 @@ export default function CRMContactsTable({
   const [dragIdx,     setDragIdx]     = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
+  const [mixedColOrder, setMixedColOrder] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return mergeMixedColOrder(null, DEFAULT_COL_ORDER, [])
+    try {
+      const saved = localStorage.getItem(MIXED_COL_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[]
+        return mergeMixedColOrder(parsed, DEFAULT_COL_ORDER, [])
+      }
+    } catch { /* ignore */ }
+    return mergeMixedColOrder(null, DEFAULT_COL_ORDER, [])
+  })
+
+  const [dynColWidths, setDynColWidths] = useState<Record<string, number>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const saved = localStorage.getItem(DYN_COL_WIDTHS_STORAGE_KEY)
+      if (saved) return JSON.parse(saved) as Record<string, number>
+    } catch { /* ignore */ }
+    return {}
+  })
+
   // ── Column resize ─────────────────────────────────────────────────────────
   const [colWidths, setColWidths] = useState<Record<ColKey, number>>(() => {
     if (typeof window === 'undefined') return { ...COL_WIDTHS }
@@ -1030,6 +1104,7 @@ export default function CRMContactsTable({
     return { ...COL_WIDTHS }
   })
   const resizingRef = useRef<{ key: ColKey; startX: number; startW: number } | null>(null)
+  const resizingDynRef = useRef<{ prop: string; startX: number; startW: number } | null>(null)
 
   // ── Visibilité des colonnes ────────────────────────────────────────────────
   const [hiddenCols, setHiddenCols] = useState<Set<ColKey>>(() => {
@@ -1085,6 +1160,11 @@ export default function CRMContactsTable({
           const merged = [...valid, ...missing]
           setColOrder(merged)
           localStorage.setItem('crm-col-order', JSON.stringify(merged))
+          setMixedColOrder(prev => {
+            const next = mergeMixedColOrder(prev, merged, extraColumns ?? [])
+            localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+            return next
+          })
         }
         if (data.col_widths && typeof data.col_widths === 'object') {
           setColWidths(prev => {
@@ -1096,6 +1176,15 @@ export default function CRMContactsTable({
       })
       .catch(() => { /* silently ignore */ })
   }, [])
+
+  // Synchroniser l'ordre mixte quand les colonnes natives ou dynamiques changent
+  useEffect(() => {
+    setMixedColOrder(prev => {
+      const next = mergeMixedColOrder(prev, colOrder, extraColumns ?? [])
+      localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [colOrder, extraColumns])
 
   function handleResizeStart(e: React.MouseEvent, key: ColKey) {
     e.preventDefault()
@@ -1192,8 +1281,28 @@ export default function CRMContactsTable({
 
   const visibleCols = colOrder.filter(isColVisible)
   const dynamicCols = extraColumns ?? []
+  const displayCols = useMemo(
+    () => mixedColOrder.filter(entry => {
+      if (isNativeToken(entry)) return isColVisible(entry.slice(2) as ColKey)
+      if (isDynToken(entry)) return dynamicCols.includes(entry.slice(2))
+      return false
+    }),
+    [mixedColOrder, hiddenCols, leadStatusOptions, sourceOptions, dynamicCols],
+  )
   // +1 pour checkbox (optionnel) +1 pour actions — non draggables
-  const totalCols = visibleCols.length + dynamicCols.length + (onToggleSelect ? 1 : 0) + 1
+  const totalCols = displayCols.length + (onToggleSelect ? 1 : 0) + 1
+
+  const tableMinWidth = useMemo(() => {
+    let w = (onToggleSelect ? 38 : 0) + 50
+    for (const entry of displayCols) {
+      if (isNativeToken(entry)) {
+        w += colWidths[entry.slice(2) as ColKey] ?? COL_WIDTHS[entry.slice(2) as ColKey] ?? 120
+      } else {
+        w += dynColWidths[entry.slice(2)] ?? 160
+      }
+    }
+    return Math.max(w, 900)
+  }, [displayCols, colWidths, dynColWidths, onToggleSelect])
 
   // Lookup label HubSpot pour une propriété dynamique
   function dynamicLabel(propName: string): string {
@@ -1297,28 +1406,96 @@ export default function CRMContactsTable({
   }
   function handleDrop(idx: number) {
     if (dragIdx === null || dragIdx === idx) { resetDrag(); return }
-    setColOrder(prev => {
+    const fromToken = displayCols[dragIdx]
+    const toToken   = displayCols[idx]
+    if (!fromToken || !toToken) { resetDrag(); return }
+    setMixedColOrder(prev => {
       const next = [...prev]
-      // On manipule visibleCols indices → mapper vers colOrder indices
-      const fromKey = visibleCols[dragIdx]
-      const toKey   = visibleCols[idx]
-      const fromReal = next.indexOf(fromKey)
-      const toReal   = next.indexOf(toKey)
+      const fromReal = next.indexOf(fromToken)
+      const toReal   = next.indexOf(toToken)
+      if (fromReal < 0 || toReal < 0) return prev
       next.splice(fromReal, 1)
-      next.splice(toReal, 0, fromKey)
-      localStorage.setItem('crm-col-order', JSON.stringify(next))
+      next.splice(toReal, 0, fromToken)
+      localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+      const nativeOrder = next
+        .filter(isNativeToken)
+        .map(s => s.slice(2) as ColKey)
+      setColOrder(nativeOrder)
+      localStorage.setItem('crm-col-order', JSON.stringify(nativeOrder))
       fetch('/api/crm/prefs', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ col_order: next }),
+        body: JSON.stringify({ col_order: nativeOrder }),
       }).catch(() => {})
       return next
     })
     resetDrag()
   }
+
+  function handleDynResizeStart(e: React.MouseEvent, prop: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingDynRef.current = { prop, startX: e.clientX, startW: dynColWidths[prop] ?? 160 }
+
+    function onMove(ev: MouseEvent) {
+      if (!resizingDynRef.current) return
+      const delta = ev.clientX - resizingDynRef.current.startX
+      const newW = Math.max(80, Math.min(400, resizingDynRef.current.startW + delta))
+      setDynColWidths(prev => ({ ...prev, [resizingDynRef.current!.prop]: newW }))
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setDynColWidths(prev => {
+        localStorage.setItem(DYN_COL_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
+        return prev
+      })
+      resizingDynRef.current = null
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
   function resetDrag() {
     setDragIdx(null)
     setDragOverIdx(null)
+  }
+
+  function renderDynamicCell(propName: string, contact: CRMContact) {
+    const v = contact.extra_props?.[propName]
+    const isOwnerProp = isUserTypeProperty(propName)
+    if (isOwnerProp) {
+      const rawVal = v == null ? '' : String(v)
+      const isTeleproProp = propName === 'teleprospecteur' || propName === 'telepro_user_id'
+      const opts = (isTeleproProp ? teleproSelectOptions : closerSelectOptions) ?? []
+      const dbField = propName === 'teleprospecteur' ? 'telepro_user_id' : propName
+      const savingKey = `${contact.hubspot_contact_id}:${dbField}`
+      return (
+        <InlineCellSelect
+          value={rawVal}
+          options={opts}
+          onSelect={(newVal) => handleContactFieldChange(contact.hubspot_contact_id, dbField, newVal)}
+          saving={savingContactField === savingKey}
+          renderValue={(val) => renderUserOption(val, opts)}
+        />
+      )
+    }
+    const display = formatDynamicValue(v, propName)
+    return (
+      <span style={{
+        fontSize: 13,
+        color: '#0e1e35',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        display: 'block',
+      }} title={display}>
+        {display}
+      </span>
+    )
   }
 
   // ── Render cellule selon colKey ───────────────────────────────────────────
@@ -1506,10 +1683,10 @@ export default function CRMContactsTable({
         const tVal    = (contact.telepro_user_id || (deal ? deal.teleprospecteur : '') || '')
         const tSaving = deal
           ? savingDealField === `${deal.hubspot_deal_id}:teleprospecteur`
-          : savingContactField === `${contact.hubspot_contact_id}:teleprospecteur`
+          : savingContactField === `${contact.hubspot_contact_id}:telepro_user_id`
         const tOnSel  = (v: string) => deal
           ? handleDealFieldChange(deal.hubspot_deal_id, 'teleprospecteur', v)
-          : handleContactFieldChange(contact.hubspot_contact_id, 'teleprospecteur', v)
+          : handleContactFieldChange(contact.hubspot_contact_id, 'telepro_user_id', v)
         return (
           <InlineCellSelect
             value={tVal}
@@ -1666,7 +1843,7 @@ export default function CRMContactsTable({
           title="Choisir les colonnes affichées"
         >
           <GripVertical size={11} />
-          Colonnes ({visibleCols.length}/{colOrder.length})
+          Colonnes ({displayCols.length}/{colOrder.length + dynamicCols.length})
         </button>
         {colMenuOpen && (
           <div style={{
@@ -1770,16 +1947,18 @@ export default function CRMContactsTable({
         )}
       </div>
 
-      <div style={{ width: '100%', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 900 }}>
+      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: tableMinWidth }}>
           <colgroup>
             {onToggleSelect && <col style={{ width: 38 }} />}
-            {visibleCols.map(key => (
-              <col key={key} style={{ width: colWidths[key] }} />
-            ))}
-            {dynamicCols.map(name => (
-              <col key={`dyn-${name}`} style={{ width: 160 }} />
-            ))}
+            {displayCols.map(entry => {
+              if (isNativeToken(entry)) {
+                const key = entry.slice(2) as ColKey
+                return <col key={entry} style={{ width: colWidths[key] }} />
+              }
+              const prop = entry.slice(2)
+              return <col key={entry} style={{ width: dynColWidths[prop] ?? 160 }} />
+            })}
             <col style={{ width: 50 }} />
           </colgroup>
 
@@ -1810,114 +1989,164 @@ export default function CRMContactsTable({
                 </th>
               )}
 
-              {/* Colonnes draggables */}
-              {visibleCols.map((key, idx) => {
-                const isSortable = SORTABLE_COLS.has(key) && !!onSortChange
-                const isActivSort = sortBy === key
-                return (
-                <th
-                  key={key}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={e => handleDragOver(e, idx)}
-                  onDrop={() => handleDrop(idx)}
-                  onDragEnd={resetDrag}
-                  onClick={isSortable ? () => onSortChange!(key) : undefined}
-                  style={{
-                    padding: '9px 12px',
-                    textAlign: 'left',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#0e1e35',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    background: dragOverIdx === idx && dragIdx !== idx
-                      ? 'rgba(76,171,219,0.07)'
-                      : dragIdx === idx
-                        ? 'rgba(76,171,219,0.04)'
-                        : '#ffffff',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 10,
-                    whiteSpace: 'nowrap',
-                    userSelect: 'none',
-                    cursor: isSortable ? 'pointer' : 'grab',
-                    borderLeft: dragOverIdx === idx && dragIdx !== idx
-                      ? `2px solid ${BLUE}`
-                      : '2px solid transparent',
-                    transition: 'all 0.1s',
-                    opacity: dragIdx === idx ? 0.5 : 1,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10 }}>
-                    <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
-                    <span style={{ flex: 1 }}>{COL_LABELS[key]}</span>
-                    {isSortable && (
-                      <span style={{
-                        opacity: isActivSort ? 1 : 0.3,
+              {/* Colonnes natives + dynamiques (ordre unifié, drag-and-drop) */}
+              {displayCols.map((entry, idx) => {
+                if (isNativeToken(entry)) {
+                  const key = entry.slice(2) as ColKey
+                  const isSortable = SORTABLE_COLS.has(key) && !!onSortChange
+                  const isActivSort = sortBy === key
+                  return (
+                    <th
+                      key={entry}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={e => handleDragOver(e, idx)}
+                      onDrop={() => handleDrop(idx)}
+                      onDragEnd={resetDrag}
+                      onClick={isSortable ? () => onSortChange!(key) : undefined}
+                      style={{
+                        padding: '9px 12px',
+                        textAlign: 'left',
                         fontSize: 10,
-                        color: isActivSort ? '#a5b4fc' : 'inherit',
-                        flexShrink: 0,
-                        marginLeft: 2,
-                      }}>
-                        {isActivSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
-                    )}
-                  </div>
-                  {/* Resize handle — positionné par rapport au th (sticky = containing block) */}
-                  <div
-                    draggable={false}
-                    onMouseDown={e => { e.stopPropagation(); handleResizeStart(e, key) }}
+                        fontWeight: 700,
+                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#0e1e35',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        background: dragOverIdx === idx && dragIdx !== idx
+                          ? 'rgba(76,171,219,0.07)'
+                          : dragIdx === idx
+                            ? 'rgba(76,171,219,0.04)'
+                            : '#ffffff',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        whiteSpace: 'nowrap',
+                        userSelect: 'none',
+                        cursor: isSortable ? 'pointer' : 'grab',
+                        borderLeft: dragOverIdx === idx && dragIdx !== idx
+                          ? `2px solid ${BLUE}`
+                          : '2px solid transparent',
+                        transition: 'all 0.1s',
+                        opacity: dragIdx === idx ? 0.5 : 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10, minWidth: 0 }}>
+                        <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }} title={COL_LABELS[key]}>
+                          {COL_LABELS[key]}
+                        </span>
+                        {isSortable && (
+                          <span style={{
+                            opacity: isActivSort ? 1 : 0.3,
+                            fontSize: 10,
+                            color: isActivSort ? '#a5b4fc' : 'inherit',
+                            flexShrink: 0,
+                            marginLeft: 2,
+                          }}>
+                            {isActivSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        draggable={false}
+                        onMouseDown={e => { e.stopPropagation(); handleResizeStart(e, key) }}
+                        style={{
+                          position: 'absolute', top: 0, right: 0,
+                          width: 8, height: '100%',
+                          cursor: 'col-resize',
+                          zIndex: 12,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onMouseEnter={e => {
+                          const line = e.currentTarget.querySelector('div') as HTMLDivElement
+                          if (line) line.style.opacity = '1'
+                        }}
+                        onMouseLeave={e => {
+                          const line = e.currentTarget.querySelector('div') as HTMLDivElement
+                          if (line) line.style.opacity = '0'
+                        }}
+                      >
+                        <div style={{
+                          width: 2, height: '70%',
+                          background: BLUE,
+                          borderRadius: 2,
+                          opacity: 0,
+                          transition: 'opacity 0.15s',
+                          pointerEvents: 'none',
+                        }} />
+                      </div>
+                    </th>
+                  )
+                }
+
+                const prop = entry.slice(2)
+                const label = dynamicLabel(prop)
+                return (
+                  <th
+                    key={entry}
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={e => handleDragOver(e, idx)}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={resetDrag}
+                    title={label}
                     style={{
-                      position: 'absolute', top: 0, right: 0,
-                      width: 8, height: '100%',
-                      cursor: 'col-resize',
-                      zIndex: 12,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                    onMouseEnter={e => {
-                      const line = e.currentTarget.querySelector('div') as HTMLDivElement
-                      if (line) line.style.opacity = '1'
-                    }}
-                    onMouseLeave={e => {
-                      const line = e.currentTarget.querySelector('div') as HTMLDivElement
-                      if (line) line.style.opacity = '0'
+                      padding: '9px 12px',
+                      textAlign: 'left',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0e1e35',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      background: dragOverIdx === idx && dragIdx !== idx
+                        ? 'rgba(76,171,219,0.07)'
+                        : dragIdx === idx
+                          ? 'rgba(76,171,219,0.04)'
+                          : '#ffffff',
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 10,
+                      whiteSpace: 'nowrap',
+                      userSelect: 'none',
+                      cursor: 'grab',
+                      borderLeft: dragOverIdx === idx && dragIdx !== idx
+                        ? `2px solid ${BLUE}`
+                        : '2px solid transparent',
+                      transition: 'all 0.1s',
+                      opacity: dragIdx === idx ? 0.5 : 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
-                    <div style={{
-                      width: 2, height: '70%',
-                      background: BLUE,
-                      borderRadius: 2,
-                      opacity: 0,
-                      transition: 'opacity 0.15s',
-                      pointerEvents: 'none',
-                    }} />
-                  </div>
-                </th>
-              )
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10, minWidth: 0 }}>
+                      <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                    </div>
+                    <div
+                      draggable={false}
+                      onMouseDown={e => { e.stopPropagation(); handleDynResizeStart(e, prop) }}
+                      style={{
+                        position: 'absolute', top: 0, right: 0,
+                        width: 8, height: '100%',
+                        cursor: 'col-resize',
+                        zIndex: 12,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <div style={{
+                        width: 2, height: '70%',
+                        background: BLUE,
+                        borderRadius: 2,
+                        opacity: 0,
+                        transition: 'opacity 0.15s',
+                        pointerEvents: 'none',
+                      }} />
+                    </div>
+                  </th>
+                )
               })}
-
-              {/* Colonnes dynamiques HubSpot */}
-              {dynamicCols.map(name => (
-                <th key={`dyn-${name}`} style={{
-                  padding: '9px 12px',
-                  textAlign: 'left',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: '#0e1e35',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  background: '#ffffff',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }} title={dynamicLabel(name)}>
-                  {dynamicLabel(name)}
-                </th>
-              ))}
 
               {/* Actions (non-draggable) */}
               <th style={{
@@ -1974,55 +2203,30 @@ export default function CRMContactsTable({
                       </td>
                     )}
 
-                    {/* Cellules dans l'ordre courant */}
-                    {visibleCols.map(key => (
-                      <td
-                        key={key}
-                        style={{ padding: '10px 12px' }}
-                        onClick={['classe','zone','etape','lead_status','origine'].includes(key) ? e => e.stopPropagation() : undefined}
-                      >
-                        {renderCell(key, contact)}
-                      </td>
-                    ))}
-
-                    {/* Cellules dynamiques HubSpot */}
-                    {dynamicCols.map(propName => {
-                      const v = contact.extra_props?.[propName]
-                      // Détecte si la propriété est de type "owner" → rendu
-                      // inline-edit avec avatar (comme la colonne native closer).
-                      const isOwnerProp = OWNER_ID_PROPS.has(propName) || propName.endsWith('_owner_id')
-                      if (isOwnerProp) {
-                        const rawVal = v == null ? '' : String(v)
-                        // Choix de la liste d'options selon le type
-                        const isTeleproProp = propName === 'teleprospecteur'
-                        const opts = (isTeleproProp ? teleproSelectOptions : closerSelectOptions) ?? []
-                        // Champ DB cible quand on sauvegarde
-                        const dbField = propName === 'teleprospecteur' ? 'telepro_user_id' : propName
-                        const savingKey = `${contact.hubspot_contact_id}:${dbField}`
+                    {/* Cellules dans l'ordre unifié (natives + dynamiques) */}
+                    {displayCols.map(entry => {
+                      if (isNativeToken(entry)) {
+                        const key = entry.slice(2) as ColKey
+                        const isOwnerCol = key === 'closer' || key === 'closer_du_contact' || key === 'telepro'
                         return (
-                          <td key={`dyn-${propName}`} style={{ padding: '6px 8px' }} onClick={e => e.stopPropagation()}>
-                            <InlineCellSelect
-                              value={rawVal}
-                              options={opts}
-                              onSelect={(newVal) => handleContactFieldChange(contact.hubspot_contact_id, dbField, newVal)}
-                              saving={savingContactField === savingKey}
-                              renderValue={(val) => renderUserOption(val, opts)}
-                            />
+                          <td
+                            key={entry}
+                            style={{ padding: isOwnerCol ? '6px 8px' : '10px 12px', minWidth: 0, overflow: 'hidden' }}
+                            onClick={INLINE_EDIT_STOP_KEYS.has(key) ? e => e.stopPropagation() : undefined}
+                          >
+                            {renderCell(key, contact)}
                           </td>
                         )
                       }
-                      // Autres types (texte, date, etc.) → lecture seule
-                      const display = formatDynamicValue(v, propName)
+                      const prop = entry.slice(2)
+                      const isOwnerProp = isUserTypeProperty(prop)
                       return (
-                        <td key={`dyn-${propName}`} style={{
-                          padding: '10px 12px',
-                          fontSize: 13,
-                          color: '#0e1e35',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }} title={display}>
-                          {display}
+                        <td
+                          key={entry}
+                          style={{ padding: isOwnerProp ? '6px 8px' : '10px 12px', minWidth: 0, overflow: 'hidden' }}
+                          onClick={isOwnerProp ? e => e.stopPropagation() : undefined}
+                        >
+                          {renderDynamicCell(prop, contact)}
                         </td>
                       )
                     })}
