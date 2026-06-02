@@ -679,13 +679,13 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
           </div>
         </div>
 
-        {/* Colonne 3 : actions (HubSpot + dismiss) */}
+        {/* Colonne 3 : actions (Fiche CRM + dismiss) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
           <a
-            href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${entry.contact_id}`}
+            href={`/admin/crm/contacts/${entry.contact_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            title="Ouvrir dans HubSpot"
+            title="Ouvrir la fiche contact dans le CRM"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
@@ -693,7 +693,7 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
-            <ExternalLink size={11} /> HubSpot
+            <ExternalLink size={11} /> Fiche
           </a>
           <button
             onClick={onDismiss}

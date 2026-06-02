@@ -117,9 +117,11 @@ export async function middleware(request: NextRequest) {
     return redirectByRole(dbUser, request)
   }
 
-  // /admin → admin only
+  // /admin → admin only, sauf la fiche contact partagée
+  // (closer/telepro doivent pouvoir l'ouvrir depuis leur journal de repop, etc.)
   if (pathname.startsWith('/admin')) {
-    if (dbUser.role !== 'admin') {
+    const isSharedContactView = /^\/admin\/crm\/contacts\/[^/]+\/?$/.test(pathname)
+    if (dbUser.role !== 'admin' && !isSharedContactView) {
       return redirectByRole(dbUser, request)
     }
   }
