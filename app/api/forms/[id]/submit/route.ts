@@ -157,7 +157,7 @@ export async function POST(req: Request, { params }: Params) {
   }
   if (missingRequired.length > 0) {
     return NextResponse.json(
-      { error: `Champs requis manquants : ${missingRequired.join(', ')}` },
+      { error: 'Oups, il manque quelques informations. Merci de remplir tous les champs obligatoires avant de soumettre le formulaire.' },
       { status: 400, headers: CORS_HEADERS }
     )
   }
