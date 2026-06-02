@@ -412,6 +412,7 @@ export default function CRMPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkTeleproId, setBulkTeleproId] = useState('')
   const [bulkAssigning, setBulkAssigning] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
 
   const [limit, setLimit] = useState(50)
@@ -1481,6 +1482,34 @@ export default function CRMPage() {
     }
   }
 
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0 || bulkDeleting) return
+    const count = selectedIds.size
+    const msg = count === 1
+      ? 'Supprimer définitivement ce contact ainsi que ses transactions associées ?\n\nCette action est irréversible.'
+      : `Supprimer définitivement ces ${count} contacts ainsi que leurs transactions associées ?\n\nCette action est irréversible.`
+    if (!window.confirm(msg)) return
+
+    setBulkDeleting(true)
+    try {
+      const res = await fetch('/api/crm/contacts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_ids: [...selectedIds] }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error || 'Erreur suppression en masse')
+      }
+      setSelectedIds(new Set())
+      await fetchContacts(true)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erreur suppression en masse')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   // ── Dropdown options ───────────────────────────────────────────────────────────
 
   // Helper : fusionner les owners HubSpot (51) avec les rdv_users (closer/telepro),
@@ -2022,6 +2051,25 @@ export default function CRMPage() {
               }}
             >
               {bulkAssigning ? 'Attribution…' : 'Assigner'}
+            </button>
+            <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
+              style={{
+                background: bulkDeleting ? 'rgba(239,68,68,0.12)' : '#ef4444',
+                border: '1px solid #ef4444',
+                borderRadius: 8, padding: '6px 14px',
+                color: bulkDeleting ? '#ef4444' : '#fff',
+                fontSize: 12, fontWeight: 700,
+                cursor: bulkDeleting ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit', opacity: bulkDeleting ? 0.6 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <Trash2 size={13} />
+              {bulkDeleting ? 'Suppression…' : 'Supprimer'}
             </button>
           </div>
         )}
