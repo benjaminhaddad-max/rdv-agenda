@@ -219,6 +219,20 @@ export async function POST(req: NextRequest) {
   if (pronostic !== null && pronostic !== undefined) updatedRaw.afem_pronostic = pronostic
   if (extraMeta) updatedRaw.afem_meta = extraMeta
 
+  // Un trigger Postgres synchronise les colonnes natives depuis hubspot_raw
+  // (format plat : hubspot_raw.firstname, hubspot_raw.email, etc.). Si on
+  // omet ces clés ici, le trigger nullify les colonnes correspondantes à
+  // chaque insert/update qui touche hubspot_raw. On les duplique donc en
+  // clé plate à la racine du JSON, en plus de les écrire dans contactData.
+  if (firstname) updatedRaw.firstname = firstname
+  if (lastname) updatedRaw.lastname = lastname
+  if (email) updatedRaw.email = email
+  if (phone) updatedRaw.phone = phone
+  if (classeMapped) updatedRaw.classe_actuelle = classeMapped
+  if (departement) updatedRaw.departement = departement
+  updatedRaw.origine = 'Site AFEM'
+  updatedRaw.source = 'AFEM'
+
   const eventName = 'Formulaire AFEM'
   const conversionMeta = buildConversionFieldsForSubmission(
     nowIso,
