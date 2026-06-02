@@ -454,6 +454,7 @@ export interface CRMContact {
   recent_conversion_event?: string | null
   hs_lead_status?: string | null
   origine?: string | null
+  parcoursup_verdict?: { status: string | null; label: string | null } | null
   contact_owner?: { id: string; name: string; role: string; avatar_color: string } | null
   deal?: {
     hubspot_deal_id: string
@@ -856,8 +857,39 @@ function ExpandedDetail({
   )
 }
 
+// ── Verdict Parcoursup : couleurs alignées avec la modale fiche contact ─────
+function parcoursupVerdictBadgeStyle(status: string): {
+  bg: string; fg: string; border: string; dot: string
+} {
+  switch (status) {
+    case 'ok_valide':
+      return { bg: '#dcfce7', fg: '#166534', border: '#bbf7d0', dot: '#16a34a' }
+    case 'ok_attente':
+      return { bg: '#dbeafe', fg: '#1e40af', border: '#bfdbfe', dot: '#2563eb' }
+    case 'good':
+      return { bg: '#d1fae5', fg: '#065f46', border: '#a7f3d0', dot: '#10b981' }
+    case 'attention':
+      return { bg: '#ffedd5', fg: '#9a3412', border: '#fed7aa', dot: '#f97316' }
+    case 'bascule':
+      return { bg: '#fee2e2', fg: '#991b1b', border: '#fecaca', dot: '#dc2626' }
+    default:
+      return { bg: '#f1f5f9', fg: '#334155', border: '#e2e8f0', dot: '#94a3b8' }
+  }
+}
+
+function parcoursupVerdictDefaultLabel(status: string): string | null {
+  switch (status) {
+    case 'ok_valide':  return 'OK VALIDÉ'
+    case 'ok_attente': return 'OK EN ATTENTE'
+    case 'good':       return 'GOOD EN PRINCIPE'
+    case 'attention':  return 'ATTENTION JUSTE'
+    case 'bascule':    return 'BASCULE COMPLÈTE PAES'
+    default:           return null
+  }
+}
+
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission'
+type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
@@ -875,6 +907,7 @@ const COL_LABELS: Record<ColKey, string> = {
   createdat_contact:    'Date de création (contact)',
   createdat_deal:       'Date de création (deal)',
   form_submission:      'Dernière soumission de formulaire',
+  parcoursup_verdict:   'Verdict Parcoursup',
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
@@ -893,6 +926,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   createdat_contact:     100,
   createdat_deal:        100,
   form_submission:      160,
+  parcoursup_verdict:    160,
 }
 
 const SORTABLE_COLS = new Set<ColKey>([
@@ -902,7 +936,7 @@ const SORTABLE_COLS = new Set<ColKey>([
 
 const DEFAULT_COL_ORDER: ColKey[] = [
   'contact','phone','form_submission','formation_souhaitee','classe',
-  'zone','departement','etape','lead_status','origine','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
+  'zone','departement','etape','lead_status','parcoursup_verdict','origine','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
 
 // Colonnes cachées par défaut (l'utilisateur peut les afficher via le menu Colonnes)
@@ -1520,6 +1554,51 @@ export default function CRMContactsTable({
 
       case 'createdat_deal': {
         return <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
+      }
+
+      case 'parcoursup_verdict': {
+        const v = contact.parcoursup_verdict
+        if (!v || (!v.status && !v.label)) {
+          return <span style={{ fontSize: 11, color: '#a89e8a' }}>—</span>
+        }
+        const status = (v.status || '').toLowerCase()
+        const style = parcoursupVerdictBadgeStyle(status)
+        const label = v.label || parcoursupVerdictDefaultLabel(status) || 'Verdict'
+        return (
+          <span
+            title={`Parcoursup 2026 — ${label}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 600,
+              lineHeight: 1.1,
+              background: style.bg,
+              color: style.fg,
+              border: `1px solid ${style.border}`,
+              whiteSpace: 'nowrap',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                display: 'inline-block',
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: style.dot,
+                flexShrink: 0,
+              }}
+            />
+            {label}
+          </span>
+        )
       }
 
       case 'form_submission': {

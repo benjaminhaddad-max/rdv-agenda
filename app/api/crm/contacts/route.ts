@@ -18,6 +18,57 @@ async function getPriorPreinscStageIds(): Promise<string[]> {
   return []
 }
 
+// Saison active du formulaire Parcoursup (alignee avec diploma-sync).
+const PARCOURSUP_SAISON = '2026-2027'
+
+export type ParcoursupVerdictCell = {
+  status: string | null
+  label: string | null
+} | null
+
+// Recupere le verdict Parcoursup pour une liste de contacts.
+// Source : crm_pre_inscriptions.external_data.parcoursup.verdict
+// (avec override CRM `parcoursup_crm_override.verdict` prioritaire).
+async function fetchParcoursupVerdictsByContactId(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  contactIds: string[],
+): Promise<Record<string, ParcoursupVerdictCell>> {
+  const out: Record<string, ParcoursupVerdictCell> = {}
+  if (!contactIds || contactIds.length === 0) return out
+  const { data } = await db
+    .from('crm_pre_inscriptions')
+    .select('hubspot_contact_id, external_data, updated_at')
+    .in('hubspot_contact_id', contactIds)
+    .eq('saison', PARCOURSUP_SAISON)
+
+  const rows = (data ?? []) as Array<{
+    hubspot_contact_id: string | null
+    external_data: Record<string, unknown> | null
+    updated_at: string | null
+  }>
+  for (const row of rows) {
+    const cid = row.hubspot_contact_id
+    if (!cid) continue
+    const ext = row.external_data || {}
+    const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
+    const raw = ext.parcoursup as Record<string, unknown> | undefined
+    const source = (override ?? raw) || null
+    if (!source) continue
+    const verdict = source.verdict as Record<string, unknown> | undefined
+    if (!verdict) continue
+    const status = typeof verdict.status === 'string' ? verdict.status : null
+    const label = typeof verdict.label === 'string' ? verdict.label : null
+    if (!status && !label) continue
+    // En cas de doublons (rare) on garde la valeur la plus recente.
+    const existing = out[cid]
+    if (!existing) {
+      out[cid] = { status, label }
+    }
+  }
+  return out
+}
+
 export async function GET(req: NextRequest) {
   const startedAt = Date.now()
   let engine = 'sql'
@@ -1121,6 +1172,8 @@ export async function GET(req: NextRequest) {
               if (!dealByContactId[cid]) dealByContactId[cid] = row
             }
 
+            const parcoursupByContactId = await fetchParcoursupVerdictsByContactId(db, ids)
+
             const enriched = ordered.map((c) => {
               const contactId = c.hubspot_contact_id as string
               const deal = dealByContactId[contactId] ?? null
@@ -1152,6 +1205,7 @@ export async function GET(req: NextRequest) {
                 recent_conversion_event: c.recent_conversion_event,
                 hs_lead_status: c.hs_lead_status,
                 origine: c.origine,
+                parcoursup_verdict: parcoursupByContactId[contactId] ?? null,
                 contact_owner: contactOwner,
                 telepro,
                 deal: deal ? {
@@ -1943,6 +1997,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Verdict Parcoursup (lecture seule en sortie) : 1 requete batchee sur la
+    // page courante uniquement (~50 lignes max).
+    const pageContactIds = pageContacts
+      .map((c: { hubspot_contact_id?: string | null }) => c.hubspot_contact_id)
+      .filter((id: string | null | undefined): id is string => !!id)
+    const parcoursupByContactId = await fetchParcoursupVerdictsByContactId(db, pageContactIds)
+
     // ── Enrichissement (cosmétique — seulement les ~50 lignes de la page) ──────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enriched = pageContacts.map((c: any) => {
@@ -1976,6 +2037,7 @@ export async function GET(req: NextRequest) {
         recent_conversion_event: c.recent_conversion_event,
         hs_lead_status:          c.hs_lead_status,
         origine:                 c.origine,
+        parcoursup_verdict:      parcoursupByContactId[c.hubspot_contact_id] ?? null,
         contact_owner:           contactOwner,
         telepro,
         deal: deal ? {
