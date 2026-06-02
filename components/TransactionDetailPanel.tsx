@@ -111,12 +111,13 @@ function Avatar({ name, color, size = 28 }: { name: string; color?: string; size
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Props) {
-  const [closers, setClosers] = useState<User[]>([])
-  const [telepros, setTelepros] = useState<User[]>([])
+  // On charge TOUS les utilisateurs (closers, admins, managers, télépros…)
+  // pour que les dropdowns Closer et Télépro du panel se comportent comme
+  // la propriété "Owner" de HubSpot (tout utilisateur créé apparaît).
+  const [allUsers, setAllUsers] = useState<User[]>([])
 
   useEffect(() => {
-    fetch('/api/users?role=closer').then(r => r.json()).then(d => setClosers(Array.isArray(d) ? d : []))
-    fetch('/api/users?role=telepro').then(r => r.json()).then(d => setTelepros(Array.isArray(d) ? d : []))
+    fetch('/api/users').then(r => r.json()).then(d => setAllUsers(Array.isArray(d) ? d : []))
   }, [])
 
   // Escape to close
@@ -155,11 +156,11 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
   const contactName = [deal.contact?.firstname, deal.contact?.lastname].filter(Boolean).join(' ') || '—'
   const zone = deal.contact?.zone_localite || deal.contact?.departement || null
 
-  const closerOptions = closers
+  const closerOptions = allUsers
     .filter(c => c.hubspot_owner_id)
     .map(c => ({ value: c.hubspot_owner_id!, label: c.name }))
 
-  const teleproOptions = telepros
+  const teleproOptions = allUsers
     .filter(t => t.hubspot_user_id)
     .map(t => ({ value: t.hubspot_user_id!, label: t.name }))
 

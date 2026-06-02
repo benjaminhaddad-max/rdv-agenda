@@ -169,6 +169,12 @@ interface Props {
   contact: CRMContact | null
   closers: RdvUser[]
   telepros: RdvUser[]
+  // Tous les rdv_users (tous rôles confondus). Optionnel pour rétro-compatibilité :
+  // si non fourni, on retombe sur la fusion historique closers + telepros.
+  // Permet aux dropdowns Closer/Télépro de proposer TOUS les utilisateurs du CRM
+  // (comme la propriété "Owner" de HubSpot), tout en préservant les heuristiques
+  // d'affichage basées sur le rôle (closers vs telepros).
+  allUsers?: RdvUser[]
   hubspotOwners?: HubspotOwnerMeta[]
   onClose: () => void
   onRefresh: () => void
@@ -821,7 +827,15 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
 }
 
 // ── Main Drawer Component ──────────────────────────────────────────────────
-export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwners: hubspotOwnersProp = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
+export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hubspotOwners: hubspotOwnersProp = [], onClose, onRefresh, preloadedLeadStatuses, preloadedSources, preloadedFormations, preloadedZones }: Props) {
+  // Liste effective des utilisateurs pour les dropdowns Closer/Télépro.
+  // Si `allUsers` est fourni (page CRM admin), on l'utilise pour exposer TOUS
+  // les utilisateurs du CRM (toute roles confondus). Sinon, fallback historique :
+  // closers + telepros (pour ne rien casser dans les usages qui ne passent pas
+  // encore `allUsers`).
+  const dropdownUsers: RdvUser[] = allUsers && allUsers.length > 0
+    ? allUsers
+    : [...closers, ...telepros]
   // Local optimistic state
   const [localContact, setLocalContact] = useState<CRMContact | null>(null)
   const [showBooking, setShowBooking] = useState(false)
@@ -959,7 +973,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   const closerOptions = (() => {
     const seen = new Set<string>()
     const arr: { id: string; label: string }[] = [{ id: '', label: '— Aucun closer —' }]
-    for (const u of [...closers, ...telepros]) {
+    for (const u of dropdownUsers) {
       const key = S(u.hubspot_owner_id || u.id)
       if (!key || seen.has(key)) continue
       seen.add(key)
@@ -978,7 +992,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   const teleproOptions = (() => {
     const seen = new Set<string>()
     const arr: { id: string; label: string }[] = [{ id: '', label: '— Aucun télépro —' }]
-    for (const u of [...telepros, ...closers]) {
+    for (const u of dropdownUsers) {
       const key = S(u.hubspot_user_id || u.hubspot_owner_id || u.id)
       if (!key || seen.has(key)) continue
       seen.add(key)
@@ -998,7 +1012,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   const teleproIdResolver = (raw: unknown): string => {
     const rawStr = S(raw)
     if (!rawStr) return ''
-    const u = [...telepros, ...closers].find(t =>
+    const u = dropdownUsers.find(t =>
       S(t.id) === rawStr || S(t.hubspot_user_id) === rawStr || S(t.hubspot_owner_id) === rawStr
     )
     if (u) return S(u.hubspot_user_id || u.hubspot_owner_id || u.id)
@@ -1009,7 +1023,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
   const closerIdResolver = (raw: unknown): string => {
     const rawStr = S(raw)
     if (!rawStr) return ''
-    const u = [...closers, ...telepros].find(t =>
+    const u = dropdownUsers.find(t =>
       S(t.id) === rawStr || S(t.hubspot_user_id) === rawStr || S(t.hubspot_owner_id) === rawStr
     )
     if (u) return S(u.hubspot_owner_id || u.id)
@@ -1117,6 +1131,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                 {(() => {
                   const rawCloserId = c.closer_du_contact_owner_id || deal!.hubspot_owner_id || ''
                   if (!rawCloserId) return null
+                  // 1) Vrai closer (role=closer/admin) → "Closer : X"
                   const closerUser = [...closers].find(u =>
                     u.id === rawCloserId || u.hubspot_user_id === rawCloserId || u.hubspot_owner_id === rawCloserId
                   )
@@ -1127,7 +1142,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                       </span>
                     )
                   }
-                  // Pas un closer → c'est un télépro
+                  // 2) Télépro mal placé dans closer_du_contact_owner_id → "Télépro : X"
                   const teleproUser = [...telepros].find(u =>
                     u.id === rawCloserId || u.hubspot_user_id === rawCloserId || u.hubspot_owner_id === rawCloserId
                   )
@@ -1135,6 +1150,28 @@ export default function CRMEditDrawer({ contact, closers, telepros, hubspotOwner
                     return (
                       <span style={{ fontSize: 11, color: '#4a6070' }}>
                         Télépro : <span style={{ color: '#4a6070', fontWeight: 600 }}>{teleproUser.name}</span>
+                      </span>
+                    )
+                  }
+                  // 3) Autre utilisateur (manager, équipe externe, etc.) → "Closer : X"
+                  // (le champ closer_du_contact_owner_id reflète le closer assigné)
+                  const otherUser = dropdownUsers.find(u =>
+                    u.id === rawCloserId || u.hubspot_user_id === rawCloserId || u.hubspot_owner_id === rawCloserId
+                  )
+                  if (otherUser) {
+                    return (
+                      <span style={{ fontSize: 11, color: '#4a6070' }}>
+                        Closer : <span style={{ color: '#4a6070', fontWeight: 600 }}>{otherUser.name}</span>
+                      </span>
+                    )
+                  }
+                  const hsOwner = hubspotOwners.find(o => String(o.hubspot_owner_id) === String(rawCloserId))
+                  if (hsOwner) {
+                    const label = [hsOwner.firstname, hsOwner.lastname].filter(Boolean).join(' ').trim()
+                      || hsOwner.email || String(hsOwner.hubspot_owner_id)
+                    return (
+                      <span style={{ fontSize: 11, color: '#4a6070' }}>
+                        Closer : <span style={{ color: '#4a6070', fontWeight: 600 }}>{label}</span>
                       </span>
                     )
                   }

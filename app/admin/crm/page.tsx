@@ -588,20 +588,18 @@ export default function CRMPage() {
   // ── Charger les utilisateurs ─────────────────────────────────────────────────
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/users?roles=closer,admin').then(r => r.json()).catch(() => []),
-      fetch('/api/users?role=telepro').then(r => r.json()).catch(() => []),
-    ]).then(([closersData, teleprosData]) => {
-      const closerArr = Array.isArray(closersData) ? closersData : []
-      const teleproArr = Array.isArray(teleprosData) ? teleprosData : []
-      setClosers(closerArr)
-      setTelepros(teleproArr)
-      setAllUsers(prev => [
-        ...prev.filter(u => u.role !== 'closer' && u.role !== 'admin' && u.role !== 'telepro'),
-        ...closerArr,
-        ...teleproArr,
-      ])
-    })
+    // On charge TOUS les utilisateurs en un seul appel : les dropdowns des
+    // propriétés Closer et Télépro doivent inclure tout le monde (comme la
+    // propriété "Owner" dans HubSpot), pas seulement les rôles closer/telepro.
+    // On dérive ensuite `closers` (role=closer/admin) et `telepros` (role=telepro)
+    // pour préserver les comportements spécifiques au rôle (bulk-assign télépro,
+    // résolution des libellés, etc.).
+    fetch('/api/users').then(r => r.json()).then((data) => {
+      const arr: RdvUser[] = Array.isArray(data) ? data : []
+      setAllUsers(arr)
+      setClosers(arr.filter(u => u.role === 'closer' || u.role === 'admin'))
+      setTelepros(arr.filter(u => u.role === 'telepro'))
+    }).catch(() => {})
     // Charger TOUS les owners HubSpot (table crm_owners — 51 personnes)
     // pour alimenter complètement les dropdowns "Propriétaire du contact"
     fetch('/api/crm/owners').then(r => r.json()).then(d => {
@@ -1532,19 +1530,21 @@ export default function CRMPage() {
     return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
   }, [hubspotOwners])
 
+  // Propriétés Closer et Télépro : on inclut TOUS les rdv_users (tous rôles
+  // confondus) + tous les owners HubSpot (incluant Benjamin Delacour, équipe
+  // externe). Comme la propriété "Owner" de HubSpot, tout utilisateur créé dans
+  // le CRM apparaît automatiquement dans les deux dropdowns.
+  // Le backend `expandTeleproFilterValues` côté API gère l'équivalence
+  // hubspot_owner_id ↔ hubspot_user_id, donc utiliser hubspot_owner_id comme
+  // clé fonctionne pour les deux filtres.
   const closerOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Tous les closers' },
-    ...mergeOwnersWithUsers(closers),
-  ], [closers, mergeOwnersWithUsers])
-  // Le télépro est piloté par crm_contacts.telepro_user_id (HubSpot user id, bigint).
-  // On préfère hubspot_user_id, puis fallback hubspot_owner_id.
+    ...mergeOwnersWithUsers(allUsers),
+  ], [allUsers, mergeOwnersWithUsers])
   const teleproOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Tous les télépros' },
-    ...telepros
-      .map(u => ({ id: (u.hubspot_user_id || u.hubspot_owner_id || '').toString(), label: u.name }))
-      .filter(o => !!o.id)
-      .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
-  ], [telepros])
+    ...mergeOwnersWithUsers(allUsers),
+  ], [allUsers, mergeOwnersWithUsers])
   // Tous les utilisateurs avec un hubspot_owner_id (pour "Exclure propriétaire")
   const ownerExcludeOptions: SelectOption[] = useMemo(() => [
     { id: '', label: 'Aucune exclusion' },
@@ -2774,6 +2774,7 @@ export default function CRMPage() {
           contact={drawerContact}
           closers={closers}
           telepros={telepros}
+          allUsers={allUsers}
           hubspotOwners={hubspotOwners}
           onClose={() => setDrawerContact(null)}
           onRefresh={() => fetchContacts()}

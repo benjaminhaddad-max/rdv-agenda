@@ -61,8 +61,11 @@ export default function CRMFilterBuilder({
   onChange: (next: CRMFilterGroup[]) => void
 }) {
   // ── Listes de référence ──────────────────────────────────────────────────
-  const [closers, setClosers] = useState<RdvUser[]>([])
-  const [telepros, setTelepros] = useState<RdvUser[]>([])
+  // `allUsers` contient TOUS les rdv_users (tous rôles confondus). Les
+  // dropdowns Closer et Télépro se basent dessus pour offrir, comme la
+  // propriété "Owner" de HubSpot, l'ensemble des utilisateurs créés dans le
+  // CRM + tous les owners HubSpot (équipe externe Benjamin Delacour inclus).
+  const [allUsers, setAllUsers] = useState<RdvUser[]>([])
   const [hubspotOwners, setHubspotOwners] = useState<HubspotOwner[]>([])
   const [pipelinesData, setPipelinesData] = useState<PipelineData[]>([])
   const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
@@ -76,11 +79,10 @@ export default function CRMFilterBuilder({
   const [allCrmProps, setAllCrmProps] = useState<CrmPropertyMeta[]>([])
 
   useEffect(() => {
-    fetch('/api/users?roles=closer,admin').then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setClosers(d)
-    }).catch(() => {})
-    fetch('/api/users?role=telepro').then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setTelepros(d)
+    // Un seul appel : on récupère TOUS les utilisateurs (closers, admins,
+    // managers, télépros…) pour alimenter les dropdowns Closer et Télépro.
+    fetch('/api/users').then(r => r.json()).then((d: RdvUser[]) => {
+      if (Array.isArray(d)) setAllUsers(d)
     }).catch(() => {})
     fetch('/api/crm/owners').then(r => r.json()).then(d => {
       if (Array.isArray(d.owners)) setHubspotOwners(d.owners)
@@ -136,10 +138,14 @@ export default function CRMFilterBuilder({
     return [...current, ...extra]
   }, [pipelinesData])
 
-  // ── Owners (closer + télépro) — fusion users + crm_owners ─────────────────
+  // ── Owners (closer + télépro) — fusion all users + crm_owners ────────────
+  // Une seule liste utilisée pour les deux dropdowns Closer et Télépro :
+  // tous les utilisateurs du CRM + tous les owners HubSpot (Benjamin Delacour
+  // compris). Le backend `expandTeleproFilterValues` accepte indifféremment
+  // hubspot_owner_id et hubspot_user_id pour le filtre télépro.
   const ownerOptions = useMemo<SelectOption[]>(() => {
     const map = new Map<string, SelectOption>()
-    for (const u of [...closers, ...telepros]) {
+    for (const u of allUsers) {
       const id = u.hubspot_owner_id || u.hubspot_user_id
       if (id) map.set(id, { id, label: u.name })
     }
@@ -151,17 +157,10 @@ export default function CRMFilterBuilder({
       map.set(o.hubspot_owner_id, { id: o.hubspot_owner_id, label })
     }
     return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-  }, [closers, telepros, hubspotOwners])
+  }, [allUsers, hubspotOwners])
 
   const closerOptions = ownerOptions
-  const teleproOptions = useMemo<SelectOption[]>(() => {
-    const map = new Map<string, SelectOption>()
-    for (const u of telepros) {
-      const id = u.hubspot_user_id || u.hubspot_owner_id
-      if (id) map.set(id, { id, label: u.name })
-    }
-    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-  }, [telepros])
+  const teleproOptions = ownerOptions
 
   // ── Mutations ────────────────────────────────────────────────────────────
   function addFilterGroup() {
