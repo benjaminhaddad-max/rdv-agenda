@@ -22,6 +22,9 @@ interface FormData {
   success_message: string | null
   redirect_url: string | null
   redirect_file_url?: string | null
+  conditional_redirect_enabled?: boolean | null
+  conditional_redirect_terminale_url?: string | null
+  conditional_redirect_non_terminale_url?: string | null
   primary_color: string
   bg_color: string
   text_color: string
@@ -88,6 +91,29 @@ const CRM_FIELDS = [
   { value: 'zone_localite', label: 'Zone / Localité' },
   { value: 'email_parent',  label: 'Email parent' },
 ]
+
+const DEFAULT_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature-formulaire/'
+const DEFAULT_NON_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature/'
+
+function normalizeRuleValue(value: string | null | undefined): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function isDiplomaConditionalRedirectEligible(form: { name?: string | null; folder?: string | null }): boolean {
+  const folder = normalizeRuleValue(form.folder ?? 'Diploma Santé')
+  if (folder !== 'diploma sante') return false
+  const name = normalizeRuleValue(form.name)
+  const excluded = new Set([
+    'ns - formulaire kit pass / las',
+    'ns - formulaire "guide parcoursup 2026" - diploma sante',
+    'ns - brochure diploma sante',
+  ])
+  return !excluded.has(name)
+}
 
 // ─── Page ────────────────────────────────────────────────────────────────
 export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -204,6 +230,9 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             success_message: form.success_message,
             redirect_url: form.redirect_url,
             redirect_file_url: form.redirect_file_url ?? null,
+            conditional_redirect_enabled: form.conditional_redirect_enabled ?? null,
+            conditional_redirect_terminale_url: form.conditional_redirect_terminale_url ?? null,
+            conditional_redirect_non_terminale_url: form.conditional_redirect_non_terminale_url ?? null,
             primary_color: form.primary_color,
             bg_color: form.bg_color,
             text_color: form.text_color,
@@ -616,6 +645,9 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
 
 // ─── Tab Réglages ────────────────────────────────────────────────────────
 function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<FormData>) => void }) {
+  const conditionalDefaultEnabled = isDiplomaConditionalRedirectEligible(form)
+  const conditionalEnabled = form.conditional_redirect_enabled ?? conditionalDefaultEnabled
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 1000 }}>
       <Card title="Contenu">
@@ -912,6 +944,36 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
           <div style={{ marginTop: 4, fontSize: 11, color: '#516f90' }}>
             Si le fichier est renseigné, il sera prioritaire sur l&apos;URL.
           </div>
+        </Field>
+        <div style={{ borderTop: '1px solid #e5edf5', margin: '12px 0' }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#33475b', marginBottom: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={conditionalEnabled}
+            onChange={e => update({ conditional_redirect_enabled: e.target.checked })}
+          />
+          Redirection conditionnelle selon la classe actuelle
+        </label>
+        <div style={{ fontSize: 11, color: '#516f90', marginBottom: 10 }}>
+          Valeur dropdown &quot;classe actuelle&quot; = TERMINALE → page formulaire. Sinon → page candidature.
+        </div>
+        <Field label="URL si classe actuelle = TERMINALE">
+          <input
+            value={form.conditional_redirect_terminale_url || DEFAULT_TERMINALE_REDIRECT}
+            onChange={e => update({ conditional_redirect_terminale_url: e.target.value })}
+            placeholder={DEFAULT_TERMINALE_REDIRECT}
+            style={inputStyle}
+            disabled={!conditionalEnabled}
+          />
+        </Field>
+        <Field label="URL si classe actuelle != TERMINALE">
+          <input
+            value={form.conditional_redirect_non_terminale_url || DEFAULT_NON_TERMINALE_REDIRECT}
+            onChange={e => update({ conditional_redirect_non_terminale_url: e.target.value })}
+            placeholder={DEFAULT_NON_TERMINALE_REDIRECT}
+            style={inputStyle}
+            disabled={!conditionalEnabled}
+          />
         </Field>
       </Card>
 

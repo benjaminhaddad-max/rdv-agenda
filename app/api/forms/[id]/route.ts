@@ -33,6 +33,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const ALLOWED = [
     'name', 'slug', 'description', 'status',
     'title', 'subtitle', 'submit_label', 'success_message', 'redirect_url', 'redirect_file_url',
+    'conditional_redirect_enabled', 'conditional_redirect_terminale_url', 'conditional_redirect_non_terminale_url',
     'primary_color', 'bg_color', 'text_color',
     'field_border_color', 'field_border_width', 'field_border_radius', 'field_bg_color',
     'submit_bg_color', 'submit_text_color', 'submit_border_radius', 'submit_size', 'submit_full_width',
@@ -57,7 +58,13 @@ export async function PATCH(req: Request, { params }: Params) {
     const r = await db.from('forms').update(patch).eq('id', id).select().single()
     data = r.data; error = r.error
     const errMsg = String(error?.message || '').toLowerCase()
-    const optionalColumns: Array<'folder' | 'redirect_file_url'> = ['folder', 'redirect_file_url']
+    const optionalColumns: Array<'folder' | 'redirect_file_url' | 'conditional_redirect_enabled' | 'conditional_redirect_terminale_url' | 'conditional_redirect_non_terminale_url'> = [
+      'folder',
+      'redirect_file_url',
+      'conditional_redirect_enabled',
+      'conditional_redirect_terminale_url',
+      'conditional_redirect_non_terminale_url',
+    ]
     let removed = false
     let missingRedirectFileColumn = false
     for (const col of optionalColumns) {

@@ -24,6 +24,83 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const DEFAULT_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature-formulaire/'
+const DEFAULT_NON_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature/'
+
+function normalizeForMatch(value: string | null | undefined): string {
+  if (!value) return ''
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+const CONDITIONAL_REDIRECT_EXCLUDED_FORMS = new Set([
+  'ns - formulaire kit pass / las',
+  'ns - formulaire "guide parcoursup 2026" - diploma sante',
+  'ns - brochure diploma sante',
+])
+
+function isDiplomaConditionalRedirectEligible(form: { folder?: string | null; name?: string | null }): boolean {
+  const folder = normalizeForMatch(form.folder ?? 'Diploma Santé')
+  if (folder !== 'diploma sante') return false
+  const name = normalizeForMatch(form.name)
+  return !CONDITIONAL_REDIRECT_EXCLUDED_FORMS.has(name)
+}
+
+function resolveClasseActuelleValue(data: Record<string, unknown>, fields: Array<{ field_key?: string; crm_field?: string | null }>): string {
+  for (const f of fields) {
+    if (normalizeForMatch(f.crm_field) !== 'classe_actuelle') continue
+    const key = String(f.field_key || '')
+    if (!key) continue
+    const value = data[key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value)
+  }
+
+  const directClasse = data.classe_actuelle ?? data.classe
+  if (directClasse !== undefined && directClasse !== null && String(directClasse).trim() !== '') {
+    return String(directClasse)
+  }
+
+  for (const [k, v] of Object.entries(data)) {
+    if (!k.toLowerCase().includes('classe')) continue
+    if (v === undefined || v === null || String(v).trim() === '') continue
+    return String(v)
+  }
+
+  return ''
+}
+
+function resolveRedirectTarget(
+  form: {
+    folder?: string | null
+    name?: string | null
+    redirect_file_url?: string | null
+    redirect_url?: string | null
+    conditional_redirect_enabled?: boolean | null
+    conditional_redirect_terminale_url?: string | null
+    conditional_redirect_non_terminale_url?: string | null
+  },
+  data: Record<string, unknown>,
+  fields: Array<{ field_key?: string; crm_field?: string | null }>,
+): string | null {
+  const conditionalEnabled = typeof form.conditional_redirect_enabled === 'boolean'
+    ? form.conditional_redirect_enabled
+    : isDiplomaConditionalRedirectEligible(form)
+
+  if (conditionalEnabled) {
+    const classeRaw = resolveClasseActuelleValue(data, fields)
+    const isTerminale = normalizeForMatch(classeRaw).includes('terminale')
+    const terminaleTarget = String(form.conditional_redirect_terminale_url || '').trim() || DEFAULT_TERMINALE_REDIRECT
+    const nonTerminaleTarget = String(form.conditional_redirect_non_terminale_url || '').trim() || DEFAULT_NON_TERMINALE_REDIRECT
+    return isTerminale ? terminaleTarget : nonTerminaleTarget
+  }
+
+  const fileTarget = String(form.redirect_file_url || '').trim()
+  if (fileTarget) return fileTarget
+  const urlTarget = String(form.redirect_url || '').trim()
+  return urlTarget || null
+}
 // Pré-flight CORS
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
@@ -36,12 +113,6 @@ export async function POST(req: Request, { params }: Params) {
 
   const body = await req.json().catch(() => ({}))
   const data = (body.data || {}) as Record<string, unknown>
-  const resolveRedirectTarget = (f: { redirect_file_url?: string | null; redirect_url?: string | null }): string | null => {
-    const fileTarget = String(f.redirect_file_url || '').trim()
-    if (fileTarget) return fileTarget
-    const urlTarget = String(f.redirect_url || '').trim()
-    return urlTarget || null
-  }
 
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
@@ -281,7 +352,7 @@ export async function POST(req: Request, { params }: Params) {
     {
       ok: true,
       submission_id: submission.id,
-      redirect_url: resolveRedirectTarget(form),
+      redirect_url: resolveRedirectTarget(form, data, (fields || []) as Array<{ field_key?: string; crm_field?: string | null }>),
       success_message: form.success_message || 'Merci, votre message a bien été envoyé !',
     },
     { status: 200, headers: CORS_HEADERS }
