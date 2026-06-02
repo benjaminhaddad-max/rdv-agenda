@@ -287,11 +287,7 @@ export async function GET(req: NextRequest) {
           if (tA > tB) dedupMap.set(key, row)
           else if (tA === tB && hasParcoursupA && !hasParcoursupB) dedupMap.set(key, row)
         } else if (rA < rB && hasParcoursupA && !hasParcoursupB) {
-          const mergedExternal = {
-            ...(existing.external_data as Record<string, unknown>),
-            parcoursup: ins.parcoursup,
-          }
-          dedupMap.set(key, { ...existing, external_data: mergedExternal })
+          existing.external_data.parcoursup = ins.parcoursup
         }
       }
 
