@@ -5,6 +5,7 @@ import {
   FileText, ChevronLeft, Save, Eye, Code, Inbox, Settings, Plus,
   Type, Mail, Phone, AlignLeft, List, Check, CheckSquare, Calendar,
   Hash, EyeOff, GripVertical, Trash2, Copy, X, ExternalLink, Globe,
+  Search,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -185,6 +186,24 @@ type CrmPropertyOption = {
   group_name: string | null
   type: string
   field_type: string
+  options?: Array<{ value: string; label: string; displayOrder?: number }> | null
+}
+
+// Convertit un field_type CRM (HubSpot/Supabase) vers le type de champ form
+// supporté par notre form builder (FIELD_TYPES).
+function mapCrmFieldTypeToFormType(crmFieldType: string, crmType: string): string {
+  const ft = String(crmFieldType || '').toLowerCase()
+  const t = String(crmType || '').toLowerCase()
+  if (ft === 'select') return 'select'
+  if (ft === 'radio') return 'radio'
+  if (ft === 'checkbox') return 'checkbox'
+  if (ft === 'booleancheckbox') return 'checkbox'
+  if (ft === 'phonenumber' || t === 'phone_number') return 'phone'
+  if (ft === 'number' || t === 'number') return 'number'
+  if (ft === 'date' || t === 'date') return 'date'
+  if (ft === 'datetime' || t === 'datetime') return 'date'
+  if (ft === 'textarea') return 'textarea'
+  return 'text'
 }
 
 export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -264,6 +283,32 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
       options: type === 'select' || type === 'radio' || type === 'checkbox'
         ? [{ value: 'option1', label: 'Option 1' }, { value: 'option2', label: 'Option 2' }]
         : [],
+    }
+    update({ fields: [...form.fields, newField] })
+    setSelectedFieldIdx(n)
+  }
+
+  // Ajout d'un champ pré-mappé sur une propriété CRM existante.
+  // - field_type déduit de prop.field_type (ex: select, number, date, text…)
+  // - label, options et crm_field automatiquement remplis
+  // - field_key = nom technique de la propriété (sera la clé dans data[…])
+  const addCrmField = (prop: CrmPropertyOption) => {
+    if (!form) return
+    const n = form.fields.length
+    const ft = mapCrmFieldTypeToFormType(prop.field_type, prop.type)
+    const hasOptions = ft === 'select' || ft === 'radio' || ft === 'checkbox'
+    const presetOptions = hasOptions
+      ? Array.isArray((prop as unknown as { options?: Array<{ value: string; label: string }> }).options)
+        ? ((prop as unknown as { options?: Array<{ value: string; label: string }> }).options || []).map(o => ({ value: String(o.value), label: String(o.label) }))
+        : []
+      : []
+    const newField: FormField = {
+      field_type: ft,
+      field_key: prop.name,
+      label: prop.label,
+      required: false,
+      options: presetOptions,
+      crm_field: prop.name,
     }
     update({ fields: [...form.fields, newField] })
     setSelectedFieldIdx(n)
@@ -414,6 +459,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             update={update}
             updateField={updateField}
             addField={addField}
+            addCrmField={addCrmField}
             removeField={removeField}
             moveField={moveField}
             duplicateField={duplicateField}
@@ -431,11 +477,12 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
 }
 
 // ─── Tab Builder ─────────────────────────────────────────────────────────
-function BuilderTab({ form, update, updateField, addField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx, crmProperties }: {
+function BuilderTab({ form, update, updateField, addField, addCrmField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx, crmProperties }: {
   form: FormData
   update: (p: Partial<FormData>) => void
   updateField: (i: number, p: Partial<FormField>) => void
   addField: (t: string) => void
+  addCrmField: (p: CrmPropertyOption) => void
   removeField: (i: number) => void
   moveField: (f: number, t: number) => void
   duplicateField: (i: number) => void
@@ -443,10 +490,22 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
   setSelectedFieldIdx: (i: number | null) => void
   crmProperties: CrmPropertyOption[]
 }) {
+  const [crmSearch, setCrmSearch] = useState('')
+  const usedCrmFields = new Set(form.fields.map(f => f.crm_field).filter(Boolean) as string[])
+  const filteredCrmProps = (() => {
+    const q = crmSearch.trim().toLowerCase()
+    const all = crmProperties.filter(p => !usedCrmFields.has(p.name))
+    if (!q) return all
+    return all.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.label.toLowerCase().includes(q) ||
+      (p.group_name || '').toLowerCase().includes(q),
+    )
+  })()
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
       {/* Palette des champs */}
-      <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24 }}>
+      <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
         <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {FIELD_TYPES.map(ft => {
@@ -462,6 +521,63 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
               </button>
             )
           })}
+        </div>
+
+        {/* ── Propriétés CRM existantes ───────────────────────────────────── */}
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #e5ddc8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>
+              Propriétés CRM ({crmProperties.length})
+            </span>
+            <a
+              href="/admin/crm/proprietes"
+              target="_blank"
+              rel="noreferrer"
+              title="Créer une nouvelle propriété CRM"
+              style={{ color: '#C9A84C', fontSize: 11, textDecoration: 'none' }}
+            >+ Nouvelle</a>
+          </div>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#4a6070' }} />
+            <input
+              value={crmSearch}
+              onChange={e => setCrmSearch(e.target.value)}
+              placeholder="Rechercher une propriété…"
+              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px 6px 26px', fontSize: 11, color: '#0e1e35', fontFamily: 'inherit' }}
+            />
+          </div>
+          {crmProperties.length === 0 ? (
+            <div style={{ fontSize: 11, color: '#7d8c9e', padding: '8px 4px', lineHeight: 1.5 }}>
+              Chargement des propriétés du CRM…
+            </div>
+          ) : filteredCrmProps.length === 0 ? (
+            <div style={{ fontSize: 11, color: '#7d8c9e', padding: '8px 4px', lineHeight: 1.5 }}>
+              {crmSearch.trim()
+                ? 'Aucune propriété ne correspond.'
+                : 'Toutes les propriétés CRM sont déjà utilisées dans ce form.'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 360, overflowY: 'auto' }}>
+              {filteredCrmProps.slice(0, 200).map(p => (
+                <button
+                  key={p.name}
+                  onClick={() => addCrmField(p)}
+                  title={`${p.name} — ${p.field_type}${p.options?.length ? ` (${p.options.length} options)` : ''}`}
+                  style={{ background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', fontSize: 11, color: '#0e1e35', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f7f4ee'; e.currentTarget.style.borderColor = '#e5ddc8' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
+                >
+                  <span style={{ fontWeight: 500 }}>{p.label}</span>
+                  <span style={{ color: '#7d8c9e', fontSize: 10, fontFamily: 'ui-monospace, monospace' }}>{p.name}</span>
+                </button>
+              ))}
+              {filteredCrmProps.length > 200 && (
+                <div style={{ fontSize: 10, color: '#7d8c9e', padding: '6px 4px', textAlign: 'center' }}>
+                  +{filteredCrmProps.length - 200} autres — affine ta recherche
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
