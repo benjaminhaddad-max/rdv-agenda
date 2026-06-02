@@ -139,6 +139,8 @@ export default function CRMPage() {
   const [renameValue, setRenameValue] = useState('')
   const [creatingView, setCreatingView] = useState(false)
   const [newViewName, setNewViewName] = useState('')
+  const [draggedViewId, setDraggedViewId] = useState<string | null>(null)
+  const [dragOverViewId, setDragOverViewId] = useState<string | null>(null)
 
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
@@ -1306,6 +1308,29 @@ export default function CRMPage() {
     persistViewUpdate(viewId, { filter_groups: filterGroups })
   }
 
+  function reorderCRMViews(fromId: string, toId: string) {
+    if (fromId === toId) return
+    const fromView = crmViews.find(v => v.id === fromId)
+    const toView = crmViews.find(v => v.id === toId)
+    if (!fromView || !toView || fromView.isDefault || toView.isDefault) return
+
+    const customViews = crmViews.filter(v => !v.isDefault)
+    const fromIdx = customViews.findIndex(v => v.id === fromId)
+    const toIdx = customViews.findIndex(v => v.id === toId)
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
+
+    const reordered = [...customViews]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    const defaults = crmViews.filter(v => v.isDefault)
+    setCrmViews([...defaults, ...reordered])
+
+    reordered.forEach((v, i) => {
+      void persistViewUpdate(v.id, { position: i })
+    })
+  }
+
   // ── Filter group CRUD ──────────────────────────────────────────────────────
 
   function addFilterGroup() {
@@ -1632,10 +1657,38 @@ export default function CRMPage() {
           const isActive = activeViewId === view.id
           const isRenaming = renamingViewId === view.id
           const Icon = view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
+          const isDraggable = !view.isDefault && !isRenaming
+          const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
 
           return (
             <div
               key={view.id}
+              draggable={isDraggable}
+              onDragStart={isDraggable ? (e) => {
+                setDraggedViewId(view.id)
+                e.dataTransfer.effectAllowed = 'move'
+              } : undefined}
+              onDragOver={(e) => {
+                if (!draggedViewId || view.isDefault) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverViewId(view.id)
+              }}
+              onDragLeave={() => {
+                if (dragOverViewId === view.id) setDragOverViewId(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (draggedViewId && !view.isDefault) {
+                  reorderCRMViews(draggedViewId, view.id)
+                }
+                setDraggedViewId(null)
+                setDragOverViewId(null)
+              }}
+              onDragEnd={() => {
+                setDraggedViewId(null)
+                setDragOverViewId(null)
+              }}
               onClick={() => { if (!isRenaming) applyCRMView(view) }}
               onDoubleClick={() => {
                 if (!view.isDefault) {
@@ -1646,11 +1699,14 @@ export default function CRMPage() {
               style={{
                 padding: '10px 14px',
                 borderBottom: `2px solid ${isActive ? '#C9A84C' : 'transparent'}`,
-                cursor: 'pointer',
+                borderLeft: isDragOver ? '2px solid #C9A84C' : '2px solid transparent',
+                background: isDragOver ? 'rgba(204,172,113,0.10)' : 'transparent',
+                cursor: isRenaming ? 'text' : isDraggable ? 'grab' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s',
                 flexShrink: 0,
+                opacity: draggedViewId === view.id ? 0.5 : 1,
               }}
             >
               {view.isDefault && <Icon size={12} style={{ color: isActive ? '#C9A84C' : '#3D5275' }} />}
