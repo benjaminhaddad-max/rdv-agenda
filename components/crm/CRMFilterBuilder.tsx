@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Copy, X } from 'lucide-react'
 import {
   CRM_FILTER_FIELDS, STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
-  CURRENT_PIPELINE_ID,
+  CURRENT_PIPELINE_ID, LEAD_STATUS_OPTIONS_FALLBACK,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type CRMFilterField, type CRMFilterOp, type CRMFilterGroup,
   type SelectOption,
@@ -66,7 +66,10 @@ export default function CRMFilterBuilder({
   const [hubspotOwners, setHubspotOwners] = useState<HubspotOwner[]>([])
   const [pipelinesData, setPipelinesData] = useState<PipelineData[]>([])
   const [pipelineOptions, setPipelineOptions] = useState<SelectOption[]>([])
-  const [leadStatusOptions, setLeadStatusOptions] = useState<SelectOption[]>([])
+  // Initialisation avec un fallback statique pour que le dropdown soit
+  // immédiatement disponible (sinon le filtre tombe en input texte le temps
+  // que /api/crm/field-options réponde, ce qui peut prendre plusieurs secondes).
+  const [leadStatusOptions, setLeadStatusOptions] = useState<SelectOption[]>(LEAD_STATUS_OPTIONS_FALLBACK)
   const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([])
   const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([])
   const [deptOptions, setDeptOptions] = useState<SelectOption[]>([])
@@ -91,8 +94,13 @@ export default function CRMFilterBuilder({
       if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
     fetch('/api/crm/field-options').then(r => r.json()).then(d => {
-      if (d.leadStatuses?.length) {
-        setLeadStatusOptions(d.leadStatuses.map((v: string) => ({ id: v, label: v })))
+      // Ne JAMAIS remplacer le fallback par une liste vide : on garde toujours
+      // un dropdown rempli, même si l'API retourne 0 valeurs distinctes.
+      if (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0) {
+        const merged = new Map<string, SelectOption>()
+        for (const o of LEAD_STATUS_OPTIONS_FALLBACK) merged.set(o.id, o)
+        for (const v of d.leadStatuses as string[]) merged.set(v, { id: v, label: v })
+        setLeadStatusOptions([...merged.values()])
       }
       if (d.sources?.length) {
         setSourceOptions(d.sources.map((v: string) => ({ id: v, label: v })))
@@ -306,7 +314,13 @@ export default function CRMFilterBuilder({
                   )
                 }
                 // ── ENUM (avec options) ─────────────────────────────────────
-                if ((kind === 'enum' || (fieldDef?.type === 'select')) && valueOptions.length > 0) {
+                // Règle stricte : si le champ est de type 'select' (ou la propriété
+                // custom est un enum), on affiche TOUJOURS un dropdown — jamais
+                // un input texte, même si la liste d'options n'a pas (encore)
+                // été chargée. Cela évite que le filtre "Statut du lead" (et
+                // les autres select) basculent en input "Valeur…" pendant le
+                // fetch des options.
+                if (kind === 'enum' || fieldDef?.type === 'select') {
                   if (opIsMulti(rule.operator)) {
                     return (
                       <MultiSelectDropdown
@@ -318,7 +332,7 @@ export default function CRMFilterBuilder({
                   }
                   return (
                     <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...selectStyle, color: rule.value ? '#C9A84C' : '#4a6070' }}>
-                      <option value="">Rechercher…</option>
+                      <option value="">{valueOptions.length === 0 ? 'Chargement…' : 'Rechercher…'}</option>
                       {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                     </select>
                   )

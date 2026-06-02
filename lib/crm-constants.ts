@@ -57,6 +57,33 @@ export const PERIOD_OPTIONS: SelectOption[] = [
   { id: 'month',  label: 'Ce mois' },
 ]
 
+// Fallback de "Statut du lead" : tant que /api/crm/field-options n'a pas répondu
+// (elle peut prendre ~20s en prod car elle scanne crm_contacts), on a déjà la
+// liste connue dans le dropdown. Évite que le filtre tombe en input texte.
+export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
+  { id: 'Nouveau',                     label: 'Nouveau' },
+  { id: 'Nouveau - Chaud',             label: 'Nouveau - Chaud' },
+  { id: 'En cours',                    label: 'En cours' },
+  { id: 'RDV pris',                    label: 'RDV pris' },
+  { id: 'A replanifier',               label: 'A replanifier' },
+  { id: 'A relancer',                  label: 'A relancer' },
+  { id: 'NRP1',                        label: 'NRP1' },
+  { id: 'NRP2',                        label: 'NRP2' },
+  { id: 'NRP3',                        label: 'NRP3' },
+  { id: 'NRP4',                        label: 'NRP4' },
+  { id: 'Raccroche au nez',            label: 'Raccroche au nez' },
+  { id: 'Mauvais numéro',              label: 'Mauvais numéro' },
+  { id: 'En attente / Réfléchit',      label: 'En attente / Réfléchit' },
+  { id: 'Autre prépa concurrente',     label: 'Autre prépa concurrente' },
+  { id: "A garder pour l'an prochain", label: "A garder pour l'an prochain" },
+  { id: 'Pré-inscrit 2025/2026',       label: 'Pré-inscrit 2025/2026' },
+  { id: 'Pré-inscrit 2026-2027',       label: 'Pré-inscrit 2026-2027' },
+  { id: 'Pré-inscrit 2026/2027',       label: 'Pré-inscrit 2026/2027' },
+  { id: 'Inscrit',                     label: 'Inscrit' },
+  { id: 'Doublon',                     label: 'Doublon' },
+  { id: 'Disqualifié',                 label: 'Disqualifié' },
+]
+
 // ── Système de filtres avancés ─────────────────────────────────────────────
 
 export type CRMFilterField =

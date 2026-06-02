@@ -16,7 +16,7 @@ const RepopJournal = dynamic(() => import('@/components/RepopJournal'), { ssr: f
 import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
-  CRM_FILTER_FIELDS,
+  CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type SelectOption,
   type CRMFilterField, type CRMFilterOp, type CRMFilterRule, type CRMFilterGroup,
@@ -386,7 +386,15 @@ export default function CRMPage() {
   const [allCrmProps, setAllCrmProps] = useState<CrmPropertyMeta[]>([])
 
   // Options dynamiques depuis HubSpot (valeurs réelles)
-  const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([{ id: '', label: 'Tous les statuts du lead' }])
+  // ⚠️ leadStatusOptions est initialisé avec un fallback statique pour que le
+  // filtre "Statut du lead" affiche TOUJOURS un dropdown, même avant que
+  // /api/crm/field-options réponde (cette API peut prendre plusieurs secondes
+  // car elle scanne crm_contacts). Sans ce fallback, le filtre bascule en
+  // input texte "Valeur…" pendant le chargement.
+  const [leadStatusOptions, setLeadStatusOptions]   = useState<SelectOption[]>([
+    { id: '', label: 'Tous les statuts du lead' },
+    ...LEAD_STATUS_OPTIONS_FALLBACK,
+  ])
   const [formEventOptions, setFormEventOptions]     = useState<SelectOption[]>([{ id: '', label: 'Tous les formulaires' }])
   const [sourceOptions, setSourceOptions]           = useState<SelectOption[]>([{ id: '', label: 'Toutes les origines' }])
   const [zoneOptions, setZoneOptions]               = useState<SelectOption[]>([{ id: '', label: 'Toutes les zones / localités' }])
@@ -608,10 +616,16 @@ export default function CRMPage() {
 
     const t = setTimeout(() => {
       fetch('/api/crm/field-options').then(r => r.json()).then(d => {
-        if (d.leadStatuses?.length) {
+        if (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0) {
+          // Fusion fallback statique + valeurs distinctes côté DB.
+          // On ne remplace JAMAIS par une liste vide (sinon le filtre repasse
+          // en input texte).
+          const merged = new Map<string, SelectOption>()
+          for (const o of LEAD_STATUS_OPTIONS_FALLBACK) merged.set(o.id, o)
+          for (const v of d.leadStatuses as string[]) merged.set(v, { id: v, label: v })
           setLeadStatusOptions([
             { id: '', label: 'Tous les statuts du lead' },
-            ...d.leadStatuses.map((v: string) => ({ id: v, label: v })),
+            ...merged.values(),
           ])
         }
         if (d.sources?.length) {
@@ -2308,8 +2322,12 @@ export default function CRMPage() {
                           </select>
                         )
                       }
-                      // ENUM
-                      if ((kind === 'enum' || fieldDef?.type === 'select') && valueOptions.length > 0) {
+                      // ENUM — règle stricte : si le champ est de type 'select'
+                      // (ou la prop custom est un enum), on rend TOUJOURS un
+                      // dropdown, même si la liste d'options n'a pas encore été
+                      // chargée. Évite que "Statut du lead" et autres select
+                      // basculent en input texte pendant le fetch des options.
+                      if (kind === 'enum' || fieldDef?.type === 'select') {
                         if (opIsMulti(rule.operator)) {
                           return (
                             <MultiSelectDropdown
@@ -2319,7 +2337,6 @@ export default function CRMPage() {
                             />
                           )
                         }
-                        // Single-select : SearchableSelect si > 20 options (sinon select natif)
                         if (valueOptions.length > 20) {
                           return (
                             <SearchableSelect
@@ -2331,7 +2348,7 @@ export default function CRMPage() {
                         }
                         return (
                           <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#3D5275', cursor: 'pointer' }}>
-                            <option value="">Rechercher…</option>
+                            <option value="">{valueOptions.length === 0 ? 'Chargement…' : 'Rechercher…'}</option>
                             {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                           </select>
                         )
