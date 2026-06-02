@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// GET /api/forms — liste tous les formulaires
+// GET /api/forms — liste tous les formulaires (avec compteurs réels)
 export async function GET() {
   const db = createServiceClient()
   const { data, error } = await db
@@ -9,7 +9,38 @@ export async function GET() {
     .select('*')
     .order('updated_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+
+  const forms = data ?? []
+  if (forms.length === 0) return NextResponse.json([])
+
+  // Compte réel des soumissions par form (status != 'spam') — la colonne
+  // forms.submission_count peut être obsolète si le RPC d'incrément a sauté
+  // un coup ou si des soumissions ont été importées hors du flux.
+  // Une `count` par form en parallèle (head:true → ne ramène pas les lignes).
+  const formIds = forms.map(f => f.id)
+  const counts = new Map<string, number>()
+  try {
+    const results = await Promise.all(
+      formIds.map(async (id) => {
+        const { count } = await db
+          .from('form_submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('form_id', id)
+          .neq('status', 'spam')
+        return [id, count ?? 0] as const
+      }),
+    )
+    for (const [id, c] of results) counts.set(id, c)
+  } catch {
+    // En cas d'échec on retombe sur la valeur stockée (pas de blocage)
+  }
+
+  const enriched = forms.map(f => ({
+    ...f,
+    submission_count: counts.get(f.id) ?? f.submission_count ?? 0,
+  }))
+
+  return NextResponse.json(enriched)
 }
 
 // POST /api/forms — crée un nouveau formulaire
