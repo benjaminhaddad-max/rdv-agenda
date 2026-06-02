@@ -77,7 +77,6 @@ export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
   { id: 'Autre prépa concurrente',     label: 'Autre prépa concurrente' },
   { id: "A garder pour l'an prochain", label: "A garder pour l'an prochain" },
   { id: 'Pré-inscrit 2025/2026',       label: 'Pré-inscrit 2025/2026' },
-  { id: 'Pré-inscrit 2026-2027',       label: 'Pré-inscrit 2026-2027' },
   { id: 'Pré-inscrit 2026/2027',       label: 'Pré-inscrit 2026/2027' },
   { id: 'Inscrit',                     label: 'Inscrit' },
   { id: 'Doublon',                     label: 'Doublon' },

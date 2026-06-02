@@ -52,12 +52,29 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
   return [...out].sort()
 }
 
+// Statuts du lead à fusionner vers une valeur canonique.
+// "Pré-inscrit 2026-2027" (tiret) est l'ancien doublon historique : on le
+// canonicalise désormais vers "Pré-inscrit 2026/2027" (slash), seule valeur
+// présente dans HubSpot. Évite que le doublon réapparaisse dans les
+// dropdowns de filtres si une ancienne valeur traînait encore en base.
+const LEAD_STATUS_CANONICAL: Record<string, string> = {
+  'Pré-inscrit 2026-2027': 'Pré-inscrit 2026/2027',
+}
+
+function canonicalizeLeadStatuses(raw: string[]): string[] {
+  const out = new Set<string>()
+  for (const v of raw) out.add(LEAD_STATUS_CANONICAL[v] ?? v)
+  return [...out]
+}
+
 /**
  * GET /api/crm/field-options
  * Source unique : valeurs distinctes côté CRM/Supabase (sans dépendance HubSpot).
  */
 export async function GET() {
-  const staticPayload = await cached('crm:field-options:v5:static', 300, async () => {
+  // Bump cache key (v6) pour invalider l'ancien cache qui peut encore contenir
+  // le doublon "Pré-inscrit 2026-2027".
+  const staticPayload = await cached('crm:field-options:v6:static', 300, async () => {
     const [leadStatuses, sources, formations, zones, departements] = await Promise.all([
       fetchAllDistinctValues('hs_lead_status'),
       fetchAllDistinctValues('origine'),
@@ -71,7 +88,7 @@ export async function GET() {
         .filter((v): v is string => !!v)
     )]
     return {
-      leadStatuses: leadStatuses.slice().sort(),
+      leadStatuses: canonicalizeLeadStatuses(leadStatuses).slice().sort(),
       sources: normalizedSources.slice().sort(),
       formations: formations.slice().sort(),
       zones: zones.slice().sort(),

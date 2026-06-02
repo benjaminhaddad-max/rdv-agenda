@@ -23,6 +23,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { batchGetContacts, hubspotFetch } from '@/lib/hubspot'
 import { getHubspotMode } from '@/lib/hubspot-mode'
 import { normalizeOrigineValue } from '@/lib/origine-normalization'
+import { normalizeLeadStatus } from '@/lib/lead-status-normalization'
 
 // Vercel Pro : timeout étendu à 60s (suffit largement, batch read = ~2-5s)
 export const maxDuration = 60
@@ -101,7 +102,7 @@ function buildContactRow(c: { id: string; properties: Record<string, string | nu
     contact_createdate:         parseHubSpotDate(p.createdate),
     recent_conversion_date:     parseHubSpotDate(p.recent_conversion_date),
     recent_conversion_event:    p.recent_conversion_event_name ?? null,
-    hs_lead_status:             p.hs_lead_status ?? null,
+    hs_lead_status:             normalizeLeadStatus(p.hs_lead_status),
     origine:                    normalizeOrigineValue(p.origine),
     source:                     p.source ?? null,
     formation_demandee:         p.diploma_sante___formation_demandee ?? null,

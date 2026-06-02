@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import { normalizeLeadStatus } from '@/lib/lead-status-normalization'
 
 /**
  * POST /api/admin/sync-preinscrits
@@ -56,7 +57,7 @@ function buildContactRow(c: any, now: string) {
     contact_createdate:         parseHubSpotDate(c.properties.createdate),
     recent_conversion_date:     parseHubSpotDate(c.properties.recent_conversion_date),
     recent_conversion_event:    c.properties.recent_conversion_event_name ?? null,
-    hs_lead_status:             c.properties.hs_lead_status ?? null,
+    hs_lead_status:             normalizeLeadStatus(c.properties.hs_lead_status),
     origine:                    c.properties.origine ?? null,
     formation_demandee:         c.properties.diploma_sante___formation_demandee ?? null,
     formation_souhaitee:        c.properties.formation_souhaitee ?? null,
