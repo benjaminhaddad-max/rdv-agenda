@@ -243,14 +243,37 @@ export async function POST(req: Request, { params }: Params) {
     origine:             'origine',
     source:              'origine',
   }
+
+  // Colonnes individuelles existant réellement dans crm_contacts.
+  // Toute clé crm_field qui N'EST PAS dans cette whitelist est traitée comme
+  // une propriété custom et stockée dans le JSONB hubspot_raw (pas besoin de
+  // créer une colonne en base ni une propriété HubSpot pour mapper un form).
+  const NATIVE_CONTACT_COLUMNS = new Set([
+    'firstname', 'lastname', 'email', 'phone', 'mobilephone',
+    'classe_actuelle', 'departement', 'zone_localite',
+    'formation_souhaitee', 'formation_demandee',
+    'origine', 'hs_lead_status', 'lifecyclestage',
+    'company', 'jobtitle', 'website',
+    'address', 'city', 'state', 'zip', 'country',
+    'parent__tudiant', 'email_parent',
+    'hubspot_owner_id',
+  ])
+
   const contactData: Record<string, unknown> = {}
+  const customRaw: Record<string, unknown> = {}
   for (const f of (fields || [])) {
     const value = data[f.field_key]
     if (value === undefined || value === null || String(value).trim() === '') continue
     // Priorité : crm_field explicite, sinon mapping auto par field_key
     const target = f.crm_field || AUTO_MAP_FIELDS[f.field_key]
-    if (target) {
+    if (!target) continue
+    if (NATIVE_CONTACT_COLUMNS.has(target)) {
       contactData[target] = value
+    } else {
+      // Propriété custom (créée via /admin/crm/proprietes ou nom HubSpot custom).
+      // → on la stocke dans hubspot_raw JSONB, comme le fait l'API
+      // /api/crm/contacts/[id]/prop pour les propriétés sans colonne dédiée.
+      customRaw[target] = value
     }
   }
 
@@ -312,9 +335,13 @@ export async function POST(req: Request, { params }: Params) {
       if (origineFromTracking) {
         updateData.origine = origineFromTracking
       }
-      // Merge tracking publicitaire dans hubspot_raw (sans ecraser les IDs
-      // d'attribution deja captures lors d'une 1re soumission).
-      if (Object.keys(trackingForContactRaw).length > 0) {
+      // Merge tracking publicitaire + champs custom dans hubspot_raw.
+      // - Tracking pub : first-touch wins (on n'écrase pas un click ID déjà capté).
+      // - Champs custom du form : last-touch wins (la dernière soumission gagne).
+      const hasRawWrite =
+        Object.keys(trackingForContactRaw).length > 0 ||
+        Object.keys(customRaw).length > 0
+      if (hasRawWrite) {
         const { data: existingRaw } = await db
           .from('crm_contacts')
           .select('hubspot_raw')
@@ -323,10 +350,12 @@ export async function POST(req: Request, { params }: Params) {
         const currentRaw = (existingRaw?.hubspot_raw && typeof existingRaw.hubspot_raw === 'object')
           ? (existingRaw.hubspot_raw as Record<string, unknown>)
           : {}
-        // First-touch wins : on n'ecrase pas un click ID deja present
         const mergedRaw: Record<string, unknown> = { ...currentRaw }
         for (const [k, v] of Object.entries(trackingForContactRaw)) {
           if (!mergedRaw[k]) mergedRaw[k] = v
+        }
+        for (const [k, v] of Object.entries(customRaw)) {
+          mergedRaw[k] = v
         }
         updateData.hubspot_raw = mergedRaw
       }
@@ -344,8 +373,9 @@ export async function POST(req: Request, { params }: Params) {
         hubspot_owner_id:   null,
         origine:            origineFromTracking ?? 'Formulaire web',
       }
-      if (Object.keys(trackingForContactRaw).length > 0) {
-        insertData.hubspot_raw = trackingForContactRaw
+      const initialRaw: Record<string, unknown> = { ...trackingForContactRaw, ...customRaw }
+      if (Object.keys(initialRaw).length > 0) {
+        insertData.hubspot_raw = initialRaw
       }
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
