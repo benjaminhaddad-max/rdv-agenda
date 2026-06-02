@@ -22,7 +22,12 @@ export async function GET(req: Request, { params }: Params) {
   // un fetch supplémentaire vers /public (gain ~500ms en série)
   const inlineForm = form
 
-  const js = generateEmbedScript(host, slug, inlineForm)
+  // Pour les formulaires de prise de RDV : on émet un script "popup"
+  // qui ouvre l'iframe /embed/forms/[slug] en modal au clic sur un CTA.
+  // Pour les formulaires classiques : comportement historique (rendu inline).
+  const js = form.form_type === 'booking'
+    ? generateBookingPopupScript(host, slug, form.title || 'Prendre rendez-vous')
+    : generateEmbedScript(host, slug, inlineForm)
 
   return new NextResponse(js, {
     headers: {
@@ -32,6 +37,147 @@ export async function GET(req: Request, { params }: Params) {
       'access-control-allow-origin': '*',
     },
   })
+}
+
+// ─── Script popup pour les forms de type "booking" ───────────────────────
+// Branchement minimal : tout élément (a, button, div…) ayant
+//   data-diploma-booking="<slug>"  →  ouvre la popup modal au clic
+// On peut aussi déclencher l'ouverture programmatique via :
+//   window.DiplomaBooking.open('<slug>')
+function generateBookingPopupScript(host: string, slug: string, title: string): string {
+  return `/* Diploma Santé — Booking Popup (prise de rendez-vous embed) */
+(function(){
+  "use strict";
+  var HOST = ${JSON.stringify(host)};
+  var SLUG = ${JSON.stringify(slug)};
+  var TITLE = ${JSON.stringify(title)};
+  var EMBED_URL = HOST + '/embed/forms/' + encodeURIComponent(SLUG);
+
+  // Singleton global pour qu'on puisse l'appeler depuis n'importe quel script
+  // de la page hôte (ex: window.DiplomaBooking.open('slug')).
+  window.DiplomaBooking = window.DiplomaBooking || {
+    _opened: false,
+    open: function(slugArg) { openModal(slugArg || SLUG); },
+    close: function() { closeModal(); },
+  };
+
+  function injectStyles() {
+    if (document.getElementById('diploma-booking-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'diploma-booking-styles';
+    s.textContent = [
+      '.diploma-booking-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .15s ease}',
+      '.diploma-booking-overlay.is-open{opacity:1}',
+      '.diploma-booking-modal{position:relative;background:#fff;border-radius:16px;overflow:hidden;width:min(1040px,calc(100vw - 32px));height:min(720px,calc(100vh - 64px));box-shadow:0 30px 80px rgba(15,23,42,0.4);display:flex;flex-direction:column}',
+      '.diploma-booking-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e6edf5;background:#f7fafc;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}',
+      '.diploma-booking-title{font-size:13px;font-weight:700;color:#1d2f4b}',
+      '.diploma-booking-close{background:transparent;border:none;width:32px;height:32px;border-radius:8px;cursor:pointer;color:#64748b;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;transition:background .15s}',
+      '.diploma-booking-close:hover{background:#e2e8f0;color:#1d2f4b}',
+      '.diploma-booking-frame{flex:1;border:0;width:100%;background:#fff}',
+      '@media (max-width:640px){',
+      '.diploma-booking-overlay{padding:0}',
+      '.diploma-booking-modal{width:100vw;height:100vh;border-radius:0}',
+      '}',
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  var overlayEl = null;
+  function openModal(slugArg) {
+    injectStyles();
+    if (overlayEl) {
+      overlayEl.classList.add('is-open');
+      window.DiplomaBooking._opened = true;
+      return;
+    }
+    overlayEl = document.createElement('div');
+    overlayEl.className = 'diploma-booking-overlay';
+    overlayEl.setAttribute('role', 'dialog');
+    overlayEl.setAttribute('aria-modal', 'true');
+    overlayEl.setAttribute('aria-label', TITLE);
+
+    var modal = document.createElement('div');
+    modal.className = 'diploma-booking-modal';
+
+    var header = document.createElement('div');
+    header.className = 'diploma-booking-header';
+    var titleEl = document.createElement('div');
+    titleEl.className = 'diploma-booking-title';
+    titleEl.textContent = TITLE;
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'diploma-booking-close';
+    closeBtn.setAttribute('aria-label', 'Fermer');
+    closeBtn.textContent = '\u2715';
+    closeBtn.addEventListener('click', closeModal);
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    var iframe = document.createElement('iframe');
+    iframe.className = 'diploma-booking-frame';
+    iframe.src = EMBED_URL + (location.search || '');
+    iframe.setAttribute('title', TITLE);
+    iframe.allow = 'clipboard-write';
+
+    modal.appendChild(header);
+    modal.appendChild(iframe);
+    overlayEl.appendChild(modal);
+
+    overlayEl.addEventListener('click', function(e) {
+      if (e.target === overlayEl) closeModal();
+    });
+    document.body.appendChild(overlayEl);
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(function(){ overlayEl.classList.add('is-open'); });
+    window.DiplomaBooking._opened = true;
+
+    // ESC pour fermer
+    document.addEventListener('keydown', escHandler);
+  }
+  function escHandler(e) {
+    if (e.key === 'Escape') closeModal();
+  }
+  function closeModal() {
+    if (!overlayEl) return;
+    overlayEl.remove();
+    overlayEl = null;
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', escHandler);
+    window.DiplomaBooking._opened = false;
+  }
+
+  // Branche tous les CTA existants avec data-diploma-booking="<slug>"
+  function bindTriggers() {
+    var triggers = document.querySelectorAll('[data-diploma-booking="' + SLUG + '"], [data-diploma-booking=""], [data-diploma-booking][data-diploma-booking-any]');
+    Array.prototype.forEach.call(triggers, function(el){
+      if (el.dataset.diplomaBookingBound) return;
+      el.dataset.diplomaBookingBound = '1';
+      el.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        openModal(el.getAttribute('data-diploma-booking') || SLUG);
+      });
+      // Curseur "pointer" si l'élément n'en a pas déjà un
+      var cs = getComputedStyle(el);
+      if (cs.cursor === 'auto' || cs.cursor === 'default') el.style.cursor = 'pointer';
+    });
+  }
+
+  // Observe les CTA ajoutés dynamiquement (ex: pop-ins, SPA)
+  function init() {
+    bindTriggers();
+    try {
+      var obs = new MutationObserver(bindTriggers);
+      obs.observe(document.body, { childList: true, subtree: true });
+    } catch(e) { /* pas critique */ }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+`
 }
 
 function generateEmbedScript(host: string, slug: string, inlineForm: unknown): string {

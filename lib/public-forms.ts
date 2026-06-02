@@ -39,10 +39,19 @@ export interface PublicForm {
   submit_font_size?: number | null
   honeypot_enabled: boolean
   fields: PublicField[]
+  // ── Mode "prise de rendez-vous" (form_type='booking') ───────────────────
+  form_type?: 'lead' | 'booking' | null
+  booking_duration_minutes?: number | null
+  booking_horizon_days?: number | null
+  booking_min_notice_hours?: number | null
+  booking_meeting_types?: string[] | null
+  booking_location_label?: string | null
+  booking_default_meeting_type?: 'visio' | 'presentiel' | 'telephone' | null
+  booking_intro_html?: string | null
 }
 
 const PUBLIC_FORM_CACHE_PREFIX = 'forms:public:'
-const PUBLIC_FORM_CACHE_VERSION = 'v3'
+const PUBLIC_FORM_CACHE_VERSION = 'v4'
 
 function publicFormCacheKey(slug: string): string {
   return `${PUBLIC_FORM_CACHE_PREFIX}${slug}:${PUBLIC_FORM_CACHE_VERSION}`
@@ -55,29 +64,39 @@ export async function getPublicFormBySlug(slug: string): Promise<PublicForm | nu
   return cached<PublicForm | null>(publicFormCacheKey(normalizedSlug), 30, async () => {
     const db = createServiceClient()
 
+    // Liste de colonnes "best-effort" : si une migration n'a pas encore été
+    // appliquée (booking, redirect_file_url, …), on retire la colonne fautive
+    // et on retente la requête.
+    const baseCols = [
+      'id', 'slug', 'title', 'subtitle', 'submit_label', 'success_message', 'redirect_url',
+      'primary_color', 'bg_color', 'text_color',
+      'field_border_color', 'field_border_width', 'field_border_radius', 'field_bg_color',
+      'submit_bg_color', 'submit_text_color', 'submit_border_radius', 'submit_size', 'submit_full_width',
+      'submit_padding_y', 'submit_padding_x', 'submit_font_size',
+      'honeypot_enabled',
+    ]
+    const optionalCols = [
+      'redirect_file_url',
+      'form_type', 'booking_duration_minutes', 'booking_horizon_days', 'booking_min_notice_hours',
+      'booking_meeting_types', 'booking_location_label', 'booking_default_meeting_type', 'booking_intro_html',
+    ]
+    let cols = [...baseCols, ...optionalCols]
     let form: PublicForm | null = null
     let error: { message?: string } | null = null
-    {
+    for (let attempt = 0; attempt < 6; attempt++) {
       const r = await db
         .from('forms')
-        .select('id, slug, title, subtitle, submit_label, success_message, redirect_url, redirect_file_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
+        .select(cols.join(', '))
         .eq('slug', normalizedSlug)
         .eq('status', 'published')
         .single()
       form = (r.data as PublicForm | null) ?? null
       error = r.error
-
-      // Compatibilité si la migration redirect_file_url n'est pas encore appliquée.
-      if (error && String(error.message || '').toLowerCase().includes('redirect_file_url')) {
-        const r2 = await db
-          .from('forms')
-          .select('id, slug, title, subtitle, submit_label, success_message, redirect_url, primary_color, bg_color, text_color, field_border_color, field_border_width, field_border_radius, field_bg_color, submit_bg_color, submit_text_color, submit_border_radius, submit_size, submit_full_width, submit_padding_y, submit_padding_x, submit_font_size, honeypot_enabled')
-          .eq('slug', normalizedSlug)
-          .eq('status', 'published')
-          .single()
-        form = (r2.data as PublicForm | null) ?? null
-        error = r2.error
-      }
+      if (!error || !error.message) break
+      const msg = String(error.message).toLowerCase()
+      const culprit = optionalCols.find(c => msg.includes(c))
+      if (!culprit) break
+      cols = cols.filter(c => c !== culprit)
     }
 
     if (error || !form) return null

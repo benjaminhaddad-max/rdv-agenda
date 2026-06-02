@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
+import { buildBookingConfig, getPascalUserId, validateBookingSlot, type MeetingType } from '@/lib/booking-forms'
+import { assignCloserForSlot } from '@/lib/closer-assignment'
+import { generateMeetingUrl } from '@/lib/livekit'
+import { sendSms, buildBookingSms } from '@/lib/smsfactor'
+import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
+import { format } from 'date-fns'
+import { fr as dateFnsFr } from 'date-fns/locale'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -217,6 +224,52 @@ export async function POST(req: Request, { params }: Params) {
       { error: 'Oups, il manque quelques informations. Merci de remplir tous les champs obligatoires avant de soumettre le formulaire.' },
       { status: 400, headers: CORS_HEADERS }
     )
+  }
+
+  // 3-bis. Validation booking : si form_type='booking', le body doit contenir
+  // un créneau valide et un type de RDV autorisé. Le créneau doit toujours
+  // être dispo (re-check côté serveur pour éviter les races).
+  const isBookingForm = (form.form_type || 'lead') === 'booking'
+  const bookingCfg = isBookingForm ? buildBookingConfig(form) : null
+  let bookingSlotStart: string | null = null
+  let bookingSlotEnd: string | null = null
+  let bookingMeetingType: MeetingType | null = null
+  let bookingOwnerId: string | null = null
+
+  if (isBookingForm && bookingCfg) {
+    const bookingPayload = (body.booking || {}) as { start?: string; end?: string; meeting_type?: string }
+    const start = String(bookingPayload.start || '').trim()
+    const end = String(bookingPayload.end || '').trim()
+    const meetingType = String(bookingPayload.meeting_type || '').trim()
+    if (!start || !end) {
+      return NextResponse.json(
+        { error: 'Merci de choisir un créneau pour confirmer votre rendez-vous.' },
+        { status: 400, headers: CORS_HEADERS },
+      )
+    }
+    if (!meetingType || !bookingCfg.meeting_types.includes(meetingType as MeetingType)) {
+      return NextResponse.json(
+        { error: 'Format de rendez-vous invalide.' },
+        { status: 400, headers: CORS_HEADERS },
+      )
+    }
+
+    bookingOwnerId = bookingCfg.owner_user_id || (await getPascalUserId())
+    if (!bookingOwnerId) {
+      logger.error('forms-submit-booking-no-owner', new Error('booking_owner_missing'), { form_id: form.id })
+      return NextResponse.json(
+        { error: "Configuration manquante côté CRM (responsable du calendrier). Merci de nous contacter." },
+        { status: 500, headers: CORS_HEADERS },
+      )
+    }
+
+    const slotErr = await validateBookingSlot(bookingOwnerId, bookingCfg, start, end)
+    if (slotErr) {
+      return NextResponse.json({ error: slotErr }, { status: 409, headers: CORS_HEADERS })
+    }
+    bookingSlotStart = start
+    bookingSlotEnd = end
+    bookingMeetingType = meetingType as MeetingType
   }
 
   // 4. Construit l'objet contact depuis les champs mappés crm_field
@@ -470,12 +523,168 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
+  // 9. Si form_type='booking' : crée le RDV dans `rdv_appointments`.
+  //    Auto-attribué à Pascal (qui redispatche ensuite). Logique identique
+  //    à /api/appointments POST (SMS + email + alerte file d'attente).
+  let appointmentId: string | null = null
+  let bookingMeetingLink: string | null = null
+  if (isBookingForm && bookingSlotStart && bookingSlotEnd && bookingMeetingType && bookingOwnerId) {
+    // Lien visio LiveKit auto-généré si nécessaire
+    if (bookingMeetingType === 'visio') {
+      bookingMeetingLink = generateMeetingUrl()
+    }
+
+    // Nom prospect : firstname + lastname si dispo, sinon email
+    const firstname = String(contactData.firstname || data.firstname || '').trim()
+    const lastname  = String(contactData.lastname  || data.lastname  || '').trim()
+    const prospectName = [firstname, lastname].filter(Boolean).join(' ') || String(contactData.email || data.email || 'Prospect')
+    const prospectEmail = String(contactData.email || data.email || '').trim()
+    const prospectPhone = String(contactData.phone || data.phone || '').trim() || null
+    const departement = contactData.departement ? String(contactData.departement) : null
+    const classeActuelle = contactData.classe_actuelle ? String(contactData.classe_actuelle) : null
+    const formationSouhaitee = (contactData.formation_souhaitee || contactData.formation_demandee) ? String(contactData.formation_souhaitee || contactData.formation_demandee) : (form.title || form.name || null)
+
+    // Assignation automatique : on tente Pascal en priorité (même règle que /api/appointments)
+    let assignedCommercialId: string | null = null
+    let assignedOwnerHsId: string | null = null
+    let autoAssignedToPascal = false
+    try {
+      const closer = await assignCloserForSlot(db, bookingSlotStart, bookingSlotEnd)
+      if (closer) {
+        assignedCommercialId = closer.id
+        assignedOwnerHsId = closer.hubspot_owner_id
+        autoAssignedToPascal = closer.isPascal
+      }
+    } catch (e) {
+      logger.error('forms-submit-booking-assign', e, { form_id: form.id })
+    }
+    // Filet de secours : si pas de closer renvoyé, on tape sur l'owner du form (Pascal)
+    if (!assignedCommercialId) assignedCommercialId = bookingOwnerId
+
+    // Vérification conflit si on a un closer manuel (pas Pascal redispatch)
+    if (assignedCommercialId && !autoAssignedToPascal) {
+      const { data: conflict } = await db
+        .from('rdv_appointments')
+        .select('id')
+        .eq('commercial_id', assignedCommercialId)
+        .neq('status', 'annule')
+        .lt('start_at', bookingSlotEnd)
+        .gt('end_at', bookingSlotStart)
+        .limit(1)
+      if (conflict && conflict.length > 0) {
+        return NextResponse.json(
+          { error: 'Ce créneau vient d\'être réservé. Choisissez-en un autre.' },
+          { status: 409, headers: CORS_HEADERS },
+        )
+      }
+    }
+
+    // Insertion du RDV (best-effort sur form_submission_id : si la colonne n'existe pas, on retire et on retente)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const apptPayload: any = {
+      commercial_id: assignedCommercialId,
+      prospect_name: prospectName,
+      prospect_email: prospectEmail,
+      prospect_phone: prospectPhone,
+      start_at: bookingSlotStart,
+      end_at: bookingSlotEnd,
+      status: assignedCommercialId ? 'confirme' : 'non_assigne',
+      source: 'prospect',
+      formation_type: formationSouhaitee,
+      hubspot_contact_id: contactId || null,
+      departement: departement,
+      classe_actuelle: classeActuelle,
+      notes: `Pris via formulaire CRM "${form.name}" (slug: ${form.slug}). Soumission ${submission.id}.`,
+      meeting_type: bookingMeetingType,
+      meeting_link: bookingMeetingLink,
+      telepro_id: null,
+      form_submission_id: submission.id,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let appointment: any = null
+    {
+      let r = await db.from('rdv_appointments').insert(apptPayload).select().single()
+      if (r.error && String(r.error.message || '').toLowerCase().includes('form_submission_id')) {
+        delete apptPayload.form_submission_id
+        r = await db.from('rdv_appointments').insert(apptPayload).select().single()
+      }
+      if (r.error) {
+        logger.error('forms-submit-booking-insert-appt', r.error, { form_id: form.id, submission_id: submission.id })
+        return NextResponse.json(
+          { error: 'Impossible d\'enregistrer le rendez-vous. Réessayez ou contactez-nous.' },
+          { status: 500, headers: CORS_HEADERS },
+        )
+      }
+      appointment = r.data
+    }
+    appointmentId = appointment?.id ?? null
+
+    // Met à jour le contact : statut "RDV pris" + closer owner si assignation manuelle
+    if (contactId) {
+      try {
+        const contactUpdate: Record<string, string> = {
+          synced_at: new Date().toISOString(),
+          hs_lead_status: 'RDV pris',
+        }
+        if (assignedOwnerHsId) contactUpdate.closer_du_contact_owner_id = assignedOwnerHsId
+        await db.from('crm_contacts').update(contactUpdate).eq('hubspot_contact_id', contactId)
+      } catch (e) {
+        logger.error('forms-submit-booking-update-contact', e, { form_id: form.id, contact_id: contactId })
+      }
+    }
+
+    // SMS de confirmation (best-effort)
+    if (prospectPhone && appointment) {
+      try {
+        const startDate = new Date(bookingSlotStart)
+        const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: dateFnsFr })
+        const firstName = String(prospectName).trim().split(/\s+/)[0] || 'bonjour'
+        const message = buildBookingSms(firstName, dateStr, bookingMeetingType, bookingMeetingLink || null)
+        const smsResult = await sendSms(prospectPhone, message)
+        if (smsResult.ok) {
+          await db.from('rdv_appointments')
+            .update({ sms_booking_sent_at: new Date().toISOString() })
+            .eq('id', appointment.id)
+        }
+      } catch (e) {
+        logger.error('forms-submit-booking-sms', e, { form_id: form.id, appointment_id: appointment?.id })
+      }
+    }
+    // Email de confirmation (best-effort)
+    if (prospectEmail && appointment) {
+      try {
+        const startDate = new Date(bookingSlotStart)
+        const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: dateFnsFr })
+        const firstName = String(prospectName).trim().split(/\s+/)[0] || 'bonjour'
+        await sendBookingConfirmationEmail(
+          { prospectEmail, emailParent: (contactData.email_parent ? String(contactData.email_parent) : null) || null },
+          firstName,
+          dateStr,
+          bookingMeetingType,
+          bookingMeetingLink || null,
+          appointment.id,
+        )
+      } catch (e) {
+        logger.error('forms-submit-booking-email', e, { form_id: form.id, appointment_id: appointment?.id })
+      }
+    }
+  }
+
   return NextResponse.json(
     {
       ok: true,
       submission_id: submission.id,
       redirect_url: resolveRedirectTarget(form, data, (fields || []) as Array<{ field_key?: string; crm_field?: string | null }>),
       success_message: form.success_message || 'Merci, votre message a bien été envoyé !',
+      // Booking-only metadata (utilisé par le BookingRenderer pour la page de succès)
+      booking: isBookingForm ? {
+        appointment_id: appointmentId,
+        start_at: bookingSlotStart,
+        end_at: bookingSlotEnd,
+        meeting_type: bookingMeetingType,
+        meeting_link: bookingMeetingLink,
+        location_label: bookingCfg?.location_label || null,
+      } : null,
     },
     { status: 200, headers: CORS_HEADERS }
   )

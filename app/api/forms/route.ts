@@ -50,6 +50,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing required field: name' }, { status: 400 })
   }
 
+  // Type du form : 'lead' (capture classique) ou 'booking' (prise de RDV style Calendly)
+  const formType: 'lead' | 'booking' = body.form_type === 'booking' ? 'booking' : 'lead'
+
   // Génère un slug auto à partir du nom s'il n'est pas fourni
   const slug = body.slug || slugify(body.name) + '-' + Math.random().toString(36).slice(2, 6)
 
@@ -62,33 +65,95 @@ export async function POST(req: Request) {
     subtitle: body.subtitle || null,
     description: body.description || null,
   }
+  if (formType === 'booking') {
+    insertPayload.form_type = 'booking'
+    insertPayload.submit_label = 'Confirmer le rendez-vous'
+    insertPayload.success_message = body.success_message
+      || 'Votre rendez-vous est confirmé. Vous allez recevoir un email et un SMS récapitulatif.'
+  }
   // Si le client envoie un dossier, on l'attribue (sinon Diploma Santé par défaut)
   if (body.folder) insertPayload.folder = body.folder
   else insertPayload.folder = 'Diploma Santé'
 
-  // Premier essai avec folder. Si la colonne n'existe pas encore (migration
-  // non appliquée), on retombe sans folder pour ne pas casser la création.
-  let form, error
-  {
-    const r = await db.from('forms').insert(insertPayload).select().single()
-    form = r.data; error = r.error
-    if (error && (error.message || '').toLowerCase().includes('folder')) {
-      delete insertPayload.folder
-      const r2 = await db.from('forms').insert(insertPayload).select().single()
-      form = r2.data; error = r2.error
+  // Colonnes optionnelles qui peuvent ne pas exister si une migration n'a pas
+  // encore été appliquée → on les retire à la volée pour ne pas casser la création.
+  const tryInsertWithFallback = async (): Promise<{ data: unknown; error: { message?: string } | null }> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trySafe = async (payload: any) => db.from('forms').insert(payload).select().single()
+    let r = await trySafe(insertPayload)
+    let attempts = 0
+    while (r.error && attempts < 4) {
+      const msg = String(r.error.message || '').toLowerCase()
+      const optionals = ['form_type', 'folder']
+      let removed = false
+      for (const col of optionals) {
+        if (msg.includes(col) && col in insertPayload) {
+          delete insertPayload[col]
+          removed = true
+        }
+      }
+      if (!removed) break
+      r = await trySafe(insertPayload)
+      attempts++
     }
+    return r
   }
+
+  const r = await tryInsertWithFallback()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = r.data as any
+  const error = r.error
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Si c'est un formulaire vierge, on ajoute 3 champs par défaut (prénom, email, téléphone)
+  // Champs par défaut
   if (!body.skipDefaultFields) {
-    await db.from('form_fields').insert([
-      { form_id: form.id, order_index: 0, field_type: 'text', field_key: 'firstname', label: 'Prénom', placeholder: 'Votre prénom', required: true, crm_field: 'firstname' },
-      { form_id: form.id, order_index: 1, field_type: 'text', field_key: 'lastname',  label: 'Nom',    placeholder: 'Votre nom',     required: true, crm_field: 'lastname' },
-      { form_id: form.id, order_index: 2, field_type: 'email', field_key: 'email',    label: 'Email',  placeholder: 'exemple@mail.fr', required: true, crm_field: 'email' },
-      { form_id: form.id, order_index: 3, field_type: 'phone', field_key: 'phone',    label: 'Téléphone', placeholder: '06 12 34 56 78', required: false, crm_field: 'phone' },
-    ])
+    if (formType === 'booking') {
+      // Champs du wizard de prise de RDV (cf. screenshots Calendly Diploma Santé)
+      await db.from('form_fields').insert([
+        { form_id: form.id, order_index: 0, field_type: 'text',  field_key: 'firstname',           label: 'Prénom',              placeholder: 'Votre prénom',          required: true,  crm_field: 'firstname' },
+        { form_id: form.id, order_index: 1, field_type: 'text',  field_key: 'lastname',            label: 'Nom',                 placeholder: 'Votre nom',             required: true,  crm_field: 'lastname' },
+        { form_id: form.id, order_index: 2, field_type: 'email', field_key: 'email',               label: 'E-mail',              placeholder: 'exemple@mail.fr',       required: true,  crm_field: 'email' },
+        { form_id: form.id, order_index: 3, field_type: 'phone', field_key: 'phone',               label: 'Numéro de téléphone', placeholder: '06 12 34 56 78',        required: true,  crm_field: 'phone' },
+        { form_id: form.id, order_index: 4, field_type: 'text',  field_key: 'departement',         label: 'Département (2 chiffres)', placeholder: '75',               required: true,  crm_field: 'departement', validation: { pattern: '^[0-9]{2,3}[A-Z]?$' } },
+        {
+          form_id: form.id, order_index: 5, field_type: 'select', field_key: 'classe_actuelle',
+          label: 'Votre classe actuelle', placeholder: 'Sélectionnez…', required: true, crm_field: 'classe_actuelle',
+          options: [
+            { value: 'Seconde',           label: 'Seconde' },
+            { value: 'Première',          label: 'Première' },
+            { value: 'Terminale',         label: 'Terminale' },
+            { value: 'Bac obtenu',        label: 'Bac obtenu' },
+            { value: 'PASS / LAS',        label: 'PASS / LAS' },
+            { value: 'Étudiant en santé', label: 'Étudiant en santé' },
+            { value: 'Réorientation',     label: 'Réorientation' },
+            { value: 'Autre',             label: 'Autre' },
+          ],
+        },
+        {
+          form_id: form.id, order_index: 6, field_type: 'select', field_key: 'formation_souhaitee',
+          label: 'Formation souhaitée', placeholder: 'Sélectionnez…', required: true, crm_field: 'formation_souhaitee',
+          options: [
+            { value: 'PASS / LAS',       label: 'PASS / LAS' },
+            { value: 'Orthophonie',      label: 'Orthophonie' },
+            { value: 'Kinésithérapie',   label: 'Kinésithérapie' },
+            { value: 'Sage-femme',       label: 'Sage-femme' },
+            { value: 'Infirmier',        label: 'Infirmier' },
+            { value: 'Dentaire',         label: 'Dentaire' },
+            { value: 'Pharmacie',        label: 'Pharmacie' },
+            { value: 'Autre',            label: 'Autre' },
+          ],
+        },
+      ])
+    } else {
+      // Capture lead : champs minimaux historiques
+      await db.from('form_fields').insert([
+        { form_id: form.id, order_index: 0, field_type: 'text', field_key: 'firstname', label: 'Prénom', placeholder: 'Votre prénom', required: true, crm_field: 'firstname' },
+        { form_id: form.id, order_index: 1, field_type: 'text', field_key: 'lastname',  label: 'Nom',    placeholder: 'Votre nom',     required: true, crm_field: 'lastname' },
+        { form_id: form.id, order_index: 2, field_type: 'email', field_key: 'email',    label: 'Email',  placeholder: 'exemple@mail.fr', required: true, crm_field: 'email' },
+        { form_id: form.id, order_index: 3, field_type: 'phone', field_key: 'phone',    label: 'Téléphone', placeholder: '06 12 34 56 78', required: false, crm_field: 'phone' },
+      ])
+    }
   }
 
   return NextResponse.json(form, { status: 201 })

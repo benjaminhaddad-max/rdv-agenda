@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   FileText, Plus, Search, ExternalLink, Copy, Trash2, Code,
   CheckCircle2, FileEdit, Archive, X, Eye, Send, Inbox, Download, Loader2,
+  CalendarClock,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -19,6 +20,7 @@ interface Form {
   created_at: string
   updated_at: string
   folder?: string | null
+  form_type?: 'lead' | 'booking' | null
 }
 
 const STATUS_META: Record<Form['status'], { label: string; color: string; bg: string; icon: typeof FileText }> = {
@@ -111,7 +113,12 @@ export default function FormsPage() {
     const res = await fetch('/api/forms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: `${f.name} (copie)`, skipDefaultFields: true }),
+      body: JSON.stringify({
+        name: `${f.name} (copie)`,
+        skipDefaultFields: true,
+        form_type: f.form_type || 'lead',
+        folder: f.folder || undefined,
+      }),
     })
     if (res.ok) load()
   }
@@ -519,18 +526,26 @@ function FormRow({ form, onDuplicate, onDelete, onMove }: { form: Form; onDuplic
   const Icon = meta.icon
   const conversionRate = form.view_count > 0 ? Math.round((form.submission_count / form.view_count) * 100) : 0
   const currentFolder = getFolder(form)
+  const isBooking = form.form_type === 'booking'
 
   return (
     <div
       onClick={() => window.location.href = `/admin/crm/forms/${form.id}`}
       style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
     >
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={16} style={{ color: meta.color }} />
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: isBooking ? 'rgba(6,182,212,0.15)' : meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {isBooking ? <CalendarClock size={16} style={{ color: '#06b6d4' }} /> : <Icon size={16} style={{ color: meta.color }} />}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 2 }}>{form.name}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {form.name}
+          {isBooking && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', background: 'rgba(6,182,212,0.12)', padding: '2px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              RDV
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 11, color: '#4a6070', fontFamily: 'ui-monospace, monospace' }}>/forms/{form.slug}</div>
       </div>
 
@@ -598,6 +613,7 @@ function IconBtn({ children, onClick, title, color = '#4a6070' }: { children: Re
 function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState('')
   const [folder, setFolder] = useState<Folder>(DEFAULT_FOLDER)
+  const [formType, setFormType] = useState<'lead' | 'booking'>('lead')
   const [loading, setLoading] = useState(false)
 
   const submit = async () => {
@@ -607,7 +623,7 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       const res = await fetch('/api/forms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, folder }),
+        body: JSON.stringify({ name, folder, form_type: formType }),
       })
       if (res.ok) {
         const created = await res.json()
@@ -621,17 +637,38 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 520, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouveau formulaire</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
+        </div>
+
+        {/* Choix du type de formulaire */}
+        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Type de formulaire *</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+          <TypeChoice
+            active={formType === 'lead'}
+            onClick={() => setFormType('lead')}
+            icon={<FileText size={16} />}
+            title="Capture de lead"
+            desc="Formulaire classique : on récupère les coordonnées et on relance le prospect."
+            accent="#22c55e"
+          />
+          <TypeChoice
+            active={formType === 'booking'}
+            onClick={() => setFormType('booking')}
+            icon={<CalendarClock size={16} />}
+            title="Prise de rendez-vous"
+            desc="Wizard façon Calendly : date → heure → coordonnées. Le RDV apparaît dans l'agenda."
+            accent="#06b6d4"
+          />
         </div>
 
         <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nom du formulaire *</div>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="Ex: Inscription PASS 2026"
+          placeholder={formType === 'booking' ? 'Ex: RDV admission PASS 2026' : 'Ex: Inscription PASS 2026'}
           autoFocus
           style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
@@ -645,8 +682,10 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
 
-        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
-          Les champs par défaut (prénom, nom, email, téléphone) seront ajoutés automatiquement.
+        <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8, lineHeight: 1.5 }}>
+          {formType === 'booking'
+            ? 'Les champs prénom, nom, email, téléphone, département, classe actuelle et formation seront ajoutés. Les créneaux dispos viendront du calendrier du responsable booking (Pascal par défaut).'
+            : 'Les champs par défaut (prénom, nom, email, téléphone) seront ajoutés automatiquement.'}
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
@@ -661,5 +700,38 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         </div>
       </div>
     </>
+  )
+}
+
+function TypeChoice({ active, onClick, icon, title, desc, accent }: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  title: string
+  desc: string
+  accent: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? `${accent}10` : '#ffffff',
+        border: `1.5px solid ${active ? accent : '#e5ddc8'}`,
+        borderRadius: 10,
+        padding: '12px 14px',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        transition: 'all 0.12s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: active ? accent : '#0e1e35', fontWeight: 700, fontSize: 13 }}>
+        {icon} {title}
+      </div>
+      <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.4 }}>{desc}</div>
+    </button>
   )
 }
