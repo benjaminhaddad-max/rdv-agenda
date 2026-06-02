@@ -179,6 +179,14 @@ function isDiplomaConditionalRedirectEligible(form: { name?: string | null; fold
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────
+type CrmPropertyOption = {
+  name: string
+  label: string
+  group_name: string | null
+  type: string
+  field_type: string
+}
+
 export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [form, setForm] = useState<FormData | null>(null)
@@ -188,6 +196,19 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   const [tab, setTab] = useState<'builder' | 'settings' | 'embed' | 'submissions'>('builder')
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null)
   const [submissionCount, setSubmissionCount] = useState<number>(0)
+  const [crmProperties, setCrmProperties] = useState<CrmPropertyOption[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/crm/properties?object=contacts&limit=2000')
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (cancelled || !j?.properties) return
+        setCrmProperties(j.properties as CrmPropertyOption[])
+      })
+      .catch(() => { /* silencieux : on retombe sur la liste hardcodée */ })
+    return () => { cancelled = true }
+  }, [])
   const looksLikeFileUrl = (value: string | null | undefined): boolean => {
     const v = String(value || '').trim().toLowerCase()
     if (!v) return false
@@ -398,6 +419,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             duplicateField={duplicateField}
             selectedFieldIdx={selectedFieldIdx}
             setSelectedFieldIdx={setSelectedFieldIdx}
+            crmProperties={crmProperties}
           />
         )}
         {tab === 'settings' && <SettingsTab form={form} update={update} />}
@@ -409,7 +431,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
 }
 
 // ─── Tab Builder ─────────────────────────────────────────────────────────
-function BuilderTab({ form, update, updateField, addField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx }: {
+function BuilderTab({ form, update, updateField, addField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx, crmProperties }: {
   form: FormData
   update: (p: Partial<FormData>) => void
   updateField: (i: number, p: Partial<FormField>) => void
@@ -419,6 +441,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
   duplicateField: (i: number) => void
   selectedFieldIdx: number | null
   setSelectedFieldIdx: (i: number | null) => void
+  crmProperties: CrmPropertyOption[]
 }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
@@ -510,6 +533,7 @@ function BuilderTab({ form, update, updateField, addField, removeField, moveFiel
             field={form.fields[selectedFieldIdx]}
             onUpdate={p => updateField(selectedFieldIdx, p)}
             onClose={() => setSelectedFieldIdx(null)}
+            crmProperties={crmProperties}
           />
         ) : (
           <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, color: '#4a6070', fontSize: 12, textAlign: 'center' }}>
@@ -630,8 +654,34 @@ function MiniBtn({ children, onClick, disabled, danger }: { children: React.Reac
 }
 
 // ─── Éditeur de champ ────────────────────────────────────────────────────
-function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate: (p: Partial<FormField>) => void; onClose: () => void }) {
+function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormField; onUpdate: (p: Partial<FormField>) => void; onClose: () => void; crmProperties: CrmPropertyOption[] }) {
   const hasOptions = ['select', 'radio', 'checkbox'].includes(field.field_type)
+
+  // Fusion : options statiques (CRM_FIELDS) + propriétés CRM dynamiques
+  // (créées dans /admin/crm/proprietes ou syncées depuis HubSpot).
+  // - On garde le pseudo "— Ne pas mapper —" et "✏️ Saisir un champ personnalisé" en tête/queue.
+  // - On groupe les propriétés dynamiques par group_name pour la lisibilité.
+  const mergedOptions = (() => {
+    const noMap = CRM_FIELDS.find(c => c.value === '')!
+    const customOpt = CRM_FIELDS.find(c => c.value === '__custom__')!
+    const staticItems = CRM_FIELDS.filter(c => c.value && c.value !== '__custom__')
+    const staticNames = new Set(staticItems.map(s => s.value))
+
+    type Group = { label: string; items: Array<{ value: string; label: string }> }
+    const groups = new Map<string, Group>()
+    const STATIC_GROUP_LABEL = 'Champs courants'
+    groups.set(STATIC_GROUP_LABEL, {
+      label: STATIC_GROUP_LABEL,
+      items: staticItems,
+    })
+    for (const p of crmProperties) {
+      if (staticNames.has(p.name)) continue
+      const groupKey = p.group_name || 'Autres'
+      if (!groups.has(groupKey)) groups.set(groupKey, { label: groupKey, items: [] })
+      groups.get(groupKey)!.items.push({ value: p.name, label: `${p.label} (${p.name})` })
+    }
+    return { noMap, customOpt, groups: [...groups.values()] }
+  })()
 
   return (
     <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
@@ -665,9 +715,11 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
 
       <MiniField label="Mapping CRM">
         {(() => {
-          const presetValues = new Set(CRM_FIELDS.map(c => c.value).filter(v => v && v !== '__custom__'))
+          const knownValues = new Set<string>([
+            ...mergedOptions.groups.flatMap(g => g.items.map(i => i.value)),
+          ])
           const currentValue = field.crm_field || ''
-          const isCustom = currentValue !== '' && !presetValues.has(currentValue)
+          const isCustom = currentValue !== '' && !knownValues.has(currentValue)
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <select
@@ -682,16 +734,30 @@ function FieldEditor({ field, onUpdate, onClose }: { field: FormField; onUpdate:
                 }}
                 style={miniInput}
               >
-                {CRM_FIELDS.map(cf => <option key={cf.value} value={cf.value}>{cf.label}</option>)}
+                <option value="">{mergedOptions.noMap.label}</option>
+                {mergedOptions.groups.map(group => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.items.map(it => (
+                      <option key={it.value} value={it.value}>{it.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value="__custom__">{mergedOptions.customOpt.label}</option>
               </select>
               {isCustom && (
                 <input
                   value={currentValue.trim()}
                   onChange={e => onUpdate({ crm_field: e.target.value || ' ' })}
-                  placeholder="ex: diploma_sante___formation_demandee"
+                  placeholder="ex: spe1_name"
                   style={{ ...miniInput, fontFamily: 'ui-monospace, monospace' }}
                 />
               )}
+              <div style={{ fontSize: 10, color: '#7d8c9e', lineHeight: 1.4 }}>
+                {crmProperties.length > 0
+                  ? `${crmProperties.length} propriétés CRM disponibles. Crée-en de nouvelles dans `
+                  : 'Crée tes propriétés custom dans '}
+                <a href="/admin/crm/proprietes" target="_blank" rel="noreferrer" style={{ color: '#C9A84C', textDecoration: 'underline' }}>/admin/crm/proprietes</a>.
+              </div>
             </div>
           )
         })()}
