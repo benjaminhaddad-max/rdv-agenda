@@ -1300,11 +1300,14 @@ export async function GET(req: NextRequest) {
   //    appliques en aval sur la query principale.
 
   // D) Empty / not-empty filters on deal-level fields
-  // Deal fields: stage, closer, telepro, formation
+  // Deal fields: stage, closer, formation
   // "is_empty" for stage → contacts that have NO deal OR deal.dealstage is null
   // "is_not_empty" for stage → contacts that HAVE a deal with dealstage not null
+  // Note : `telepro` est désormais une colonne native du contact
+  // (crm_contacts.telepro_user_id) → géré via CONTACT_FIELD_MAP plus bas,
+  // pour rester cohérent avec les filtres positifs/négatifs télépro.
   const DEAL_FIELD_MAP: Record<string, string> = {
-    stage: 'dealstage', closer: 'hubspot_owner_id', telepro: 'teleprospecteur', formation: 'formation',
+    stage: 'dealstage', closer: 'hubspot_owner_id', formation: 'formation',
   }
 
   // Helper: fetch ALL contact IDs from crm_deals matching a query (paginated)
@@ -1503,6 +1506,12 @@ export async function GET(req: NextRequest) {
   const CONTACT_FIELD_MAP: Record<string, string> = {
     lead_status: 'hs_lead_status', source: 'origine', zone: 'zone_localite',
     departement: 'departement', search: 'email',
+    // Champs "owner" natifs CRM : on lit la colonne directe du contact
+    // (et pas la colonne du deal), pour être aligné avec les filtres
+    // positifs/négatifs (telepro / closer du contact / propriétaire).
+    telepro: 'telepro_user_id',
+    closer_contact: 'closer_du_contact_owner_id',
+    contact_owner: 'hubspot_owner_id',
   }
   for (const f of emptyFields) {
     if (f in CONTACT_FIELD_MAP) {
