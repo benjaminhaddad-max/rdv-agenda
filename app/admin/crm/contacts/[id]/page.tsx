@@ -8,7 +8,7 @@ import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
-  GraduationCap, AlertTriangle, Circle, Pencil,
+  GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
@@ -899,6 +899,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               </ul>
             )}
           </RightSection>
+
+          {/* Tracking publicitaire (gclid, fbclid, UTM…) — visible uniquement
+              si au moins une donnée d'attribution est presente sur le contact */}
+          <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
 
           {/* Inscription par saison — alimenté par la plateforme externe */}
           {preInscriptions.map(pi => {
@@ -2391,4 +2395,239 @@ function sanitize(html: string) {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+="[^"]*"/gi, '')
     .replace(/javascript:/gi, '')
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tracking publicitaire — affiche les IDs Google Ads / Meta / etc. quand
+// un lead vient d'une campagne payante. Lecture des proprietes deja
+// synchronisees dans `crm_contacts.hubspot_raw` (gclid, fbclid,
+// hs_google_click_id, hs_facebook_click_id, utm_*, hs_analytics_*…).
+// La section reste cachee si aucun tracking n'est present sur le contact.
+// ────────────────────────────────────────────────────────────────────────────
+
+interface TrackingId { key: string; label: string }
+interface TrackingSource {
+  id: 'google' | 'meta' | 'bing' | 'linkedin' | 'tiktok' | 'snapchat'
+  label: string
+  badgeClass: string
+  ids: TrackingId[]
+  /** boolean property HubSpot : "le lead a cliqué sur une pub de ce reseau" */
+  clickedKey?: string
+}
+
+const AD_SOURCES: TrackingSource[] = [
+  {
+    id: 'google',
+    label: 'Google Ads',
+    badgeClass: 'bg-[#fef3c7] text-[#92400e] border-[#fcd34d]',
+    ids: [
+      { key: 'gclid', label: 'gclid' },
+      { key: 'hs_google_click_id', label: 'HS Google Click ID' },
+    ],
+    clickedKey: 'hs_google_ad_clicked',
+  },
+  {
+    id: 'meta',
+    label: 'Meta · Facebook / Instagram',
+    badgeClass: 'bg-[#dbeafe] text-[#1e40af] border-[#93c5fd]',
+    ids: [
+      { key: 'fbclid', label: 'fbclid' },
+      { key: 'hs_facebook_click_id', label: 'HS Facebook Click ID' },
+    ],
+    clickedKey: 'hs_facebook_ad_clicked',
+  },
+  {
+    id: 'bing',
+    label: 'Microsoft Ads (Bing)',
+    badgeClass: 'bg-[#cffafe] text-[#155e75] border-[#67e8f9]',
+    ids: [{ key: 'hs_bing_click_id', label: 'Bing Click ID' }],
+    clickedKey: 'hs_bing_ad_clicked',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn Ads',
+    badgeClass: 'bg-[#dbeafe] text-[#1e3a8a] border-[#93c5fd]',
+    ids: [{ key: 'hs_linkedin_click_id', label: 'LinkedIn Click ID' }],
+    clickedKey: 'hs_linkedin_ad_clicked',
+  },
+  {
+    id: 'tiktok',
+    label: 'TikTok Ads',
+    badgeClass: 'bg-slate-900 text-white border-slate-700',
+    ids: [{ key: 'hs_tiktok_click_id', label: 'TikTok Click ID' }],
+    clickedKey: 'hs_tiktok_ad_clicked',
+  },
+  {
+    id: 'snapchat',
+    label: 'Snapchat Ads',
+    badgeClass: 'bg-[#fef9c3] text-[#854d0e] border-[#fde047]',
+    ids: [{ key: 'lead_id_snapchat', label: 'Snapchat Lead ID' }],
+  },
+]
+
+const UTM_FIELDS: TrackingId[] = [
+  { key: 'utm_source',   label: 'Source' },
+  { key: 'utm_medium',   label: 'Medium' },
+  { key: 'utm_campaign', label: 'Campagne' },
+  { key: 'utm_content',  label: 'Content' },
+  { key: 'utm_term',     label: 'Term' },
+]
+
+const HS_CAMPAIGN_FIELDS: TrackingId[] = [
+  { key: 'hs_analytics_first_touch_converting_campaign', label: 'First touch' },
+  { key: 'hs_analytics_last_touch_converting_campaign',  label: 'Last touch'  },
+]
+
+function rawString(raw: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!raw) return null
+  const v = raw[key]
+  if (v === null || v === undefined) return null
+  const s = String(v).trim()
+  return s.length ? s : null
+}
+
+function rawBool(raw: Record<string, unknown> | null | undefined, key: string): boolean {
+  const s = rawString(raw, key)
+  if (!s) return false
+  return s === 'true' || s === '1'
+}
+
+function AdTrackingSection({ raw }: { raw: Record<string, unknown> | null | undefined }) {
+  const sourcesPresent = AD_SOURCES
+    .map(src => {
+      const ids = src.ids
+        .map(i => ({ ...i, value: rawString(raw, i.key) }))
+        .filter(i => !!i.value)
+      const clicked = src.clickedKey ? rawBool(raw, src.clickedKey) : false
+      return { src, ids, clicked }
+    })
+    .filter(s => s.ids.length > 0 || s.clicked)
+
+  const utms = UTM_FIELDS
+    .map(f => ({ ...f, value: rawString(raw, f.key) }))
+    .filter(f => !!f.value)
+
+  const hsCampaigns = HS_CAMPAIGN_FIELDS
+    .map(f => ({ ...f, value: rawString(raw, f.key) }))
+    .filter(f => !!f.value)
+
+  const totalCount =
+    sourcesPresent.reduce((acc, s) => acc + s.ids.length, 0) +
+    utms.length +
+    hsCampaigns.length
+
+  if (totalCount === 0) return null
+
+  return (
+    <RightSection
+      icon={<Megaphone size={14} />}
+      title="Tracking publicitaire"
+      count={totalCount}
+      accent="gold"
+    >
+      <div className="space-y-3 text-xs">
+        {/* Badges des reseaux detectes */}
+        {sourcesPresent.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {sourcesPresent.map(({ src }) => (
+              <span
+                key={src.id}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${src.badgeClass}`}
+              >
+                {src.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Detail par source */}
+        {sourcesPresent.map(({ src, ids, clicked }) => (
+          <div key={src.id} className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
+                {src.label}
+              </div>
+              {clicked && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Pub cliquée
+                </span>
+              )}
+            </div>
+            {ids.map(i => (
+              <CopyableId key={i.key} label={i.label} value={i.value as string} />
+            ))}
+          </div>
+        ))}
+
+        {/* UTM */}
+        {utms.length > 0 && (
+          <div className="space-y-1.5 pt-1 border-t">
+            <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
+              UTM
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+              {utms.map(u => (
+                <div key={u.key} className="contents">
+                  <dt className="text-[#4a6070]">{u.label}</dt>
+                  <dd className="font-medium text-[#0e1e35] truncate" title={u.value as string}>
+                    {u.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {/* HubSpot first/last touch campaigns */}
+        {hsCampaigns.length > 0 && (
+          <div className="space-y-1.5 pt-1 border-t">
+            <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
+              Campagne HubSpot
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+              {hsCampaigns.map(c => (
+                <div key={c.key} className="contents">
+                  <dt className="text-[#4a6070]">{c.label}</dt>
+                  <dd className="font-medium text-[#0e1e35] truncate" title={c.value as string}>
+                    {c.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </div>
+    </RightSection>
+  )
+}
+
+function CopyableId({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // fallback silencieux
+    }
+  }
+  return (
+    <div className="flex items-start gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] text-[#a89e8a]">{label}</div>
+        <div className="font-mono text-[11px] text-[#0e1e35] break-all leading-snug" title={value}>
+          {value}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="shrink-0 p-1.5 rounded border bg-white hover:bg-[#f7f4ee] text-[#4a6070]"
+        title="Copier"
+      >
+        {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+      </button>
+    </div>
+  )
 }
