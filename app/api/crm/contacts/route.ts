@@ -1435,12 +1435,14 @@ export async function GET(req: NextRequest) {
     if (teleproOr) query = query.or(teleproOr)
   }
 
-  // Filtre Telepro (exclusion) — version stable en SQL natif.
+  // Filtre Telepro (exclusion) — "is_not X" = NULL OU différent de X.
+  // Les leads sans télépro (non assignés) sont sémantiquement ≠ X
+  // et doivent rester dans les vues d'exclusion (ex : "pas Benjamin").
   if (teleproNot) {
     const vals = splitMulti(teleproNot)
     query = vals.length > 1
-      ? query.not('telepro_user_id', 'in', toPostgrestInList(vals))
-      : query.neq('telepro_user_id', teleproNot)
+      ? query.or(`telepro_user_id.is.null,telepro_user_id.not.in.${toPostgrestInList(vals)}`)
+      : query.or(`telepro_user_id.is.null,telepro_user_id.neq.${teleproNot}`)
   }
 
   // withTelepro = a un telepro renseigne
@@ -1576,12 +1578,14 @@ export async function GET(req: NextRequest) {
   // Filtre par propriétaire du contact (view télépro)
   if (ownerScopeOrFilter) query = query.or(ownerScopeOrFilter)
 
-  // Exclusion par propriétaire du contact (n'est pas / n'est aucun de)
+  // Exclusion par propriétaire du contact (n'est pas / n'est aucun de).
+  // "is_not X" = NULL OU différent de X : un contact sans owner doit rester
+  // dans une vue qui exclut un owner précis.
   if (contactOwnerNot) {
     const vals = contactOwnerNot.split(',').filter(Boolean)
     query = vals.length > 1
-      ? query.not('hubspot_owner_id', 'in', toPostgrestInList(vals))
-      : query.neq('hubspot_owner_id', contactOwnerNot)
+      ? query.or(`hubspot_owner_id.is.null,hubspot_owner_id.not.in.${toPostgrestInList(vals)}`)
+      : query.or(`hubspot_owner_id.is.null,hubspot_owner_id.neq.${contactOwnerNot}`)
   }
 
   // Exclusion équipe externe (owner du contact)
@@ -1842,12 +1846,13 @@ export async function GET(req: NextRequest) {
       ? query.in('closer_du_contact_owner_id', vals)
       : query.eq('closer_du_contact_owner_id', closerContactHsId)
   }
-  // Exclusion "Closer du contact"
+  // Exclusion "Closer du contact" — "is_not X" inclut les NULL
+  // (contacts sans closer assigné).
   if (closerContactNot) {
     const vals = splitMulti(closerContactNot)
     query = vals.length > 1
-      ? query.not('closer_du_contact_owner_id', 'in', toPostgrestInList(vals))
-      : query.neq('closer_du_contact_owner_id', closerContactNot)
+      ? query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.not.in.${toPostgrestInList(vals)}`)
+      : query.or(`closer_du_contact_owner_id.is.null,closer_du_contact_owner_id.neq.${closerContactNot}`)
   }
 
   // Count-only mode — return just the total without data
