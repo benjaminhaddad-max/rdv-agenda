@@ -2026,6 +2026,23 @@ export default function CRMPage() {
                 style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 10px', color: '#3D5275', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Désélectionner
               </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
+                style={{
+                  background: bulkDeleting ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.10)',
+                  border: '1px solid rgba(239,68,68,0.45)',
+                  borderRadius: 6, padding: '4px 10px',
+                  color: '#ef4444', fontSize: 11, fontWeight: 700,
+                  cursor: bulkDeleting ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit', opacity: bulkDeleting ? 0.6 : 1,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <Trash2 size={12} />
+                {bulkDeleting ? 'Suppression…' : 'Supprimer'}
+              </button>
             </div>
             <div style={{ flex: 1 }} />
             <span style={{ fontSize: 12, color: '#3D5275' }}>Assigner à :</span>
@@ -2051,25 +2068,6 @@ export default function CRMPage() {
               }}
             >
               {bulkAssigning ? 'Attribution…' : 'Assigner'}
-            </button>
-            <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-            <button
-              onClick={handleBulkDelete}
-              disabled={bulkDeleting}
-              title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
-              style={{
-                background: bulkDeleting ? 'rgba(239,68,68,0.12)' : '#ef4444',
-                border: '1px solid #ef4444',
-                borderRadius: 8, padding: '6px 14px',
-                color: bulkDeleting ? '#ef4444' : '#fff',
-                fontSize: 12, fontWeight: 700,
-                cursor: bulkDeleting ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit', opacity: bulkDeleting ? 0.6 : 1,
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <Trash2 size={13} />
-              {bulkDeleting ? 'Suppression…' : 'Supprimer'}
             </button>
           </div>
         )}
