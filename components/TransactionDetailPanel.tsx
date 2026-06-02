@@ -30,6 +30,7 @@ export interface TransactionDetail {
     classe_actuelle: string | null
     zone_localite: string | null
     departement: string | null
+    parcoursup_verdict?: { status: string | null; label: string | null } | null
   } | null
 }
 

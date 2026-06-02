@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { fetchParcoursupVerdictsByContactId, type ParcoursupVerdictCell } from '@/lib/parcoursup-verdict'
 
 // GET /api/crm/transactions
 //
@@ -96,6 +97,13 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+
+  // Verdict Parcoursup par contact (saison 2026-2027). Une seule passe pour
+  // que les cartes du board affichent le badge tant qu'on connait le verdict.
+  const parcoursupByContactId: Record<string, ParcoursupVerdictCell> =
+    contactIds.length > 0
+      ? await fetchParcoursupVerdictsByContactId(db, contactIds as string[])
+      : {}
 
   // ── Merge deals + contacts ────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -291,6 +299,7 @@ export async function GET(req: NextRequest) {
         classe_actuelle:    contact.classe_actuelle,
         zone_localite:      contact.zone_localite,
         departement:        contact.departement,
+        parcoursup_verdict: parcoursupByContactId[contact.hubspot_contact_id] ?? null,
       } : null,
     }
   }

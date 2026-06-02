@@ -5,6 +5,10 @@ import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLi
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
+import {
+  parcoursupVerdictBadgeStyle,
+  parcoursupVerdictDefaultLabel,
+} from '@/lib/parcoursup-verdict'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
@@ -855,37 +859,6 @@ function ExpandedDetail({
       </td>
     </tr>
   )
-}
-
-// ── Verdict Parcoursup : couleurs alignées avec la modale fiche contact ─────
-function parcoursupVerdictBadgeStyle(status: string): {
-  bg: string; fg: string; border: string; dot: string
-} {
-  switch (status) {
-    case 'ok_valide':
-      return { bg: '#dcfce7', fg: '#166534', border: '#bbf7d0', dot: '#16a34a' }
-    case 'ok_attente':
-      return { bg: '#dbeafe', fg: '#1e40af', border: '#bfdbfe', dot: '#2563eb' }
-    case 'good':
-      return { bg: '#d1fae5', fg: '#065f46', border: '#a7f3d0', dot: '#10b981' }
-    case 'attention':
-      return { bg: '#ffedd5', fg: '#9a3412', border: '#fed7aa', dot: '#f97316' }
-    case 'bascule':
-      return { bg: '#fee2e2', fg: '#991b1b', border: '#fecaca', dot: '#dc2626' }
-    default:
-      return { bg: '#f1f5f9', fg: '#334155', border: '#e2e8f0', dot: '#94a3b8' }
-  }
-}
-
-function parcoursupVerdictDefaultLabel(status: string): string | null {
-  switch (status) {
-    case 'ok_valide':  return 'OK VALIDÉ'
-    case 'ok_attente': return 'OK EN ATTENTE'
-    case 'good':       return 'GOOD EN PRINCIPE'
-    case 'attention':  return 'ATTENTION JUSTE'
-    case 'bascule':    return 'BASCULE COMPLÈTE PAES'
-    default:           return null
-  }
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────

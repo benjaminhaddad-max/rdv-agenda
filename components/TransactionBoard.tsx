@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import type { TransactionDetail } from './TransactionDetailPanel'
 import { getStagesForPipeline, getStageMeta } from '@/lib/crm-stages'
+import {
+  parcoursupVerdictBadgeStyle,
+  parcoursupVerdictDefaultLabel,
+} from '@/lib/parcoursup-verdict'
 
 // ── Stage config ─────────────────────────────────────────────────────────────
 // Mapping centralise dans @/lib/crm-stages (couvre les 4 pipelines).
@@ -117,6 +121,53 @@ function DealCard({
           {contactName}
         </div>
       )}
+
+      {/* Verdict Parcoursup 2026 : visible des qu'on connait le verdict, */}
+      {/* sur toutes les cases (amont + aval). */}
+      {(() => {
+        const verdict = deal.contact?.parcoursup_verdict
+        if (!verdict || (!verdict.status && !verdict.label)) return null
+        const status = (verdict.status || '').toLowerCase()
+        const style = parcoursupVerdictBadgeStyle(status)
+        const label = verdict.label || parcoursupVerdictDefaultLabel(status) || 'Verdict'
+        return (
+          <div style={{ marginBottom: 6 }}>
+            <span
+              title={`Parcoursup 2026 — ${label}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 7px',
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1.1,
+                background: style.bg,
+                color: style.fg,
+                border: `1px solid ${style.border}`,
+                whiteSpace: 'nowrap',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: style.dot,
+                  flexShrink: 0,
+                }}
+              />
+              {label}
+            </span>
+          </div>
+        )
+      })()}
 
       {/* Classe actuelle + telephone : uniquement pour les stages amont
           (A Replanifier, RDV Pris, Delai Reflexion). Inutile sur les stages aval. */}

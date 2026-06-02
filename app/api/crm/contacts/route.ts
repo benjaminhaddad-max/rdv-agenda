@@ -7,6 +7,7 @@ import { getApiUserContext } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
+import { fetchParcoursupVerdictsByContactId } from '@/lib/parcoursup-verdict'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -16,57 +17,6 @@ const CURRENT_PIPELINE_ID = process.env.HUBSPOT_PIPELINE_ID ?? ''
 async function getPriorPreinscStageIds(): Promise<string[]> {
   // Mode CRM sans dépendance HubSpot : filtre non supporté sans mapping local de pipelines.
   return []
-}
-
-// Saison active du formulaire Parcoursup (alignee avec diploma-sync).
-const PARCOURSUP_SAISON = '2026-2027'
-
-export type ParcoursupVerdictCell = {
-  status: string | null
-  label: string | null
-} | null
-
-// Recupere le verdict Parcoursup pour une liste de contacts.
-// Source : crm_pre_inscriptions.external_data.parcoursup.verdict
-// (avec override CRM `parcoursup_crm_override.verdict` prioritaire).
-async function fetchParcoursupVerdictsByContactId(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any,
-  contactIds: string[],
-): Promise<Record<string, ParcoursupVerdictCell>> {
-  const out: Record<string, ParcoursupVerdictCell> = {}
-  if (!contactIds || contactIds.length === 0) return out
-  const { data } = await db
-    .from('crm_pre_inscriptions')
-    .select('hubspot_contact_id, external_data, updated_at')
-    .in('hubspot_contact_id', contactIds)
-    .eq('saison', PARCOURSUP_SAISON)
-
-  const rows = (data ?? []) as Array<{
-    hubspot_contact_id: string | null
-    external_data: Record<string, unknown> | null
-    updated_at: string | null
-  }>
-  for (const row of rows) {
-    const cid = row.hubspot_contact_id
-    if (!cid) continue
-    const ext = row.external_data || {}
-    const override = ext.parcoursup_crm_override as Record<string, unknown> | undefined
-    const raw = ext.parcoursup as Record<string, unknown> | undefined
-    const source = (override ?? raw) || null
-    if (!source) continue
-    const verdict = source.verdict as Record<string, unknown> | undefined
-    if (!verdict) continue
-    const status = typeof verdict.status === 'string' ? verdict.status : null
-    const label = typeof verdict.label === 'string' ? verdict.label : null
-    if (!status && !label) continue
-    // En cas de doublons (rare) on garde la valeur la plus recente.
-    const existing = out[cid]
-    if (!existing) {
-      out[cid] = { status, label }
-    }
-  }
-  return out
 }
 
 export async function GET(req: NextRequest) {
