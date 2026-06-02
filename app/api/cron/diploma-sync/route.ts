@@ -278,11 +278,20 @@ export async function GET(req: NextRequest) {
       } else {
         const rA = STATUS_RANK[ins.status] || 0
         const rB = STATUS_RANK[existing.paiement_status] || 0
+        const hasParcoursupA = !!(ins.parcoursup && typeof ins.parcoursup === 'object')
+        const hasParcoursupB = !!(existing.external_data?.parcoursup && typeof existing.external_data.parcoursup === 'object')
         if (rA > rB) dedupMap.set(key, row)
         else if (rA === rB) {
           const tA = new Date(ins.updated_at).getTime()
           const tB = new Date(existing.external_data?.updated_at || existing.updated_at).getTime()
           if (tA > tB) dedupMap.set(key, row)
+          else if (tA === tB && hasParcoursupA && !hasParcoursupB) dedupMap.set(key, row)
+        } else if (rA < rB && hasParcoursupA && !hasParcoursupB) {
+          const mergedExternal = {
+            ...(existing.external_data as Record<string, unknown>),
+            parcoursup: ins.parcoursup,
+          }
+          dedupMap.set(key, { ...existing, external_data: mergedExternal })
         }
       }
 

@@ -916,8 +916,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             const formStarted = !!finData?.fin_echeances
             const parcoursupOverride = ext.parcoursup_crm_override as ParcoursupPayload | undefined
             const parcoursupRaw = ext.parcoursup as ParcoursupPayload | undefined
-            const parcoursupData = (parcoursupOverride ?? parcoursupRaw) || null
-            const showParcoursup2026 = !!parcoursupData
+            const parcoursupData = (parcoursupOverride ?? parcoursupRaw) ?? {}
+            // Bloc visible pour toute pré-inscription 26-27 (même sans formulaire rempli).
+            const showParcoursup2026 = pi.saison === '2026-2027'
 
             const status = (() => {
               const s = pi.paiement_status
