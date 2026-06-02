@@ -54,6 +54,20 @@ export async function GET(req: NextRequest) {
     if (u.hubspot_user_id)  userByUserId[u.hubspot_user_id]  = u
   }
 
+  // crm_deals.teleprospecteur côté DB stocke historiquement le nom complet
+  // ("Elsa Chemouni") et non l'ID HubSpot. Pour que le filtre par telepro_hs_id
+  // capte aussi ces deals legacy, on précalcule le nom normalisé du télépro
+  // ciblé et on l'utilisera en complément de l'ID dans la comparaison.
+  function normName(s: unknown): string {
+    return String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  }
+  const teleproTargetName = teleproHsId
+    ? normName(userByUserId[teleproHsId]?.name ?? userByOwnerId[teleproHsId]?.name ?? '')
+    : ''
+  const contactOwnerTargetName = contactOwnerHsId
+    ? normName(userByUserId[contactOwnerHsId]?.name ?? userByOwnerId[contactOwnerHsId]?.name ?? '')
+    : ''
+
   // ── Charger TOUS les deals pipeline 2026-2027 (pas de limit) ─────────────
   // On pagine côté Supabase pour contourner la limite max_rows (1000 par défaut)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -165,23 +179,29 @@ export async function GET(req: NextRequest) {
       if (dealCloserId !== closerHsId && contactCloserId !== closerHsId) return false
     }
     if (teleproHsId) {
-      const dealTeleproId = String(d.teleprospecteur ?? '').trim()
+      const dealTeleproRaw = String(d.teleprospecteur ?? '').trim()
+      const dealTeleproName = normName(dealTeleproRaw)
       const contactTeleproId = String(contact?.telepro_user_id ?? '').trim()
       // Primary source of truth: crm_contacts.telepro_user_id.
-      // Keep deal teleprospecteur fallback for legacy rows.
-      if (contactTeleproId !== teleproHsId && dealTeleproId !== teleproHsId) return false
+      // deal.teleprospecteur fallback supports both legacy ID format and
+      // the current "Full Name" format that HubSpot writes back.
+      const matchById = contactTeleproId === teleproHsId || dealTeleproRaw === teleproHsId
+      const matchByName = !!teleproTargetName && dealTeleproName === teleproTargetName
+      if (!matchById && !matchByName) return false
     }
     if (contactOwnerHsId) {
       const contactCloserId = String(contact?.closer_du_contact_owner_id ?? '').trim()
       const contactTeleproId = String(contact?.telepro_user_id ?? '').trim()
-      const dealTeleproId = String(d.teleprospecteur ?? '').trim()
+      const dealTeleproRaw = String(d.teleprospecteur ?? '').trim()
+      const dealTeleproName = normName(dealTeleproRaw)
       // Closer workspace scope: include contacts where user is either closer
-      // or teleprospecteur (with legacy deal fallback).
-      if (
-        contactCloserId !== contactOwnerHsId &&
-        contactTeleproId !== contactOwnerHsId &&
-        dealTeleproId !== contactOwnerHsId
-      ) return false
+      // or teleprospecteur (legacy ID or name format on deal).
+      const matchById =
+        contactCloserId === contactOwnerHsId ||
+        contactTeleproId === contactOwnerHsId ||
+        dealTeleproRaw === contactOwnerHsId
+      const matchByName = !!contactOwnerTargetName && dealTeleproName === contactOwnerTargetName
+      if (!matchById && !matchByName) return false
     }
     if (classe     && contact?.classe_actuelle !== classe)     return false
 
@@ -268,6 +288,13 @@ export async function GET(req: NextRequest) {
     'APES0': 'PAES FR/EU',
   }
 
+  // Index name->user pour résoudre deal.teleprospecteur quand il contient
+  // le nom complet ("Elsa Chemouni") au lieu de l'ID HubSpot.
+  const userByName: Record<string, { id: string; name: string; role: string; avatar_color: string }> = {}
+  for (const u of users ?? []) {
+    if (u.name) userByName[normName(u.name)] = u
+  }
+
   // ── Enrichir un deal ──────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function enrichDeal(d: any) {
@@ -276,7 +303,7 @@ export async function GET(req: NextRequest) {
     const closer  = closerRef ? userByOwnerId[closerRef] ?? null : null
     const teleproRef = String(d.teleprospecteur ?? contact?.telepro_user_id ?? '').trim()
     const telepro = teleproRef
-      ? (userByUserId[teleproRef] ?? userByOwnerId[teleproRef] ?? null)
+      ? (userByUserId[teleproRef] ?? userByOwnerId[teleproRef] ?? userByName[normName(teleproRef)] ?? null)
       : null
     return {
       hubspot_deal_id: d.hubspot_deal_id,
