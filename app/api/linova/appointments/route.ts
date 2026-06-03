@@ -119,7 +119,11 @@ export async function POST(req: NextRequest) {
         recent_conversion_event: hasLinovaRecentEvent ? contactRow.recent_conversion_event : 'LINOVA - RDV admission',
         recent_conversion_event_name: hasLinovaRecentEvent ? contactRow.recent_conversion_event : 'LINOVA - RDV admission',
         recent_conversion_date: nowIso,
-        hs_lead_status: contactRow.hs_lead_status || 'Nouveau',
+        // RDV Linova confirmé : le lead passe en "RDV pris" (statut du lead).
+        // NB : on ne crée/ne déplace volontairement AUCUN deal en stage "RDV Pris"
+        // pour les RDV Linova — les transactions restent pilotées par les deals
+        // (HubSpot natif / Diploma) uniquement.
+        hs_lead_status: 'RDV pris',
         telepro_user_id: effectiveTeleproId,
         teleprospecteur: defaultLinovaTeleproHsUserId,
       })
