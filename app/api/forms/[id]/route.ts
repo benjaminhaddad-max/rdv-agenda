@@ -41,10 +41,6 @@ export async function PATCH(req: Request, { params }: Params) {
     'default_owner_id', 'default_tags', 'auto_create_contact', 'notify_emails',
     'honeypot_enabled', 'recaptcha_enabled',
     'folder',
-    // Booking (formulaires de prise de rendez-vous)
-    'form_type', 'booking_duration_minutes', 'booking_horizon_days', 'booking_min_notice_hours',
-    'booking_owner_user_id', 'booking_meeting_types', 'booking_location_label',
-    'booking_default_meeting_type', 'booking_intro_html',
   ] as const
   const patch: Record<string, unknown> = {}
   for (const k of ALLOWED) {
@@ -62,36 +58,12 @@ export async function PATCH(req: Request, { params }: Params) {
     const r = await db.from('forms').update(patch).eq('id', id).select().single()
     data = r.data; error = r.error
     const errMsg = String(error?.message || '').toLowerCase()
-    const optionalColumns: Array<
-      | 'folder'
-      | 'redirect_file_url'
-      | 'conditional_redirect_enabled'
-      | 'conditional_redirect_terminale_url'
-      | 'conditional_redirect_non_terminale_url'
-      | 'form_type'
-      | 'booking_duration_minutes'
-      | 'booking_horizon_days'
-      | 'booking_min_notice_hours'
-      | 'booking_owner_user_id'
-      | 'booking_meeting_types'
-      | 'booking_location_label'
-      | 'booking_default_meeting_type'
-      | 'booking_intro_html'
-    > = [
+    const optionalColumns: Array<'folder' | 'redirect_file_url' | 'conditional_redirect_enabled' | 'conditional_redirect_terminale_url' | 'conditional_redirect_non_terminale_url'> = [
       'folder',
       'redirect_file_url',
       'conditional_redirect_enabled',
       'conditional_redirect_terminale_url',
       'conditional_redirect_non_terminale_url',
-      'form_type',
-      'booking_duration_minutes',
-      'booking_horizon_days',
-      'booking_min_notice_hours',
-      'booking_owner_user_id',
-      'booking_meeting_types',
-      'booking_location_label',
-      'booking_default_meeting_type',
-      'booking_intro_html',
     ]
     let removed = false
     let missingRedirectFileColumn = false

@@ -26,15 +26,6 @@ interface FormData {
   conditional_redirect_enabled?: boolean | null
   conditional_redirect_terminale_url?: string | null
   conditional_redirect_non_terminale_url?: string | null
-  // Type & config booking (formulaires de prise de rendez-vous)
-  form_type?: 'lead' | 'booking' | null
-  booking_duration_minutes?: number | null
-  booking_horizon_days?: number | null
-  booking_min_notice_hours?: number | null
-  booking_owner_user_id?: string | null
-  booking_meeting_types?: string[] | null
-  booking_location_label?: string | null
-  booking_default_meeting_type?: 'visio' | 'presentiel' | 'telephone' | null
   primary_color: string
   bg_color: string
   text_color: string
@@ -390,16 +381,6 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             honeypot_enabled: form.honeypot_enabled,
             notify_emails: form.notify_emails,
             default_tags: form.default_tags,
-            // Config booking (envoyée systématiquement, même si form_type='lead'
-            // → le backend ignore les colonnes booking sur les forms classiques)
-            form_type: form.form_type ?? 'lead',
-            booking_duration_minutes: form.booking_duration_minutes ?? null,
-            booking_horizon_days: form.booking_horizon_days ?? null,
-            booking_min_notice_hours: form.booking_min_notice_hours ?? null,
-            booking_owner_user_id: form.booking_owner_user_id ?? null,
-            booking_meeting_types: form.booking_meeting_types ?? null,
-            booking_location_label: form.booking_location_label ?? null,
-            booking_default_meeting_type: form.booking_default_meeting_type ?? null,
           }),
         }),
         fetch(`/api/forms/${id}/fields`, {
@@ -960,15 +941,9 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
 function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<FormData>) => void }) {
   const conditionalDefaultEnabled = isDiplomaConditionalRedirectEligible(form)
   const conditionalEnabled = form.conditional_redirect_enabled ?? conditionalDefaultEnabled
-  const isBooking = form.form_type === 'booking'
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 1000 }}>
-      {isBooking && (
-        <div style={{ gridColumn: '1 / -1' }}>
-          <BookingSettingsCard form={form} update={update} />
-        </div>
-      )}
       <Card title="Contenu">
         <Field label="Nom interne"><input value={form.name} onChange={e => update({ name: e.target.value })} style={inputStyle} /></Field>
         <Field label="Slug (URL publique)">
@@ -1323,12 +1298,8 @@ function EmbedTab({ form }: { form: FormData }) {
   const publicUrl = `${host}/forms/${form.slug}`
   const isDiplomaFolder = (form.folder ?? 'Diploma Santé') === 'Diploma Santé'
   const iframeHeight = isDiplomaFolder ? 420 : 600
-  const isBooking = form.form_type === 'booking'
-  const iframeCode = `<iframe src="${host}/embed/forms/${form.slug}" width="100%" height="${isBooking ? 700 : iframeHeight}" frameborder="0" style="border:0;max-width:100%;"></iframe>`
+  const iframeCode = `<iframe src="${host}/embed/forms/${form.slug}" width="100%" height="${iframeHeight}" frameborder="0" style="border:0;max-width:100%;"></iframe>`
   const jsCode = `<div data-diploma-form="${form.slug}"></div>\n<script src="${host}/api/forms/${form.slug}/embed.js" async></script>`
-  // Snippet booking : 1 script + n CTA avec data-diploma-booking="<slug>"
-  const bookingScriptCode = `<script src="${host}/api/forms/${form.slug}/embed.js" async></script>`
-  const bookingCtaCode = `<a href="#" data-diploma-booking="${form.slug}">Prendre rendez-vous</a>`
 
   const copy = (text: string, name: string) => {
     navigator.clipboard.writeText(text)
@@ -1347,49 +1318,6 @@ function EmbedTab({ form }: { form: FormData }) {
           <div style={{ fontSize: 12 }}>Clique sur le bouton &quot;Publier&quot; en haut à droite.</div>
         </div>
       </Card>
-    )
-  }
-
-  // Mode booking : on propose en priorité le popup script (data-attr) + l'iframe
-  if (isBooking) {
-    return (
-      <div style={{ maxWidth: 900 }}>
-        <Card title="Lien public (page autonome)">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input value={publicUrl} readOnly style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 12 }} />
-            <button onClick={() => copy(publicUrl, 'url')} style={copyBtn}>{copied === 'url' ? '✓ Copié' : 'Copier'}</button>
-            <a href={publicUrl} target="_blank" rel="noreferrer" style={{ ...copyBtn, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <ExternalLink size={12} /> Ouvrir
-            </a>
-          </div>
-        </Card>
-
-        <Card title="Option 1 — Popup déclenché par tes CTA existants (recommandé)" icon={Code}>
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10, lineHeight: 1.6 }}>
-            Colle le script une seule fois dans le <code style={{ color: '#C9A84C' }}>&lt;head&gt;</code> (ou avant
-            la fermeture du <code style={{ color: '#C9A84C' }}>&lt;/body&gt;</code>) de ton site. Ensuite, ajoute
-            l&apos;attribut <code style={{ color: '#C9A84C' }}>data-diploma-booking=&quot;{form.slug}&quot;</code> à
-            n&apos;importe quel CTA existant (bouton, lien, image…) — au clic, la popup s&apos;ouvre.
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#0e1e35', marginBottom: 6, marginTop: 4 }}>1. Script (à coller une fois)</div>
-          <pre style={codeBlock}>{bookingScriptCode}</pre>
-          <button onClick={() => copy(bookingScriptCode, 'bookjs')} style={{ ...copyBtn, marginTop: 8 }}>{copied === 'bookjs' ? '✓ Copié' : 'Copier le script'}</button>
-
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#0e1e35', marginBottom: 6, marginTop: 14 }}>2. CTA (à coller sur chaque bouton qui doit ouvrir le popup)</div>
-          <pre style={codeBlock}>{bookingCtaCode}</pre>
-          <button onClick={() => copy(bookingCtaCode, 'bookcta')} style={{ ...copyBtn, marginTop: 8 }}>{copied === 'bookcta' ? '✓ Copié' : 'Copier le snippet CTA'}</button>
-
-          <div style={{ marginTop: 14, padding: 10, background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.18)', borderRadius: 8, fontSize: 11, color: '#0e1e35', lineHeight: 1.6 }}>
-            <strong style={{ color: '#06b6d4' }}>Astuce :</strong> tu peux aussi ajouter <code style={{ color: '#C9A84C' }}>data-diploma-booking=&quot;{form.slug}&quot;</code> à <em>tes boutons WordPress/Elementor existants</em> sans toucher au HTML — via l&apos;option &quot;Attributs HTML personnalisés&quot;. La popup remplacera le comportement par défaut du lien.
-          </div>
-        </Card>
-
-        <Card title="Option 2 — iFrame (intégration inline)" icon={Code}>
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 10 }}>Affiche le wizard de prise de RDV directement dans une zone de ta page (pas en popup).</div>
-          <pre style={codeBlock}>{iframeCode}</pre>
-          <button onClick={() => copy(iframeCode, 'iframe')} style={{ ...copyBtn, marginTop: 10 }}>{copied === 'iframe' ? '✓ Copié' : 'Copier le code iFrame'}</button>
-        </Card>
-      </div>
     )
   }
 
@@ -1509,135 +1437,6 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
     <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
       <Icon size={14} /> {label}
     </button>
-  )
-}
-
-// ─── Carte "Prise de rendez-vous" (visible uniquement si form_type='booking') ─
-function BookingSettingsCard({ form, update }: { form: FormData; update: (p: Partial<FormData>) => void }) {
-  const [closers, setClosers] = useState<Array<{ id: string; name: string; role: string; hubspot_owner_id: string | null }>>([])
-
-  useEffect(() => {
-    fetch('/api/users?roles=closer,admin')
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setClosers(Array.isArray(data) ? data : []))
-      .catch(() => setClosers([]))
-  }, [])
-
-  const duration = form.booking_duration_minutes ?? 30
-  const horizon = form.booking_horizon_days ?? 30
-  const notice = form.booking_min_notice_hours ?? 2
-  const meetingTypes = (form.booking_meeting_types && form.booking_meeting_types.length > 0)
-    ? form.booking_meeting_types
-    : ['visio', 'presentiel']
-  const defaultMeetingType = form.booking_default_meeting_type || (meetingTypes[0] as 'visio' | 'presentiel' | 'telephone' | undefined) || 'visio'
-
-  const toggleMeetingType = (mt: 'visio' | 'presentiel' | 'telephone') => {
-    const has = meetingTypes.includes(mt)
-    const next = has ? meetingTypes.filter(x => x !== mt) : [...meetingTypes, mt]
-    update({
-      booking_meeting_types: next,
-      // Si on retire le défaut, on prend le premier restant
-      booking_default_meeting_type: next.includes(defaultMeetingType) ? defaultMeetingType : (next[0] as 'visio' | 'presentiel' | 'telephone' | undefined) || null,
-    })
-  }
-
-  return (
-    <div style={{ background: 'linear-gradient(135deg, #06b6d418, #06b6d404)', border: '1px solid rgba(6,182,212,0.25)', borderRadius: 14, padding: 18, marginBottom: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Calendar size={16} style={{ color: '#06b6d4' }} />
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#0e1e35' }}>Prise de rendez-vous (booking)</h3>
-        <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', background: 'rgba(6,182,212,0.15)', padding: '2px 8px', borderRadius: 999 }}>RDV</span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <Field label="Durée d'un RDV">
-          <select
-            value={String(duration)}
-            onChange={e => update({ booking_duration_minutes: parseInt(e.target.value, 10) })}
-            style={inputStyle}
-          >
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="45">45 minutes</option>
-            <option value="60">1 heure</option>
-          </select>
-        </Field>
-        <Field label="Horizon de réservation (jours)">
-          <input
-            type="number" min={1} max={180} value={horizon}
-            onChange={e => update({ booking_horizon_days: Math.max(1, Math.min(180, parseInt(e.target.value, 10) || 30)) })}
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="Préavis minimum (heures)">
-          <input
-            type="number" min={0} max={168} value={notice}
-            onChange={e => update({ booking_min_notice_hours: Math.max(0, Math.min(168, parseInt(e.target.value, 10) || 0)) })}
-            style={inputStyle}
-          />
-        </Field>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <Field label="Responsable du calendrier (closer)">
-          <select
-            value={form.booking_owner_user_id || ''}
-            onChange={e => update({ booking_owner_user_id: e.target.value || null })}
-            style={inputStyle}
-          >
-            <option value="">Par défaut (Pascal Tawfik)</option>
-            {closers.map(c => (
-              <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Adresse présentiel (si activé)">
-          <input
-            value={form.booking_location_label || ''}
-            onChange={e => update({ booking_location_label: e.target.value })}
-            placeholder="100 quai de la rapée, 75012 Paris"
-            style={inputStyle}
-          />
-        </Field>
-      </div>
-
-      <div style={{ marginBottom: 6, fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Formats de rendez-vous proposés</div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        {(['visio', 'presentiel', 'telephone'] as const).map(mt => {
-          const checked = meetingTypes.includes(mt)
-          const label = mt === 'visio' ? 'Visio (LiveKit)' : mt === 'presentiel' ? 'Présentiel' : 'Téléphone'
-          return (
-            <label key={mt} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: `1.5px solid ${checked ? '#06b6d4' : '#e5ddc8'}`, borderRadius: 8, background: checked ? 'rgba(6,182,212,0.08)' : '#ffffff', cursor: 'pointer', fontSize: 12, color: '#0e1e35' }}>
-              <input type="checkbox" checked={checked} onChange={() => toggleMeetingType(mt)} style={{ accentColor: '#06b6d4' }} />
-              {label}
-            </label>
-          )
-        })}
-      </div>
-
-      {meetingTypes.length > 0 && (
-        <Field label="Format sélectionné par défaut dans le popup">
-          <select
-            value={defaultMeetingType}
-            onChange={e => update({ booking_default_meeting_type: e.target.value as 'visio' | 'presentiel' | 'telephone' })}
-            style={inputStyle}
-          >
-            {meetingTypes.map(mt => (
-              <option key={mt} value={mt}>
-                {mt === 'visio' ? 'Visio' : mt === 'presentiel' ? 'Présentiel' : 'Téléphone'}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-
-      <div style={{ marginTop: 6, fontSize: 11, color: '#4a6070', lineHeight: 1.5, padding: 10, background: 'rgba(6,182,212,0.06)', borderRadius: 8 }}>
-        <strong style={{ color: '#06b6d4' }}>Comment ça marche ?</strong> Quand un prospect prend RDV depuis le site, on crée
-        un contact CRM + un rendez-vous dans l&apos;agenda du responsable (Pascal par défaut, qui le redispatche).
-        Le lien visio LiveKit est généré automatiquement si le format choisi est <em>Visio</em>. SMS et email de
-        confirmation envoyés immédiatement au prospect.
-      </div>
-    </div>
   )
 }
 
