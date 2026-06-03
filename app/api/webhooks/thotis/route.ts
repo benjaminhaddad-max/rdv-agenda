@@ -4,7 +4,7 @@
  * Endpoint public utilisé par Thotis (https://thotismedia.com) pour pousser
  * leurs leads dans notre CRM.
  *
- * URL : https://crm.diplomasante.com/api/webhooks/thotis
+ * URL : https://hub.diploma-sante.fr/api/webhooks/thotis
  * Auth : Header "Authorization: Bearer <THOTIS_WEBHOOK_TOKEN>"
  *        (ou "X-Thotis-Token: <THOTIS_WEBHOOK_TOKEN>")
  *
