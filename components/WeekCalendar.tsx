@@ -55,6 +55,7 @@ function timeToPercent(dateStr: string, refDate: Date): number {
   return Math.max(0, Math.min(100, (offset / total) * 100))
 }
 
+/** Hauteur min en % du créneau 8h–18h (≈ 20 min visuelles), sans minHeight px qui provoque des chevauchements verticaux. */
 function durationToPercent(startStr: string, endStr: string, refDate: Date): number {
   const start = new Date(startStr)
   const end = new Date(endStr)
@@ -64,7 +65,94 @@ function durationToPercent(startStr: string, endStr: string, refDate: Date): num
   refEnd.setHours(18, 0, 0, 0)
   const total = refEnd.getTime() - refStart.getTime()
   const duration = end.getTime() - start.getTime()
-  return Math.max(4, (duration / total) * 100)
+  return Math.max(3.5, (duration / total) * 100)
+}
+
+const MAX_SIDE_COLS = 2
+
+/** Retire le préfixe Calendly (« Terminale - … ») pour gagner de la place. */
+function shortProspectName(name: string): string {
+  const n = name.trim()
+  const m = n.match(
+    /^(?:Terminale|Première|Premiere|Etudes Sup\.?|PASS|LAS|Seconde)\s*[-–]\s*(.+)$/i,
+  )
+  return m ? m[1].trim() : n
+}
+
+type DayLayout<T extends { id: string; start_at: string; end_at: string }> = {
+  slots: Map<string, { col: number; cols: number }>
+  overflow: Array<{ key: string; start_at: string; end_at: string; appts: T[] }>
+}
+
+/**
+ * Répartit les RDV qui se chevauchent : max 2 colonnes visibles + badge « +N » pour le reste.
+ */
+function computeDayLayout<T extends { id: string; start_at: string; end_at: string }>(
+  appts: T[],
+): DayLayout<T> {
+  const slots = new Map<string, { col: number; cols: number }>()
+  const overflow: DayLayout<T>['overflow'] = []
+
+  const sorted = [...appts].sort((a, b) => {
+    const sa = new Date(a.start_at).getTime()
+    const sb = new Date(b.start_at).getTime()
+    if (sa !== sb) return sa - sb
+    return new Date(a.end_at).getTime() - new Date(b.end_at).getTime()
+  })
+
+  let columns: T[][] = []
+  let clusterMaxEnd = 0
+
+  const flushCluster = () => {
+    if (columns.length === 0) return
+    const displayCols = Math.min(columns.length, MAX_SIDE_COLS)
+    const hidden: T[] = []
+
+    for (let i = 0; i < columns.length; i++) {
+      for (const a of columns[i]) {
+        if (i < MAX_SIDE_COLS) {
+          slots.set(a.id, { col: i, cols: displayCols })
+        } else {
+          hidden.push(a)
+        }
+      }
+    }
+
+    if (hidden.length > 0) {
+      const starts = hidden.map(a => new Date(a.start_at).getTime())
+      const ends = hidden.map(a => new Date(a.end_at).getTime())
+      overflow.push({
+        key: hidden.map(a => a.id).join('|'),
+        start_at: new Date(Math.min(...starts)).toISOString(),
+        end_at: new Date(Math.max(...ends)).toISOString(),
+        appts: hidden,
+      })
+    }
+
+    columns = []
+    clusterMaxEnd = 0
+  }
+
+  for (const a of sorted) {
+    const start = new Date(a.start_at).getTime()
+    const end = new Date(a.end_at).getTime()
+    if (columns.length > 0 && start >= clusterMaxEnd) flushCluster()
+
+    let placed = false
+    for (let i = 0; i < columns.length; i++) {
+      const last = columns[i][columns[i].length - 1]
+      if (new Date(last.end_at).getTime() <= start) {
+        columns[i].push(a)
+        placed = true
+        break
+      }
+    }
+    if (!placed) columns.push([a])
+    clusterMaxEnd = Math.max(clusterMaxEnd, end)
+  }
+  flushCluster()
+
+  return { slots, overflow }
 }
 
 export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string }) {
@@ -83,6 +171,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     return 'all'
   })
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [dayListModal, setDayListModal] = useState<{ day: Date; appts: Appointment[] } | null>(null)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<'week' | 'list'>('week')
   const [showNewRdvModal, setShowNewRdvModal] = useState(false)
@@ -96,8 +185,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   )
 
   // Compteurs semaine (hors annulés et non-assignés)
-  const rdvCount = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne').length
-  const rdvEffectues = appointments.filter(a => ['va_reflechir', 'preinscription'].includes(a.status)).length
+  const activeAppointments = appointments.filter(a => a.status !== 'annule' && a.status !== 'non_assigne')
+  const rdvCount = activeAppointments.length
+  const rdvEffectues = activeAppointments.filter(a => ['va_reflechir', 'preinscription'].includes(a.status)).length
+  const weekIsDense = rdvCount > 28
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -369,6 +460,38 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         )}
       </div>
 
+      {weekIsDense && view === 'week' && (
+        <div style={{
+          padding: '8px 24px',
+          background: '#fff8eb',
+          borderBottom: '1px solid #f0d9a8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 12, color: '#92400e', fontWeight: 600 }}>
+            Semaine chargée ({rdvCount} RDV) — la vue liste est plus lisible.
+          </span>
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            style={{
+              background: '#C9A84C',
+              border: 'none',
+              borderRadius: 8,
+              padding: '5px 12px',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Passer en vue Liste
+          </button>
+        </div>
+      )}
+
       {/* Calendar grid */}
       {view === 'week' ? (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -385,14 +508,21 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             {weekDays.map(day => {
               const dayAppts = getAppointmentsForDay(day)
               const today = isToday(day)
+              const busyDay = dayAppts.length > 5
               return (
                 <div
                   key={day.toISOString()}
+                  role={busyDay ? 'button' : undefined}
+                  tabIndex={busyDay ? 0 : undefined}
+                  onClick={busyDay ? () => setDayListModal({ day, appts: dayAppts }) : undefined}
+                  onKeyDown={busyDay ? e => { if (e.key === 'Enter') setDayListModal({ day, appts: dayAppts }) } : undefined}
+                  title={busyDay ? `Voir les ${dayAppts.length} RDV` : undefined}
                   style={{
                     padding: '8px 6px',
                     textAlign: 'center',
                     borderRight: '1px solid #e5ddc8',
                     background: today ? 'rgba(204,172,113,0.06)' : 'transparent',
+                    cursor: busyDay ? 'pointer' : 'default',
                   }}
                 >
                   <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -408,9 +538,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   {dayAppts.length > 0 && (
                     <div style={{
                       marginTop: 4,
-                      width: 20, height: 20,
-                      background: '#4cabdb',
-                      borderRadius: '50%',
+                      minWidth: 20, height: 20, padding: '0 5px',
+                      background: busyDay ? '#C9A84C' : '#4cabdb',
+                      borderRadius: 10,
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 11, fontWeight: 800, color: 'white', lineHeight: 1,
                     }}>
@@ -446,6 +576,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             {weekDays.map(day => {
               const dayAppts = getAppointmentsForDay(day)
               const today = isToday(day)
+              const dayLayout = computeDayLayout(dayAppts)
+              const hiddenIds = new Set(dayLayout.overflow.flatMap(b => b.appts.map(a => a.id)))
+
               return (
                 <div
                   key={day.toISOString()}
@@ -453,90 +586,146 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     borderRight: '1px solid #e5ddc8',
                     position: 'relative',
                     background: today ? 'rgba(204,172,113,0.02)' : 'transparent',
+                    minWidth: 0,
                   }}
                 >
                   {HOURS.map(h => (
                     <div key={h} style={{ height: 60, borderBottom: '1px solid #e5ddc8' }} />
                   ))}
 
-                  {dayAppts.map(appt => {
+                  {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt => {
                     const top = timeToPercent(appt.start_at, day)
                     const height = durationToPercent(appt.start_at, appt.end_at, day)
                     const color = getColorForCommercial(appt.users?.id || '')
                     const isCancelled = appt.status === 'annule'
                     const isConfirmed = appt.status === 'confirme_prospect'
                     const formation = (appt.formation_type || '').trim()
-                    const classe = (appt.classe_actuelle || '').trim()
-                    const closerAssigned = (appt.users?.name || 'Non assigné').trim()
-                    const details = `${formation || 'Formation NR'} · ${classe || 'Classe NR'} · ${closerAssigned}`
+                    const displayName = shortProspectName(appt.prospect_name)
+                    const tooltip = `${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${formation ? ` — ${formation}` : ''}`
+
+                    const lay = dayLayout.slots.get(appt.id) || { col: 0, cols: 1 }
+                    const gap = 3
+                    const widthPct = 100 / lay.cols
+                    const leftPct = widthPct * lay.col
+                    const sideBySide = lay.cols > 1
+                    // Réserve ~36px à droite si un badge « +N » peut apparaître sur ce créneau
+                    const hasOverflowBadge = dayLayout.overflow.some(b => {
+                      const bs = new Date(b.start_at).getTime()
+                      const be = new Date(b.end_at).getTime()
+                      const as = new Date(appt.start_at).getTime()
+                      const ae = new Date(appt.end_at).getTime()
+                      return as < be && ae > bs
+                    })
+                    const rightReserve = hasOverflowBadge ? 38 : 0
 
                     return (
                       <div
                         key={appt.id}
                         onClick={() => setSelectedAppointment(appt)}
+                        title={tooltip}
                         style={{
                           position: 'absolute',
-                          left: 3, right: 3,
+                          left: `calc(${leftPct}% + ${lay.col === 0 ? 3 : gap}px)`,
+                          width: `calc(${widthPct}% - ${lay.cols === 1 ? 6 : gap + 2}px - ${rightReserve}px)`,
                           top: `${top}%`,
                           height: `${height}%`,
-                          background: isCancelled ? 'rgba(107,114,128,0.1)' : `${color}18`,
-                          border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.3)' : `${color}50`}`,
+                          background: isCancelled ? 'rgba(107,114,128,0.12)' : '#fff',
+                          border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${color}55`}`,
                           borderLeft: `3px solid ${isCancelled ? '#6b7280' : color}`,
-                          borderRadius: 6,
-                          padding: '4px 6px',
+                          borderRadius: 5,
+                          padding: sideBySide ? '2px 4px' : '3px 5px',
                           cursor: 'pointer',
                           overflow: 'hidden',
                           zIndex: 1,
-                          transition: 'background 0.1s',
-                          minHeight: 34,
+                          boxSizing: 'border-box',
+                          boxShadow: '0 1px 2px rgba(14,30,53,0.06)',
+                          transition: 'box-shadow 0.12s, z-index 0s',
                         }}
                         onMouseEnter={e => {
                           const el = e.currentTarget as HTMLDivElement
-                          el.style.background = isCancelled ? 'rgba(107,114,128,0.2)' : `${color}28`
+                          el.style.zIndex = '8'
+                          el.style.boxShadow = '0 6px 16px rgba(14,30,53,0.16)'
                         }}
                         onMouseLeave={e => {
                           const el = e.currentTarget as HTMLDivElement
-                          el.style.background = isCancelled ? 'rgba(107,114,128,0.1)' : `${color}18`
+                          el.style.zIndex = '1'
+                          el.style.boxShadow = '0 1px 2px rgba(14,30,53,0.06)'
                         }}
                       >
-                        {/* Pastille verte : le prospect a confirmé sa présence */}
                         {isConfirmed && (
                           <span
                             title="Présence confirmée par le prospect"
                             style={{
                               position: 'absolute',
-                              top: 4, right: 4,
-                              width: 14, height: 14,
+                              top: 3, right: 3,
+                              width: 12, height: 12,
                               borderRadius: '50%',
                               background: '#10b981',
                               color: '#fff',
-                              fontSize: 9,
+                              fontSize: 8,
                               fontWeight: 700,
-                              lineHeight: '14px',
+                              lineHeight: '12px',
                               textAlign: 'center',
-                              boxShadow: '0 0 0 2px rgba(255,255,255,0.85)',
-                              zIndex: 2,
                             }}
                           >
                             ✓
                           </span>
                         )}
                         <div style={{
-                          fontSize: 10, fontWeight: 700,
-                          color: isCancelled ? '#6b7280' : color,
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          paddingRight: isConfirmed ? 16 : 0,
+                          fontSize: sideBySide ? 9 : 10,
+                          fontWeight: 700,
+                          color: isCancelled ? '#6b7280' : '#0e1e35',
+                          lineHeight: 1.25,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: sideBySide ? 2 : 3,
+                          WebkitBoxOrient: 'vertical',
+                          paddingRight: isConfirmed ? 14 : 0,
                         }}>
-                          {appt.meeting_type === 'visio' && <span style={{ fontSize: 9 }}>📹</span>}
-                          {format(new Date(appt.start_at), 'HH:mm')} {appt.prospect_name}
-                        </div>
-                        <div style={{ fontSize: 9, color: '#475569', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {details}
+                          <span style={{ color: isCancelled ? '#6b7280' : color, marginRight: 3 }}>
+                            {format(new Date(appt.start_at), 'HH:mm')}
+                          </span>
+                          {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
+                          {displayName}
                         </div>
                       </div>
                     )
                   })}
+
+                  {dayLayout.overflow.map(block => (
+                    <button
+                      key={block.key}
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation()
+                        setDayListModal({ day, appts: block.appts })
+                      }}
+                      title={block.appts.map(a =>
+                        `${format(new Date(a.start_at), 'HH:mm')} ${a.prospect_name}`,
+                      ).join('\n')}
+                      style={{
+                        position: 'absolute',
+                        right: 4,
+                        top: `${timeToPercent(block.start_at, day)}%`,
+                        height: `${durationToPercent(block.start_at, block.end_at, day)}%`,
+                        minHeight: 24,
+                        width: 32,
+                        background: '#0e1e35',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        zIndex: 4,
+                        padding: 0,
+                        lineHeight: 1.1,
+                        boxShadow: '0 2px 6px rgba(14,30,53,0.25)',
+                      }}
+                    >
+                      +{block.appts.length}
+                    </button>
+                  ))}
 
                   {/* Current time indicator */}
                   {today && (() => {
@@ -567,13 +756,15 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       ) : (
         /* List view */
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {appointments.filter(a => a.status !== 'non_assigne').length === 0 ? (
+          {activeAppointments.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#4a6070', paddingTop: 60 }}>
               Aucun RDV assigné cette semaine
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {appointments.filter(a => a.status !== 'non_assigne').map(appt => (
+              {[...activeAppointments]
+                .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+                .map(appt => (
                 <div
                   key={appt.id}
                   onClick={() => setSelectedAppointment(appt)}
@@ -616,6 +807,90 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Liste du jour (créneaux chargés / badge +N) */}
+      {dayListModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(14,30,53,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setDayListModal(null) }}
+        >
+          <div style={{
+            background: '#fff',
+            borderRadius: 14,
+            width: '100%',
+            maxWidth: 480,
+            maxHeight: '80vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 50px rgba(14,30,53,0.2)',
+          }}>
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #e5ddc8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>
+                {format(dayListModal.day, 'EEEE d MMMM', { locale: fr })}
+                {' '}
+                <span style={{ color: '#C9A84C' }}>({dayListModal.appts.length} RDV)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setDayListModal(null)}
+                style={{
+                  background: 'none', border: 'none', fontSize: 20,
+                  color: '#94a3b8', cursor: 'pointer', lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...dayListModal.appts]
+                .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+                .map(appt => (
+                  <button
+                    key={appt.id}
+                    type="button"
+                    onClick={() => {
+                      setDayListModal(null)
+                      setSelectedAppointment(appt)
+                    }}
+                    style={{
+                      textAlign: 'left',
+                      background: '#f7f4ee',
+                      border: '1px solid #e5ddc8',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#C9A84C' }}>
+                      {format(new Date(appt.start_at), 'HH:mm')}
+                      {' – '}
+                      {format(new Date(appt.end_at), 'HH:mm')}
+                      {appt.meeting_type === 'visio' ? ' · 📹' : ''}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', marginTop: 2 }}>
+                      {shortProspectName(appt.prospect_name)}
+                    </div>
+                    {appt.formation_type && (
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{appt.formation_type}</div>
+                    )}
+                  </button>
+                ))}
+            </div>
+          </div>
         </div>
       )}
 
