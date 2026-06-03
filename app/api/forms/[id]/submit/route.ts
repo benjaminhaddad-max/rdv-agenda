@@ -489,16 +489,11 @@ export async function POST(req: Request, { params }: Params) {
         .select('id, trigger_config')
         .eq('status', 'active')
         .eq('trigger_type', 'form_submitted')
+      const { matchesNativeFormSubmittedWorkflow } = await import('@/lib/workflow-form-trigger')
       for (const wf of (workflows ?? [])) {
-        const cfg = (wf.trigger_config ?? {}) as { form_id?: string; form_slug?: string }
-        // Match si trigger_config.form_id ou form_slug correspond, ou si pas de filtre (tous les forms)
-        const matches =
-          (!cfg.form_id && !cfg.form_slug) ||
-          (cfg.form_id && cfg.form_id === form.id) ||
-          (cfg.form_slug && cfg.form_slug === form.slug)
-        if (matches) {
-          await enrollContact(db, wf.id, contactId, { form_id: form.id, form_slug: form.slug, submission_id: submission.id })
-        }
+        const cfg = (wf.trigger_config ?? {}) as import('@/lib/workflow-form-trigger').FormSubmittedTriggerConfig
+        if (!matchesNativeFormSubmittedWorkflow(cfg, { id: form.id, slug: form.slug })) continue
+        await enrollContact(db, wf.id, contactId, { form_id: form.id, form_slug: form.slug, submission_id: submission.id })
       }
     } catch (e) {
       logger.error('forms-submit-workflow-trigger', e, {

@@ -24,6 +24,7 @@ import { batchGetContacts, hubspotFetch } from '@/lib/hubspot'
 import { getHubspotMode } from '@/lib/hubspot-mode'
 import { normalizeOrigineValue } from '@/lib/origine-normalization'
 import { normalizeLeadStatus } from '@/lib/lead-status-normalization'
+import { maybeEnrollEdumoveRomeWorkflow } from '@/lib/edumove-rome-sms'
 
 // Vercel Pro : timeout étendu à 60s (suffit largement, batch read = ~2-5s)
 export const maxDuration = 60
@@ -173,13 +174,25 @@ export async function POST(req: NextRequest) {
   const dealsToFetch    = new Set<string>()
   const contactsToDelete = new Set<string>()
   const dealsToDelete    = new Set<string>()
+  /** HubSpot : inscription workflow Edumove uniquement si la conversion vient de changer. */
+  const edumoveConversionByContact = new Map<string, string>()
+  const HUBSPOT_CONVERSION_PROP = 'recent_conversion_event_name'
 
   for (const ev of events) {
     const id = String(ev.objectId)
     const t  = ev.subscriptionType
     if (!id || !t) continue
     if (t === 'contact.deletion')      contactsToDelete.add(id)
-    else if (t.startsWith('contact.')) contactsToFetch.add(id)
+    else if (t.startsWith('contact.')) {
+      contactsToFetch.add(id)
+      if (
+        t === 'contact.propertyChange' &&
+        ev.propertyName === HUBSPOT_CONVERSION_PROP &&
+        ev.propertyValue
+      ) {
+        edumoveConversionByContact.set(id, ev.propertyValue)
+      }
+    }
     else if (t === 'deal.deletion')    dealsToDelete.add(id)
     else if (t.startsWith('deal.'))    dealsToFetch.add(id)
   }
@@ -197,6 +210,16 @@ export async function POST(req: NextRequest) {
         const rows = contacts.map(c => buildContactRow(c as { id: string; properties: Record<string, string | null> }, now))
         await db.from('crm_contacts').upsert(rows, { onConflict: 'hubspot_contact_id' })
         stats.contacts_upserted = rows.length
+        for (const row of rows) {
+          if (!row.hubspot_contact_id) continue
+          const freshConversion = edumoveConversionByContact.get(row.hubspot_contact_id)
+          if (!freshConversion) continue
+          try {
+            await maybeEnrollEdumoveRomeWorkflow(db, row.hubspot_contact_id, freshConversion)
+          } catch {
+            // best-effort : ne pas bloquer le webhook HubSpot
+          }
+        }
       }
     } catch (e) {
       console.error('[webhook hubspot] batchGetContacts failed:', e)
