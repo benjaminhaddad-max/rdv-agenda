@@ -711,6 +711,32 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                             {niveau}
                           </div>
                         )}
+                        {appt.meeting_type === 'visio' && appt.meeting_link && (
+                          <a
+                            href={appt.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            title={`Rejoindre la visio — ${appt.meeting_link}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              marginTop: 2,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: '#1a73e8',
+                              color: '#fff',
+                              fontSize: 8,
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              lineHeight: 1.4,
+                              maxWidth: '100%',
+                            }}
+                          >
+                            🎥 Meet
+                          </a>
+                        )}
                       </div>
                     )
                   })}
@@ -882,12 +908,19 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               {[...dayListModal.appts]
                 .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
                 .map(appt => (
-                  <button
+                  <div
                     key={appt.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       setDayListModal(null)
                       setSelectedAppointment(appt)
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setDayListModal(null)
+                        setSelectedAppointment(appt)
+                      }
                     }}
                     style={{
                       textAlign: 'left',
@@ -914,7 +947,30 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                         <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{meta}</div>
                       ) : null
                     })()}
-                  </button>
+                    {appt.meeting_type === 'visio' && appt.meeting_link && (
+                      <a
+                        href={appt.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 6,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          background: '#1a73e8',
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        🎥 Rejoindre Google Meet
+                      </a>
+                    )}
+                  </div>
                 ))}
             </div>
           </div>
