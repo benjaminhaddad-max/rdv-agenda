@@ -464,6 +464,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     const height = durationToPercent(appt.start_at, appt.end_at, day)
                     const color = getColorForCommercial(appt.users?.id || '')
                     const isCancelled = appt.status === 'annule'
+                    const isConfirmed = appt.status === 'confirme_prospect'
                     const formation = (appt.formation_type || '').trim()
                     const classe = (appt.classe_actuelle || '').trim()
                     const closerAssigned = (appt.users?.name || 'Non assigné').trim()
@@ -498,11 +499,34 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           el.style.background = isCancelled ? 'rgba(107,114,128,0.1)' : `${color}18`
                         }}
                       >
+                        {/* Pastille verte : le prospect a confirmé sa présence */}
+                        {isConfirmed && (
+                          <span
+                            title="Présence confirmée par le prospect"
+                            style={{
+                              position: 'absolute',
+                              top: 4, right: 4,
+                              width: 14, height: 14,
+                              borderRadius: '50%',
+                              background: '#10b981',
+                              color: '#fff',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              lineHeight: '14px',
+                              textAlign: 'center',
+                              boxShadow: '0 0 0 2px rgba(255,255,255,0.85)',
+                              zIndex: 2,
+                            }}
+                          >
+                            ✓
+                          </span>
+                        )}
                         <div style={{
                           fontSize: 10, fontWeight: 700,
                           color: isCancelled ? '#6b7280' : color,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           display: 'flex', alignItems: 'center', gap: 3,
+                          paddingRight: isConfirmed ? 16 : 0,
                         }}>
                           {appt.meeting_type === 'visio' && <span style={{ fontSize: 9 }}>📹</span>}
                           {format(new Date(appt.start_at), 'HH:mm')} {appt.prospect_name}

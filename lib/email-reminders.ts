@@ -13,6 +13,7 @@
  */
 
 import { sendBrevoEmail } from '@/lib/brevo'
+import { buildConfirmUrl } from '@/lib/confirm-link'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -238,7 +239,7 @@ export async function send48hConfirmEmail(
 ): Promise<ReminderResult> {
   const meetingLabel = getMeetingLabel(meetingType, meetingLink)
   const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
-  const link = `${SITE_URL}/confirm/${token}`
+  const link = buildConfirmUrl(token)
 
   const content = `
     <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
@@ -310,7 +311,7 @@ export async function send24hRelanceEmail(
   isConfirmedByProspect: boolean,
   apptId: string,
 ): Promise<ReminderResult> {
-  const link = `${SITE_URL}/confirm/${token}`
+  const link = buildConfirmUrl(token)
   const meetingLabel = getMeetingLabel(meetingType, meetingLink)
   const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
 
@@ -387,7 +388,7 @@ export async function sendMorningEmail(
   token: string,
 ): Promise<ReminderResult> {
   const meetingLabel = getMeetingLabel(meetingType, meetingLink)
-  const confirmLink = `${SITE_URL}/confirm/${token}`
+  const confirmLink = buildConfirmUrl(token)
 
   // Bloc CTA "Confirmer ma présence" — affiché UNIQUEMENT si pas encore confirmé
   const confirmBlock = !isConfirmed ? `

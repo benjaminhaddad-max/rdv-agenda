@@ -10,6 +10,8 @@
  *            Nos textes visent ~130 chars = 2 SMS
  */
 
+import { buildConfirmUrl } from '@/lib/confirm-link'
+
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
 const DEFAULT_SENDER = 'Diploma'
 
@@ -26,7 +28,6 @@ export const SMS_SENDERS: Array<{ value: string; label: string }> = [
   { value: 'PASS-LAS',    label: 'PASS-LAS' },
 ]
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
 const PREPA_CODE = process.env.PREPA_CODE || ''
 const REPLANIF_URL = process.env.REPLANIF_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
@@ -83,7 +84,7 @@ export function build48hSms(
   token: string,
   meetingLink?: string | null,
 ): string {
-  const link = `${SITE_URL}/confirm/${token}`
+  const link = buildConfirmUrl(token)
 
   if (meetingType === 'visio') {
     return `Bonjour ${firstName}, votre rendez-vous en visioconférence avec Diploma Santé est prévu ${dateStr}. Merci de confirmer votre présence : ${link}`
@@ -118,7 +119,7 @@ export function build24hRelanceSms(
     return `Bonjour ${firstName}, rappel : votre RDV Diploma Santé est demain (${dateStr}). Confirmation bien reçue. À demain.`
   }
 
-  const link = `${SITE_URL}/confirm/${token}`
+  const link = buildConfirmUrl(token)
   if (meetingType === 'presentiel') {
     const campus = resolvePresentielCampus(meetingLink)
     return `${firstName}, rappel : votre RDV Diploma Santé est demain. Campus : ${campus}. Merci de confirmer votre présence en 1 clic : ${link}`
@@ -233,6 +234,13 @@ export interface SendSmsOptions {
    * et fournir les URLs originales ici (dans l'ordre d'apparition).
    */
   shortenLinks?: { urls: string[] }
+  /**
+   * Raccourcissement automatique : détecte les URLs présentes dans `text` et
+   * les fait raccourcir par SMS Factor (→ https://smsf.st/xxxxx) sans que le
+   * caller ait à manipuler les placeholders lui-même. Ignoré si `shortenLinks`
+   * est déjà fourni explicitement.
+   */
+  autoShorten?: boolean
 }
 
 /**
@@ -261,6 +269,15 @@ export async function sendSms(
   const opts: SendSmsOptions =
     typeof optsOrSender === 'string' ? { sender: optsOrSender } : (optsOrSender ?? {})
   const pushtype: SmsPushType = opts.pushtype ?? 'alert'
+
+  // autoShorten : on transforme les URLs du texte en placeholders <-short->
+  // et on les confie à SMS Factor (→ smsf.st/xxxxx). Sans effet si le texte
+  // ne contient aucune URL, ou si shortenLinks est déjà fourni explicitement.
+  if (opts.autoShorten && !opts.shortenLinks && detectUrls(text).length > 0) {
+    const transformed = replaceUrlsWithShortPlaceholder(text)
+    text = transformed.text
+    opts.shortenLinks = { urls: transformed.urls }
+  }
 
   // Sanitize sender : max 11 chars alphanumériques
   const cleanSender = (opts.sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER

@@ -16,7 +16,7 @@ import { sendSms, build24hRelanceSms } from '@/lib/smsfactor'
 import { send24hRelanceEmail } from '@/lib/email-reminders'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { randomUUID } from 'crypto'
+import { makeConfirmToken } from '@/lib/confirm-link'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       continue
     }
 
-    const token: string = appt.confirmation_token ?? randomUUID()
+    const token: string = appt.confirmation_token ?? makeConfirmToken()
     if (!appt.confirmation_token) {
       await db.from('rdv_appointments').update({ confirmation_token: token }).eq('id', appt.id)
     }
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 
     const isConfirmedByProspect = appt.status === 'confirme_prospect'
     const message = build24hRelanceSms(firstName, dateStr, appt.meeting_type, token, isConfirmedByProspect, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message)
+    const smsResult = await sendSms(appt.prospect_phone, message, { autoShorten: true })
 
     if (smsResult.ok) {
       if (appt.prospect_email) {

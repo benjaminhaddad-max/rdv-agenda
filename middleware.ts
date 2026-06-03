@@ -25,6 +25,7 @@ export async function middleware(request: NextRequest) {
   const isPublicPath =
     pathname.startsWith('/book/') ||
     pathname.startsWith('/confirm/') ||
+    pathname.startsWith('/c/') ||
     pathname.startsWith('/reschedule/') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
