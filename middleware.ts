@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
+    pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
     pathname.startsWith('/r/')
   const isNomadImportApi = pathname.startsWith('/api/crm/contacts/nomad-import')
   const isPublicApi = (
