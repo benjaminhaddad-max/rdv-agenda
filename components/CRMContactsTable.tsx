@@ -1548,6 +1548,8 @@ export default function CRMContactsTable({
                 <a
                   href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
                   title="Ouvrir la fiche contact"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
                   style={{
                     color: '#12314d',
