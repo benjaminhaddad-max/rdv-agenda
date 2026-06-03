@@ -24,6 +24,7 @@ import {
   BREVO_DEFAULT_SENDER,
 } from './brevo'
 import { sendSms } from './smsfactor'
+import { tokenizeSmsLinks } from './sms-link-tracking'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any
@@ -436,7 +437,15 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
         }
         const renderedText = renderTemplate(text, buildVars(contact))
         const sender = step.config?.sender ? String(step.config.sender) : undefined
-        const result = await sendSms(contact.phone, renderedText, sender)
+        const pushtype = step.config?.pushtype === 'marketing' ? 'marketing' : 'alert'
+        // Tokenise les liens pour tracer les clics par contact (timeline + stats).
+        const trackedText = await tokenizeSmsLinks(db, {
+          text: renderedText,
+          hubspotContactId: contact.hubspot_contact_id,
+          source: 'workflow',
+          sourceId: execution.workflow_id,
+        })
+        const result = await sendSms(contact.phone, trackedText, { sender, pushtype })
         if (!result.ok) {
           await logStep(db, execution, step, 'failed', { ticket: result.ticket }, result.error || 'Échec envoi SMS')
           break
