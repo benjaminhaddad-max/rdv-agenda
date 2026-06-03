@@ -11,6 +11,7 @@
  */
 
 import { buildConfirmUrl } from '@/lib/confirm-link'
+import { personalizeVisioUrl } from '@/lib/visio-url'
 
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
 const DEFAULT_SENDER = 'Diploma'
@@ -166,7 +167,8 @@ export function build1hSms(
   meetingLink?: string | null
 ): string {
   if (meetingType === 'visio') {
-    const linkPart = meetingLink ? ` Lien : ${meetingLink}` : ''
+    const personalized = personalizeVisioUrl(meetingLink, firstName)
+    const linkPart = personalized ? ` Lien : ${personalized}` : ''
     return `Bonjour ${firstName}, votre visioconférence avec Diploma Santé débute dans 1 heure, à ${heureStr}.${linkPart}`
   }
 
@@ -184,7 +186,8 @@ export function build5minSms(
   meetingLink?: string | null
 ): string {
   if (meetingType === 'visio') {
-    const linkPart = meetingLink ? ` Connectez-vous dès maintenant : ${meetingLink}` : ''
+    const personalized = personalizeVisioUrl(meetingLink, firstName)
+    const linkPart = personalized ? ` Connectez-vous dès maintenant : ${personalized}` : ''
     return `${firstName}, votre RDV visio avec Diploma Santé commence dans 5 min.${linkPart}`
   }
 

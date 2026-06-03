@@ -6,6 +6,7 @@ import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import AssignModal from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -104,6 +105,7 @@ export default function AppointmentModal({
   const [showReassignModal, setShowReassignModal] = useState(false)
   const [showJitsi, setShowJitsi] = useState(false)
   const [aiGenerated, setAiGenerated] = useState(false)
+  const [studentLinkCopied, setStudentLinkCopied] = useState(false)
 
   // New closer report fields
   const [negatifReason, setNegatifReason] = useState<string | null>(appointment.negatif_reason || null)
@@ -411,40 +413,78 @@ export default function AppointmentModal({
                 <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0 }} />
                 <span style={{ color: meetingInfo.color, fontWeight: 600 }}>{meetingInfo.label}</span>
                 {appointment.meeting_type === 'visio' && appointment.meeting_link && (() => {
-                  const link = appointment.meeting_link
-                  const isGoogle = isGoogleMeetLink(link)
-                  const isInternal = isInternalVisioLink(link)
+                  const rawLink = appointment.meeting_link
+                  const isGoogle = isGoogleMeetLink(rawLink)
+                  const isInternal = isInternalVisioLink(rawLink)
+                  // Notre lien : pré-rempli avec le nom du closer (sinon "Admissions")
+                  const myName = appointment.users?.name || 'Admissions Diploma'
+                  const link = isInternal ? personalizeVisioUrl(rawLink, firstNameOf(myName)) : rawLink
+                  // Lien élève : pré-rempli avec le prénom du prospect
+                  const studentLink = isInternal
+                    ? personalizeVisioUrl(rawLink, firstNameOf(appointment.prospect_name))
+                    : rawLink
                   return (
-                    <button
-                      type="button"
-                      onClick={() => openVisioLink(link, () => setShowJitsi(true))}
-                      style={{
-                        background: isGoogle
-                          ? 'rgba(26,115,232,0.12)'
-                          : 'rgba(204,172,113,0.12)',
-                        border: isGoogle
-                          ? '1px solid rgba(26,115,232,0.35)'
-                          : '1px solid rgba(204,172,113,0.3)',
-                        borderRadius: 6,
-                        padding: '2px 10px',
-                        color: isGoogle ? '#1a73e8' : '#C9A84C',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      <Video size={11} />
-                      {isGoogle
-                        ? 'Rejoindre Google Meet'
-                        : isInternal
-                          ? 'Rejoindre la visio'
-                          : 'Rejoindre (IA activée)'}
-                      {(isGoogle || isInternal) && <ExternalLink size={10} />}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openVisioLink(link, () => setShowJitsi(true))}
+                        style={{
+                          background: isGoogle
+                            ? 'rgba(26,115,232,0.12)'
+                            : 'rgba(204,172,113,0.12)',
+                          border: isGoogle
+                            ? '1px solid rgba(26,115,232,0.35)'
+                            : '1px solid rgba(204,172,113,0.3)',
+                          borderRadius: 6,
+                          padding: '2px 10px',
+                          color: isGoogle ? '#1a73e8' : '#C9A84C',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <Video size={11} />
+                        {isGoogle
+                          ? 'Rejoindre Google Meet'
+                          : isInternal
+                            ? 'Rejoindre la visio'
+                            : 'Rejoindre (IA activée)'}
+                        {(isGoogle || isInternal) && <ExternalLink size={10} />}
+                      </button>
+                      {isInternal && (
+                        <button
+                          type="button"
+                          title="Copier le lien à envoyer à l'élève (son prénom se remplit automatiquement)"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(studentLink)
+                              setStudentLinkCopied(true)
+                              setTimeout(() => setStudentLinkCopied(false), 2000)
+                            } catch { /* clipboard indisponible */ }
+                          }}
+                          style={{
+                            background: studentLinkCopied ? 'rgba(16,185,129,0.12)' : 'rgba(15,23,42,0.06)',
+                            border: studentLinkCopied ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(15,23,42,0.15)',
+                            borderRadius: 6,
+                            padding: '2px 10px',
+                            color: studentLinkCopied ? '#0e8a5f' : '#475569',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {studentLinkCopied ? '✓ Lien élève copié' : '📋 Copier le lien élève'}
+                        </button>
+                      )}
+                    </>
                   )
                 })()}
               </div>

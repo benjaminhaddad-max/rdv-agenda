@@ -14,6 +14,7 @@
 
 import { sendBrevoEmail } from '@/lib/brevo'
 import { buildConfirmUrl } from '@/lib/confirm-link'
+import { personalizeVisioUrl } from '@/lib/visio-url'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -182,19 +183,20 @@ export async function sendBookingConfirmationEmail(
 ): Promise<ReminderResult> {
   const meetingLabel = getMeetingLabel(meetingType, meetingLink)
   const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
+  const studentLink = personalizeVisioUrl(meetingLink, firstName)
   const visioBlock = (meetingType === 'visio' && meetingLink) ? `
     ${sectionTitle('LIEN DE VISIO')}
     <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
       <tr>
         <td style="background:#12314d;border-radius:6px">
-          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
             Rejoindre la visioconférence&nbsp;&nbsp;→
           </a>
         </td>
       </tr>
     </table>
     <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
-      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
     </p>
   ` : ''
 
@@ -415,19 +417,20 @@ export async function sendMorningEmail(
   ` : ''
 
   // Bloc visio (lien de connexion) — uniquement si visio + lien dispo
+  const studentLink = personalizeVisioUrl(meetingLink, firstName)
   const visioBlock = (meetingType === 'visio' && meetingLink) ? `
     ${sectionTitle('REJOINDRE LA VISIO')}
     <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
       <tr>
         <td style="background:#12314d;border-radius:6px">
-          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
             Rejoindre la visioconférence&nbsp;&nbsp;→
           </a>
         </td>
       </tr>
     </table>
     <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
-      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
     </p>
   ` : ''
 
@@ -489,6 +492,7 @@ export async function sendVisio1hEmail(
   meetingLink: string,
   apptId: string,
 ): Promise<ReminderResult> {
+  const studentLink = personalizeVisioUrl(meetingLink, firstName)
   const content = `
     <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
     <p style="margin:0 0 14px">
@@ -502,14 +506,14 @@ export async function sendVisio1hEmail(
     <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
       <tr>
         <td style="background:#12314d;border-radius:6px">
-          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
             Rejoindre la visioconférence&nbsp;&nbsp;→
           </a>
         </td>
       </tr>
     </table>
     <p style="margin:0 0 10px;font-size:16px;color:#5b6b7a;line-height:1.6">
-      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
     </p>
 
     ${sectionTitle('AVANT DE VOUS CONNECTER')}
@@ -539,6 +543,7 @@ export async function sendVisio5minEmail(
   meetingLink: string,
   apptId: string,
 ): Promise<ReminderResult> {
+  const studentLink = personalizeVisioUrl(meetingLink, firstName)
   const content = `
     <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
     <p style="margin:0 0 14px">
@@ -552,14 +557,14 @@ export async function sendVisio5minEmail(
     <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
       <tr>
         <td style="background:#12314d;border-radius:6px">
-          <a href="${meetingLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
             Rejoindre la visioconférence&nbsp;&nbsp;→
           </a>
         </td>
       </tr>
     </table>
     <p style="margin:0 0 10px;font-size:16px;color:#5b6b7a;line-height:1.6">
-      Lien direct&nbsp;: <a href="${meetingLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${meetingLink}</a>
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
     </p>
 
     <p style="margin:0 0 6px">
