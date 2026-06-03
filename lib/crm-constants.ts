@@ -152,11 +152,15 @@ export const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
   { key: 'is_not_empty', label: "n'est pas vide" },
 ]
 
-// Verdict Parcoursup : seuls les opérateurs d'inclusion sont supportés côté API
-// (résolution par liste de statuts), pas d'exclusion/empty dédiés.
+// Verdict Parcoursup : résolution par liste de statuts côté API.
+//  - is / is_any  → filtre sur un ou plusieurs statuts précis
+//  - is_not_empty → "est connu" : tous ceux qui ont un verdict (quel qu'il soit)
+//  - is_empty     → "est inconnu" : ceux sans verdict
 export const PARCOURSUP_VERDICT_OPS: { key: CRMFilterOp; label: string }[] = [
-  { key: 'is',     label: 'est' },
-  { key: 'is_any', label: 'est parmi' },
+  { key: 'is',           label: 'est' },
+  { key: 'is_any',       label: 'est parmi' },
+  { key: 'is_not_empty', label: 'est connu' },
+  { key: 'is_empty',     label: 'est inconnu' },
 ]
 
 export const TEXT_OPS: { key: CRMFilterOp; label: string }[] = [

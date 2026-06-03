@@ -1086,7 +1086,7 @@ export default function CRMPage() {
       if (requestSeq === contactsFetchSeqRef.current) setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, formEvent, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, formEventNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
+  }, [debouncedSearch, stage, closerHsId, closerContactHsId, closerContactNot, contactOwnerHsId, teleproHsId, noTelepro, ownerExclude, recentFormMonths, recentFormDays, createdBeforeDays, showExternal, allClasses, leadStatus, source, formEvent, parcoursupVerdict, zoneFilter, deptFilter, stageNot, leadStatusNot, sourceNot, formEventNot, zoneNot, deptNot, closerNot, contactOwnerNot, teleproNot, formationNot, pipeline, pipelineNot, priorPreinscription, emptyFields, notEmptyFields, formation, classe, period, sortBy, sortDir, limit, page, extraColumns, customFilterParam, activeViewId, crmViews])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -1206,6 +1206,15 @@ export default function CRMPage() {
           customFilters.push({ field: 'recent_conversion_event', operator: rule.operator, value: val })
           continue
         }
+        // Verdict Parcoursup : résolu côté API par liste de statuts.
+        // "est connu" (is_not_empty) → token '__any__' (tout verdict présent),
+        // "est inconnu" (is_empty)   → 'aucun' (pas de verdict).
+        if (ruleField === 'parcoursup_verdict') {
+          if (rule.operator === 'is_not_empty')  { setParcoursupVerdict('__any__'); continue }
+          if (rule.operator === 'is_empty')      { setParcoursupVerdict('aucun'); continue }
+          setParcoursupVerdict(val)
+          continue
+        }
         // Positive filters: is, is_any, contains
         if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
           switch (ruleField) {
@@ -1218,7 +1227,6 @@ export default function CRMPage() {
             case 'telepro':       setTeleproHsId(val); break
             case 'lead_status': setLeadStatus(val); break
             case 'source':      setSource(val); break
-            case 'parcoursup_verdict': setParcoursupVerdict(val); break
             case 'period':      setPeriod(val); break
             case 'search':      setSearch(val); break
             case 'zone':        setZoneFilter(val); break

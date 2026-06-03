@@ -70,6 +70,15 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         continue
       }
 
+      // Verdict Parcoursup : résolu côté API par liste de statuts.
+      // "est connu" (is_not_empty) → '__any__', "est inconnu" (is_empty) → 'aucun'.
+      if (rule.field === 'parcoursup_verdict') {
+        if (rule.operator === 'is_not_empty')  { p.set('parcoursup_verdict', '__any__'); continue }
+        if (rule.operator === 'is_empty')      { p.set('parcoursup_verdict', 'aucun'); continue }
+        p.set('parcoursup_verdict', val)
+        continue
+      }
+
       if (rule.operator === 'is' || rule.operator === 'is_any' || rule.operator === 'contains') {
         switch (rule.field) {
           case 'stage':       p.set('stage', val); break
@@ -86,7 +95,6 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'prior_preinscription': if (val === '1') p.set('prior_preinscription', '1'); break
           case 'classe':      p.set('classe', val); break
           case 'period':      p.set('period', val); break
-          case 'parcoursup_verdict': p.set('parcoursup_verdict', val); break
         }
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {

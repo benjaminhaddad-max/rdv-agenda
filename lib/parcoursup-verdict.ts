@@ -68,6 +68,8 @@ export async function fetchContactIdsByParcoursupVerdict(
   const wanted = new Set(statuses.map(s => s.trim().toLowerCase()).filter(Boolean))
   if (wanted.size === 0) return []
   const wantsNoVerdict = wanted.has('aucun')
+  // '__any__' (ou 'any') = "est connu" : n'importe quel verdict présent.
+  const wantsAny = wanted.has('__any__') || wanted.has('any')
 
   const out = new Set<string>()
   const PAGE = 1000
@@ -92,7 +94,7 @@ export async function fetchContactIdsByParcoursupVerdict(
       const source = (override ?? raw) || null
       const verdict = source ? (source.verdict as Record<string, unknown> | undefined) : undefined
       const status = typeof verdict?.status === 'string' ? verdict.status.toLowerCase() : ''
-      if (status && wanted.has(status)) out.add(cid)
+      if (status && (wantsAny || wanted.has(status))) out.add(cid)
       else if (!status && wantsNoVerdict) out.add(cid)
     }
     if (rows.length < PAGE) break
