@@ -602,19 +602,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
 
       {/* Canvas : le formulaire en édition */}
       <div>
-        {form.form_type === 'booking' && (
-          <BookingWizardHint
-            slug={form.slug}
-            published={form.status === 'published'}
-          />
-        )}
         <div style={{ background: form.bg_color, border: '1px solid #e5ddc8', borderRadius: 12, padding: 32, minHeight: 400 }}>
-          {form.form_type === 'booking' && (
-            <div style={{ marginBottom: 18, fontSize: 11, color: '#06b6d4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#06b6d4', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>3</span>
-              Étape 3 — Coordonnées (les champs ci-dessous apparaîtront après le choix du créneau)
-            </div>
-          )}
           {form.title && <h2 style={{ color: form.text_color, margin: '0 0 8px', fontSize: 22 }}>{form.title}</h2>}
           {form.subtitle && <p style={{ color: form.text_color, opacity: 0.7, margin: '0 0 24px', fontSize: 14 }}>{form.subtitle}</p>}
 
@@ -1521,112 +1509,6 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
     <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
       <Icon size={14} /> {label}
     </button>
-  )
-}
-
-// ─── Bandeau "Wizard 4 étapes" affiché en haut du builder pour les forms booking ─
-// L'admin voit dans la canvas uniquement les champs de l'étape 3. Ce bandeau
-// rend visible que les étapes 1 (date) et 2 (heure) sont automatiques.
-function BookingWizardHint({ slug, published }: { slug: string; published: boolean }) {
-  const steps = [
-    { n: 1, label: 'Date',        desc: 'Calendrier mensuel auto (dispos Pascal)', auto: true,  active: false },
-    { n: 2, label: 'Heure',       desc: 'Créneaux du jour sélectionné',           auto: true,  active: false },
-    { n: 3, label: 'Coordonnées', desc: 'Champs édités dans cet onglet',         auto: false, active: true  },
-    { n: 4, label: 'Confirmation',desc: 'Récap + lien visio si visio',           auto: true,  active: false },
-  ]
-  return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(6,182,212,0.02))',
-      border: '1px solid rgba(6,182,212,0.25)',
-      borderRadius: 12,
-      padding: '14px 16px',
-      marginBottom: 16,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Calendar size={14} style={{ color: '#06b6d4' }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35' }}>Wizard de prise de rendez-vous — 4 étapes</span>
-        </div>
-        {published ? (
-          <a
-            href={`/forms/${slug}`}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              fontSize: 11, fontWeight: 600, color: '#06b6d4',
-              textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(6,182,212,0.35)',
-              background: '#ffffff',
-            }}
-          >
-            <ExternalLink size={11} /> Voir l&apos;aperçu public
-          </a>
-        ) : (
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>Publie pour voir l&apos;aperçu</span>
-        )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {steps.map(s => (
-          <div
-            key={s.n}
-            style={{
-              background: s.active ? '#06b6d4' : '#ffffff',
-              border: `1px solid ${s.active ? '#06b6d4' : 'rgba(6,182,212,0.25)'}`,
-              borderRadius: 10,
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: s.active ? '#ffffff' : '#06b6d4',
-                color: s.active ? '#06b6d4' : '#ffffff',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 800,
-              }}>{s.n}</span>
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: s.active ? '#ffffff' : '#0e1e35',
-              }}>{s.label}</span>
-              {s.auto && (
-                <span style={{
-                  fontSize: 9, fontWeight: 700,
-                  color: s.active ? 'rgba(255,255,255,0.85)' : '#94a3b8',
-                  background: s.active ? 'rgba(255,255,255,0.18)' : '#f1f5f9',
-                  padding: '1px 6px', borderRadius: 999, marginLeft: 'auto',
-                  textTransform: 'uppercase', letterSpacing: 0.3,
-                }}>Auto</span>
-              )}
-              {!s.auto && (
-                <span style={{
-                  fontSize: 9, fontWeight: 700, color: '#ffffff',
-                  background: 'rgba(255,255,255,0.25)',
-                  padding: '1px 6px', borderRadius: 999, marginLeft: 'auto',
-                  textTransform: 'uppercase', letterSpacing: 0.3,
-                }}>Éditable ici</span>
-              )}
-            </div>
-            <div style={{
-              fontSize: 10, lineHeight: 1.4,
-              color: s.active ? 'rgba(255,255,255,0.85)' : '#64748b',
-            }}>
-              {s.desc}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
-        Les étapes <strong>1</strong>, <strong>2</strong> et <strong>4</strong> sont automatiques. Tu pilotes leur comportement (durée, horizon, formats, responsable…) depuis l&apos;onglet <strong>Réglages → Prise de rendez-vous</strong>. Cet onglet sert uniquement à éditer les questions posées au prospect une fois son créneau choisi.
-      </div>
-    </div>
   )
 }
 
