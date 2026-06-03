@@ -389,6 +389,43 @@ export async function POST(req: Request, { params }: Params) {
         logger.error('forms-submit-create-contact', cErr, { form_id: form.id, email: data.email })
       }
     }
+
+    // ── Garde-fou anti "fiche fantôme" ─────────────────────────────────────
+    // Incident constaté (03/06/2026) : une fiche créée par ce endpoint s'est
+    // retrouvée avec email/nom/téléphone à NULL alors que l'INSERT contenait
+    // bien ces valeurs (search_vector + zone calculés le prouvaient). Cause
+    // racine indéterminée (trigger / écriture concurrente). On relit donc la
+    // fiche et, si un champ d'identité qu'on voulait écrire est absent, on le
+    // ré-applique immédiatement + on loggue une alerte pour investigation.
+    if (contactId) {
+      const { data: persisted } = await db
+        .from('crm_contacts')
+        .select('email, phone, firstname, lastname, classe_actuelle, departement')
+        .eq('hubspot_contact_id', contactId)
+        .maybeSingle()
+      const fieldLost = (col: string) => {
+        const intended = contactData[col]
+        return (
+          intended !== undefined &&
+          intended !== null &&
+          String(intended).trim() !== '' &&
+          (!persisted || persisted[col as keyof typeof persisted] == null)
+        )
+      }
+      const lostCols = ['email', 'phone', 'firstname', 'lastname', 'classe_actuelle', 'departement'].filter(fieldLost)
+      if (lostCols.length > 0) {
+        const repair: Record<string, unknown> = { synced_at: new Date().toISOString() }
+        for (const [k, v] of Object.entries(contactData)) {
+          if (v !== undefined && v !== null && String(v).trim() !== '') repair[k] = v
+        }
+        await db.from('crm_contacts').update(repair).eq('hubspot_contact_id', contactId)
+        logger.error(
+          'forms-submit-contact-fields-lost',
+          new Error('Champs identité absents après écriture contact — réparé automatiquement'),
+          { form_id: form.id, contact_id: contactId, email: contactData.email, lost: lostCols.join(',') },
+        )
+      }
+    }
   }
 
   // 6. Enregistre la soumission
