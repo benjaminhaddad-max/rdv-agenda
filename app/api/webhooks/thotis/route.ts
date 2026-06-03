@@ -325,23 +325,40 @@ export async function POST(req: NextRequest) {
     existing = data
   }
 
-  // ── Construit le hubspot_raw enrichi avec le payload Thotis brut ───────
-  const currentRaw = (existing?.hubspot_raw as Record<string, unknown> | null) ?? {}
-  const updatedRaw = {
-    ...currentRaw,
-    thotis_received_at:    nowIso,
-    thotis_type_de_lead:   typeLead || null,
-    thotis_pays:           pays,
-    thotis_niveau:         niveauRaw,
-    thotis_payload:        body,
-  }
-
   const eventName = conversionEvent ?? typeLead ?? 'Thotis'
   const conversionMeta = buildConversionFieldsForSubmission(
     conversionDate,
     eventName,
     existing,
   )
+
+  // ── hubspot_raw = SOURCE DE VÉRITÉ ─────────────────────────────────────
+  // Un trigger DB recalcule les colonnes natives (email, phone, firstname,
+  // classe_actuelle, departement, origine, …) À PARTIR des clés top-level de
+  // hubspot_raw. Si on n'écrit ces champs QUE dans les colonnes, le trigger
+  // les remet à NULL (→ fiches vides + dédoublonnage cassé). On doit donc les
+  // poser au top-level de hubspot_raw. Sur update, ...currentRaw préserve
+  // l'existant et on n'écrase qu'avec des valeurs non vides.
+  const currentRaw = (existing?.hubspot_raw as Record<string, unknown> | null) ?? {}
+  const updatedRaw: Record<string, unknown> = {
+    ...currentRaw,
+    ...(email       ? { email } : {}),
+    ...(firstname   ? { firstname } : {}),
+    ...(lastname    ? { lastname } : {}),
+    ...(phone       ? { phone } : {}),
+    ...(niveauMapped ? { classe_actuelle: niveauMapped } : {}),
+    ...(departement ? { departement } : {}),
+    ...(isParent    ? { parent__tudiant: 'Parent' } : {}),
+    ...(existing    ? {} : { hs_lead_status: 'Nouveau' }),
+    origine,
+    source:                'Thotis',
+    ...conversionMeta,
+    thotis_received_at:    nowIso,
+    thotis_type_de_lead:   typeLead || null,
+    thotis_pays:           pays,
+    thotis_niveau:         niveauRaw,
+    thotis_payload:        body,
+  }
 
   // ── Construction du payload contact (champs natifs CRM) ────────────────
   const contactData: Record<string, unknown> = {
