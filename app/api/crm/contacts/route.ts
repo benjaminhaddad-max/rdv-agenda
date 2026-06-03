@@ -1043,9 +1043,20 @@ export async function GET(req: NextRequest) {
     if (contactOwnerHsId) pushIn('hubspot_owner_id', contactOwnerHsId)
     if (closerContactHsId) pushIn('closer_du_contact_owner_id', closerContactHsId)
     if (leadStatus) pushIn('hs_lead_status', leadStatus)
+    // Vue « Verdict Parcoursup » (v_1780482237883) : le filtre « est connu » matérialise
+    // des dizaines d'IDs. pushIn() génère un OR par ID et dépasse la limite Typesense
+    // (filter-by-max-ops), ce qui vide la liste alors que le compteur (force_sql) est bon.
     if (parcoursupVerdictContactIds !== null) {
       if (parcoursupVerdictContactIds.length === 0) {
         filterParts.push('hubspot_contact_id:=__none__')
+      } else if (viewIdParam === 'v_1780482237883') {
+        const BATCH = 1000
+        const orParts: string[] = []
+        for (let i = 0; i < parcoursupVerdictContactIds.length; i += BATCH) {
+          const batch = parcoursupVerdictContactIds.slice(i, i + BATCH)
+          orParts.push(`hubspot_contact_id:=[${batch.map(escapeBack).join(',')}]`)
+        }
+        filterParts.push(orParts.length === 1 ? orParts[0] : `(${orParts.join(' || ')})`)
       } else {
         pushIn('hubspot_contact_id', parcoursupVerdictContactIds.join(','))
       }
