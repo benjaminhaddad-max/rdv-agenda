@@ -64,6 +64,23 @@ const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; co
   presentiel:  { icon: MapPin,    label: 'Présentiel',  color: '#C9A84C' },
 }
 
+function isGoogleMeetLink(link: string | null | undefined): boolean {
+  return /meet\.google\.com/i.test(link || '')
+}
+
+function isInternalVisioLink(link: string | null | undefined): boolean {
+  return /\/visio\//i.test(link || '')
+}
+
+/** Ouvre le bon outil visio selon le type de lien (Meet externe vs visio interne vs Jitsi legacy). */
+function openVisioLink(link: string, onJitsi: () => void): void {
+  if (isGoogleMeetLink(link) || isInternalVisioLink(link)) {
+    window.open(link, '_blank', 'noopener,noreferrer')
+    return
+  }
+  onJitsi()
+}
+
 export default function AppointmentModal({
   appointment,
   onClose,
@@ -393,20 +410,43 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0 }} />
                 <span style={{ color: meetingInfo.color, fontWeight: 600 }}>{meetingInfo.label}</span>
-                {appointment.meeting_type === 'visio' && appointment.meeting_link && (
-                  <button
-                    onClick={() => setShowJitsi(true)}
-                    style={{
-                      background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-                      borderRadius: 6, padding: '2px 10px',
-                      color: '#C9A84C', fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <Video size={11} /> Rejoindre (IA activée)
-                  </button>
-                )}
+                {appointment.meeting_type === 'visio' && appointment.meeting_link && (() => {
+                  const link = appointment.meeting_link
+                  const isGoogle = isGoogleMeetLink(link)
+                  const isInternal = isInternalVisioLink(link)
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => openVisioLink(link, () => setShowJitsi(true))}
+                      style={{
+                        background: isGoogle
+                          ? 'rgba(26,115,232,0.12)'
+                          : 'rgba(204,172,113,0.12)',
+                        border: isGoogle
+                          ? '1px solid rgba(26,115,232,0.35)'
+                          : '1px solid rgba(204,172,113,0.3)',
+                        borderRadius: 6,
+                        padding: '2px 10px',
+                        color: isGoogle ? '#1a73e8' : '#C9A84C',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <Video size={11} />
+                      {isGoogle
+                        ? 'Rejoindre Google Meet'
+                        : isInternal
+                          ? 'Rejoindre la visio'
+                          : 'Rejoindre (IA activée)'}
+                      {(isGoogle || isInternal) && <ExternalLink size={10} />}
+                    </button>
+                  )
+                })()}
               </div>
             )}
             {appointment.classe_actuelle && (
