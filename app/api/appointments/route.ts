@@ -4,8 +4,7 @@ import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms, buildBookingSms } from '@/lib/smsfactor'
 import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { formatParis } from '@/lib/date-paris'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -295,7 +294,7 @@ export async function POST(req: NextRequest) {
   if (prospect_phone) {
     try {
       const startDate = new Date(start_at as string)
-      const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
+      const dateStr = formatParis(startDate)
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
       const message = buildBookingSms(firstName, dateStr, meeting_type || null, meeting_link || null)
       const smsResult = await sendSms(prospect_phone, message)
@@ -316,7 +315,7 @@ export async function POST(req: NextRequest) {
   if (prospect_email) {
     try {
       const startDate = new Date(start_at as string)
-      const dateStr = format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })
+      const dateStr = formatParis(startDate)
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
       const emailResult = await sendBookingConfirmationEmail(
         { prospectEmail: prospect_email, emailParent: email_parent || null },
