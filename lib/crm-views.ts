@@ -86,6 +86,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'prior_preinscription': if (val === '1') p.set('prior_preinscription', '1'); break
           case 'classe':      p.set('classe', val); break
           case 'period':      p.set('period', val); break
+          case 'parcoursup_verdict': p.set('parcoursup_verdict', val); break
         }
       }
       if (rule.operator === 'is_not' || rule.operator === 'is_none') {

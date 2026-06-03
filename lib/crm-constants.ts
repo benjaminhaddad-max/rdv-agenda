@@ -88,7 +88,7 @@ export const LEAD_STATUS_OPTIONS_FALLBACK: SelectOption[] = [
 export type CRMFilterField =
   | 'stage' | 'formation' | 'classe' | 'closer_contact' | 'closer' | 'contact_owner' | 'telepro'
   | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
-  | 'pipeline' | 'prior_preinscription' | 'form_event'
+  | 'pipeline' | 'prior_preinscription' | 'form_event' | 'parcoursup_verdict'
 
 export type CRMFilterOp =
   | 'is' | 'is_not' | 'is_any' | 'is_none'
@@ -112,6 +112,18 @@ export interface CRMFilterGroup {
   rules: CRMFilterRule[]
 }
 
+// Verdict Parcoursup (saison 2026-2027). Source : crm_pre_inscriptions
+// (external_data.parcoursup.verdict) + override CRM, calculé côté serveur —
+// ce n'est PAS une propriété HubSpot, d'où l'option hardcodée ici.
+export const PARCOURSUP_VERDICT_FILTER_OPTIONS: SelectOption[] = [
+  { id: 'ok_valide',  label: 'OK VALIDÉ' },
+  { id: 'ok_attente', label: 'OK EN ATTENTE' },
+  { id: 'good',       label: 'GOOD EN PRINCIPE' },
+  { id: 'attention',  label: 'ATTENTION JUSTE' },
+  { id: 'bascule',    label: 'BASCULE COMPLÈTE PAES' },
+  { id: 'aucun',      label: 'Sans verdict' },
+]
+
 export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
   { key: 'stage',              label: 'Étape de transaction',          type: 'select' },
   { key: 'formation',          label: 'Formation souhaitée',           type: 'select' },
@@ -127,6 +139,7 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'pipeline',           label: 'Pipeline (Année)',              type: 'select' },
   { key: 'prior_preinscription', label: 'Pré-inscrits années préc.', type: 'select' },
   { key: 'form_event',         label: 'Soumission de formulaire',      type: 'select' },
+  { key: 'parcoursup_verdict', label: 'Verdict Parcoursup',            type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
@@ -137,6 +150,13 @@ export const SELECT_OPS: { key: CRMFilterOp; label: string }[] = [
   { key: 'is_none',      label: "n'est aucun de" },
   { key: 'is_empty',     label: 'est vide' },
   { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+// Verdict Parcoursup : seuls les opérateurs d'inclusion sont supportés côté API
+// (résolution par liste de statuts), pas d'exclusion/empty dédiés.
+export const PARCOURSUP_VERDICT_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'is',     label: 'est' },
+  { key: 'is_any', label: 'est parmi' },
 ]
 
 export const TEXT_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -203,6 +223,7 @@ export function opsForKind(kind: PropertyKind) {
 }
 
 export function opsForField(field: CRMFilterField) {
+  if (field === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === field)
   return f?.type === 'select' ? SELECT_OPS : TEXT_OPS
 }

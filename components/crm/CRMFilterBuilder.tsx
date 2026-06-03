@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Copy, X } from 'lucide-react'
 import {
   CRM_FILTER_FIELDS, STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
-  CURRENT_PIPELINE_ID, LEAD_STATUS_OPTIONS_FALLBACK,
+  CURRENT_PIPELINE_ID, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type CRMFilterField, type CRMFilterOp, type CRMFilterGroup,
   type SelectOption,
@@ -267,6 +267,7 @@ export default function CRMFilterBuilder({
                   case 'departement': valueOptions = deptOptions; break
                   case 'period':      valueOptions = PERIOD_OPTIONS.filter(o => o.id); break
                   case 'pipeline':    valueOptions = pipelineOptions; break
+                  case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                   case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                 }
               }

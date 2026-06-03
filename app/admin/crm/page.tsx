@@ -16,7 +16,7 @@ const RepopJournal = dynamic(() => import('@/components/RepopJournal'), { ssr: f
 import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
-  CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK,
+  CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type SelectOption,
   type CRMFilterField, type CRMFilterOp, type CRMFilterRule, type CRMFilterGroup,
@@ -170,6 +170,7 @@ export default function CRMPage() {
   const [leadStatus, setLeadStatus]   = useState('')
   const [source, setSource]           = useState('')
   const [formEvent, setFormEvent]     = useState('')
+  const [parcoursupVerdict, setParcoursupVerdict] = useState('')
   const [zoneFilter, setZoneFilter]   = useState('')
   const [deptFilter, setDeptFilter]   = useState('')
 
@@ -724,6 +725,7 @@ export default function CRMPage() {
       leadStatus,
       source,
       formEvent,
+      parcoursupVerdict,
       zoneFilter,
       deptFilter,
       stageNot,
@@ -780,6 +782,7 @@ export default function CRMPage() {
       !leadStatus &&
       !source &&
       !formEvent &&
+      !parcoursupVerdict &&
       !zoneFilter &&
       !deptFilter &&
       !stageNot &&
@@ -836,6 +839,7 @@ export default function CRMPage() {
     if (leadStatus)           params.set('lead_status', leadStatus)
     if (source)               params.set('source', source)
     if (formEvent)            params.set('form_event', formEvent)
+    if (parcoursupVerdict)    params.set('parcoursup_verdict', parcoursupVerdict)
     if (zoneFilter)           params.set('zone', zoneFilter)
     if (deptFilter)           params.set('departement', deptFilter)
 
@@ -1153,6 +1157,7 @@ export default function CRMPage() {
     // Reset all positive filters
     setSearch(''); setStage(''); setCloserHsId(''); setCloserContactHsId(''); setContactOwnerHsId(''); setTeleproHsId('')
     setFormation(''); setClasse(''); setPeriod(''); setLeadStatus(''); setSource(''); setFormEvent('')
+    setParcoursupVerdict('')
     setZoneFilter(''); setDeptFilter('')
     // Reset all exclusion filters
     setStageNot(''); setLeadStatusNot(''); setSourceNot(''); setFormEventNot(''); setZoneNot(''); setDeptNot('')
@@ -1213,6 +1218,7 @@ export default function CRMPage() {
             case 'telepro':       setTeleproHsId(val); break
             case 'lead_status': setLeadStatus(val); break
             case 'source':      setSource(val); break
+            case 'parcoursup_verdict': setParcoursupVerdict(val); break
             case 'period':      setPeriod(val); break
             case 'search':      setSearch(val); break
             case 'zone':        setZoneFilter(val); break
@@ -2397,6 +2403,7 @@ export default function CRMPage() {
                         case 'pipeline':    valueOptions = pipelineOptions; break
                         case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                         case 'form_event':  valueOptions = formEventOptions.filter(o => o.id); break
+                        case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                       }
                     }
 
