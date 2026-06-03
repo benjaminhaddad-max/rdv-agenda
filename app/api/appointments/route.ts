@@ -5,6 +5,7 @@ import { sendBrevoEmail } from '@/lib/brevo'
 import { sendSms, buildBookingSms } from '@/lib/smsfactor'
 import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
+import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -359,6 +360,69 @@ export async function POST(req: NextRequest) {
         .eq('hubspot_contact_id', hubspot_contact_id)
     } catch (e) {
       console.error('[appointments POST] Update CRM contact post-booking failed:', e)
+    }
+  }
+
+  // ── Créer la transaction (deal) dans le pipeline 2026-2027, stage "RDV pris" ──
+  // Règle métier: une prise de RDV par un télépro crée une transaction liée à la
+  // fiche contact (visible dans la fiche + le pipeline). Best-effort, idempotent
+  // (un seul deal par RDV grâce à hubspot_deal_id = "rdv_<appointment.id>").
+  if (hubspot_contact_id && source === 'telepro') {
+    try {
+      const dealId = `rdv_${appointment.id}`
+
+      // hubspot_user_id du télépro → attribution dans le kanban / filtres
+      let teleproHsUserId: string | null = null
+      if (telepro_id) {
+        const { data: tp } = await db
+          .from('rdv_users')
+          .select('hubspot_user_id')
+          .eq('id', telepro_id)
+          .maybeSingle()
+        teleproHsUserId = tp?.hubspot_user_id || null
+      }
+
+      const dealName = formatDealName({
+        prospectName: prospect_name,
+        classeActuelle: classe_actuelle,
+        formationType: formation_type,
+      }) || prospect_name
+
+      const nowIso = new Date().toISOString()
+
+      const { error: dealErr } = await db
+        .from('crm_deals')
+        .upsert(
+          {
+            hubspot_deal_id: dealId,
+            hubspot_contact_id,
+            dealname: dealName,
+            dealstage: STAGES.rdvPris,
+            pipeline: PIPELINE_2026_2027,
+            hubspot_owner_id: assignedOwnerId || null,
+            teleprospecteur: teleproHsUserId,
+            formation: formation_type || null,
+            closedate: start_at,
+            createdate: nowIso,
+            description: `RDV ${meeting_type || ''} placé par télépro`.trim(),
+            supabase_appt_id: appointment.id,
+            synced_at: nowIso,
+          },
+          { onConflict: 'hubspot_deal_id' },
+        )
+
+      if (dealErr) {
+        console.error('[appointments POST] Création deal RDV pris failed:', dealErr)
+      } else {
+        // Lien inverse : le RDV pointe vers sa transaction
+        await db
+          .from('rdv_appointments')
+          .update({ hubspot_deal_id: dealId })
+          .eq('id', appointment.id)
+        appointment.hubspot_deal_id = dealId
+      }
+    } catch (e) {
+      console.error('[appointments POST] Création deal RDV pris exception:', e)
     }
   }
 
