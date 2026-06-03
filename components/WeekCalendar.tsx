@@ -87,6 +87,23 @@ function getNiveau(classe: string | null | undefined, name: string): string {
   return m ? m[1].trim() : ''
 }
 
+/**
+ * Distingue un lien Google Meet (externe, importé) d'un lien visio interne (/visio/).
+ * Retourne le libellé court, le libellé complet et la couleur du badge.
+ */
+function getVisioBadge(link: string | null | undefined): {
+  isGoogle: boolean
+  shortLabel: string
+  fullLabel: string
+  color: string
+} {
+  const url = (link || '').trim()
+  const isGoogle = /meet\.google\.com/i.test(url)
+  return isGoogle
+    ? { isGoogle: true, shortLabel: 'Meet', fullLabel: 'Rejoindre Google Meet', color: '#1a73e8' }
+    : { isGoogle: false, shortLabel: 'Visio', fullLabel: 'Rejoindre la visio', color: '#0e8a5f' }
+}
+
 type DayLayout<T extends { id: string; start_at: string; end_at: string }> = {
   slots: Map<string, { col: number; cols: number }>
   overflow: Array<{ key: string; start_at: string; end_at: string; appts: T[] }>
@@ -711,32 +728,35 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                             {niveau}
                           </div>
                         )}
-                        {appt.meeting_type === 'visio' && appt.meeting_link && (
-                          <a
-                            href={appt.meeting_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            title={`Rejoindre la visio — ${appt.meeting_link}`}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              marginTop: 2,
-                              padding: '1px 5px',
-                              borderRadius: 4,
-                              background: '#1a73e8',
-                              color: '#fff',
-                              fontSize: 8,
-                              fontWeight: 700,
-                              textDecoration: 'none',
-                              lineHeight: 1.4,
-                              maxWidth: '100%',
-                            }}
-                          >
-                            🎥 Meet
-                          </a>
-                        )}
+                        {appt.meeting_type === 'visio' && appt.meeting_link && (() => {
+                          const badge = getVisioBadge(appt.meeting_link)
+                          return (
+                            <a
+                              href={appt.meeting_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              title={`${badge.fullLabel} — ${appt.meeting_link}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                marginTop: 2,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: badge.color,
+                                color: '#fff',
+                                fontSize: 8,
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                lineHeight: 1.4,
+                                maxWidth: '100%',
+                              }}
+                            >
+                              {badge.isGoogle ? '🎥 Meet' : '🎥 Visio'}
+                            </a>
+                          )
+                        })()}
                       </div>
                     )
                   })}
@@ -947,29 +967,46 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                         <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{meta}</div>
                       ) : null
                     })()}
-                    {appt.meeting_type === 'visio' && appt.meeting_link && (
-                      <a
-                        href={appt.meeting_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          marginTop: 6,
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          background: '#1a73e8',
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        🎥 Rejoindre Google Meet
-                      </a>
-                    )}
+                    {appt.meeting_type === 'visio' && appt.meeting_link && (() => {
+                      const badge = getVisioBadge(appt.meeting_link)
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                          <a
+                            href={appt.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              background: badge.color,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                            }}
+                          >
+                            🎥 {badge.fullLabel}
+                          </a>
+                          {badge.isGoogle && (
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: '#1a73e8',
+                              background: 'rgba(26,115,232,0.1)',
+                              border: '1px solid rgba(26,115,232,0.3)',
+                              borderRadius: 4,
+                              padding: '2px 6px',
+                            }}>
+                              Lien Google externe
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 ))}
             </div>
