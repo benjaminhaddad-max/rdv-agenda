@@ -70,13 +70,21 @@ function durationToPercent(startStr: string, endStr: string, refDate: Date): num
 
 const MAX_SIDE_COLS = 2
 
+const NIVEAU_PREFIX_RE = /^(Terminale|Première|Premiere|Etudes Sup\.?|PASS|LAS|Seconde|Reorientation|Réorientation)\s*[-–]\s*(.+)$/i
+
 /** Retire le préfixe Calendly (« Terminale - … ») pour gagner de la place. */
 function shortProspectName(name: string): string {
   const n = name.trim()
-  const m = n.match(
-    /^(?:Terminale|Première|Premiere|Etudes Sup\.?|PASS|LAS|Seconde)\s*[-–]\s*(.+)$/i,
-  )
-  return m ? m[1].trim() : n
+  const m = n.match(NIVEAU_PREFIX_RE)
+  return m ? m[2].trim() : n
+}
+
+/** Niveau d'études : champ classe_actuelle en priorité, sinon préfixe du nom. */
+function getNiveau(classe: string | null | undefined, name: string): string {
+  const c = (classe || '').trim()
+  if (c) return c
+  const m = name.trim().match(NIVEAU_PREFIX_RE)
+  return m ? m[1].trim() : ''
 }
 
 type DayLayout<T extends { id: string; start_at: string; end_at: string }> = {
@@ -601,7 +609,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     const isConfirmed = appt.status === 'confirme_prospect'
                     const formation = (appt.formation_type || '').trim()
                     const displayName = shortProspectName(appt.prospect_name)
-                    const tooltip = `${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${formation ? ` — ${formation}` : ''}`
+                    const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
+                    const tooltip = `${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`
 
                     const lay = dayLayout.slots.get(appt.id) || { col: 0, cols: 1 }
                     const gap = 3
@@ -675,10 +684,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           fontSize: sideBySide ? 9 : 10,
                           fontWeight: 700,
                           color: isCancelled ? '#6b7280' : '#0e1e35',
-                          lineHeight: 1.25,
+                          lineHeight: 1.2,
                           overflow: 'hidden',
                           display: '-webkit-box',
-                          WebkitLineClamp: sideBySide ? 2 : 3,
+                          WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           paddingRight: isConfirmed ? 14 : 0,
                         }}>
@@ -688,6 +697,20 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                           {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
                           {displayName}
                         </div>
+                        {niveau && (
+                          <div style={{
+                            fontSize: sideBySide ? 8 : 9,
+                            fontWeight: 600,
+                            color: isCancelled ? '#9ca3af' : '#64748b',
+                            lineHeight: 1.2,
+                            marginTop: 1,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}>
+                            {niveau}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -884,9 +907,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', marginTop: 2 }}>
                       {shortProspectName(appt.prospect_name)}
                     </div>
-                    {appt.formation_type && (
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{appt.formation_type}</div>
-                    )}
+                    {(() => {
+                      const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
+                      const meta = [niveau, appt.formation_type?.trim()].filter(Boolean).join(' · ')
+                      return meta ? (
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{meta}</div>
+                      ) : null
+                    })()}
                   </button>
                 ))}
             </div>
