@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { TransactionDetail } from './TransactionDetailPanel'
 import { getStagesForPipeline, getStageMeta } from '@/lib/crm-stages'
+import { isDeletableStage, DELETE_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 import {
   parcoursupVerdictBadgeStyle,
   parcoursupVerdictDefaultLabel,
@@ -27,6 +28,7 @@ interface Props {
   columns: Record<string, TransactionDetail[]>
   onStageChange: (dealId: string, newStage: string) => void
   onBatchStageChange: (dealIds: string[], newStage: string) => void
+  onDeleteDeals: (dealIds: string[]) => void
   onSelectDeal: (deal: TransactionDetail) => void
   undoAction: UndoAction | null
   onUndo: () => void
@@ -463,7 +465,7 @@ function BoardColumn({
 // ── Main Board ───────────────────────────────────────────────────────────────
 
 export default function TransactionBoard({
-  columns, onStageChange, onBatchStageChange, onSelectDeal,
+  columns, onStageChange, onBatchStageChange, onDeleteDeals, onSelectDeal,
   undoAction, onUndo, pipelineId,
 }: Props) {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
@@ -589,6 +591,33 @@ export default function TransactionBoard({
     setSelectedDeals(new Set())
   }
 
+  function handleDeleteSelected() {
+    const dealIds = Array.from(selectedDeals)
+    if (dealIds.length === 0) return
+
+    // Garde-fou : interdire la suppression si une transaction selectionnee est
+    // dans un stage aval pilote par la plateforme de preinscription.
+    // (Le serveur refait la verification, c'est la source de verite.)
+    for (const sid of Object.keys(columns)) {
+      const protectedHere = !isDeletableStage(sid)
+      if (!protectedHere) continue
+      for (const d of columns[sid]) {
+        if (selectedDeals.has(d.hubspot_deal_id)) {
+          alert(DELETE_LOCK_MESSAGE)
+          return
+        }
+      }
+    }
+
+    const msg = dealIds.length === 1
+      ? 'Supprimer définitivement cette transaction ?\n\nCette action est irréversible.'
+      : `Supprimer définitivement ces ${dealIds.length} transactions ?\n\nCette action est irréversible.`
+    if (!window.confirm(msg)) return
+
+    onDeleteDeals(dealIds)
+    setSelectedDeals(new Set())
+  }
+
   const hasSelection = selectedDeals.size > 0
 
   return (
@@ -635,16 +664,29 @@ export default function TransactionBoard({
               Glissez une carte sélectionnée pour déplacer le groupe
             </span>
           </div>
-          <button
-            onClick={() => setSelectedDeals(new Set())}
-            style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 6, padding: '4px 12px', color: '#ef4444', fontSize: 11,
-              cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            Tout désélectionner
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleDeleteSelected}
+              style={{
+                background: '#ef4444', border: '1px solid #ef4444',
+                borderRadius: 6, padding: '4px 12px', color: '#fff', fontSize: 11,
+                cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              🗑 Supprimer
+            </button>
+            <button
+              onClick={() => setSelectedDeals(new Set())}
+              style={{
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 6, padding: '4px 12px', color: '#ef4444', fontSize: 11,
+                cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+              }}
+            >
+              Tout désélectionner
+            </button>
+          </div>
         </div>
       )}
 

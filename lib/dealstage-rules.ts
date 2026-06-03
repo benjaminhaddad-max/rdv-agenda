@@ -11,6 +11,8 @@
 // A Replanifier, Delai Reflexion) vers Ferme Perdu, pour permettre de marquer
 // manuellement comme perdu un lead qui n'a jamais entame de pre-inscription.
 
+import { PIPELINES } from './crm-stages'
+
 export const STAGE_A_REPLANIFIER       = '3165428979'
 export const STAGE_RDV_PRIS            = '3165428980'
 export const STAGE_DELAI_REFLEXION     = '3165428981'
@@ -47,3 +49,50 @@ export function isAllowedManualTransition(from: string | null | undefined, to: s
 export const MANUAL_LOCK_MESSAGE =
   'Ce stage est piloté automatiquement par la plateforme Diploma. ' +
   'Modification manuelle interdite (sauf passage en Fermé Perdu depuis un stage amont).'
+
+// ── Suppression de transactions ──────────────────────────────────────────────
+//
+// Meme logique que le verrou de deplacement : les stages "aval" (Pre-inscription,
+// Finalisation, Inscription Confirmee, Ferme Perdu) sont pilotes par la
+// plateforme de preinscription. On NE PEUT PAS supprimer une transaction qui
+// se trouve dans une de ces colonnes (la plateforme ferait foi de toute facon).
+//
+// Seules les transactions des stages "amont" (A Replanifier, RDV Pris,
+// Delai Reflexion) peuvent etre supprimees manuellement.
+//
+// Les IDs de stages different par saison/pipeline : on derive donc l'ensemble
+// des stages amont de TOUTES les saisons a partir de leurs libelles, pour que
+// le garde-fou reste valide quelle que soit la saison affichee.
+
+const AMONT_STAGE_LABELS = new Set<string>([
+  'À Replanifier',
+  'RDV Pris',
+  'Délai Réflexion',
+])
+
+/** IDs de stages amont (supprimables), toutes saisons confondues. */
+export const DELETABLE_STAGE_IDS: Set<string> = (() => {
+  const out = new Set<string>()
+  for (const p of Object.values(PIPELINES)) {
+    for (const s of p.stages) {
+      if (AMONT_STAGE_LABELS.has(s.label)) out.add(s.id)
+    }
+  }
+  // Filet de securite : les IDs amont 26-27 codes en dur ci-dessus.
+  out.add(STAGE_A_REPLANIFIER)
+  out.add(STAGE_RDV_PRIS)
+  out.add(STAGE_DELAI_REFLEXION)
+  return out
+})()
+
+/** Vrai si une transaction dans ce stage peut etre supprimee manuellement. */
+export function isDeletableStage(stage: string | null | undefined): boolean {
+  if (!stage) return false
+  return DELETABLE_STAGE_IDS.has(stage)
+}
+
+export const DELETE_LOCK_MESSAGE =
+  'Suppression impossible : cette transaction est dans une colonne pilotée par ' +
+  'la plateforme de préinscription (Pré-inscription, Finalisation, Inscription ' +
+  'Confirmée, Fermé Perdu). Seules les transactions amont (À Replanifier, ' +
+  'RDV Pris, Délai Réflexion) peuvent être supprimées.'

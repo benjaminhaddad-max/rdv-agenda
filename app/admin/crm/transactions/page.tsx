@@ -738,6 +738,49 @@ export default function TransactionsPage() {
     }
   }
 
+  // ── Suppression de transactions ────────────────────────────────────────────
+  // Le garde-fou (stages aval interdits) est verifie cote board ET cote serveur.
+  // Ici on fait une mise a jour optimiste puis on persiste.
+
+  async function handleDeleteDeals(dealIds: string[]) {
+    const idSet = new Set(dealIds)
+
+    // Snapshot pour rollback en cas d'erreur reseau/serveur.
+    const prevColumns = boardColumns
+    const prevTotal = boardTotal
+
+    // Optimistic : retirer les cartes du board.
+    setBoardColumns(prev => {
+      const next: Record<string, TransactionDetail[]> = {}
+      for (const [stageId, deals] of Object.entries(prev)) {
+        next[stageId] = deals.filter(d => !idSet.has(d.hubspot_deal_id))
+      }
+      return next
+    })
+    setBoardTotal(t => Math.max(0, t - dealIds.length))
+
+    try {
+      const res = await fetch('/api/crm/deals/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deal_ids: dealIds }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error || 'Erreur lors de la suppression des transactions')
+      }
+      // Rafraichir pour resynchroniser stats + total.
+      fetchBoard()
+      if (viewMode === 'list') fetchList(true)
+    } catch (e) {
+      // Rollback de l'affichage et message.
+      setBoardColumns(prevColumns)
+      setBoardTotal(prevTotal)
+      alert(e instanceof Error ? e.message : 'Erreur lors de la suppression')
+      fetchBoard()
+    }
+  }
+
   // ── Deal selection (for detail panel) ──────────────────────────────────────
 
   function handleSelectDeal(deal: TransactionDetail | Transaction) {
@@ -1446,6 +1489,7 @@ export default function TransactionsPage() {
               columns={filteredBoardColumns}
               onStageChange={handleStageChange}
               onBatchStageChange={handleBatchStageChange}
+              onDeleteDeals={handleDeleteDeals}
               onSelectDeal={handleSelectDeal}
               undoAction={undoAction}
               onUndo={handleUndo}
