@@ -55,6 +55,8 @@ interface Props {
   ownerParam: 'telepro_id' | 'telepro_hs_id' | 'telepro_owner_hs_id' | 'closer_hs_id' | 'contact_owner_hs_id'
   ownerId: string
   mode: 'closer' | 'telepro'
+  /** Vue closer : n'afficher que les contacts où l'utilisateur est télépro OU closer du contact (pas propriétaire). */
+  assignedScopeOnly?: boolean
   onTotalChange?: (n: number) => void
   initialSourceFilter?: string
 }
@@ -106,7 +108,7 @@ function FilterSelect({
 }
 
 // ── Composant principal ──────────────────────────────────────────────────────
-export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, initialSourceFilter }: Props) {
+export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter }: Props) {
   // ─ Contacts
   const [contacts, setContacts]   = useState<CRMContact[]>([])
   const [loading, setLoading]     = useState(false)
@@ -213,6 +215,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       if (filterPeriod)       params.set('period',      filterPeriod)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
+      if (assignedScopeOnly) params.set('assigned_scope', '1')
 
       const res = await fetch(`/api/crm/contacts?${params}`, { signal: requestAbort.signal })
       if (res.ok) {
@@ -229,7 +232,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -255,6 +258,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
       if (filterClasse) params.set('classe', filterClasse)
       if (filterPeriod) params.set('period', filterPeriod)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
+      if (assignedScopeOnly) params.set('assigned_scope', '1')
 
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (!res.ok) return
@@ -278,6 +282,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, onTotalChange, 
     filterPeriod,
     filterParcoursupVerdict,
     onTotalChange,
+    assignedScopeOnly,
   ])
 
   useEffect(() => {

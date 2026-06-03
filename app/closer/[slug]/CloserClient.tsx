@@ -1452,6 +1452,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               ownerParam="contact_owner_hs_id"
               ownerId={user.hubspot_owner_id}
               mode="closer"
+              assignedScopeOnly
               onTotalChange={setContactsTotal}
             />
           )}

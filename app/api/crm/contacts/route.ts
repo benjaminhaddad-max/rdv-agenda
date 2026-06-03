@@ -58,6 +58,9 @@ export async function GET(req: NextRequest) {
   const teleproOwnerHsId = searchParams.get('telepro_owner_hs_id') ?? ''
   // Filtre direct sur crm_contacts.hubspot_owner_id (télépro = propriétaire du contact)
   const contactOwnerHsId = searchParams.get('contact_owner_hs_id') ?? ''
+  // Vue personnelle closer/télépro : uniquement contacts assignés en tant que
+  // closer_du_contact OU telepro_user_id (sans hubspot_owner_id / propriétaire).
+  const assignedScope    = searchParams.get('assigned_scope') === '1'
   const formation        = searchParams.get('formation') ?? ''
   const classeFilter     = searchParams.get('classe') ?? ''
   const periodFilterRaw  = (searchParams.get('period') ?? '').trim().toLowerCase()
@@ -440,14 +443,15 @@ export async function GET(req: NextRequest) {
   const effectiveOwnerScopeCsv = expandedOwnerScopeValues.length > 0
     ? expandedOwnerScopeValues.join(',')
     : contactOwnerHsId
-  const buildOwnerScopeOrFilter = (vals: string[]): string => {
+  const buildOwnerScopeOrFilter = (vals: string[], includeContactOwner = true): string => {
     const uniq = [...new Set(vals.map(v => String(v).trim()).filter(Boolean))]
     if (uniq.length === 0) return ''
     const escaped = uniq.map(pgQuoteForScoped)
-    const clauses = [
-      `hubspot_owner_id.in.(${escaped.join(',')})`,
-      `closer_du_contact_owner_id.in.(${escaped.join(',')})`,
-    ]
+    const clauses: string[] = []
+    if (includeContactOwner) {
+      clauses.push(`hubspot_owner_id.in.(${escaped.join(',')})`)
+    }
+    clauses.push(`closer_du_contact_owner_id.in.(${escaped.join(',')})`)
     const numericOnly = uniq.filter(v => /^\d+$/.test(v))
     if (numericOnly.length > 0) {
       clauses.push(`telepro_user_id.in.(${numericOnly.map(pgQuoteForScoped).join(',')})`)
@@ -457,7 +461,10 @@ export async function GET(req: NextRequest) {
   const ownerScopeValues = effectiveOwnerScopeCsv
     ? effectiveOwnerScopeCsv.split(',').map(v => v.trim()).filter(Boolean)
     : []
-  const ownerScopeOrFilter = buildOwnerScopeOrFilter(ownerScopeValues)
+  const ownerScopeOrFilter = buildOwnerScopeOrFilter(
+    ownerScopeValues,
+    !(assignedScope && !!contactOwnerHsId),
+  )
 
   // ── Smart resolver pour le filtre "Soumission de formulaire" ─────────────
   // Quand l'utilisateur filtre par nom de form, on resout le form_id (UUID
