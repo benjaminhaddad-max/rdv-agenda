@@ -66,6 +66,30 @@ function normalizeLegacyFieldName(field: string): string {
   return field
 }
 
+// Champs natifs (type select) qui supportent la multi-sélection côté API
+// (.in / liste séparée par des virgules). Quand on choisit l'un de ces champs
+// dans le filtre avancé, on bascule par défaut sur l'opérateur "est parmi"
+// pour permettre de sélectionner plusieurs valeurs directement.
+const MULTI_SELECT_FIELDS = new Set<string>([
+  'stage', 'formation', 'closer', 'closer_contact', 'contact_owner', 'telepro',
+  'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
+  'parcoursup_verdict',
+])
+
+function defaultOperatorForField(field: string, prop?: CrmPropertyMeta): CRMFilterOp {
+  if (prop) {
+    const k = propertyKindOf(prop.type, prop.field_type)
+    if (k === 'date' || k === 'datetime') return 'eq'
+    if (k === 'number') return 'eq'
+    if (k === 'enum') return 'is_any'
+    if (k === 'text') return 'contains'
+    return 'is'
+  }
+  const normalized = normalizeLegacyFieldName(field)
+  if (MULTI_SELECT_FIELDS.has(normalized)) return 'is_any'
+  return 'is'
+}
+
 // Flags de rollout perf (safe by default):
 // - NEXT_PUBLIC_CRM_RELAX_EXACT_COUNT=1 : favorise defer_count sur les vues
 //   filtrées pour éviter les COUNT(*) coûteux à chaque frappe.
@@ -1350,7 +1374,7 @@ export default function CRMPage() {
   function addFilterGroup() {
     const g: CRMFilterGroup = {
       id: `g_${Date.now()}`,
-      rules: [{ id: `r_${Date.now()}`, field: 'stage', operator: 'is', value: '' }],
+      rules: [{ id: `r_${Date.now()}`, field: 'stage', operator: 'is_any', value: '' }],
     }
     setFilterGroups(prev => [...prev, g])
   }
@@ -1380,7 +1404,7 @@ export default function CRMPage() {
       if (g.id !== gid) return g
       return {
         ...g,
-        rules: [...g.rules, { id: `r_${Date.now()}`, field: 'stage' as CRMFilterField, operator: 'is' as CRMFilterOp, value: '' }],
+        rules: [...g.rules, { id: `r_${Date.now()}`, field: 'stage' as CRMFilterField, operator: 'is_any' as CRMFilterOp, value: '' }],
       }
     })
     setFilterGroups(updated)
@@ -2529,13 +2553,12 @@ export default function CRMPage() {
                           <CRMFieldPicker
                             value={normalizedField}
                             onChange={(field) => {
-                              // Default operator selon le kind de la nouvelle propriété
+                              // Opérateur par défaut selon le type du champ :
+                              // les champs "select" multi-capables (ex. Origine)
+                              // basculent sur "est parmi" pour permettre la
+                              // sélection de plusieurs valeurs directement.
                               const next = allCrmProps.find(p => 'custom:' + p.name === field)
-                              const k = next ? propertyKindOf(next.type, next.field_type) : 'text'
-                              let defaultOp: CRMFilterOp = 'is'
-                              if (k === 'date' || k === 'datetime') defaultOp = 'eq'
-                              else if (k === 'number') defaultOp = 'eq'
-                              else if (k === 'text' && next) defaultOp = 'contains'
+                              const defaultOp = defaultOperatorForField(field, next)
                               updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: defaultOp, value: '' })
                             }}
                             crmProps={allCrmProps}
