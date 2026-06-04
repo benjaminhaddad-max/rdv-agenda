@@ -65,6 +65,79 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
+    // ── Propager le closer assigné vers le CRM ──────────────────────────────
+    // Quand Pascal assigne/réassigne un RDV à un closer, on met à jour la
+    // propriété "closer" de la fiche contact (closer_du_contact_owner_id) et
+    // l'owner de la transaction liée, pour que la fiche reflète le closer.
+    // Best-effort : n'impacte pas la réponse en cas d'échec.
+    try {
+      // 1. owner HubSpot du closer assigné (null si désassignation)
+      let closerOwnerId: string | null = null
+      if (commercial_id) {
+        const { data: closer } = await db
+          .from('rdv_users')
+          .select('hubspot_owner_id')
+          .eq('id', commercial_id)
+          .maybeSingle()
+        closerOwnerId = closer?.hubspot_owner_id || null
+      }
+
+      // 2. Résoudre la fiche contact : id direct, sinon email, sinon téléphone
+      let contactId: string | null = appointment.hubspot_contact_id || null
+      if (!contactId) {
+        const email = (appointment.prospect_email || '').trim().toLowerCase()
+        if (email) {
+          const { data: byEmail } = await db
+            .from('crm_contacts')
+            .select('hubspot_contact_id')
+            .ilike('email', email)
+            .maybeSingle()
+          contactId = byEmail?.hubspot_contact_id || null
+        }
+      }
+      if (!contactId && appointment.prospect_phone) {
+        const digits = String(appointment.prospect_phone).replace(/\D/g, '')
+        if (digits.length >= 9) {
+          const last9 = digits.slice(-9)
+          const variants = [`+33${last9}`, `0${last9}`, digits, `+${digits}`]
+          const { data: byPhone } = await db
+            .from('crm_contacts')
+            .select('hubspot_contact_id')
+            .in('phone', variants)
+            .maybeSingle()
+          contactId = byPhone?.hubspot_contact_id || null
+        }
+      }
+
+      // 3. Mettre à jour la fiche contact + lier l'id au RDV s'il manquait
+      if (contactId) {
+        await db
+          .from('crm_contacts')
+          .update({
+            closer_du_contact_owner_id: closerOwnerId,
+            synced_at: new Date().toISOString(),
+          })
+          .eq('hubspot_contact_id', contactId)
+
+        if (!appointment.hubspot_contact_id) {
+          await db
+            .from('rdv_appointments')
+            .update({ hubspot_contact_id: contactId })
+            .eq('id', id)
+        }
+      }
+
+      // 4. Aligner l'owner de la transaction liée sur le closer
+      if (appointment.hubspot_deal_id) {
+        await db
+          .from('crm_deals')
+          .update({ hubspot_owner_id: closerOwnerId, synced_at: new Date().toISOString() })
+          .eq('hubspot_deal_id', appointment.hubspot_deal_id)
+      }
+    } catch (e) {
+      console.error(`[appointments PATCH] Propagation closer CRM échouée pour ${id}:`, e)
+    }
+
     return NextResponse.json(updated)
   }
 
