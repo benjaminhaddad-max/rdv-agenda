@@ -375,10 +375,20 @@ export async function GET(req: NextRequest) {
     await appendCustomFiltersFromView(viewIdParam, false)
   }
 
+  // Recherche globale (closer/télépro) : permet de retrouver et ouvrir
+  // n'importe quelle fiche du CRM, même non attribuée à l'utilisateur
+  // (ex: leads envoyés par le directeur commercial à traiter).
+  // Strictement limité à une RECHERCHE explicite (≥ 2 caractères) : on ne peut
+  // pas lister tout le CRM, uniquement retrouver un lead précis par
+  // nom / prénom / email / téléphone.
+  const isGlobalSearch =
+    searchParams.get('global_search') === '1' && sanitizeSearch(search).length >= 2
+
   // Scope restreint: pour les comptes "brand_only", on force l'affichage
   // aux leads où l'utilisateur courant est le télépro assigné.
   // Important: appliqué côté serveur pour éviter tout contournement UI/URL.
-  const shouldForceScopedTelepro = !!(
+  // La recherche globale lève ce scope (recherche transversale en lecture).
+  const shouldForceScopedTelepro = !isGlobalSearch && !!(
     apiUser && (
       apiUser.role === 'telepro' ||
       (
@@ -387,6 +397,13 @@ export async function GET(req: NextRequest) {
       )
     )
   )
+
+  // En recherche globale, on n'exclut ni l'équipe externe ni les classes
+  // non prioritaires : il faut pouvoir retrouver absolument n'importe quel lead.
+  if (isGlobalSearch) {
+    if (!hasShowExternalParam) effectiveShowExternal = true
+    effectiveAllClassesInput = true
+  }
 
   if (shouldForceScopedTelepro) {
     const { data: me } = await db

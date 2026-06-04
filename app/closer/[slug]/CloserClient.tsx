@@ -17,6 +17,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -743,6 +744,12 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <LogoutButton />
         </div>
+      </div>
+
+      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
+          fiche (contact / transaction), même non attribuée au closer. */}
+      <div style={{ flexShrink: 0 }}>
+        <CRMGlobalSearchBar />
       </div>
 
       {showGuide && <PlatformGuide role="closer" onClose={() => setShowGuide(false)} />}

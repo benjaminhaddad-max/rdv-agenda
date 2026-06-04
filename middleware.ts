@@ -119,11 +119,12 @@ export async function middleware(request: NextRequest) {
     return redirectByRole(dbUser, request)
   }
 
-  // /admin → admin only, sauf la fiche contact partagée
-  // (closer/telepro doivent pouvoir l'ouvrir depuis leur journal de repop, etc.)
+  // /admin → admin only, sauf les fiches partagées contact / transaction
+  // (closer/telepro doivent pouvoir les ouvrir depuis la recherche globale,
+  // leur journal de repop, etc. — pour traiter un lead même non attribué).
   if (pathname.startsWith('/admin')) {
-    const isSharedContactView = /^\/admin\/crm\/contacts\/[^/]+\/?$/.test(pathname)
-    if (dbUser.role !== 'admin' && !isSharedContactView) {
+    const isSharedCrmRecordView = /^\/admin\/crm\/(contacts|deals)\/[^/]+\/?$/.test(pathname)
+    if (dbUser.role !== 'admin' && !isSharedCrmRecordView) {
       return redirectByRole(dbUser, request)
     }
   }

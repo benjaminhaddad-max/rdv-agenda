@@ -17,6 +17,7 @@ import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
+import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { validateEmailDomain } from '@/lib/email-validation'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -1251,6 +1252,10 @@ export default function TeleproClient({
           {!previewMode && <LogoutButton />}
         </div>
       </div>
+
+      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
+          fiche (contact / transaction), même non attribuée au télépro. */}
+      {!isAdmin && <CRMGlobalSearchBar />}
 
       {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
       {showResources && <ResourcesPanel role="telepro" onClose={() => setShowResources(false)} />}

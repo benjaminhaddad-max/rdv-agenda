@@ -130,7 +130,7 @@ export default function CRMGlobalSearchBar() {
     setOpen(true)
 
     Promise.all([
-      fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=8&page=0&defer_count=1&all_classes=1`, {
+      fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=8&page=0&defer_count=1&all_classes=1&global_search=1`, {
         signal: ac.signal,
         cache: 'no-store',
       }),
