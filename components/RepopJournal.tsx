@@ -6,6 +6,7 @@ import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
   hubspot_deal_id: string
+  hubspot_contact_id: string | null
   prospect_name: string
   prospect_phone: string | null
   prospect_email: string
@@ -164,7 +165,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0', color: '#4a6070', fontSize: 14 }}>
         <RefreshCw size={16} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
-        Chargement des repops HubSpot…
+        Chargement des repops…
       </div>
     )
   }
@@ -455,13 +456,15 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           </div>
         </div>
 
-        {/* Colonne 3 : actions (HubSpot + dismiss) */}
+        {/* Colonne 3 : actions (Fiche CRM + dismiss) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
           <a
-            href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/record/0-3/${entry.hubspot_deal_id}`}
+            href={entry.hubspot_contact_id
+              ? `/admin/crm/contacts/${entry.hubspot_contact_id}`
+              : `${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/record/0-3/${entry.hubspot_deal_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            title="Ouvrir la transaction dans HubSpot"
+            title="Ouvrir la fiche contact dans le CRM"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
@@ -469,7 +472,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
-            <ExternalLink size={11} /> HubSpot
+            <ExternalLink size={11} /> Fiche
           </a>
           <button
             onClick={onDismiss}

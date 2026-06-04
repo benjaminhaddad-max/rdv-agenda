@@ -208,6 +208,7 @@ export async function GET(req: NextRequest) {
 
     return {
       hubspot_deal_id: deal.hubspot_deal_id,
+      hubspot_contact_id: deal.hubspot_contact_id ?? null,
       prospect_name: prospectName,
       prospect_phone: contact.phone ?? null,
       prospect_email: contact.email ?? '',
