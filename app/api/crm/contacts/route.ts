@@ -8,6 +8,7 @@ import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
 import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
+import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -704,8 +705,8 @@ export async function GET(req: NextRequest) {
       fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
     }
     if (source) {
-      const vals = fastSplit(source)
-      fastQ = vals.length > 1 ? fastQ.in('origine', vals) : fastQ.eq('origine', source)
+      const vals = expandOrigineFilterValues(fastSplit(source))
+      fastQ = vals.length > 1 ? fastQ.in('origine', vals) : fastQ.eq('origine', vals[0])
     }
     if (zone) {
       const vals = fastSplit(zone)
@@ -860,8 +861,8 @@ export async function GET(req: NextRequest) {
         }
       }
       if (source) {
-        const vals = splitMultiFast(source)
-        fastMvQ = vals.length > 1 ? fastMvQ.in('origine', vals) : fastMvQ.eq('origine', source)
+        const vals = expandOrigineFilterValues(splitMultiFast(source))
+        fastMvQ = vals.length > 1 ? fastMvQ.in('origine', vals) : fastMvQ.eq('origine', vals[0])
       }
       if (metaLeadAdsOnly) {
         fastMvQ = fastMvQ.eq('source', 'meta_lead_ads')
@@ -1061,7 +1062,7 @@ export async function GET(req: NextRequest) {
         pushIn('hubspot_contact_id', parcoursupVerdictContactIds.join(','))
       }
     }
-    if (source) pushIn('origine', source)
+    if (source) pushIn('origine', expandOrigineFilterValues(splitMultiLocal(source)).join(','))
     if (zone) pushIn('zone_localite', zone)
     if (departement) pushIn('departement', departement)
     if (stage) pushIn('dealstage', stage)
@@ -1777,16 +1778,17 @@ export async function GET(req: NextRequest) {
     query = query.not('hs_lead_status', 'in', toPostgrestInList(vals))
   }
 
-  // Origine (multi-value support)
+  // Origine (multi-value support + expansion des variantes brutes vers la
+  // valeur canonique affichée dans le filtre).
   if (source) {
-    const vals = splitMulti(source)
-    query = vals.length > 1 ? query.in('origine', vals) : query.eq('origine', source)
+    const vals = expandOrigineFilterValues(splitMulti(source))
+    query = vals.length > 1 ? query.in('origine', vals) : query.eq('origine', vals[0])
   }
   if (metaLeadAdsOnly) {
     query = query.eq('source', 'meta_lead_ads')
   }
   if (sourceNot) {
-    const vals = splitMulti(sourceNot)
+    const vals = expandOrigineFilterValues(splitMulti(sourceNot))
     query = query.not('origine', 'in', toPostgrestInList(vals))
   }
 
