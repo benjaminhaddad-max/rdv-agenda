@@ -362,156 +362,166 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
   entry: RepopEntry; showCloser: boolean; onDismiss: () => void; isDismissing: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const stageColor = entry.hs_stage_color || '#C9A84C'
+
   return (
     <div style={{
       background: '#ffffff',
-      border: '1px solid rgba(204,172,113,0.2)',
+      border: '1px solid #e5ddc8',
       borderLeft: '3px solid #C9A84C',
-      borderRadius: 12,
-      padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 10,
+      borderRadius: 10,
+      overflow: 'hidden',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
     }}>
-
-      {/* Ligne 1 : badge repop + nom + formation + stage + HubSpot + Traité */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: 'rgba(204,172,113,0.15)',
-            border: '1px solid rgba(204,172,113,0.4)',
-            borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: '#C9A84C',
-          }}>
-            🔁 Repop
-          </span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35' }}>
-            {entry.prospect_name}
-          </span>
+      {/* Header cliquable */}
+      <div
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto',
+          gap: 10,
+          alignItems: 'center',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        {/* Chevron */}
+        <div style={{ color: '#4a6070', display: 'flex', alignItems: 'center' }}>
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {entry.classe && (
+
+        {/* Colonne 1 : info lead */}
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Ligne nom + badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
+              background: 'rgba(204,172,113,0.15)',
+              border: '1px solid rgba(204,172,113,0.4)',
+              borderRadius: 6, padding: '1px 7px',
+              fontSize: 10, fontWeight: 700, color: '#C9A84C', flexShrink: 0,
             }}>
-              {entry.classe}
+              🔁 Repop
             </span>
-          )}
-          {entry.zone_localite && (
             <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
+              fontSize: 14, fontWeight: 700, color: '#0e1e35',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
             }}>
-              {entry.zone_localite}
+              {entry.prospect_name}
             </span>
-          )}
-          {entry.formation_type && (
+            {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
+            {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
+            {entry.formation_type && <span style={tagStyle}>{entry.formation_type}</span>}
             <span style={{
-              background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#C9A84C',
+              background: `${stageColor}1a`,
+              border: `1px solid ${stageColor}66`,
+              borderRadius: 6, padding: '1px 7px',
+              fontSize: 10, fontWeight: 700, color: stageColor,
             }}>
-              {entry.formation_type}
+              {entry.hs_stage_label}
             </span>
-          )}
-          <span style={{
-            background: `rgba(${hexToRgb(entry.hs_stage_color)},0.12)`,
-            border: `1px solid rgba(${hexToRgb(entry.hs_stage_color)},0.3)`,
-            borderRadius: 6, padding: '2px 8px',
-            fontSize: 11, fontWeight: 700, color: entry.hs_stage_color,
-          }}>
-            {entry.hs_stage_label}
-          </span>
+          </div>
+
+          {/* Ligne contact + dernière soumission */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#4a6070' }}>
+            {entry.prospect_phone && (
+              <a
+                href={`tel:${entry.prospect_phone}`}
+                onClick={e => e.stopPropagation()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', textDecoration: 'none', fontWeight: 600 }}
+              >
+                <Phone size={12} />{entry.prospect_phone}
+              </a>
+            )}
+            {entry.prospect_email && (
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                {entry.prospect_email}
+              </span>
+            )}
+            {showCloser && (entry.commercial_name || entry.telepro_name) && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <User size={11} />
+                {[entry.telepro_name, entry.commercial_name].filter(Boolean).join(' → ')}
+              </span>
+            )}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', fontWeight: 600 }}>
+              <FileText size={12} />
+              <strong>{entry.repop_form_date_label}</strong>
+              <span style={{ color: '#4a6070', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        {/* Colonne 3 : actions (HubSpot + dismiss) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
           <a
             href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/record/0-3/${entry.hubspot_deal_id}`}
             target="_blank"
             rel="noopener noreferrer"
+            title="Ouvrir la transaction dans HubSpot"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '3px 9px', color: '#C9A84C',
+              borderRadius: 6, padding: '5px 9px', color: '#C9A84C',
               fontSize: 11, fontWeight: 600, textDecoration: 'none',
             }}
           >
-            <ExternalLink size={10} /> HubSpot
+            <ExternalLink size={11} /> HubSpot
           </a>
-        </div>
-      </div>
-
-      {/* Bouton Marquer traité — pleine largeur */}
-      <button
-        onClick={onDismiss}
-        disabled={isDismissing}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          width: '100%',
-          background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.08)',
-          border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.25)'}`,
-          borderRadius: 8, padding: '8px 16px',
-          color: isDismissing ? '#22c55e' : '#C9A84C',
-          fontSize: 13, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
-          opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        <Check size={14} /> {isDismissing ? 'En cours…' : 'Marquer comme traité'}
-      </button>
-
-      {/* Ligne 2 : téléphone + email + closer/telepro */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        {entry.prospect_phone && (
-          <a
-            href={`tel:${entry.prospect_phone}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#C9A84C', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+          <button
+            onClick={onDismiss}
+            disabled={isDismissing}
+            title="Marquer comme traité"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.08)',
+              border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.25)'}`,
+              borderRadius: 6, padding: '5px 10px',
+              color: isDismissing ? '#22c55e' : '#C9A84C',
+              fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+              opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
+            }}
           >
-            <Phone size={13} />
-            {entry.prospect_phone}
-          </a>
-        )}
-        {entry.prospect_email && (
-          <span style={{ fontSize: 12, color: '#4a6070' }}>
-            {entry.prospect_email}
-          </span>
-        )}
-        {showCloser && (entry.commercial_name || entry.telepro_name) && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#4a6070' }}>
-            <User size={11} />
-            {[entry.telepro_name, entry.commercial_name].filter(Boolean).join(' → ')}
-          </span>
-        )}
-      </div>
-
-      {/* Ligne 3 : timeline RDV → formulaire repop */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 6,
-        background: '#151823', borderRadius: 8, padding: '10px 12px',
-      }}>
-        {/* Date du RDV */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#4a6070', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#4a6070' }}>
-            <strong style={{ color: '#c8cadb' }}>RDV le {entry.rdv_date_label}</strong>
-          </span>
-        </div>
-
-        {/* Flèche */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 3 }}>
-          <div style={{ width: 2, height: 12, background: '#e5ddc8', marginLeft: 0 }} />
-          <ArrowRight size={10} style={{ color: '#4a6070' }} />
-        </div>
-
-        {/* Formulaire repop */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', background: '#C9A84C', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>
-            <strong>{entry.repop_form_date_label}</strong>
-            {' — '}
-            {entry.repop_form_name || 'Nouveau formulaire soumis'}
-          </span>
+            <Check size={12} /> {isDismissing ? '...' : 'Traité'}
+          </button>
         </div>
       </div>
+
+      {/* Panneau chronologie RDV → formulaire repop (déplié) */}
+      {expanded && (
+        <div style={{
+          borderTop: '1px solid #e5ddc8',
+          background: '#f7f4ee',
+          padding: '12px 16px 14px 40px',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            Parcours
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Date du RDV */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4a6070', flexShrink: 0 }} />
+              <span style={{ color: '#0e1e35', fontWeight: 600, minWidth: 150 }}>RDV le {entry.rdv_date_label}</span>
+            </div>
+            {/* Flèche */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
+              <div style={{ width: 2, height: 12, background: '#e5ddc8' }} />
+              <ArrowRight size={10} style={{ color: '#4a6070' }} />
+            </div>
+            {/* Formulaire repop */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', flexShrink: 0 }} />
+              <span style={{ color: '#C9A84C', fontWeight: 600, minWidth: 150 }}>{entry.repop_form_date_label}</span>
+              <span style={{ flex: 1, minWidth: 0, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {entry.repop_form_name || 'Nouveau formulaire soumis'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
