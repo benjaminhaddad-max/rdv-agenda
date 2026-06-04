@@ -645,8 +645,15 @@ export default function CRMPage() {
     if (fieldOptionsLoaded) return
     if (!filterPanelOpen && loading) return
 
-    const t = setTimeout(() => {
-      fetch('/api/crm/field-options').then(r => r.json()).then(d => {
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const load = async (attempt: number) => {
+      try {
+        const r = await fetch('/api/crm/field-options', { cache: 'no-store' })
+        const d = await r.json()
+        if (cancelled) return
+
         if (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0) {
           // Fusion fallback statique + valeurs distinctes côté DB.
           // On ne remplace JAMAIS par une liste vide (sinon le filtre repasse
@@ -683,11 +690,32 @@ export default function CRMPage() {
             ...d.formEvents.map((v: string) => ({ id: v, label: v })),
           ])
         }
-        setFieldOptionsLoaded(true)
-      }).catch(() => {})
-    }, filterPanelOpen ? 0 : 400)
 
-    return () => clearTimeout(t)
+        // On ne marque "chargé" QUE si les listes clés sont réellement
+        // arrivées. Une réponse vide (cache expiré + requête lente côté API,
+        // timeout transient) ne doit pas figer le state : sinon les dropdowns
+        // (ex. Origine) restent bloqués sur le fallback et ne réessaient jamais.
+        const gotCore = (Array.isArray(d.sources) && d.sources.length > 0)
+          || (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0)
+        if (gotCore) {
+          setFieldOptionsLoaded(true)
+        } else if (attempt < 5) {
+          retryTimer = setTimeout(() => { void load(attempt + 1) }, 1500 * (attempt + 1))
+        }
+      } catch {
+        if (!cancelled && attempt < 5) {
+          retryTimer = setTimeout(() => { void load(attempt + 1) }, 1500 * (attempt + 1))
+        }
+      }
+    }
+
+    const t = setTimeout(() => { void load(0) }, filterPanelOpen ? 0 : 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [filterPanelOpen, fieldOptionsLoaded, loading])
 
   // Charge le catalogue des propriétés CRM (utilisé par le panel "Filtres
@@ -2421,12 +2449,15 @@ export default function CRMPage() {
                         case 'lead_status': valueOptions = leadStatusOptions.filter(o => o.id); break
                         case 'source': {
                           const opts = sourceOptions.filter(o => o.id)
-                          // Garde un vrai dropdown même si les options ne sont pas
-                          // encore chargées au moment où le panneau s'ouvre.
-                          const fallback = rule.value
-                            ? [{ id: rule.value, label: rule.value }]
-                            : [{ id: 'meta_lead_ads', label: 'meta_lead_ads' }]
-                          valueOptions = opts.length > 0 ? opts : fallback
+                          // Si les origines ne sont pas encore chargées, on garde
+                          // au moins la/les valeur(s) déjà sélectionnée(s) pour
+                          // l'affichage — sans injecter de fausse valeur unique
+                          // (l'ancien fallback "meta_lead_ads" masquait la vraie
+                          // liste tant que le fetch n'avait pas répondu).
+                          const selectedFallback = (rule.value ? rule.value.split(',') : [])
+                            .filter(Boolean)
+                            .map(v => ({ id: v, label: v }))
+                          valueOptions = opts.length > 0 ? opts : selectedFallback
                           break
                         }
                         case 'zone':        valueOptions = zoneOptions.filter(o => o.id); break
