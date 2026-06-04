@@ -148,6 +148,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Règle métier : un RDV marqué "No-show" fait passer le statut du lead
+  // (hs_lead_status du contact) en "A replanifier". Best-effort — n'impacte
+  // pas la réponse si la mise à jour CRM échoue.
+  if (status === 'no_show' && appointment.hubspot_contact_id) {
+    try {
+      await db
+        .from('crm_contacts')
+        .update({ hs_lead_status: 'A replanifier', synced_at: new Date().toISOString() })
+        .eq('hubspot_contact_id', appointment.hubspot_contact_id)
+    } catch (e) {
+      console.error(`[appointments PATCH] Update lead status (no_show) failed for ${id}:`, e)
+    }
+  }
+
   return NextResponse.json(data)
 }
 

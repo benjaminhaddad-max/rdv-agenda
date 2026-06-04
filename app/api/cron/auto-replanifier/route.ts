@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   // ── PARTIE 1 : Auto no-show ───────────────────────────────────────────────
   const { data: toAutoClose, error: fetchErr } = await db
     .from('rdv_appointments')
-    .select('id, hubspot_deal_id, prospect_name')
+    .select('id, hubspot_deal_id, hubspot_contact_id, prospect_name')
     .in('status', ['confirme', 'confirme_prospect'])
     .lt('start_at', pastThreshold.toISOString())
 
@@ -61,6 +61,19 @@ export async function GET(req: NextRequest) {
     }
 
     autoClosedIds.push(appt.id)
+
+    // Statut du lead (contact CRM) → "A replanifier", aligné sur le no-show
+    // manuel côté closer.
+    if (appt.hubspot_contact_id) {
+      try {
+        await db
+          .from('crm_contacts')
+          .update({ hs_lead_status: 'A replanifier', synced_at: new Date().toISOString() })
+          .eq('hubspot_contact_id', appt.hubspot_contact_id)
+      } catch (e) {
+        console.error(`[cron/auto-replanifier] Update lead status failed for ${appt.id}:`, e)
+      }
+    }
 
     // Sync HubSpot → "À Replanifier"
     if (appt.hubspot_deal_id) {
