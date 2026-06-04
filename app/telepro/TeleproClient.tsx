@@ -1949,8 +1949,7 @@ export default function TeleproClient({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
                           {gridDays.map(day => {
                             const inMonth = isSameMonth(day, monthStart)
-                            const isWeekend = day.getDay() === 0 || day.getDay() === 6
-                            const disabled = !inMonth || isWeekend || isBefore(day, today) || isAfter(day, maxBookingDate)
+                            const disabled = !inMonth || isBefore(day, today) || isAfter(day, maxBookingDate)
                             const sel = selectedDate && isSameDay(day, selectedDate)
                             return (
                               <button
