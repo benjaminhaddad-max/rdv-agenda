@@ -113,11 +113,13 @@ function MultiFilterSelect({
   onChange,
   options,
   allLabel,
+  itemNoun = 'origines',
 }: {
   value: string                 // CSV
   onChange: (v: string) => void
   options: string[]
   allLabel: string
+  itemNoun?: string
 }) {
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState('')
@@ -143,7 +145,7 @@ function MultiFilterSelect({
     ? allLabel
     : selected.length === 1
       ? selected[0]
-      : `${selected.length} origines`
+      : `${selected.length} ${itemNoun}`
 
   const q = query.trim().toLowerCase()
   const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options
@@ -267,6 +269,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   // Filtres spécifiques contacts (mode télépro : "Mes Contacts")
   const [filterClasse, setFilterClasse]         = useState('')
   const [filterPeriod, setFilterPeriod]         = useState('')
+  const [filterZone, setFilterZone]             = useState('')
+  const [filterFormEvent, setFilterFormEvent]   = useState('')
 
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
@@ -289,6 +293,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [formationOpts, setFormationOpts]   = useState<string[]>([])
   const [sourceOpts, setSourceOpts]         = useState<string[]>([])
   const [zoneOpts, setZoneOpts]             = useState<string[]>([])
+  const [formEventOpts, setFormEventOpts]   = useState<string[]>([])
   const [allCrmProps, setAllCrmProps]       = useState<CrmPropertyMeta[]>([])
   const extraColsStorageKey = `crm-extra-columns-user-${mode}`
   const [extraColumns, setExtraColumns] = useState<string[]>(() => {
@@ -353,6 +358,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (filterSource)       params.set('source',      filterSource)
       if (filterClasse)       params.set('classe',      filterClasse)
       if (filterPeriod)       params.set('period',      filterPeriod)
+      if (filterZone)         params.set('zone',        filterZone)
+      if (filterFormEvent)    params.set('form_event',  filterFormEvent)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
       if (assignedScopeOnly) params.set('assigned_scope', '1')
@@ -372,7 +379,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -397,6 +404,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (filterSource) params.set('source', filterSource)
       if (filterClasse) params.set('classe', filterClasse)
       if (filterPeriod) params.set('period', filterPeriod)
+      if (filterZone) params.set('zone', filterZone)
+      if (filterFormEvent) params.set('form_event', filterFormEvent)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
       if (assignedScopeOnly) params.set('assigned_scope', '1')
 
@@ -420,6 +429,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     filterSource,
     filterClasse,
     filterPeriod,
+    filterZone,
+    filterFormEvent,
     filterParcoursupVerdict,
     onTotalChange,
     assignedScopeOnly,
@@ -477,6 +488,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
         if (d.formations?.length)   setFormationOpts(d.formations)
         if (d.sources?.length)      setSourceOpts(d.sources)
         if (d.zones?.length)        setZoneOpts(d.zones)
+        if (d.formEvents?.length)   setFormEventOpts(d.formEvents)
       })
       .catch(() => {})
   }, [])
@@ -494,13 +506,15 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     setFilterSource(initialSourceFilter ?? '')
     setFilterClasse('')
     setFilterPeriod('')
+    setFilterZone('')
+    setFilterFormEvent('')
     setFilterParcoursupVerdict('')
     setSearch('')
     setDebouncedSearch('')
     setPage(0)
   }
 
-  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterParcoursupVerdict || debouncedSearch)
+  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterZone || filterFormEvent || filterParcoursupVerdict || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
@@ -616,42 +630,28 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             )}
           </div>
 
-          {/* ── Filtres TRANSACTION (mode closer uniquement) ── */}
-          {!isContactsView && (
-            <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
-              <option value="">Toutes les étapes</option>
-              {Object.entries(STAGE_MAP).map(([id, s]) => (
-                <option key={id} value={id}>{s.label}</option>
-              ))}
-            </FilterSelect>
-          )}
+          {/* ── Filtres prioritaires (télépro + closer) ───────────────────
+              Ordre métier : Classe actuelle · Zone localité · Origine ·
+              Soumission de formulaire · Statut du lead. */}
 
-          {/* ── Filtres CONTACT (toujours, mais surtout en mode télépro) ── */}
-
-          {/* Statut du lead — toujours affiché ; les options se peuplent à la volée
-              depuis /api/crm/field-options (vraies valeurs HubSpot). */}
-          <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
-            <option value="">Statut du lead</option>
-            {leadStatusOpts.map(v => <option key={v} value={v}>{v}</option>)}
+          {/* 1. Classe actuelle — propriété du contact */}
+          <FilterSelect value={filterClasse} onChange={v => { setFilterClasse(v); setPage(0) }}>
+            <option value="">Toutes les classes</option>
+            {['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre'].map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </FilterSelect>
 
-          {/* Classe actuelle — propriété du contact (mode télépro / Mes Contacts) */}
-          {isContactsView && (
-            <FilterSelect value={filterClasse} onChange={v => { setFilterClasse(v); setPage(0) }}>
-              <option value="">Toutes les classes</option>
-              {['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre'].map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </FilterSelect>
-          )}
+          {/* 2. Zone localité (multi-sélection) */}
+          <MultiFilterSelect
+            value={filterZone}
+            onChange={v => { setFilterZone(v); setPage(0) }}
+            options={zoneOpts}
+            allLabel="Toutes les zones"
+            itemNoun="zones"
+          />
 
-          {/* Formation demandée — toujours affiché ; options chargées à la volée */}
-          <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
-            <option value="">Toutes formations</option>
-            {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
-          </FilterSelect>
-
-          {/* Origine (multi-sélection) */}
+          {/* 3. Origine (multi-sélection) */}
           <MultiFilterSelect
             value={filterSource}
             onChange={v => { setFilterSource(v); setPage(0) }}
@@ -659,16 +659,37 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             allLabel="Toutes les origines"
           />
 
-          {/* Période de création du contact (mode Mes Contacts) */}
-          {isContactsView && (
-            <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
-              <option value="">Toutes les dates</option>
-              <option value="7d">7 derniers jours</option>
-              <option value="30d">30 derniers jours</option>
-              <option value="90d">3 derniers mois</option>
-              <option value="365d">12 derniers mois</option>
-            </FilterSelect>
-          )}
+          {/* 4. Soumission de formulaire (multi-sélection) */}
+          <MultiFilterSelect
+            value={filterFormEvent}
+            onChange={v => { setFilterFormEvent(v); setPage(0) }}
+            options={formEventOpts}
+            allLabel="Soumission de formulaire"
+            itemNoun="formulaires"
+          />
+
+          {/* 5. Statut du lead — options peuplées depuis /api/crm/field-options */}
+          <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
+            <option value="">Statut du lead</option>
+            {leadStatusOpts.map(v => <option key={v} value={v}>{v}</option>)}
+          </FilterSelect>
+
+          {/* ── Filtres secondaires ──────────────────────────────────────── */}
+
+          {/* Formation demandée — options chargées à la volée */}
+          <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
+            <option value="">Toutes formations</option>
+            {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
+          </FilterSelect>
+
+          {/* Période de création du contact */}
+          <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
+            <option value="">Toutes les dates</option>
+            <option value="7d">7 derniers jours</option>
+            <option value="30d">30 derniers jours</option>
+            <option value="90d">3 derniers mois</option>
+            <option value="365d">12 derniers mois</option>
+          </FilterSelect>
 
           {/* Verdict Parcoursup 2026 (telepro + closer) */}
           <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
@@ -677,6 +698,16 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </FilterSelect>
+
+          {/* Étape de transaction (mode closer "Mes Transactions") */}
+          {!isContactsView && (
+            <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
+              <option value="">Toutes les étapes</option>
+              {Object.entries(STAGE_MAP).map(([id, s]) => (
+                <option key={id} value={id}>{s.label}</option>
+              ))}
+            </FilterSelect>
+          )}
 
           {/* Reset */}
           {hasActiveFilters && (
