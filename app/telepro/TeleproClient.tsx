@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { format, addDays, isSameDay, startOfToday, startOfWeek, addWeeks, subWeeks, isSameWeek } from 'date-fns'
+import { format, addDays, isSameDay, startOfToday, startOfWeek, addWeeks, subWeeks, isSameWeek, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, isBefore, isAfter } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   Calendar, Clock, Phone, Tag, FileText, ArrowLeft, Search, User, MapPin,
@@ -472,9 +472,12 @@ export default function TeleproClient({
   const [txTotal, setTxTotal] = useState(0)
 
   const today = startOfToday()
-  const days = Array.from({ length: 21 }, (_, i) => addDays(today, i))
-    .filter(d => d.getDay() !== 0 && d.getDay() !== 6)
-    .slice(0, 10)
+  // Date maximale de prise de RDV : 31 août (de la saison en cours).
+  // Robuste si on est déjà après août → bascule sur l'année suivante.
+  const maxBookingDate = useMemo(() => {
+    const y = today.getMonth() > 7 ? today.getFullYear() + 1 : today.getFullYear()
+    return new Date(y, 7, 31)
+  }, [today])
 
   // ── Recherche contact dans le CRM ──────────────────────────────────────
   const [lookupInput, setLookupInput] = useState('')
@@ -549,6 +552,8 @@ export default function TeleproClient({
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
+  // Mois actuellement affiché dans le calendrier de prise de RDV.
+  const [calMonth, setCalMonth] = useState<Date>(startOfMonth(startOfToday()))
 
   // ── Submit ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
@@ -1908,18 +1913,71 @@ export default function TeleproClient({
               <div>
                 <div style={{ marginBottom: 20 }}>
                   <div style={labelStyle}><Calendar size={12} style={{ color: '#C9A84C' }} /> Date du RDV *</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {days.map(day => {
-                      const sel = selectedDate && isSameDay(day, selectedDate)
-                      return (
-                        <button key={day.toISOString()} onClick={() => handleSelectDate(day)}
-                          style={{ background: sel ? 'rgba(204,172,113,0.12)' : '#e5ddc8', border: `1px solid ${sel ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`, borderRadius: 8, padding: '7px 14px', color: sel ? '#C9A84C' : '#4a6070', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ textTransform: 'capitalize' }}>{format(day, 'EEEE', { locale: fr })}</span>
-                          <span>{format(day, 'd MMM', { locale: fr })}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {(() => {
+                    const monthStart = startOfMonth(calMonth)
+                    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+                    const gridDays = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i))
+                    const canPrev = isAfter(monthStart, startOfMonth(today))
+                    const canNext = isBefore(monthStart, startOfMonth(maxBookingDate))
+                    const navBtn = (enabled: boolean): React.CSSProperties => ({
+                      background: enabled ? '#e5ddc8' : 'transparent',
+                      border: '1px solid #e5ddc8', borderRadius: 8, padding: '4px 8px',
+                      color: enabled ? '#4a6070' : '#cbbf9e', cursor: enabled ? 'pointer' : 'not-allowed',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    })
+                    return (
+                      <div style={{ background: '#faf7f0', border: '1px solid #e5ddc8', borderRadius: 10, padding: 10 }}>
+                        {/* En-tête mois + navigation */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <button type="button" disabled={!canPrev} onClick={() => canPrev && setCalMonth(subMonths(monthStart, 1))} style={navBtn(canPrev)}>
+                            <ChevronLeft size={14} />
+                          </button>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#4a6070', textTransform: 'capitalize' }}>
+                            {format(monthStart, 'MMMM yyyy', { locale: fr })}
+                          </span>
+                          <button type="button" disabled={!canNext} onClick={() => canNext && setCalMonth(addMonths(monthStart, 1))} style={navBtn(canNext)}>
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                        {/* Jours de la semaine */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3 }}>
+                          {['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(d => (
+                            <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#a4844c', textTransform: 'uppercase', padding: '2px 0' }}>{d}</div>
+                          ))}
+                        </div>
+                        {/* Grille des jours */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+                          {gridDays.map(day => {
+                            const inMonth = isSameMonth(day, monthStart)
+                            const isWeekend = day.getDay() === 0 || day.getDay() === 6
+                            const disabled = !inMonth || isWeekend || isBefore(day, today) || isAfter(day, maxBookingDate)
+                            const sel = selectedDate && isSameDay(day, selectedDate)
+                            return (
+                              <button
+                                key={day.toISOString()}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => !disabled && handleSelectDate(day)}
+                                style={{
+                                  aspectRatio: '1 / 1',
+                                  background: sel ? 'rgba(204,172,113,0.18)' : disabled ? 'transparent' : '#ffffff',
+                                  border: `1px solid ${sel ? 'rgba(204,172,113,0.55)' : disabled ? 'transparent' : '#e5ddc8'}`,
+                                  borderRadius: 8,
+                                  color: sel ? '#a4844c' : disabled ? '#cbbf9e' : '#4a6070',
+                                  fontSize: 13, fontWeight: sel ? 700 : 400,
+                                  cursor: disabled ? 'default' : 'pointer',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  opacity: !inMonth ? 0 : 1,
+                                }}
+                              >
+                                {format(day, 'd')}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
                 {selectedDate && (
                   <div>
