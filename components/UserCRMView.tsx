@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
@@ -103,6 +103,146 @@ function FilterSelect({
         pointerEvents: 'none',
         fontSize: 10,
       }}>▾</span>
+    </div>
+  )
+}
+
+// Multi-sélection (valeur = liste séparée par des virgules), même look que FilterSelect.
+function MultiFilterSelect({
+  value,
+  onChange,
+  options,
+  allLabel,
+}: {
+  value: string                 // CSV
+  onChange: (v: string) => void
+  options: string[]
+  allLabel: string
+}) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = value ? value.split(',').filter(Boolean) : []
+  const isActive = selected.length > 0
+
+  useEffect(() => {
+    if (!open) return
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery('') }
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]
+    onChange(next.join(','))
+  }
+
+  const label = !isActive
+    ? allLabel
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} origines`
+
+  const q = query.trim().toLowerCase()
+  const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: isActive ? 'rgba(204,172,113,0.08)' : NAVY_BG,
+          border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
+          borderRadius: 8,
+          padding: '7px 30px 7px 10px',
+          color: isActive ? GOLD : TEXT_MID,
+          fontSize: 12,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          outline: 'none',
+          minWidth: 130,
+          textAlign: 'left',
+          fontWeight: isActive ? 600 : 400,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: 220,
+          width: '100%',
+        }}
+      >
+        {label}
+      </button>
+      <span style={{
+        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+        color: TEXT_DIM, pointerEvents: 'none', fontSize: 10,
+      }}>▾</span>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 300,
+          background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 10,
+          minWidth: 220, maxHeight: 300, display: 'flex', flexDirection: 'column',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        }}>
+          <div style={{ padding: 6, borderBottom: `1px solid ${NAVY_BDR}` }}>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Rechercher…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{
+                width: '100%', border: `1px solid ${NAVY_BDR}`, borderRadius: 6,
+                padding: '5px 8px', fontSize: 12, color: TEXT_MID, outline: 'none',
+                fontFamily: 'inherit', background: NAVY_BG,
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => { onChange(''); setOpen(false); setQuery('') }}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left', border: 'none',
+              background: !isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
+              padding: '8px 12px', color: !isActive ? GOLD : TEXT_DIM, fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: !isActive ? 700 : 400,
+            }}
+          >
+            {allLabel}
+          </button>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '8px 12px', fontSize: 12, color: TEXT_DIM }}>Aucun résultat</div>
+            )}
+            {filtered.map(opt => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggle(opt)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '7px 12px', cursor: 'pointer', fontSize: 12,
+                  color: TEXT_MID, border: 'none', textAlign: 'left', fontFamily: 'inherit',
+                  background: selected.includes(opt) ? 'rgba(204,172,113,0.08)' : 'transparent',
+                  fontWeight: selected.includes(opt) ? 600 : 400,
+                }}
+              >
+                <span style={{
+                  width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                  border: selected.includes(opt) ? `2px solid ${GOLD}` : `2px solid ${TEXT_DIM}`,
+                  background: selected.includes(opt) ? GOLD : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {selected.includes(opt) && <Check size={9} color="#ffffff" strokeWidth={3} />}
+                </span>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -511,11 +651,13 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
           </FilterSelect>
 
-          {/* Origine */}
-          <FilterSelect value={filterSource} onChange={v => { setFilterSource(v); setPage(0) }}>
-            <option value="">Toutes les sources</option>
-            {sourceOpts.map(v => <option key={v} value={v}>{v}</option>)}
-          </FilterSelect>
+          {/* Origine (multi-sélection) */}
+          <MultiFilterSelect
+            value={filterSource}
+            onChange={v => { setFilterSource(v); setPage(0) }}
+            options={sourceOpts}
+            allLabel="Toutes les origines"
+          />
 
           {/* Période de création du contact (mode Mes Contacts) */}
           {isContactsView && (
