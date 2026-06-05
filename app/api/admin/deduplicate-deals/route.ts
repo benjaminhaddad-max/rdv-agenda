@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hubspotFetch, STAGES, PIPELINE_2026_2027 } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 // ─── Priorité des stages ───────────────────────────────────────────────────
 // Plus le score est élevé, plus le deal est "précieux" et doit être conservé
@@ -108,6 +109,7 @@ function stageName(stageId: string): string {
 
 // ─── GET — dry run : liste les doublons et le gagnant prévu ───────────────
 export async function GET() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const deals = await fetchAllDeals(PIPELINE_2026_2027)
     const dealIds = deals.map(d => d.id)
@@ -158,6 +160,7 @@ export async function GET() {
 // ─── POST — archive une liste précise de deal IDs (pas de re-scan) ────────
 // Body: { deal_ids: string[] }
 export async function POST(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const body = await req.json().catch(() => ({}))
     const dealIds: string[] = Array.isArray(body.deal_ids) ? body.deal_ids : []

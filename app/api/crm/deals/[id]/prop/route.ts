@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { hubspotFetch } from '@/lib/hubspot'
+import { hubspotFetch, isHubspotMirrorEnabled } from '@/lib/hubspot'
 import {
   isReadOnlyProperty,
   normalizePropertyValueForDbColumn,
@@ -79,7 +79,7 @@ export async function PATCH(
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
-  const mirrorEnabled = process.env.HUBSPOT_MIRROR_ENABLED !== '0'
+  const mirrorEnabled = isHubspotMirrorEnabled()
   let hubspotError: string | null = null
 
   if (mirrorEnabled) {

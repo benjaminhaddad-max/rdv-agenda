@@ -7,6 +7,7 @@ import {
   normalizePropertyValueForDbColumn,
   normalizePropertyValueForHubSpot,
 } from '@/lib/crm-property-normalization'
+import { isHubspotMirrorEnabled } from '@/lib/hubspot'
 
 /**
  * PATCH /api/crm/contacts/[id]/prop
@@ -113,7 +114,7 @@ export async function PATCH(
   }
 
   // ── 2. Mirror HubSpot (optionnel, activable pendant la transition) ──
-  const mirrorEnabled = process.env.HUBSPOT_MIRROR_ENABLED !== '0'
+  const mirrorEnabled = isHubspotMirrorEnabled()
   let hubspotError: string | null = null
 
   if (mirrorEnabled) {

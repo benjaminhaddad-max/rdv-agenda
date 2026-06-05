@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
 import { normalizeLeadStatus } from '@/lib/lead-status-normalization'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 /**
  * POST /api/admin/sync-preinscrits
@@ -67,6 +68,8 @@ function buildContactRow(c: any, now: string) {
 }
 
 export async function POST() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
+
   // ── Auth admin ────────────────────────────────────────────────────────────
   const cookieStore = await cookies()
   const supabase = createServerClient(

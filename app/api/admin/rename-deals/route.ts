@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { hubspotFetch, PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 // Stages à renommer : RDV pris, Délai de réflexion, À Replanifier
 const STAGES_TO_RENAME = [STAGES.rdvPris, STAGES.delaiReflexion, STAGES.aReplanifier]
@@ -21,6 +22,7 @@ function buildDealName(contact: {
 
 // ─── GET — aperçu des renommages prévus (dry run) ─────────────────────────
 export async function GET() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const previews: Array<{ dealId: string; oldName: string; newName: string; contactId: string }> = []
 
@@ -106,6 +108,7 @@ export async function GET() {
 
 // ─── POST — applique les renommages ───────────────────────────────────────
 export async function POST() {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
   try {
     const renamed: Array<{ dealId: string; newName: string }> = []
     const errors: Array<{ dealId: string; error: string }> = []

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 // Autorise la fonction à tourner jusqu'à 60s (au lieu des 10s par défaut)
 export const maxDuration = 60
@@ -46,6 +47,8 @@ interface HubSpotForm {
 }
 
 export async function POST(req: Request) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
+
   const body = await req.json().catch(() => ({}))
   const prefix = (body.prefix ?? 'NS') as string
   const dryRun = !!body.dryRun

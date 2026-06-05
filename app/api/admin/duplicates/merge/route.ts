@@ -3,8 +3,11 @@ import { createServiceClient } from '@/lib/supabase'
 import { mergeContacts } from '@/lib/hubspot'
 import { requireApiRole } from '@/lib/api-auth'
 import { memoryRateLimit } from '@/lib/rate-limit'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 export async function POST(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
+
   const authz = await requireApiRole(['admin'])
   if (!authz.ok) return authz.response
 

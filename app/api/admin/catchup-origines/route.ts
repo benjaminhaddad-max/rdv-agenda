@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeOrigineValue } from '@/lib/origine-normalization'
+import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -81,6 +82,8 @@ type HubSpotContactLite = {
 }
 
 export async function POST(req: NextRequest) {
+  if (isHubspotHardOff()) return hubspotHardOffResponse()
+
   if (!(await isAdmin(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

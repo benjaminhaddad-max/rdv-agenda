@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 
 /**
- * Coupure definitive HubSpot pour ce projet.
- * Tous les endpoints doivent verifier ce flag avant tout appel externe.
+ * Coupure définitive HubSpot pour ce CRM.
+ * Le CRM Supabase est la source de vérité ; HubSpot ne doit plus lire ni écrire
+ * les contacts/deals (évite notamment le bug catchup qui vidait les fiches natives).
+ *
+ * Pour réactiver HubSpot un jour : passer à false + HUBSPOT_MIRROR_ENABLED / READ.
  */
 export const HUBSPOT_HARD_OFF = true
 
@@ -15,7 +18,7 @@ export function hubspotHardOffResponse() {
     {
       ok: false,
       disabled: true,
-      reason: 'HubSpot is permanently disconnected from this CRM',
+      reason: 'HubSpot est déconnecté — le CRM ne synchronise plus avec HubSpot',
     },
     { status: 410 },
   )
