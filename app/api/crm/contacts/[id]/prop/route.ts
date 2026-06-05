@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { hubspotFetch } from '@/lib/hubspot'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import {
   isReadOnlyProperty,
   normalizePropertyValueForDbColumn,
   normalizePropertyValueForHubSpot,
 } from '@/lib/crm-property-normalization'
-import { isHubspotMirrorEnabled } from '@/lib/hubspot'
 
 /**
  * PATCH /api/crm/contacts/[id]/prop
  * Body: { property: string, value: string }
  *
- * Écrit en PRIORITÉ dans Supabase (sur hubspot_raw JSONB + colonne individuelle si connue).
- * Mirror HubSpot uniquement si HUBSPOT_MIRROR_ENABLED != '0'
- * (permet de couper HubSpot en un flip d'env var).
+ * Écrit dans Supabase (colonne individuelle si connue + hubspot_raw JSONB).
+ * HubSpot est déconnecté : on ne pousse plus rien vers HubSpot ici.
  */
 
 // Mapping propriété HubSpot → colonne Supabase dédiée
@@ -113,25 +110,7 @@ export async function PATCH(
     console.warn('[crm/contacts/[id]/prop] history insert failed:', e)
   }
 
-  // ── 2. Mirror HubSpot (optionnel, activable pendant la transition) ──
-  const mirrorEnabled = isHubspotMirrorEnabled()
-  let hubspotError: string | null = null
-
-  if (mirrorEnabled) {
-    try {
-      await hubspotFetch(`/crm/v3/objects/contacts/${contactId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          properties: { [property]: normalizedValue ?? '' },
-        }),
-      })
-    } catch (e) {
-      hubspotError = e instanceof Error ? e.message : String(e)
-      console.error('[crm/contacts/[id]/prop] mirror HubSpot failed:', hubspotError)
-    }
-  }
-
-  // ── 3. Déclenche les workflows trigger_type='property_changed' ──
+  // ── 2. Déclenche les workflows trigger_type='property_changed' ──
   try {
     const { enrollContact } = await import('@/lib/workflow-engine')
     const { data: workflows } = await db
@@ -152,5 +131,5 @@ export async function PATCH(
     console.warn('[crm/contacts/[id]/prop] workflow trigger failed:', e)
   }
 
-  return NextResponse.json({ ok: true, hubspot_mirrored: mirrorEnabled && !hubspotError, hubspot_error: hubspotError })
+  return NextResponse.json({ ok: true, hubspot_mirrored: false, hubspot_error: null })
 }

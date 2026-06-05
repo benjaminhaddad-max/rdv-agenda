@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { updateDealStage, updateDealOwner, addNoteToEngagements, STAGES, hubspotFetch } from '@/lib/hubspot'
 
 // PATCH /api/crm/deals/[id]
-// Met à jour un deal depuis le CRM interne → sync HubSpot
+// Met à jour un deal depuis le CRM interne. HubSpot est déconnecté de la mise à
+// jour des propriétés : Supabase est la seule source de vérité, on ne pousse
+// plus rien vers HubSpot ici.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: dealId } = await params
   const body = await req.json()
-  const { dealstage, hubspot_owner_id, teleprospecteur, note, dealname, formation, closedate, description } = body
+  const { dealstage, hubspot_owner_id, teleprospecteur, dealname, formation, closedate, description } = body
 
   const db = createServiceClient()
 
@@ -53,76 +54,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .eq('hubspot_contact_id', deal.hubspot_contact_id)
   }
 
-  // Sync HubSpot (best-effort)
-  const errors: string[] = []
-
-  try {
-    if (dealstage !== undefined) {
-      // Chercher la clé STAGES correspondant à l'ID de stage
-      const stageKey = (Object.entries(STAGES) as [string, string][])
-        .find(([, v]) => v === dealstage)?.[0] as keyof typeof STAGES | undefined
-      if (stageKey) {
-        await updateDealStage(dealId, stageKey)
-      }
+  // Si le changement de closer est lié à un rdv_appointment → mettre aussi à
+  // jour commercial_id côté Supabase (logique interne, sans HubSpot).
+  if (hubspot_owner_id !== undefined && deal.supabase_appt_id && hubspot_owner_id) {
+    const { data: closer } = await db
+      .from('rdv_users')
+      .select('id')
+      .eq('hubspot_owner_id', hubspot_owner_id)
+      .single()
+    if (closer) {
+      await db
+        .from('rdv_appointments')
+        .update({ commercial_id: closer.id })
+        .eq('id', deal.supabase_appt_id)
     }
-  } catch (e) {
-    errors.push(`stage: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  try {
-    if (hubspot_owner_id !== undefined) {
-      await updateDealOwner(dealId, hubspot_owner_id)
-
-      // Si lié à un rdv_appointment → mettre aussi à jour commercial_id
-      if (deal.supabase_appt_id && hubspot_owner_id) {
-        const { data: closer } = await db
-          .from('rdv_users')
-          .select('id')
-          .eq('hubspot_owner_id', hubspot_owner_id)
-          .single()
-        if (closer) {
-          await db
-            .from('rdv_appointments')
-            .update({ commercial_id: closer.id })
-            .eq('id', deal.supabase_appt_id)
-        }
-      }
-    }
-  } catch (e) {
-    errors.push(`owner: ${e instanceof Error ? e.message : String(e)}`)
-  }
-
-  try {
-    if (note?.trim()) {
-      await addNoteToEngagements({
-        dealId,
-        contactId: deal.hubspot_contact_id ?? null,
-        body: note.trim(),
-      })
-    }
-  } catch (e) {
-    errors.push(`note: ${e instanceof Error ? e.message : String(e)}`)
-  }
-
-  // Sync des propriétés texte vers HubSpot (best-effort)
-  try {
-    const hsProps: Record<string, string> = {}
-    if (dealname !== undefined) hsProps.dealname = dealname
-    if (formation !== undefined) hsProps['diploma_sante___formation'] = formation
-    if (closedate !== undefined) hsProps.closedate = closedate
-    if (description !== undefined) hsProps.description = description
-    if (Object.keys(hsProps).length > 0) {
-      await hubspotFetch(`/crm/v3/objects/deals/${dealId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ properties: hsProps }),
-      })
-    }
-  } catch (e) {
-    errors.push(`properties: ${e instanceof Error ? e.message : String(e)}`)
-  }
-
-  return NextResponse.json({
-    deal: updated,
-    hubspot_errors: errors.length > 0 ? errors : null,
-  })
+  return NextResponse.json({ deal: updated, hubspot_errors: null })
 }

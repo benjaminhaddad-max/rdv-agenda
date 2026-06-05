@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { hubspotFetch, isHubspotMirrorEnabled } from '@/lib/hubspot'
 import {
   isReadOnlyProperty,
   normalizePropertyValueForDbColumn,
@@ -10,7 +9,7 @@ import {
 /**
  * PATCH /api/crm/deals/[id]/prop
  * Body: { property: string, value: string }
- * Écrit Supabase en priorité, mirror HubSpot optionnel.
+ * Écrit dans Supabase. HubSpot est déconnecté : on ne pousse plus rien vers HubSpot.
  */
 
 const KNOWN_COLUMNS: Record<string, string> = {
@@ -79,22 +78,5 @@ export async function PATCH(
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
-  const mirrorEnabled = isHubspotMirrorEnabled()
-  let hubspotError: string | null = null
-
-  if (mirrorEnabled) {
-    try {
-      await hubspotFetch(`/crm/v3/objects/deals/${dealId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          properties: { [property]: normalizedValue ?? '' },
-        }),
-      })
-    } catch (e) {
-      hubspotError = e instanceof Error ? e.message : String(e)
-      console.error('[crm/deals/[id]/prop] mirror HubSpot failed:', hubspotError)
-    }
-  }
-
-  return NextResponse.json({ ok: true, hubspot_mirrored: mirrorEnabled && !hubspotError, hubspot_error: hubspotError })
+  return NextResponse.json({ ok: true, hubspot_mirrored: false, hubspot_error: null })
 }

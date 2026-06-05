@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { hubspotFetch } from '@/lib/hubspot'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 
-// Mapping champ Supabase → propriété HubSpot
+// HubSpot est déconnecté de la mise à jour des propriétés : Supabase est la
+// seule source de vérité. On ne pousse plus rien vers HubSpot ici.
+// Mapping conservé pour la normalisation des champs connus.
 const FIELD_MAP: Record<string, string> = {
   firstname:            'firstname',
   lastname:             'lastname',
@@ -27,20 +28,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // La valeur est aussi propagée aux deals liés (crm_deals.teleprospecteur).
   const teleprospecteur: string | null | undefined = telepro_user_id
 
-  // Build updates for Supabase + HubSpot
+  // Build updates for Supabase (HubSpot déconnecté)
   const supabaseUpdates: Record<string, string | null> = {}
-  const hubspotProps: Record<string, string> = {}
 
-  for (const [field, hsField] of Object.entries(FIELD_MAP)) {
+  for (const field of Object.keys(FIELD_MAP)) {
     if (field in contactFields) {
       const nextValue =
         field === 'classe_actuelle'
           ? (normalizeClasseActuelle(contactFields[field]) ?? 'Autres')
           : contactFields[field]
       supabaseUpdates[field] = nextValue
-      if (nextValue != null && nextValue !== '') {
-        hubspotProps[hsField] = nextValue
-      }
     }
   }
 
@@ -59,18 +56,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from('crm_contacts')
       .update({ ...supabaseUpdates, synced_at: new Date().toISOString() })
       .eq('hubspot_contact_id', contactId)
-  }
-
-  // Update HubSpot contact (best-effort)
-  if (Object.keys(hubspotProps).length > 0) {
-    try {
-      await hubspotFetch(`/crm/v3/objects/contacts/${contactId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ properties: hubspotProps }),
-      })
-    } catch (e) {
-      console.error('[crm/contacts PATCH] HubSpot error:', e)
-    }
   }
 
   // Propagation contact → deals liés (closer + télépro toujours synchronisés)
@@ -93,21 +78,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .from('crm_deals')
         .update(dealUpdate)
         .eq('hubspot_deal_id', deal.hubspot_deal_id)
-
-      // Sync HubSpot deal (best-effort)
-      try {
-        const hsProps: Record<string, string> = {}
-        if (teleprospecteur !== undefined)  hsProps.teleprospecteur  = teleprospecteur ?? ''
-        if (hubspot_owner_id !== undefined) hsProps.hubspot_owner_id = hubspot_owner_id ?? ''
-        if (Object.keys(hsProps).length > 0) {
-          await hubspotFetch(`/crm/v3/objects/deals/${deal.hubspot_deal_id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ properties: hsProps }),
-          })
-        }
-      } catch (e) {
-        console.error('[crm/contacts PATCH] Deal HubSpot error:', e)
-      }
     }
   }
 
