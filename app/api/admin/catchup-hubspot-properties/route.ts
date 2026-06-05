@@ -197,11 +197,17 @@ export async function POST(req: NextRequest) {
           : propName === 'hs_lead_status'
           ? normalizeLeadStatus(props[propName])
           : normalizeValue(props[propName])
-        mergedRaw[propName] = val
         const col = HUBSPOT_TO_COLUMN[propName]
+        const existingCol = col && current ? normalizeValue(current[col]) : null
+        const existingRawVal = normalizeValue(existingRaw[propName])
+        // HubSpot renvoie souvent des champs vides : ne jamais ecraser une valeur
+        // locale deja renseignee (evite les fiches fantomes sur NATIVE_* / fallback email).
+        if (val === null && (existingCol || existingRawVal)) continue
+
+        mergedRaw[propName] = val
         if (col) {
           patch[col] = val
-          if (current && normalizeValue(current[col]) !== val) changed = true
+          if (current && existingCol !== val) changed = true
         }
       }
       patch.hubspot_raw = mergedRaw
@@ -238,6 +244,7 @@ export async function POST(req: NextRequest) {
             .from('crm_contacts')
             .update(patch, { count: 'exact' })
             .eq('email', email)
+            .not('hubspot_contact_id', 'like', 'NATIVE_%')
           if (!error) updatedByEmail += (count || 0)
         }
       }

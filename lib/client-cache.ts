@@ -45,9 +45,10 @@ export function setCached<T>(key: string, value: T, ttlMs = 60_000): void {
   }
 }
 
-/** Invalide une cle precise. */
+/** Invalide une cle precise (cache + requete en cours). */
 export function invalidate(key: string): void {
   cache.delete(key)
+  inflight.delete(key)
 }
 
 /** Invalide toutes les cles dont la cle commence par prefix. */
@@ -100,8 +101,9 @@ export function refetch<T>(
   fn: () => Promise<T>,
   ttlMs = 60_000,
 ): Promise<T> {
-  const existing = inflight.get(key) as Promise<T> | undefined
-  if (existing) return existing
+  // Toujours un fetch frais : ne pas reutiliser un prefetch stale (sinon une
+  // modif (ex. statut lead) peut etre ecrasee par une reponse plus ancienne).
+  inflight.delete(key)
 
   const p = fn()
     .then(v => {

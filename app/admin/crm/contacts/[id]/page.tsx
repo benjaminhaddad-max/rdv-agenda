@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -248,6 +248,21 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
 // Charte Diploma Santé : base navy, gold en accents uniquement
 const BRAND_GRADIENT = 'bg-gradient-to-br from-[#0e1e35] to-[#1f3553]'
 
+const PROP_NAME_TO_COLUMN: Record<string, string> = {
+  firstname: 'firstname',
+  lastname: 'lastname',
+  email: 'email',
+  phone: 'phone',
+  classe_actuelle: 'classe_actuelle',
+  departement: 'departement',
+  hs_lead_status: 'hs_lead_status',
+  origine: 'origine',
+  hubspot_owner_id: 'hubspot_owner_id',
+  formation_souhaitee: 'formation_souhaitee',
+  'zone___localite': 'zone_localite',
+  'diploma_sante___formation_demandee': 'formation_demandee',
+}
+
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [data, setData] = useState<ContactDetails | null>(null)
@@ -271,9 +286,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [noteDraftSubject, setNoteDraftSubject] = useState('')
   const [noteDraftBody, setNoteDraftBody] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const loadGenRef = useRef(0)
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
+    const gen = ++loadGenRef.current
+    const isStale = () => loadGenRef.current !== gen
     const coreKey = `/api/crm/contacts/${id}/details?phase=core`
     const extKey  = `/api/crm/contacts/${id}/details?phase=extended`
     const metaKey = '/api/crm/metadata'
@@ -290,21 +308,32 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       const cachedMeta = getCached<Any>(metaKey)
       const cachedExt  = getCached<Any>(extKey)
       if (cachedCore && cachedMeta) {
-        setData({ ...cachedCore, ...(cachedExt ?? {}), ...cachedMeta })
-        setLoading(false)
+        if (!isStale()) {
+          setData({ ...cachedCore, ...(cachedExt ?? {}), ...cachedMeta })
+          setLoading(false)
+        }
         // revalidate background (toutes les sections, sans await)
         Promise.all([
           refetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000),
           refetch<Any>(metaKey, () => jsonFetcher(metaKey), 5 * 60_000),
-        ]).then(([c, m]) => setData(prev => prev ? { ...prev, ...c, ...m } : { ...c, ...m })).catch(() => {})
+        ]).then(([c, m]) => {
+          if (isStale()) return
+          setData(prev => prev ? { ...prev, ...c, ...m } : { ...c, ...m })
+        }).catch(() => {})
         // Extended : si pas de cache, fetch en background et merge
         if (!cachedExt) {
           void prefetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
-            .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+            .then(ext => {
+              if (isStale()) return
+              setData(prev => prev ? { ...prev, ...ext } : prev)
+            })
             .catch(() => {})
         } else {
           void refetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
-            .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+            .then(ext => {
+              if (isStale()) return
+              setData(prev => prev ? { ...prev, ...ext } : prev)
+            })
             .catch(() => {})
         }
         return
@@ -320,6 +349,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           : prefetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000),
         prefetch<Any>(metaKey, () => jsonFetcher(metaKey), 5 * 60_000),
       ])
+      if (isStale()) return
       setData({ ...core, ...meta })
       setLoading(false)
 
@@ -328,9 +358,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       void (force
         ? refetch<Any>(extKey, () => jsonFetcher(extKey), 60_000)
         : prefetch<Any>(extKey, () => jsonFetcher(extKey), 60_000))
-        .then(ext => setData(prev => prev ? { ...prev, ...ext } : prev))
+        .then(ext => {
+          if (isStale()) return
+          setData(prev => prev ? { ...prev, ...ext } : prev)
+        })
         .catch(() => {})
     } catch (e) {
+      if (isStale()) return
       setErr(e instanceof Error ? e.message : String(e))
       setLoading(false)
     }
@@ -417,6 +451,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({ property: propName, value: normalizedValue }),
       })
       if (!res.ok) throw new Error(await res.text())
+      const col = PROP_NAME_TO_COLUMN[propName]
+      setData(prev => {
+        if (!prev?.contact) return prev
+        const nextContact = {
+          ...prev.contact,
+          hubspot_raw: { ...(prev.contact.hubspot_raw ?? {}), [propName]: normalizedValue },
+        }
+        if (col) (nextContact as Record<string, unknown>)[col] = normalizedValue
+        return { ...prev, contact: nextContact }
+      })
       await load({ force: true })
       setEditing(null)
     } catch (e) {
