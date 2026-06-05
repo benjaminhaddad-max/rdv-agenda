@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchParcoursupVerdictsByContactId, type ParcoursupVerdictCell } from '@/lib/parcoursup-verdict'
+import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 
 // GET /api/crm/transactions
 //
@@ -40,6 +41,80 @@ export async function GET(req: NextRequest) {
   ])
   const STALE_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000  // 90 jours
   const staleCutoff = Date.now() - STALE_THRESHOLD_MS
+
+  // ── Fast path recherche (barre globale) ───────────────────────────────────
+  const quick = searchParams.get('quick') === '1'
+  const searchTrimmed = search.trim()
+  if (quick && searchTrimmed.length >= 2) {
+    const term = searchTrimmed.replace(/[%,()*]/g, ' ').trim()
+    if (!term) {
+      return NextResponse.json({ data: [], total: 0, page, limit })
+    }
+
+    let matchingContactIds: string[] = []
+    if (isTypesenseEnabled()) {
+      const ts = await searchTypesenseCrmContacts({
+        q: term,
+        queryBy: 'firstname,lastname,email,phone',
+        page: 1,
+        perPage: 50,
+      }).catch(() => null)
+      if (ts) matchingContactIds = ts.ids
+    }
+    if (matchingContactIds.length === 0) {
+      const { data: cRows } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id')
+        .or(`firstname.ilike.%${term}%,lastname.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`)
+        .limit(50)
+      matchingContactIds = (cRows ?? [])
+        .map((c: { hubspot_contact_id: string | null }) => c.hubspot_contact_id)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    }
+
+    const orParts = [`dealname.ilike.%${term}%`]
+    if (matchingContactIds.length > 0) {
+      orParts.push(`hubspot_contact_id.in.(${matchingContactIds.join(',')})`)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let dq: any = db
+      .from('crm_deals')
+      .select('hubspot_deal_id, hubspot_contact_id, dealname, dealstage, formation, createdate')
+    if (pipelineParam !== 'all') dq = dq.eq('pipeline', pipelineParam)
+    dq = dq.or(orParts.join(','))
+    const { data: dealRows, error: dealErr } = await dq
+      .order('createdate', { ascending: false, nullsFirst: false })
+      .limit(Math.max(limit, 20))
+    if (dealErr) return NextResponse.json({ error: dealErr.message }, { status: 500 })
+
+    const dealContactIds = [...new Set(((dealRows ?? []) as Array<{ hubspot_contact_id: string | null }>)
+      .map((d) => d.hubspot_contact_id)
+      .filter((v): v is string => typeof v === 'string' && v.length > 0))]
+    const contactById: Record<string, { firstname: string | null; lastname: string | null }> = {}
+    if (dealContactIds.length > 0) {
+      const { data: cData } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id, firstname, lastname')
+        .in('hubspot_contact_id', dealContactIds)
+      for (const c of (cData ?? []) as Array<{ hubspot_contact_id: string; firstname: string | null; lastname: string | null }>) {
+        contactById[c.hubspot_contact_id] = { firstname: c.firstname, lastname: c.lastname }
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = (dealRows ?? []).slice(0, limit).map((d: any) => ({
+      hubspot_deal_id: d.hubspot_deal_id,
+      dealname: d.dealname,
+      dealstage: d.dealstage,
+      formation: d.formation,
+      createdate: d.createdate,
+      contact: d.hubspot_contact_id ? (contactById[d.hubspot_contact_id] ?? null) : null,
+    }))
+
+    const r = NextResponse.json({ data, total: data.length, page, limit })
+    r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+    return r
+  }
 
   // ── Charger rdv_users pour enrichissement ─────────────────────────────────
   const { data: users } = await db

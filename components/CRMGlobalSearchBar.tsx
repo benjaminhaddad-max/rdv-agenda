@@ -128,26 +128,26 @@ export default function CRMGlobalSearchBar() {
     const ac = new AbortController()
     setLoading(true)
     setOpen(true)
+    const qTokens = tokenize(debouncedQuery)
 
-    Promise.all([
-      fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=8&page=0&defer_count=1&all_classes=1&global_search=1`, {
-        signal: ac.signal,
-        cache: 'no-store',
-      }),
-      fetch(`/api/crm/transactions?search=${encodeURIComponent(debouncedQuery)}&limit=5&page=0`, {
-        signal: ac.signal,
-        cache: 'no-store',
-      }),
-      debouncedQuery.includes('@')
-        ? fetch(`/api/crm/contacts/check?email=${encodeURIComponent(debouncedQuery)}`, {
+    // Contacts (Typesense → rapide). Affichés dès qu'ils arrivent, SANS attendre
+    // les transactions, qui étaient l'ancien goulot d'étranglement (Promise.all
+    // bloquait l'affichage tant que /api/crm/transactions n'avait pas répondu).
+    const contactsPromise = (async () => {
+      try {
+        const [contactsRes, exactContactRes] = await Promise.all([
+          fetch(`/api/crm/contacts?search=${encodeURIComponent(debouncedQuery)}&limit=8&page=0&defer_count=1&all_classes=1&global_search=1`, {
             signal: ac.signal,
             cache: 'no-store',
-          })
-        : Promise.resolve(null as Response | null),
-    ])
-      .then(async ([contactsRes, dealsRes, exactContactRes]) => {
+          }),
+          debouncedQuery.includes('@')
+            ? fetch(`/api/crm/contacts/check?email=${encodeURIComponent(debouncedQuery)}`, {
+                signal: ac.signal,
+                cache: 'no-store',
+              })
+            : Promise.resolve(null as Response | null),
+        ])
         const contactsJson = contactsRes.ok ? await contactsRes.json().catch(() => ({})) : {}
-        const dealsJson = dealsRes.ok ? await dealsRes.json().catch(() => ({})) : {}
         const baseContacts: ContactHit[] = Array.isArray(contactsJson?.data) ? contactsJson.data : []
         let exactContact: ContactHit | null = null
         if (exactContactRes && exactContactRes.ok) {
@@ -164,22 +164,44 @@ export default function CRMGlobalSearchBar() {
         let mergedContacts = exactContact
           ? [exactContact, ...baseContacts.filter((c) => c.hubspot_contact_id !== exactContact!.hubspot_contact_id)]
           : baseContacts
-
-        const qTokens = tokenize(debouncedQuery)
         if (qTokens.length >= 2) {
           mergedContacts = mergedContacts.filter((c) => contactMatchesAllTokens(c, qTokens))
         }
+        if (!ac.signal.aborted) {
+          setContacts(mergedContacts)
+          // Cas courant : on lève le spinner dès que des contacts sont trouvés.
+          // Les transactions s'afficheront ensuite, indépendamment. Si aucun
+          // contact, on garde le spinner jusqu'à la fin des transactions pour
+          // éviter un flash « Aucun résultat ».
+          if (mergedContacts.length > 0) setLoading(false)
+        }
+      } catch {
+        /* abort / réseau : ignoré */
+      }
+    })()
 
+    // Transactions (chemin rapide ciblé `quick=1`). Chargées en parallèle et
+    // affichées dès qu'elles arrivent, sans bloquer les contacts.
+    const dealsPromise = (async () => {
+      try {
+        const dealsRes = await fetch(`/api/crm/transactions?search=${encodeURIComponent(debouncedQuery)}&limit=5&page=0&quick=1`, {
+          signal: ac.signal,
+          cache: 'no-store',
+        })
+        const dealsJson = dealsRes.ok ? await dealsRes.json().catch(() => ({})) : {}
         let mergedDeals: DealHit[] = Array.isArray(dealsJson?.data) ? dealsJson.data : []
         if (qTokens.length >= 2) {
           mergedDeals = mergedDeals.filter((d) => dealMatchesAllTokens(d, qTokens))
         }
+        if (!ac.signal.aborted) setDeals(mergedDeals)
+      } catch {
+        /* abort / réseau : ignoré */
+      }
+    })()
 
-        setContacts(mergedContacts)
-        setDeals(mergedDeals)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    Promise.allSettled([contactsPromise, dealsPromise]).then(() => {
+      if (!ac.signal.aborted) setLoading(false)
+    })
 
     return () => ac.abort()
   }, [debouncedQuery])
