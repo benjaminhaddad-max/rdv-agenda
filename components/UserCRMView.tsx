@@ -472,6 +472,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [newViewName, setNewViewName]     = useState('')
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
   const [renameValue, setRenameValue]     = useState('')
+  const [justSaved, setJustSaved]         = useState(false)
 
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
@@ -829,6 +830,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     if (!activeView || activeView.isDefault) return
     const snapshot = currentSnapshot
     setViews(prev => prev.map(v => (v.id === activeViewId ? { ...v, snapshot } : v)))
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 1800)
     void fetch(`/api/crm/views/${activeViewId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1235,6 +1238,52 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               <X size={11} /> Réinitialiser
             </button>
           )}
+
+          {/* Enregistrer les filtres dans une vue.
+              - Vue active perso modifiée → met à jour la vue.
+              - Sinon (vue par défaut) avec filtres actifs → crée une nouvelle vue. */}
+          {viewChanged && activeView && !activeView.isDefault ? (
+            <button
+              onClick={saveActiveView}
+              style={{
+                background: justSaved ? 'rgba(34,197,94,0.12)' : '#12314d',
+                border: `1px solid ${justSaved ? 'rgba(34,197,94,0.4)' : '#12314d'}`,
+                borderRadius: 8,
+                padding: '7px 12px',
+                color: justSaved ? '#16a34a' : '#ffffff',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              {justSaved ? <Check size={12} /> : <Save size={12} />}
+              {justSaved ? 'Enregistré' : 'Enregistrer la vue'}
+            </button>
+          ) : hasActiveFilters && (activeView?.isDefault ?? true) ? (
+            <button
+              onClick={() => { setCreatingView(true); setNewViewName('') }}
+              style={{
+                background: '#12314d',
+                border: '1px solid #12314d',
+                borderRadius: 8,
+                padding: '7px 12px',
+                color: '#ffffff',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Save size={12} /> Enregistrer comme vue
+            </button>
+          ) : null}
         </div>
 
         {/* ── Panneau filtres avancés (toute propriété CRM) ──────────────── */}
