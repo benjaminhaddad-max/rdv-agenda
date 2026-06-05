@@ -72,7 +72,6 @@ function InlineCellSelect({
 
   function handleToggle(e: React.MouseEvent) {
     e.stopPropagation()
-    if (saving) return
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       // Positionner sous le bouton, aligner à gauche
@@ -96,7 +95,7 @@ function InlineCellSelect({
           border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
           borderRadius: 4,
           padding: '5px 10px',
-          cursor: saving ? 'not-allowed' : 'pointer',
+          cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 0,
@@ -120,14 +119,15 @@ function InlineCellSelect({
           }
         }}
       >
-        {saving ? (
-          <span style={{ fontSize: 11, color: '#4a6070' }}>…</span>
-        ) : renderValue ? (
+        {renderValue ? (
           renderValue(value)
         ) : (
           <span style={{ fontSize: 11, color: value ? '#4a6070' : '#0e1e35' }}>
             {displayValue || currentOpt?.label || value || '—'}
           </span>
+        )}
+        {saving && (
+          <span style={{ marginLeft: 5, fontSize: 9, color: '#9bb0c4', flexShrink: 0 }}>⋯</span>
         )}
       </button>
 
@@ -341,7 +341,8 @@ function InlineCellText({
         e.currentTarget.style.background = 'transparent'
       }}
     >
-      {saving ? '…' : (value || placeholder)}
+      {value || placeholder}
+      {saving && <span style={{ marginLeft: 4, fontSize: 9, color: '#9bb0c4' }}>⋯</span>}
     </span>
   )
 }
@@ -473,6 +474,48 @@ export interface CRMContact {
     closer?: { id: string; name: string; avatar_color: string } | null
     telepro?: { id: string; name: string; avatar_color: string } | null
   } | null
+}
+
+// ── Mises à jour optimistes : mapping champ → emplacement dans CRMContact ─────
+// Champs natifs (clés directes de CRMContact) qu'on met à jour côté contact.
+const KNOWN_CONTACT_FIELDS = new Set([
+  'telepro_user_id',
+  'hubspot_owner_id',
+  'closer_du_contact_owner_id',
+  'hs_lead_status',
+  'origine',
+  'departement',
+  'classe_actuelle',
+  'zone_localite',
+])
+
+// Applique un override de champs contact (et reflète dans extra_props pour que
+// les colonnes dynamiques se mettent à jour elles aussi).
+function applyContactOverride(c: CRMContact, fields: Record<string, string>): CRMContact {
+  const next: CRMContact = { ...c }
+  const extra: Record<string, unknown> = { ...(c.extra_props ?? {}) }
+  for (const [k, v] of Object.entries(fields)) {
+    if (KNOWN_CONTACT_FIELDS.has(k)) (next as unknown as Record<string, unknown>)[k] = v
+    extra[k] = v
+    // La colonne dynamique "Téléprospecteur" lit extra_props.teleprospecteur,
+    // alors que la colonne native lit telepro_user_id : on garde les deux en phase.
+    if (k === 'telepro_user_id') extra['teleprospecteur'] = v
+  }
+  next.extra_props = extra
+  return next
+}
+
+function applyDealOverride(c: CRMContact, dealFields: Record<string, string>): CRMContact {
+  if (!c.deal) return c
+  return { ...c, deal: { ...c.deal, ...dealFields } }
+}
+
+// Lecture de la valeur serveur d'un champ contact, pour la réconciliation.
+function readContactField(c: CRMContact, field: string): string {
+  const v = KNOWN_CONTACT_FIELDS.has(field)
+    ? (c as unknown as Record<string, unknown>)[field]
+    : c.extra_props?.[field]
+  return v == null ? '' : String(v)
 }
 
 interface Props {
@@ -1011,6 +1054,17 @@ export default function CRMContactsTable({
   const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
   const [renderedCount,     setRenderedCount]      = useState(RENDER_CHUNK)
 
+  // ── Mises à jour optimistes ───────────────────────────────────────────────
+  // Quand on change une propriété (télépro, closer, statut, étape…) on applique
+  // immédiatement la nouvelle valeur à l'écran sans attendre l'aller-retour
+  // serveur ni un rechargement complet de la liste. Le PATCH part en arrière-
+  // plan ; quand les données fraîches du serveur arrivent (onRefresh) et qu'elles
+  // reflètent la valeur, on retire l'override. En cas d'échec, on revient en arrière.
+  const [optimistic, setOptimistic] = useState<Record<string, {
+    contactFields?: Record<string, string>
+    dealFields?: Record<string, string>
+  }>>({})
+
   // Prefetch debounce : on hover plus de 150ms → on tire la fiche en arriere-plan
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleRowEnter = useCallback((id: string) => {
@@ -1047,9 +1101,53 @@ export default function CRMContactsTable({
     return () => observer.disconnect()
   }, [renderedCount, contacts.length, RENDER_CHUNK])
 
+  // Liste avec les overrides optimistes appliqués (instantanés à l'écran).
+  const effectiveContacts = useMemo(() => {
+    if (!Object.keys(optimistic).length) return contacts
+    return contacts.map(c => {
+      const ov = optimistic[c.hubspot_contact_id]
+      if (!ov) return c
+      let r = c
+      if (ov.contactFields && Object.keys(ov.contactFields).length) r = applyContactOverride(r, ov.contactFields)
+      if (ov.dealFields    && Object.keys(ov.dealFields).length)    r = applyDealOverride(r, ov.dealFields)
+      return r
+    })
+  }, [contacts, optimistic])
+
+  // Réconciliation : dès que les données fraîches du serveur reflètent la valeur
+  // optimiste, on retire l'override (auto-cicatrisant même si le fetch est mis en
+  // cache et renvoie temporairement l'ancienne valeur).
+  useEffect(() => {
+    setOptimistic(prev => {
+      const ids = Object.keys(prev)
+      if (!ids.length) return prev
+      const byId = new Map(contacts.map(c => [c.hubspot_contact_id, c]))
+      const next: typeof prev = {}
+      let changed = false
+      for (const id of ids) {
+        const ov = prev[id]
+        const c = byId.get(id)
+        if (!c) { next[id] = ov; continue }  // contact hors page courante : on garde
+        const cf: Record<string, string> = {}
+        for (const [k, v] of Object.entries(ov.contactFields ?? {})) {
+          if (readContactField(c, k) !== String(v ?? '')) cf[k] = v
+        }
+        const df: Record<string, string> = {}
+        for (const [k, v] of Object.entries(ov.dealFields ?? {})) {
+          const serverVal = c.deal ? String((c.deal as unknown as Record<string, unknown>)[k] ?? '') : ''
+          if (serverVal !== String(v ?? '')) df[k] = v
+        }
+        const stillPending = Object.keys(cf).length > 0 || Object.keys(df).length > 0
+        if (stillPending) next[id] = { contactFields: cf, dealFields: df }
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [contacts])
+
   const visibleContacts = useMemo(
-    () => contacts.slice(0, renderedCount),
-    [contacts, renderedCount]
+    () => effectiveContacts.slice(0, renderedCount),
+    [effectiveContacts, renderedCount]
   )
 
   // ── Select-all page ──────────────────────────────────────────────────────
@@ -1238,43 +1336,96 @@ export default function CRMContactsTable({
     })
   }, [])
 
+  // Retrouve l'id contact d'un deal (pour appliquer l'override optimiste).
+  function contactIdForDeal(dealId: string): string | undefined {
+    return contacts.find(c => c.deal?.hubspot_deal_id === dealId)?.hubspot_contact_id
+  }
+
+  function setDealOptimistic(dealId: string, field: string, value: string) {
+    const cid = contactIdForDeal(dealId)
+    if (!cid) return
+    setOptimistic(prev => {
+      const cur = prev[cid] ?? {}
+      return { ...prev, [cid]: { ...cur, dealFields: { ...(cur.dealFields ?? {}), [field]: value } } }
+    })
+  }
+  function clearDealOptimistic(dealId: string, field: string) {
+    const cid = contactIdForDeal(dealId)
+    if (!cid) return
+    setOptimistic(prev => {
+      const cur = prev[cid]
+      if (!cur?.dealFields) return prev
+      const df = { ...cur.dealFields }; delete df[field]
+      return { ...prev, [cid]: { ...cur, dealFields: df } }
+    })
+  }
+  function setContactOptimistic(contactId: string, field: string, value: string) {
+    setOptimistic(prev => {
+      const cur = prev[contactId] ?? {}
+      return { ...prev, [contactId]: { ...cur, contactFields: { ...(cur.contactFields ?? {}), [field]: value } } }
+    })
+  }
+  function clearContactOptimistic(contactId: string, field: string) {
+    setOptimistic(prev => {
+      const cur = prev[contactId]
+      if (!cur?.contactFields) return prev
+      const cf = { ...cur.contactFields }; delete cf[field]
+      return { ...prev, [contactId]: { ...cur, contactFields: cf } }
+    })
+  }
+
   async function handleStageChange(dealId: string, stageId: string) {
+    setDealOptimistic(dealId, 'dealstage', stageId)
     setSavingStage(dealId)
     try {
-      await fetch(`/api/crm/deals/${dealId}`, {
+      const res = await fetch(`/api/crm/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dealstage: stageId }),
       })
+      if (!res.ok) throw new Error('patch failed')
       onRefresh?.()
+    } catch {
+      clearDealOptimistic(dealId, 'dealstage')
+      alert('La mise à jour de l’étape a échoué. Réessayez.')
     } finally {
       setSavingStage(null)
     }
   }
 
   async function handleContactFieldChange(contactId: string, field: string, value: string) {
+    setContactOptimistic(contactId, field, value)
     setSavingContactField(`${contactId}:${field}`)
     try {
-      await fetch(`/api/crm/contacts/${contactId}`, {
+      const res = await fetch(`/api/crm/contacts/${contactId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       })
+      if (!res.ok) throw new Error('patch failed')
       onRefresh?.()
+    } catch {
+      clearContactOptimistic(contactId, field)
+      alert('La mise à jour a échoué. Réessayez.')
     } finally {
       setSavingContactField(null)
     }
   }
 
   async function handleDealFieldChange(dealId: string, field: string, value: string) {
+    setDealOptimistic(dealId, field, value)
     setSavingDealField(`${dealId}:${field}`)
     try {
-      await fetch(`/api/crm/deals/${dealId}`, {
+      const res = await fetch(`/api/crm/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       })
+      if (!res.ok) throw new Error('patch failed')
       onRefresh?.()
+    } catch {
+      clearDealOptimistic(dealId, field)
+      alert('La mise à jour a échoué. Réessayez.')
     } finally {
       setSavingDealField(null)
     }
