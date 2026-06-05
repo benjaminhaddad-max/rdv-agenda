@@ -1,10 +1,43 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus } from 'lucide-react'
 import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
+import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
+import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
+import {
+  CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
+  type CRMFilterField, type CRMFilterOp, type SelectOption,
+} from '@/lib/crm-constants'
+
+// Règle de filtre avancé (filtre sur n'importe quelle propriété CRM).
+type AdvancedRule = {
+  id: string
+  field: string          // 'custom:<name>' ou clé hardcodée (CRM_FILTER_FIELDS)
+  operator: CRMFilterOp
+  value: string
+}
+
+// Map clé hardcodée → colonne réelle de crm_contacts pour le moteur `cf`.
+// Les clés absentes (étape de transaction, pipeline, etc.) ne sont pas des
+// colonnes contact : on les ignore côté `cf` pour éviter toute erreur SQL.
+const FIELD_TO_CF_COLUMN: Record<string, string> = {
+  classe:      'classe_actuelle',
+  zone:        'zone_localite',
+  source:      'origine',
+  lead_status: 'hs_lead_status',
+  formation:   'formation_demandee',
+  departement: 'departement',
+  form_event:  'recent_conversion_event',
+}
+
+function ruleFieldToCfColumn(field: string): string | null {
+  const custom = isCustomField(field)
+  if (custom) return custom
+  return FIELD_TO_CF_COLUMN[field] ?? null
+}
 
 // ── Constantes ──────────────────────────────────────────────────────────────
 // Charte Diploma Santé 2026
@@ -42,13 +75,6 @@ interface RdvUser {
   avatar_color?: string
   hubspot_owner_id?: string
   hubspot_user_id?: string
-}
-
-type CrmPropertyMeta = {
-  name: string
-  label?: string
-  type?: string
-  groupName?: string
 }
 
 interface Props {
@@ -249,6 +275,144 @@ function MultiFilterSelect({
   )
 }
 
+// ── Ligne de filtre avancé (toute propriété CRM) ─────────────────────────────
+function AdvancedFilterRow({
+  rule,
+  crmProps,
+  optionSets,
+  onChange,
+  onRemove,
+}: {
+  rule: AdvancedRule
+  crmProps: CrmPropertyMeta[]
+  optionSets: {
+    leadStatus: SelectOption[]
+    formation: SelectOption[]
+    source: SelectOption[]
+    zone: SelectOption[]
+    formEvent: SelectOption[]
+    classe: SelectOption[]
+  }
+  onChange: (patch: Partial<AdvancedRule>) => void
+  onRemove: () => void
+}) {
+  const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
+  const customName = isCustomField(rule.field)
+  const customProp = customName ? crmProps.find(p => p.name === customName) : null
+
+  let kind: ReturnType<typeof propertyKindOf> = 'text'
+  if (customProp) kind = propertyKindOf(customProp.type, customProp.field_type)
+  else if (fieldDef?.type === 'select') kind = 'enum'
+
+  const ops = customProp ? opsForKind(kind) : opsForField(rule.field as CRMFilterField)
+  const showVal = opNeedsValue(rule.operator)
+  const unsupported = ruleFieldToCfColumn(rule.field) === null
+
+  // Options de valeur pour les champs enum.
+  let valueOptions: SelectOption[] = []
+  if (customProp && customProp.options && customProp.options.length > 0) {
+    valueOptions = customProp.options.map(o => ({ id: o.value, label: o.label }))
+  } else {
+    switch (rule.field) {
+      case 'classe':      valueOptions = optionSets.classe; break
+      case 'lead_status': valueOptions = optionSets.leadStatus; break
+      case 'formation':   valueOptions = optionSets.formation; break
+      case 'source':      valueOptions = optionSets.source; break
+      case 'zone':        valueOptions = optionSets.zone; break
+      case 'form_event':  valueOptions = optionSets.formEvent; break
+    }
+  }
+
+  const isRange = opIsRange(rule.operator)
+  const [v1, v2] = isRange ? (rule.value || '').split('|') : [rule.value || '', '']
+  const inputStyle: React.CSSProperties = {
+    background: '#f6f9fc', border: '1px solid #e5ddc8', borderRadius: 6,
+    padding: '6px 8px', color: '#12314d', fontSize: 12, fontFamily: 'inherit',
+    outline: 'none', width: '100%', boxSizing: 'border-box',
+  }
+
+  const renderValueInput = () => {
+    if (!showVal) return null
+    if (kind === 'date' || kind === 'datetime') {
+      const inputType = kind === 'datetime' ? 'datetime-local' : 'date'
+      if (isRange) {
+        return (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input type={inputType} value={v1} onChange={e => onChange({ value: `${e.target.value}|${v2}` })} style={{ ...inputStyle, flex: 1 }} />
+            <input type={inputType} value={v2} onChange={e => onChange({ value: `${v1}|${e.target.value}` })} style={{ ...inputStyle, flex: 1 }} />
+          </div>
+        )
+      }
+      return <input type={inputType} value={rule.value} onChange={e => onChange({ value: e.target.value })} style={inputStyle} />
+    }
+    if (kind === 'number') {
+      if (isRange) {
+        return (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input type="number" value={v1} onChange={e => onChange({ value: `${e.target.value}|${v2}` })} placeholder="Min" style={{ ...inputStyle, flex: 1 }} />
+            <input type="number" value={v2} onChange={e => onChange({ value: `${v1}|${e.target.value}` })} placeholder="Max" style={{ ...inputStyle, flex: 1 }} />
+          </div>
+        )
+      }
+      return <input type="number" value={rule.value} onChange={e => onChange({ value: e.target.value })} placeholder="Valeur…" style={inputStyle} />
+    }
+    if (kind === 'bool') {
+      return (
+        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+          <option value="">Sélectionner…</option>
+          <option value="true">Oui</option>
+          <option value="false">Non</option>
+        </select>
+      )
+    }
+    if (kind === 'enum' || fieldDef?.type === 'select') {
+      if (opIsMulti(rule.operator)) {
+        return <MultiSelectDropdown options={valueOptions} value={rule.value} onChange={v => onChange({ value: v })} />
+      }
+      if (valueOptions.length > 20) {
+        return <SearchableSelect options={valueOptions} value={rule.value} onChange={v => onChange({ value: v })} />
+      }
+      return (
+        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+          <option value="">{valueOptions.length === 0 ? 'Chargement…' : 'Sélectionner…'}</option>
+          {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+        </select>
+      )
+    }
+    return <input type="text" value={rule.value} onChange={e => onChange({ value: e.target.value })} placeholder="Valeur…" style={inputStyle} />
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '24px 10px 8px', position: 'relative' }}>
+      <button
+        type="button"
+        onClick={onRemove}
+        title="Supprimer ce filtre"
+        style={{ position: 'absolute', top: 4, right: 4, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
+      ><X size={13} /></button>
+      <CRMFieldPicker
+        value={rule.field}
+        onChange={(field) => {
+          const next = crmProps.find(p => 'custom:' + p.name === field)
+          const k = next ? propertyKindOf(next.type, next.field_type) : 'text'
+          const defaultOp = (opsForKind(k)[0]?.key ?? 'is') as CRMFilterOp
+          onChange({ field, operator: defaultOp, value: '' })
+        }}
+        crmProps={crmProps}
+      />
+      <select value={rule.operator} onChange={e => onChange({ operator: e.target.value as CRMFilterOp })} style={{ ...inputStyle, cursor: 'pointer' }}>
+        {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
+      </select>
+      {renderValueInput()}
+      {unsupported && (
+        <div style={{ fontSize: 10, color: '#ef4444' }}>
+          Ce champ n&apos;est pas filtrable sur la liste des contacts.
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Composant principal ──────────────────────────────────────────────────────
 export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter }: Props) {
   // ─ Contacts
@@ -271,9 +435,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [filterPeriod, setFilterPeriod]         = useState('')
   const [filterZone, setFilterZone]             = useState('')
   const [filterFormEvent, setFilterFormEvent]   = useState('')
+  // Filtres avancés : n'importe quelle propriété CRM (sérialisés vers `cf`).
+  const [advancedRules, setAdvancedRules]       = useState<AdvancedRule[]>([])
+  const [showAdvanced, setShowAdvanced]         = useState(false)
 
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
+
+  // Sérialise les filtres avancés (propriétés arbitraires) vers le param `cf`.
+  // On ignore les règles sans valeur (sauf is_empty / is_not_empty) et celles
+  // dont le champ ne correspond pas à une colonne contact.
+  const cfJson = useMemo(() => {
+    const arr = advancedRules
+      .map(r => {
+        const col = ruleFieldToCfColumn(r.field)
+        if (!col) return null
+        if (!r.value && r.operator !== 'is_empty' && r.operator !== 'is_not_empty') return null
+        return { field: col, operator: r.operator, value: r.value }
+      })
+      .filter((x): x is { field: string; operator: CRMFilterOp; value: string } => x !== null)
+    return arr.length > 0 ? JSON.stringify(arr) : ''
+  }, [advancedRules])
 
   // ─ Sort
   // Tri par defaut : date de creation du contact (du plus recent au plus ancien)
@@ -361,6 +543,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (filterZone)         params.set('zone',        filterZone)
       if (filterFormEvent)    params.set('form_event',  filterFormEvent)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
+      if (cfJson)             params.set('cf',          cfJson)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
       if (assignedScopeOnly) params.set('assigned_scope', '1')
 
@@ -379,7 +562,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, cfJson, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -407,6 +590,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (filterZone) params.set('zone', filterZone)
       if (filterFormEvent) params.set('form_event', filterFormEvent)
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
+      if (cfJson) params.set('cf', cfJson)
       if (assignedScopeOnly) params.set('assigned_scope', '1')
 
       const res = await fetch(`/api/crm/contacts?${params}`)
@@ -432,6 +616,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     filterZone,
     filterFormEvent,
     filterParcoursupVerdict,
+    cfJson,
     onTotalChange,
     assignedScopeOnly,
   ])
@@ -509,17 +694,50 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     setFilterZone('')
     setFilterFormEvent('')
     setFilterParcoursupVerdict('')
+    setAdvancedRules([])
     setSearch('')
     setDebouncedSearch('')
     setPage(0)
   }
 
-  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterZone || filterFormEvent || filterParcoursupVerdict || debouncedSearch)
+  const activeAdvancedCount = advancedRules.filter(r => ruleFieldToCfColumn(r.field) !== null && (r.value || r.operator === 'is_empty' || r.operator === 'is_not_empty')).length
+  const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterZone || filterFormEvent || filterParcoursupVerdict || activeAdvancedCount > 0 || debouncedSearch)
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
   const leadStatusOptions = leadStatusOpts.map(v => ({ id: v, label: v }))
   const sourceOptions     = sourceOpts.map(v => ({ id: v, label: v }))
+
+  // Jeux d'options pour les filtres avancés (champs enum hardcodés).
+  const CLASSE_LIST = ['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre']
+  const advancedOptionSets = {
+    leadStatus: leadStatusOpts.map(v => ({ id: v, label: v })),
+    formation:  formationOpts.map(v => ({ id: v, label: v })),
+    source:     sourceOpts.map(v => ({ id: v, label: v })),
+    zone:       zoneOpts.map(v => ({ id: v, label: v })),
+    formEvent:  formEventOpts.map(v => ({ id: v, label: v })),
+    classe:     CLASSE_LIST.map(v => ({ id: v, label: v })),
+  }
+
+  function addAdvancedRule() {
+    setShowAdvanced(true)
+    const firstProp = allCrmProps[0]
+    const defaultField = firstProp ? `custom:${firstProp.name}` : 'classe'
+    const kind = firstProp ? propertyKindOf(firstProp.type, firstProp.field_type) : 'enum'
+    const defaultOp = (opsForKind(kind)[0]?.key ?? 'is') as CRMFilterOp
+    setAdvancedRules(prev => [
+      ...prev,
+      { id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, field: defaultField, operator: defaultOp, value: '' },
+    ])
+  }
+  function updateAdvancedRule(id: string, patch: Partial<AdvancedRule>) {
+    setAdvancedRules(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)))
+    setPage(0)
+  }
+  function removeAdvancedRule(id: string) {
+    setAdvancedRules(prev => prev.filter(r => r.id !== id))
+    setPage(0)
+  }
   const closerSelectOptions = [
     { id: '', label: '— Aucun —' },
     ...closers.map(u => ({ id: u.hubspot_owner_id || u.id, label: u.name })),
@@ -709,6 +927,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             </FilterSelect>
           )}
 
+          {/* Autres filtres — toute propriété CRM */}
+          <button
+            onClick={() => setShowAdvanced(s => !s)}
+            style={{
+              background: (showAdvanced || activeAdvancedCount > 0) ? 'rgba(204,172,113,0.08)' : NAVY_BG,
+              border: `1px solid ${(showAdvanced || activeAdvancedCount > 0) ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
+              borderRadius: 8,
+              padding: '7px 12px',
+              color: (showAdvanced || activeAdvancedCount > 0) ? GOLD : TEXT_MID,
+              fontSize: 12,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontWeight: activeAdvancedCount > 0 ? 600 : 400,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <SlidersHorizontal size={12} /> Autres filtres{activeAdvancedCount > 0 ? ` · ${activeAdvancedCount}` : ''}
+          </button>
+
           {/* Reset */}
           {hasActiveFilters && (
             <button
@@ -731,6 +970,50 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             </button>
           )}
         </div>
+
+        {/* ── Panneau filtres avancés (toute propriété CRM) ──────────────── */}
+        {showAdvanced && (
+          <div style={{ paddingBottom: 14 }}>
+            <div style={{
+              background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 10,
+              padding: 12, maxWidth: 720,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_MID, marginBottom: 8 }}>
+                Filtrer sur n&apos;importe quelle propriété
+              </div>
+              {advancedRules.length === 0 && (
+                <div style={{ fontSize: 12, color: TEXT_DIM, marginBottom: 8 }}>
+                  Aucun filtre avancé. Ajoute une règle pour filtrer sur une propriété du CRM.
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {advancedRules.map((rule, idx) => (
+                  <div key={rule.id}>
+                    {idx > 0 && <div style={{ fontSize: 11, color: TEXT_DIM, padding: '2px 0 6px 2px' }}>et</div>}
+                    <AdvancedFilterRow
+                      rule={rule}
+                      crmProps={allCrmProps}
+                      optionSets={advancedOptionSets}
+                      onChange={patch => updateAdvancedRule(rule.id, patch)}
+                      onRemove={() => removeAdvancedRule(rule.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={addAdvancedRule}
+                style={{
+                  marginTop: 10, padding: '6px 12px', background: 'transparent',
+                  border: `1px solid ${NAVY_BDR}`, borderRadius: 6, color: BLUE,
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Plus size={11} /> Ajouter un filtre
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Table ───────────────────────────────────────────────────────── */}
