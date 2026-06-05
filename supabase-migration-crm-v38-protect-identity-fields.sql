@@ -1,26 +1,65 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- MIGRATION v38 : Garde-fou anti "fiche fantôme"
+-- MIGRATION v38 : Cause racine des "fiches fantômes" + garde-fous
 -- ═══════════════════════════════════════════════════════════════════════════
--- Incident répété (03/06 → 05/06 2026) : des fiches crm_contacts se retrouvent
--- avec firstname / lastname / email / phone à NULL alors qu'elles contenaient
--- ces données (prouvé par search_vector qui restait peuplé). Le code applicatif
--- n'écrit jamais de valeur vide ; la cause exacte (script bulk / écriture
--- concurrente / catchup) est indéterminée.
+-- CAUSE RACINE IDENTIFIÉE (05/06/2026, reproduite en direct) :
+--   Un trigger sur crm_contacts resynchronise les colonnes d'identité
+--   (firstname/lastname/email/phone…) À PARTIR de hubspot_raw à chaque
+--   modification de hubspot_raw. Or, quand on change une propriété depuis le
+--   CRM (ex. statut du lead), le code réécrit hubspot_raw. Pour les leads
+--   Meta/natifs dont l'identité vit dans les COLONNES (et pas dans hubspot_raw),
+--   ce trigger écrase nom/email/téléphone avec NULL.
+--   → Symptôme : "je change le statut et toutes les infos se barrent".
 --
--- Plutôt que de traquer chaque écrivain potentiel, on verrouille la base :
--- il devient IMPOSSIBLE d'effacer (mettre à NULL ou vide) une colonne
--- d'identité qui contient déjà une valeur. Toute tentative est silencieusement
--- annulée (on conserve l'ancienne valeur). Quel que soit le code, le cron, le
--- script ou le trigger qui écrit, le nom/email/téléphone ne peut plus sauter.
---
--- Effacer volontairement reste possible en posant le flag de session :
---   SET LOCAL app.allow_identity_clear = 'on';
--- (à utiliser uniquement dans un script de correction délibéré).
---
--- NB : la fusion de doublons (/api/crm/duplicates/merge) SUPPRIME la fiche
--- perdante (DELETE), elle ne la vide pas → ce garde-fou ne la gêne pas.
+-- Ce fichier :
+--   1. DIAGNOSTIC : liste les triggers de crm_contacts + définitions.
+--   2. SUPPRIME automatiquement le(s) trigger(s) destructeur(s) (resync depuis
+--      hubspot_raw vers les colonnes d'identité).
+--   3. Pose un garde-fou GÉNÉRAL (sur TOUT UPDATE, pas seulement OF firstname)
+--      qui empêche de vider une identité déjà renseignée — peu importe le code,
+--      le script ou un futur trigger.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- ── 1. DIAGNOSTIC (à lire avant/après) ──────────────────────────────────────
+-- Exécute ce SELECT pour voir les triggers et repérer le coupable :
+--
+--   SELECT t.tgname AS trigger_name,
+--          p.proname AS function_name,
+--          pg_get_functiondef(p.oid) AS definition
+--   FROM pg_trigger t
+--   JOIN pg_class c ON c.oid = t.tgrelid
+--   JOIN pg_proc  p ON p.oid = t.tgfoid
+--   WHERE c.relname = 'crm_contacts' AND NOT t.tgisinternal
+--   ORDER BY t.tgname;
+
+-- ── 2. Suppression automatique du/des trigger(s) destructeur(s) ─────────────
+-- On cible précisément les triggers dont la fonction lit hubspot_raw ET écrit
+-- NEW.firstname / email / phone / lastname (= resync identité depuis le JSONB).
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT t.tgname, pg_get_functiondef(p.oid) AS def
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_proc  p ON p.oid = t.tgfoid
+    WHERE c.relname = 'crm_contacts' AND NOT t.tgisinternal
+  LOOP
+    IF r.def ~* 'hubspot_raw'
+       AND r.def ~* 'new\.(firstname|lastname|email|phone)'
+       AND r.tgname <> 'trg_crm_zz_protect_identity'
+    THEN
+      RAISE NOTICE 'Trigger destructeur supprimé : %', r.tgname;
+      EXECUTE format('DROP TRIGGER %I ON crm_contacts', r.tgname);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ── 3. Garde-fou général : ne jamais vider une identité déjà renseignée ─────
+-- IMPORTANT : ce trigger n'est PAS scopé "OF firstname…". Il fire sur TOUT
+-- UPDATE (donc même quand seul hubspot_raw change) et porte un nom qui le fait
+-- s'exécuter en DERNIER (préfixe "zz"), pour annuler tout NULL parasite posé
+-- par un autre trigger BEFORE.
 CREATE OR REPLACE FUNCTION public.crm_contacts_protect_identity()
   RETURNS trigger AS $$
 DECLARE
@@ -30,23 +69,18 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Pour chaque champ d'identité : si l'ancien avait une valeur non vide et
-  -- que le nouveau est NULL ou vide → on restaure l'ancienne valeur.
   IF OLD.firstname IS NOT NULL AND btrim(OLD.firstname) <> ''
      AND (NEW.firstname IS NULL OR btrim(NEW.firstname) = '') THEN
     NEW.firstname := OLD.firstname;
   END IF;
-
   IF OLD.lastname IS NOT NULL AND btrim(OLD.lastname) <> ''
      AND (NEW.lastname IS NULL OR btrim(NEW.lastname) = '') THEN
     NEW.lastname := OLD.lastname;
   END IF;
-
   IF OLD.email IS NOT NULL AND btrim(OLD.email) <> ''
      AND (NEW.email IS NULL OR btrim(NEW.email) = '') THEN
     NEW.email := OLD.email;
   END IF;
-
   IF OLD.phone IS NOT NULL AND btrim(OLD.phone) <> ''
      AND (NEW.phone IS NULL OR btrim(NEW.phone) = '') THEN
     NEW.phone := OLD.phone;
@@ -56,18 +90,19 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
--- Le trigger doit passer AVANT celui qui recalcule search_vector pour rester
--- cohérent. Ordre alphabétique des triggers BEFORE : "trg_crm_aa_*" < "trg_crm_contacts_search_vector".
+-- On supprime l'ancienne version scopée (v38 initiale) si présente.
 DROP TRIGGER IF EXISTS trg_crm_aa_protect_identity ON crm_contacts;
-CREATE TRIGGER trg_crm_aa_protect_identity
-  BEFORE UPDATE OF firstname, lastname, email, phone
-  ON crm_contacts
+DROP TRIGGER IF EXISTS trg_crm_zz_protect_identity ON crm_contacts;
+CREATE TRIGGER trg_crm_zz_protect_identity
+  BEFORE UPDATE ON crm_contacts
   FOR EACH ROW
   EXECUTE FUNCTION public.crm_contacts_protect_identity();
 
 NOTIFY pgrst, 'reload schema';
 
--- ─── Vérification ───────────────────────────────────────────────────────────
--- Doit renvoyer l'ancienne valeur (pas NULL) :
---   UPDATE crm_contacts SET firstname = NULL
---   WHERE hubspot_contact_id = '<un_id>' RETURNING firstname;
+-- ── 4. Vérification ─────────────────────────────────────────────────────────
+-- Doit renvoyer l'ancien nom (PAS NULL) :
+--   UPDATE crm_contacts
+--   SET hubspot_raw = jsonb_build_object('hs_lead_status','Perdu')
+--   WHERE hubspot_contact_id = '<un_id>'
+--   RETURNING firstname, email, phone;

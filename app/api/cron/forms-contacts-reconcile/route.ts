@@ -20,10 +20,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireCronSecret } from '@/lib/api-auth'
 import { logger } from '@/lib/logger'
+import { isIdentityGhost, repairContactIdentity } from '@/lib/contact-identity-repair'
 
 export const maxDuration = 60
 
-const LOOKBACK_HOURS = 6
+const LOOKBACK_HOURS = 72
 
 // Mêmes règles de mapping que app/api/forms/[id]/submit/route.ts
 const AUTO_MAP_FIELDS: Record<string, string> = {
@@ -73,7 +74,12 @@ export async function GET(req: NextRequest) {
     s => typeof s.data?._contact_id === 'string' && String(s.data._contact_id).startsWith('NATIVE_'),
   )
   if (submissions.length === 0) {
-    return NextResponse.json({ ok: true, since: sinceIso, scanned: 0, repaired: 0 })
+    const orphan = await repairOrphanGhosts(db, sinceIso)
+    return NextResponse.json({
+      ok: true, since: sinceIso, scanned: 0,
+      repaired: orphan.repaired,
+      repaired_ids: orphan.repairedIds.length > 0 ? orphan.repairedIds.slice(0, 50) : undefined,
+    })
   }
 
   // Mapping field_key -> colonne native, par form
@@ -146,12 +152,46 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  // Passe 2 : fiches fantômes récentes sans soumission form (leads Meta, etc.)
+  const orphan = await repairOrphanGhosts(db, sinceIso)
+
   return NextResponse.json({
     ok: true,
     since: sinceIso,
     scanned,
-    repaired,
-    repaired_ids: repairedIds.length > 0 ? repairedIds : undefined,
+    repaired: repaired + orphan.repaired,
+    repaired_ids: [...repairedIds, ...orphan.repairedIds].slice(0, 50),
     errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
   })
+}
+
+/** Passe 2 : fiches fantômes récentes sans soumission form (leads Meta, etc.) */
+async function repairOrphanGhosts(
+  db: ReturnType<typeof createServiceClient>,
+  sinceIso: string,
+): Promise<{ repaired: number; repairedIds: string[] }> {
+  const { data: ghosts } = await db
+    .from('crm_contacts')
+    .select('hubspot_contact_id, firstname, lastname, email, phone, search_vector, hubspot_raw, synced_at')
+    .is('firstname', null)
+    .is('email', null)
+    .gte('synced_at', sinceIso)
+    .limit(100)
+
+  let repaired = 0
+  const repairedIds: string[] = []
+  for (const g of ghosts ?? []) {
+    if (!isIdentityGhost(g)) continue
+    const { repaired: ok, source } = await repairContactIdentity(db, g.hubspot_contact_id as string, g)
+    if (ok) {
+      repaired++
+      repairedIds.push(g.hubspot_contact_id as string)
+      logger.error(
+        'forms-reconcile-ghost-repaired-orphan',
+        new Error('Fiche fantôme réparée (meta/search_vector/hubspot_raw)'),
+        { contact_id: g.hubspot_contact_id, source },
+      )
+    }
+  }
+  return { repaired, repairedIds }
 }

@@ -73,13 +73,41 @@ export async function PATCH(
   // (on passe par un update classique + merge côté serveur)
   const { data: existing } = await db
     .from('crm_contacts')
-    .select('hubspot_raw')
+    .select('hubspot_raw, firstname, lastname, email, phone, classe_actuelle, departement, zone_localite, formation_souhaitee, formation_demandee, origine, hubspot_owner_id')
     .eq('hubspot_contact_id', contactId)
     .maybeSingle()
 
   if (existing !== null) {
-    const raw = (existing as { hubspot_raw?: Record<string, unknown> })?.hubspot_raw ?? {}
-    update.hubspot_raw = { ...raw, [property]: normalizedValue }
+    const ex = existing as Record<string, unknown>
+    const raw = (ex.hubspot_raw && typeof ex.hubspot_raw === 'object')
+      ? (ex.hubspot_raw as Record<string, unknown>)
+      : {}
+    // GARDE-FOU : un trigger en base resynchronise les colonnes depuis hubspot_raw.
+    // Si on réécrit hubspot_raw sans l'identité (cas des leads Meta/natifs dont
+    // l'identité est dans les colonnes, pas dans le JSONB), le trigger vide
+    // nom/email/téléphone. On réinjecte donc l'identité présente en colonnes
+    // dans hubspot_raw avant d'écrire, pour que le trigger reste neutre.
+    const COLUMN_TO_RAW_KEY: Record<string, string> = {
+      firstname: 'firstname',
+      lastname: 'lastname',
+      email: 'email',
+      phone: 'phone',
+      classe_actuelle: 'classe_actuelle',
+      departement: 'departement',
+      zone_localite: 'zone___localite',
+      formation_souhaitee: 'formation_souhaitee',
+      formation_demandee: 'diploma_sante___formation_demandee',
+      origine: 'origine',
+      hubspot_owner_id: 'hubspot_owner_id',
+    }
+    const safeRaw: Record<string, unknown> = { ...raw }
+    for (const [colName, rawKey] of Object.entries(COLUMN_TO_RAW_KEY)) {
+      const colVal = ex[colName]
+      const present = colVal !== null && colVal !== undefined && String(colVal).trim() !== ''
+      const rawMissing = safeRaw[rawKey] === null || safeRaw[rawKey] === undefined || String(safeRaw[rawKey] ?? '').trim() === ''
+      if (present && rawMissing) safeRaw[rawKey] = colVal
+    }
+    update.hubspot_raw = { ...safeRaw, [property]: normalizedValue }
   }
 
   const { error: updateErr } = await db
