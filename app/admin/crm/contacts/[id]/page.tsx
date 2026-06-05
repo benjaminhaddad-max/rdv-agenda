@@ -8,7 +8,7 @@ import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
-  GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check,
+  GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
@@ -266,6 +266,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [showLinovaModal, setShowLinovaModal] = useState(false)
   const [parcoursupEditor, setParcoursupEditor] = useState<{ preInscriptionId: number; data: ParcoursupPayload } | null>(null)
   const [savingParcoursup, setSavingParcoursup] = useState(false)
+  // Édition inline d'une note / activité native dans la timeline
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [noteDraftSubject, setNoteDraftSubject] = useState('')
+  const [noteDraftBody, setNoteDraftBody] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
@@ -421,6 +426,45 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const startEditNote = (timelineId: string, subject: string, currentBody: string) => {
+    setEditingNoteId(timelineId)
+    setNoteDraftSubject(subject)
+    setNoteDraftBody(currentBody)
+  }
+
+  const saveNote = async (activityId: string) => {
+    setSavingNote(true)
+    try {
+      const res = await fetch(`/api/crm/activities/${activityId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: noteDraftSubject, body: noteDraftBody }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setEditingNoteId(null)
+      await load({ force: true })
+    } catch (e) {
+      alert(`Échec de la modification : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const deleteNote = async (activityId: string) => {
+    if (!window.confirm('Supprimer cette note définitivement ?')) return
+    setSavingNote(true)
+    try {
+      const res = await fetch(`/api/crm/activities/${activityId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      setEditingNoteId(null)
+      await load({ force: true })
+    } catch (e) {
+      alert(`Échec de la suppression : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
   const saveParcoursup = async (preInscriptionId: number, payload: ParcoursupPayload) => {
     setSavingParcoursup(true)
     try {
@@ -460,6 +504,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     sendStatus?: string
     sms?: SMSMessage
     emailCampaign?: EmailCampaign
+    // Renseigné pour les activités natives (crm_activities) → édition/suppression
+    activityId?: string
+    editable?: boolean
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -468,6 +515,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     const type = (valid.includes(t as TimelineItem['type']) ? t : 'note') as TimelineItem['type']
     const msgId = a.metadata?.brevo_message_id as string | undefined
     const stats = type === 'email' && msgId ? emailStatsByMessageId[msgId] : undefined
+    // Activités natives (saisies dans le CRM) = éditables. Les notes/appels/
+    // emails loggés/réunions sont modifiables ; pas les SMS ni les emails de campagne.
+    const isNativeEditable = ['note', 'call', 'email', 'meeting'].includes(type)
     timeline.push({
       id: `act-${a.id}`,
       type,
@@ -478,6 +528,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       ownerId: a.owner_id,
       emailStats: stats,
       sendStatus: type === 'email' ? a.status : undefined,
+      activityId: String(a.id),
+      editable: isNativeEditable,
     })
   }
   for (const f of formSubmissions) {
@@ -773,7 +825,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                             <div className="absolute -left-[22px] top-3">
                               <TypeDot type={t.type} />
                             </div>
-                            <div className="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow">
+                            <div className="group bg-white border rounded-lg p-3 hover:shadow-md transition-shadow">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <TypeBadge type={t.type} />
@@ -781,8 +833,28 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}
                                   {t.type === 'sms' && <SMSStatusBadges status={t.sendStatus} totalClicks={t.sms?.total_clicks} />}
                                 </div>
-                                <div className="text-xs text-[#a89e8a] whitespace-nowrap">
-                                  {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
+                                <div className="flex items-center gap-2">
+                                  {t.editable && t.activityId && editingNoteId !== t.id && (
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => startEditNote(t.id, t.title, t.body ?? '')}
+                                        className="p-1 rounded text-[#4a6070] hover:bg-[#f7f4ee] hover:text-[#0e1e35]"
+                                        title="Modifier"
+                                      >
+                                        <Pencil size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteNote(t.activityId!)}
+                                        className="p-1 rounded text-red-500 hover:bg-red-50"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-[#a89e8a] whitespace-nowrap">
+                                    {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
+                                  </div>
                                 </div>
                               </div>
                               {t.subtitle && <div className="text-xs text-[#4a6070] mt-1">{t.subtitle}</div>}
@@ -791,7 +863,41 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   <User size={11} /> {ownerLabel(t.ownerId)}
                                 </div>
                               )}
-                              {t.body && (
+                              {editingNoteId === t.id ? (
+                                <div className="mt-2 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={noteDraftSubject}
+                                    onChange={e => setNoteDraftSubject(e.target.value)}
+                                    placeholder="Titre (optionnel)"
+                                    className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-[#C9A84C]/30 focus:border-[#C9A84C] outline-none"
+                                  />
+                                  <textarea
+                                    value={noteDraftBody}
+                                    onChange={e => setNoteDraftBody(e.target.value)}
+                                    rows={4}
+                                    autoFocus
+                                    placeholder="Contenu…"
+                                    className="w-full px-3 py-2 border rounded-md text-sm resize-y focus:ring-2 focus:ring-[#C9A84C]/30 focus:border-[#C9A84C] outline-none"
+                                  />
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => setEditingNoteId(null)}
+                                      disabled={savingNote}
+                                      className="px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee] disabled:opacity-50"
+                                    >
+                                      Annuler
+                                    </button>
+                                    <button
+                                      onClick={() => saveNote(t.activityId!)}
+                                      disabled={savingNote}
+                                      className="px-3 py-1.5 text-sm text-white rounded-md disabled:opacity-50 hover:opacity-90 bg-[#C9A84C]"
+                                    >
+                                      {savingNote ? 'Enregistrement…' : 'Enregistrer'}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : t.body && (
                                 <div
                                   className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-[#f7f4ee] p-2 rounded"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
