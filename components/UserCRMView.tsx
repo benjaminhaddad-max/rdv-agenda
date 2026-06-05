@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus } from 'lucide-react'
+import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus, Save } from 'lucide-react'
 import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
@@ -19,6 +19,32 @@ type AdvancedRule = {
   operator: CRMFilterOp
   value: string
 }
+
+// ── Vues sauvegardées (privées à l'utilisateur) ──────────────────────────────
+// Snapshot de l'état complet des filtres de la vue. Stocké tel quel dans la
+// colonne JSONB crm_saved_views.filter_groups (owner_id = id de l'utilisateur).
+type UserViewSnapshot = {
+  search?: string
+  stage?: string
+  leadStatus?: string
+  formation?: string
+  source?: string
+  classe?: string
+  period?: string
+  zone?: string
+  formEvent?: string
+  parcoursupVerdict?: string
+  advancedRules?: AdvancedRule[]
+}
+
+interface UserSavedView {
+  id: string
+  name: string
+  snapshot: UserViewSnapshot
+  isDefault?: boolean
+}
+
+const DEFAULT_USER_VIEW: UserSavedView = { id: 'all', name: 'Tous mes contacts', snapshot: {}, isDefault: true }
 
 // Map clé hardcodée → colonne réelle de crm_contacts pour le moteur `cf`.
 // Les clés absentes (étape de transaction, pipeline, etc.) ne sont pas des
@@ -439,6 +465,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [advancedRules, setAdvancedRules]       = useState<AdvancedRule[]>([])
   const [showAdvanced, setShowAdvanced]         = useState(false)
 
+  // ─ Vues sauvegardées privées (propres à l'utilisateur, jamais partagées)
+  const [views, setViews]                 = useState<UserSavedView[]>([DEFAULT_USER_VIEW])
+  const [activeViewId, setActiveViewId]   = useState('all')
+  const [creatingView, setCreatingView]   = useState(false)
+  const [newViewName, setNewViewName]     = useState('')
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
+  const [renameValue, setRenameValue]     = useState('')
+
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
 
@@ -697,7 +731,109 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     setAdvancedRules([])
     setSearch('')
     setDebouncedSearch('')
+    setActiveViewId('all')
     setPage(0)
+  }
+
+  // ── Vues sauvegardées privées ───────────────────────────────────────────────
+  // Snapshot de l'état courant des filtres (clés vides omises à la sérialisation).
+  const currentSnapshot = useMemo<UserViewSnapshot>(() => ({
+    search: search || undefined,
+    stage: filterStage || undefined,
+    leadStatus: filterLeadStatus || undefined,
+    formation: filterFormation || undefined,
+    source: filterSource || undefined,
+    classe: filterClasse || undefined,
+    period: filterPeriod || undefined,
+    zone: filterZone || undefined,
+    formEvent: filterFormEvent || undefined,
+    parcoursupVerdict: filterParcoursupVerdict || undefined,
+    advancedRules: advancedRules.length > 0 ? advancedRules : undefined,
+  }), [search, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, advancedRules])
+
+  const activeView = views.find(v => v.id === activeViewId)
+  const viewChanged = useMemo(() => {
+    if (!activeView) return false
+    return JSON.stringify(currentSnapshot) !== JSON.stringify(activeView.snapshot ?? {})
+  }, [currentSnapshot, activeView])
+
+  // Charge les vues privées de l'utilisateur (owner=me → invisibles des autres).
+  useEffect(() => {
+    fetch('/api/crm/views?scope=contacts&owner=me')
+      .then(r => (r.ok ? r.json() : []))
+      .then((rows: Array<{ id: string; name: string; filter_groups: unknown }>) => {
+        if (!Array.isArray(rows)) return
+        const loaded: UserSavedView[] = rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          snapshot: (r.filter_groups as UserViewSnapshot) ?? {},
+        }))
+        setViews([DEFAULT_USER_VIEW, ...loaded])
+      })
+      .catch(() => {})
+  }, [])
+
+  function applyView(view: UserSavedView) {
+    const s = view.snapshot ?? {}
+    setActiveViewId(view.id)
+    setSearch(s.search ?? '')
+    setDebouncedSearch(s.search ?? '')
+    setFilterStage(s.stage ?? '')
+    setFilterLeadStatus(s.leadStatus ?? '')
+    setFilterFormation(s.formation ?? '')
+    setFilterSource(s.source ?? '')
+    setFilterClasse(s.classe ?? '')
+    setFilterPeriod(s.period ?? '')
+    setFilterZone(s.zone ?? '')
+    setFilterFormEvent(s.formEvent ?? '')
+    setFilterParcoursupVerdict(s.parcoursupVerdict ?? '')
+    setAdvancedRules(s.advancedRules ?? [])
+    if ((s.advancedRules ?? []).length > 0) setShowAdvanced(true)
+    setPage(0)
+  }
+
+  function createView(name: string) {
+    const id = `uv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const snapshot = currentSnapshot
+    const newView: UserSavedView = { id, name: name || 'Nouvelle vue', snapshot }
+    const position = views.filter(v => !v.isDefault).length
+    setViews(prev => [...prev, newView])
+    setActiveViewId(id)
+    setCreatingView(false)
+    setNewViewName('')
+    void fetch('/api/crm/views', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: newView.name, filter_groups: snapshot, scope: 'contacts', owner: 'me', position }),
+    }).catch(() => {})
+  }
+
+  function deleteView(id: string) {
+    setViews(prev => prev.filter(v => v.id !== id))
+    if (activeViewId === id) applyView(DEFAULT_USER_VIEW)
+    void fetch(`/api/crm/views/${id}`, { method: 'DELETE' }).catch(() => {})
+  }
+
+  function renameView(id: string, name: string) {
+    const finalName = name || (views.find(v => v.id === id)?.name ?? '')
+    setViews(prev => prev.map(v => (v.id === id ? { ...v, name: finalName } : v)))
+    setRenamingViewId(null)
+    void fetch(`/api/crm/views/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: finalName }),
+    }).catch(() => {})
+  }
+
+  function saveActiveView() {
+    if (!activeView || activeView.isDefault) return
+    const snapshot = currentSnapshot
+    setViews(prev => prev.map(v => (v.id === activeViewId ? { ...v, snapshot } : v)))
+    void fetch(`/api/crm/views/${activeViewId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filter_groups: snapshot }),
+    }).catch(() => {})
   }
 
   const activeAdvancedCount = advancedRules.filter(r => ruleFieldToCfColumn(r.field) !== null && (r.value || r.operator === 'is_empty' || r.operator === 'is_not_empty')).length
@@ -816,6 +952,136 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             {loading ? 'Chargement…' : 'Actualiser'}
           </button>
+        </div>
+
+        {/* ── Barre d'onglets de vues (privées à l'utilisateur) ─────────── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 0, marginBottom: 12,
+          borderBottom: `1px solid ${NAVY_BDR}`,
+          overflowX: 'auto', overflowY: 'hidden',
+        }}>
+          {views.map(view => {
+            const isActive = activeViewId === view.id
+            const isRenaming = renamingViewId === view.id
+            return (
+              <div
+                key={view.id}
+                onClick={() => { if (!isRenaming) applyView(view) }}
+                onDoubleClick={() => {
+                  if (!view.isDefault) { setRenamingViewId(view.id); setRenameValue(view.name) }
+                }}
+                style={{
+                  padding: '9px 14px',
+                  borderBottom: `2px solid ${isActive ? GOLD : 'transparent'}`,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {isRenaming ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') renameView(view.id, renameValue)
+                      if (e.key === 'Escape') setRenamingViewId(null)
+                    }}
+                    onBlur={() => renameView(view.id, renameValue)}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      background: 'rgba(204,172,113,0.08)', border: `1px solid ${GOLD}`,
+                      borderRadius: 4, padding: '2px 6px', color: GOLD,
+                      fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                      outline: 'none', width: Math.max(70, renameValue.length * 8),
+                    }}
+                  />
+                ) : (
+                  <span style={{
+                    fontSize: 12, fontWeight: isActive ? 700 : 500,
+                    color: isActive ? GOLD : TEXT_DIM,
+                  }}>
+                    {view.name}
+                  </span>
+                )}
+                {!view.isDefault && isActive && !isRenaming && (
+                  <button
+                    onClick={e => { e.stopPropagation(); deleteView(view.id) }}
+                    title="Supprimer la vue"
+                    style={{
+                      background: 'none', border: 'none', padding: 0, marginLeft: 2,
+                      color: TEXT_DIM, cursor: 'pointer', display: 'flex',
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+
+          <div style={{ width: 1, height: 18, background: NAVY_BDR, margin: '0 6px', flexShrink: 0 }} />
+
+          {/* Sauvegarder les filtres dans la vue active */}
+          {viewChanged && !activeView?.isDefault && (
+            <button
+              onClick={saveActiveView}
+              style={{
+                padding: '5px 10px', background: 'rgba(204,172,113,0.08)',
+                border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
+                color: GOLD, fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0,
+              }}
+            >
+              <Save size={11} /> Sauvegarder
+            </button>
+          )}
+
+          {/* Créer une nouvelle vue */}
+          {creatingView ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px', flexShrink: 0 }}>
+              <input
+                autoFocus
+                value={newViewName}
+                onChange={e => setNewViewName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') createView(newViewName)
+                  if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+                }}
+                placeholder="Nom de la vue…"
+                style={{
+                  background: 'rgba(204,172,113,0.08)', border: `1px solid ${GOLD}`,
+                  borderRadius: 4, padding: '3px 8px', color: GOLD,
+                  fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 130,
+                }}
+              />
+              <button
+                onClick={() => createView(newViewName)}
+                style={{ background: GOLD, border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}
+              >
+                <Check size={12} color="#ffffff" />
+              </button>
+              <button
+                onClick={() => { setCreatingView(false); setNewViewName('') }}
+                style={{ background: 'none', border: 'none', padding: 0, color: TEXT_DIM, cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setCreatingView(true)}
+              title="Enregistrer les filtres actuels comme une nouvelle vue privée"
+              style={{
+                padding: '7px 12px', background: 'none', border: 'none',
+                color: TEXT_DIM, cursor: 'pointer', display: 'flex',
+                alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <Plus size={12} /> Vue
+            </button>
+          )}
         </div>
 
         {/* ── Barre de filtres ──────────────────────────────────────────── */}

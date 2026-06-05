@@ -102,9 +102,14 @@ export async function POST(req: NextRequest) {
   const userScopeKey = apiUser
     ? `${apiUser.appUserId}:${apiUser.role}:${apiUser.crmScope ?? ''}:${apiUser.crmBrand ?? ''}`
     : 'anonymous'
+  // Seules les vues GLOBALES admin (owner_id NULL, scope contacts) sont
+  // comptées ici : les vues privées télépro/closer ne doivent jamais
+  // apparaître dans la barre d'onglets de l'admin.
   const { data: rows, error } = await db
     .from('crm_saved_views')
     .select('id, name, filter_groups, preset_flags')
+    .is('owner_id', null)
+    .eq('scope', 'contacts')
     .order('position', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
