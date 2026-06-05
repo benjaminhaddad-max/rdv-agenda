@@ -1083,14 +1083,14 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
             {c.email && <div style={{ fontSize: 12, color: '#4cabdb', marginTop: 2 }}>{c.email}</div>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* HubSpot link */}
+            {/* Lien fiche CRM */}
             <a
-              href={`https://app.hubspot.com/contacts/43296174/contact/${c.hubspot_contact_id}`}
+              href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f97316', fontSize: 11, textDecoration: 'none', padding: '4px 8px', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 6 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#4cabdb', fontSize: 11, textDecoration: 'none', padding: '4px 8px', border: '1px solid rgba(76,171,219,0.3)', borderRadius: 6 }}
             >
-              <ExternalLink size={10} /> HubSpot
+              <ExternalLink size={10} /> Ouvrir la fiche
             </a>
             <button
               onClick={onClose}
@@ -1422,12 +1422,12 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
                 </div>
               )}
               <a
-                href={`https://app.hubspot.com/contacts/43296174/deal/${deal.hubspot_deal_id}`}
+                href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 12, textDecoration: 'none', padding: '6px 12px', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 8 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#4cabdb', fontSize: 12, textDecoration: 'none', padding: '6px 12px', border: '1px solid rgba(76,171,219,0.3)', borderRadius: 8 }}
               >
-                <ExternalLink size={11} /> Voir la transaction HubSpot
+                <ExternalLink size={11} /> Ouvrir la fiche transaction
               </a>
             </div>
           )}

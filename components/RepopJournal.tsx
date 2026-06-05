@@ -461,7 +461,7 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
           <a
             href={entry.hubspot_contact_id
               ? `/admin/crm/contacts/${entry.hubspot_contact_id}`
-              : `${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/record/0-3/${entry.hubspot_deal_id}`}
+              : `/admin/crm/deals/${entry.hubspot_deal_id}`}
             target="_blank"
             rel="noopener noreferrer"
             title="Ouvrir la fiche contact dans le CRM"
@@ -528,9 +528,6 @@ function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
     </div>
   )
 }
-
-const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
-const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
 
 type HistoryEvent = {
   id: number

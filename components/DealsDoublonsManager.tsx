@@ -243,9 +243,9 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
             <div key={group.contactId} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 12, padding: '14px 16px' }}>
               {/* Contact ID */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 11, color: '#4a6070' }}>Contact HubSpot</span>
+                <span style={{ fontSize: 11, color: '#4a6070' }}>Contact</span>
                 <a
-                  href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/contact/${group.contactId}`}
+                  href={`/admin/crm/contacts/${group.contactId}`}
                   target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: 11, color: '#C9A84C', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
                 >
@@ -264,8 +264,9 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                 {stageBadge(group.winner.stage)}
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.15)', padding: '2px 6px', borderRadius: 4 }}>CONSERVÉ</span>
                 <a
-                  href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/deal/${group.winner.id}`}
+                  href={`/admin/crm/deals/${group.winner.id}`}
                   target="_blank" rel="noopener noreferrer"
+                  title="Ouvrir la fiche"
                   style={{ color: '#4a6070', display: 'flex' }}
                 >
                   <ExternalLink size={12} />
@@ -293,8 +294,9 @@ export default function DealsDoublonsManager({ onClose }: { onClose: () => void 
                     Archiver
                   </button>
                   <a
-                    href={`https://app.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? ''}/deal/${loser.id}`}
+                    href={`/admin/crm/deals/${loser.id}`}
                     target="_blank" rel="noopener noreferrer"
+                    title="Ouvrir la fiche"
                     style={{ color: '#4a6070', display: 'flex' }}
                   >
                     <ExternalLink size={12} />

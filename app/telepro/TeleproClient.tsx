@@ -103,9 +103,6 @@ const TRACKING_STATUSES: AppointmentStatus[] = [
 // Statuts pour lesquels on propose "Reprendre RDV"
 const REPLAN_STATUSES: AppointmentStatus[] = ['no_show', 'a_travailler', 'negatif']
 
-// ─── Constantes HubSpot ────────────────────────────────────────────────────
-const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
-const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
 const PLANNING_FETCH_TIMEOUT_MS = 2500
 const PLANNING_LOADING_GUARD_MS = 3000
 const SOURCE_LABEL: Record<string, string> = {
@@ -238,17 +235,17 @@ function TeleproRdvModal({
             {(rdv.hubspot_contact_id || rdv.hubspot_deal_id) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {rdv.hubspot_contact_id && (
-                  <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${rdv.hubspot_contact_id}`}
+                  <a href={`/admin/crm/contacts/${rdv.hubspot_contact_id}`}
                     target="_blank" rel="noopener noreferrer"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                    <ExternalLink size={11} /> Contact HubSpot
+                    <ExternalLink size={11} /> Ouvrir le contact
                   </a>
                 )}
                 {rdv.hubspot_deal_id && (
-                  <a href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${rdv.hubspot_deal_id}`}
+                  <a href={`/admin/crm/deals/${rdv.hubspot_deal_id}`}
                     target="_blank" rel="noopener noreferrer"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                    <ExternalLink size={11} /> Transaction HubSpot
+                    <ExternalLink size={11} /> Ouvrir la transaction
                   </a>
                 )}
               </div>

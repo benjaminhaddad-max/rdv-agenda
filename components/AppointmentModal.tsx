@@ -56,9 +56,6 @@ const SOURCE_LABEL: Record<string, string> = {
   admin: '⚙️ Placé en admin',
 }
 
-const HS_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''
-const HS_BASE_URL = process.env.NEXT_PUBLIC_HUBSPOT_BASE_URL || 'https://app-eu1.hubspot.com'
-
 const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
   visio:       { icon: Video,     label: 'Visio',       color: '#C9A84C' },
   telephone:   { icon: PhoneCall, label: 'Téléphone',   color: '#22c55e' },
@@ -541,7 +538,7 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {appointment.hubspot_contact_id && (
                   <a
-                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/contact/${appointment.hubspot_contact_id}`}
+                    href={`/admin/crm/contacts/${appointment.hubspot_contact_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -552,12 +549,12 @@ export default function AppointmentModal({
                       textDecoration: 'none',
                     }}
                   >
-                    <ExternalLink size={11} /> Contact HubSpot
+                    <ExternalLink size={11} /> Ouvrir le contact
                   </a>
                 )}
                 {appointment.hubspot_deal_id && (
                   <a
-                    href={`${HS_BASE_URL}/contacts/${HS_PORTAL_ID}/deal/${appointment.hubspot_deal_id}`}
+                    href={`/admin/crm/deals/${appointment.hubspot_deal_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -568,7 +565,7 @@ export default function AppointmentModal({
                       textDecoration: 'none',
                     }}
                   >
-                    <ExternalLink size={11} /> Transaction HubSpot
+                    <ExternalLink size={11} /> Ouvrir la transaction
                   </a>
                 )}
               </div>

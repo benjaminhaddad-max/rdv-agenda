@@ -189,11 +189,11 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <a
-              href={`https://app.hubspot.com/contacts/43296174/deal/${deal.hubspot_deal_id}`}
+              href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
               target="_blank" rel="noopener noreferrer"
-              style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 6, padding: '4px 8px', color: '#f97316', fontSize: 11, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, padding: '4px 8px', color: '#4cabdb', fontSize: 11, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
             >
-              <ExternalLink size={10} /> HS
+              <ExternalLink size={10} /> Fiche
             </a>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 4 }}>
               <X size={18} />

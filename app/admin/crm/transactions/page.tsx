@@ -1627,20 +1627,20 @@ export default function TransactionsPage() {
                             <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{createdStr}</span>
                           </td>
 
-                          {/* HubSpot link */}
+                          {/* Lien fiche CRM */}
                           <td style={{ padding: '11px 8px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                             <a
-                              href={`https://app.hubspot.com/contacts/43296174/deal/${tx.hubspot_deal_id}`}
+                              href={`/admin/crm/deals/${tx.hubspot_deal_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
-                                background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)',
-                                borderRadius: 6, padding: '4px 8px', color: '#f97316', fontSize: 11,
+                                background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
+                                borderRadius: 6, padding: '4px 8px', color: '#4cabdb', fontSize: 11,
                                 textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
                                 fontWeight: 600,
                               }}
                             >
-                              <ExternalLink size={10} /> HS
+                              <ExternalLink size={10} /> Fiche
                             </a>
                           </td>
                         </tr>

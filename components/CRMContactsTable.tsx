@@ -670,13 +670,13 @@ function ActionsMenu({
           )}
           {deal?.hubspot_deal_id && (
             <a
-              href={`https://app.hubspot.com/contacts/43296174/deal/${deal.hubspot_deal_id}`}
+              href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', color: '#f97316', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
             >
-              <ExternalLink size={12} /> <span>Voir dans HubSpot</span>
+              <ExternalLink size={12} /> <span>Ouvrir la fiche</span>
             </a>
           )}
           <div style={{ height: 1, background: '#1e3350', margin: '4px 0' }} />
@@ -883,12 +883,12 @@ function ExpandedDetail({
 
             {deal?.hubspot_deal_id && (
               <a
-                href={`https://app.hubspot.com/contacts/43296174/deal/${deal.hubspot_deal_id}`}
+                href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 8, padding: '6px 14px', color: '#f97316', fontSize: 12, fontFamily: 'inherit', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, padding: '6px 14px', color: '#4cabdb', fontSize: 12, fontFamily: 'inherit', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                <ExternalLink size={12} /> HubSpot
+                <ExternalLink size={12} /> Fiche
               </a>
             )}
 

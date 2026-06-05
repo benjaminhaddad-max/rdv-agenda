@@ -514,16 +514,16 @@ function DuplicateGroupCard({
                 <span style={{ fontSize: 10, color: '#4a6070' }}>{contact.teleproName}</span>
               </div>
 
-              {/* Lien HubSpot */}
+              {/* Lien fiche CRM */}
               <a
-                href={`https://app-eu1.hubspot.com/contacts/${process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || ''}/record/0-1/${contact.id}`}
+                href={`/admin/crm/contacts/${contact.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#C9A84C', textDecoration: 'none' }}
               >
                 <ExternalLink size={9} />
-                Voir sur HubSpot
+                Ouvrir la fiche
               </a>
             </div>
           )
