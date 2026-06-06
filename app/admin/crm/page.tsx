@@ -1480,10 +1480,6 @@ export default function CRMPage() {
   const displayed = contacts
   const totalPages = Math.ceil(total / limit)
 
-  const hasWithDeal  = contacts.filter(c => !!c.deal).length
-  const hasNoTelepro = contacts.filter(c => c.deal && !c.deal.teleprospecteur).length
-  const hasNoCloser  = contacts.filter(c => c.deal && !c.deal.closer).length
-
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
   const hasActiveFilters = (
     search || stage || closerContactHsId || contactOwnerHsId || teleproHsId ||
