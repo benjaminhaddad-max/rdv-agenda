@@ -101,6 +101,11 @@ const LEADS_AUTO_REFRESH_MS = (() => {
   const raw = Number(process.env.NEXT_PUBLIC_CRM_ADMIN_AUTO_REFRESH_MS ?? '30000')
   return Number.isFinite(raw) && raw >= 10000 ? raw : 30000
 })()
+// Fenêtre de fraîcheur des badges de comptage par vue. En-dessous de ce délai,
+// on réutilise la valeur déjà connue (évite de re-demander au serveur le même
+// comptage à chaque changement d'onglet). N'altère pas le calcul : c'est la
+// même valeur que celle déjà affichée, simplement non re-demandée.
+const VIEW_COUNT_FRESH_MS = 60_000
 const SEARCH_DEBOUNCE_MS = (() => {
   const raw = Number(process.env.NEXT_PUBLIC_CRM_SEARCH_DEBOUNCE_MS ?? '180')
   return Number.isFinite(raw) && raw >= 80 ? raw : 180
@@ -434,6 +439,8 @@ export default function CRMPage() {
 
   // Counts pré-chargés par vue
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
+  // Horodatage du dernier comptage récupéré par id de vue (dédup réseau).
+  const viewCountFetchedAtRef = useRef<Record<string, number>>({})
   const linovaViewIds = useMemo(
     () => new Set(crmViews.filter(v => (v.name ?? '').toLowerCase().includes('linova')).map(v => v.id)),
     [crmViews],
@@ -550,6 +557,10 @@ export default function CRMPage() {
       const d = await res.json()
       if (d?.counts && typeof d.counts === 'object') {
         const counts = d.counts as Record<string, number>
+        // Marque ces vues comme fraîchement comptées pour éviter de re-demander
+        // au serveur le même comptage lors des prochains changements d'onglet.
+        const now = Date.now()
+        for (const id of Object.keys(counts)) viewCountFetchedAtRef.current[id] = now
         // Linova est isolée: son badge est alimenté par la même requête
         // que la liste active pour éviter les écarts avec le tableau visible.
         const sanitized = Object.fromEntries(
@@ -569,13 +580,24 @@ export default function CRMPage() {
   // ── Pré-charger les counts : vue active d'abord, puis reste en idle ──
   useEffect(() => {
     if (!viewsLoaded) return
+    // Ne re-demande pas un comptage déjà connu et récent (< VIEW_COUNT_FRESH_MS).
+    // Le badge correspondant reste affiché tel quel : aucune valeur n'est modifiée,
+    // on évite seulement une requête réseau redondante.
+    const isFresh = (id: string) => {
+      const at = viewCountFetchedAtRef.current[id]
+      return typeof at === 'number' && Date.now() - at < VIEW_COUNT_FRESH_MS
+    }
+    const primaryIds = [activeViewId, 'all']
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .filter(id => !isFresh(id))
     const t1 = setTimeout(() => {
-      void fetchViewCounts([activeViewId, 'all'])
+      if (primaryIds.length > 0) void fetchViewCounts(primaryIds)
     }, 300)
     const idleCb = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback
     const remainingIds = crmViews
       .map(v => v.id)
       .filter(id => id !== activeViewId && id !== 'all')
+      .filter(id => !isFresh(id))
     const t2 = setTimeout(() => {
       if (remainingIds.length === 0) return
       if (typeof idleCb === 'function') {
