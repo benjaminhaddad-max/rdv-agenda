@@ -47,6 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'workflows', label: 'Workflows',     href: '/admin/crm/workflows',       icon: Workflow },
       { key: 'forms',     label: 'Formulaires',   href: '/admin/crm/forms',           icon: FileText },
       { key: 'meta-ads',  label: 'Meta Lead Ads', href: '/admin/crm/meta-ads',        icon: Facebook },
+      { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm/ads-dashboard', icon: BarChart3 },
       { key: 'sms-factor',label: 'SMS Factor',    href: '/admin/crm/sms-factor',      icon: MessageSquare },
       { key: 'events',    label: 'Événements',    href: '/admin/crm/events',          icon: CalendarDays },
     ],
