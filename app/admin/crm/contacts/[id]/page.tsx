@@ -9,6 +9,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
   GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
+  SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
@@ -212,7 +213,9 @@ interface ParcoursupPayload {
 
 type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting'
 
-const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
+// Liste par défaut des propriétés affichées dans la carte « À propos ».
+// Chaque utilisateur peut la personnaliser (stockée dans crm_user_prefs).
+const DEFAULT_ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'firstname',             label: 'Prénom' },
   { name: 'lastname',              label: 'Nom' },
   { name: 'email',                 label: 'E-mail' },
@@ -229,6 +232,12 @@ const ABOUT_FIELDS: Array<{ name: string; label: string }> = [
   { name: 'linova_status',              label: 'Statut Linova' },
   { name: 'linova_appointment_id',      label: 'RDV Linova ID' },
 ]
+const DEFAULT_ABOUT_FIELD_NAMES = DEFAULT_ABOUT_FIELDS.map(f => f.name)
+const ABOUT_FIELDS_LS_KEY = 'crm-contact-about-fields'
+// Libellés « jolis » pour les propriétés qui n'ont pas toujours de metadata.
+const ABOUT_FIELD_FALLBACK_LABELS: Record<string, string> = Object.fromEntries(
+  DEFAULT_ABOUT_FIELDS.map(f => [f.name, f.label])
+)
 
 // Couleurs pour les status de lead (pills)
 const LEAD_STATUS_COLORS: Record<string, string> = {
@@ -279,6 +288,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
   const [showLinovaModal, setShowLinovaModal] = useState(false)
+  // Personnalisation par utilisateur des propriétés de la carte « À propos »
+  const [aboutFieldNames, setAboutFieldNames] = useState<string[] | null>(null)
+  const [showCustomize, setShowCustomize] = useState(false)
+  const [savingAboutFields, setSavingAboutFields] = useState(false)
   const [parcoursupEditor, setParcoursupEditor] = useState<{ preInscriptionId: number; data: ParcoursupPayload } | null>(null)
   const [savingParcoursup, setSavingParcoursup] = useState(false)
   // Édition inline d'une note / activité native dans la timeline
@@ -372,6 +385,45 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { load() }, [load])
 
+  // Charge les préférences utilisateur des propriétés « À propos »
+  // (localStorage pour un affichage instantané, puis API pour la synchro cross-device).
+  useEffect(() => {
+    try {
+      const ls = localStorage.getItem(ABOUT_FIELDS_LS_KEY)
+      if (ls) {
+        const parsed = JSON.parse(ls)
+        if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
+          setAboutFieldNames(parsed)
+        }
+      }
+    } catch { /* ignore */ }
+
+    fetch('/api/crm/prefs')
+      .then(r => (r.ok ? r.json() : null))
+      .then(prefs => {
+        if (prefs && Array.isArray(prefs.contact_about_fields) && prefs.contact_about_fields.length) {
+          const names: string[] = prefs.contact_about_fields.filter((x: unknown) => typeof x === 'string')
+          setAboutFieldNames(names)
+          try { localStorage.setItem(ABOUT_FIELDS_LS_KEY, JSON.stringify(names)) } catch { /* ignore */ }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveAboutFields = useCallback(async (names: string[]) => {
+    setAboutFieldNames(names)
+    try { localStorage.setItem(ABOUT_FIELDS_LS_KEY, JSON.stringify(names)) } catch { /* ignore */ }
+    setSavingAboutFields(true)
+    try {
+      await fetch('/api/crm/prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_about_fields: names }),
+      })
+    } catch { /* la version localStorage reste appliquée */ }
+    finally { setSavingAboutFields(false) }
+  }, [])
+
   if (loading) return <LoadingScreen />
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
@@ -381,9 +433,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
 
-  // Merge hubspot_raw + colonnes
-  const allValues: Record<string, Any> = {
-    ...(contact.hubspot_raw ?? {}),
+  // Merge hubspot_raw + colonnes. Les colonnes natives priment, mais on n'écrase
+  // jamais une valeur de hubspot_raw par une colonne null/undefined (fallback).
+  const columnOverrides: Record<string, Any> = {
     firstname:        contact.firstname,
     lastname:         contact.lastname,
     email:            contact.email,
@@ -394,15 +446,33 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     origine:          contact.origine,
     hubspot_owner_id: contact.hubspot_owner_id,
     closer_du_contact_owner_id: contact.closer_du_contact_owner_id,
+    telepro_user_id:  contact.telepro_user_id,
+    teleprospecteur:  contact.teleprospecteur,
+    source:           contact.source,
+    contact_createdate: contact.contact_createdate,
+    linova_status:        contact.linova_status,
+    linova_appointment_id: contact.linova_appointment_id,
     zone___localite:  contact.zone_localite,
     formation_souhaitee:                contact.formation_souhaitee,
     diploma_sante___formation_demandee: contact.formation_demandee,
+  }
+  const allValues: Record<string, Any> = { ...(contact.hubspot_raw ?? {}) }
+  for (const [k, v] of Object.entries(columnOverrides)) {
+    if (v !== undefined && v !== null) allValues[k] = v
   }
 
   const isLinovaContact = String(contact.recent_conversion_event || contact.origine || '').toLowerCase().includes('linova')
 
   const propMeta: Record<string, CRMProperty> = {}
   for (const p of properties) propMeta[p.name] = p
+
+  // Résout le libellé d'une propriété (fallback hérité du défaut, puis metadata, puis nom brut)
+  const labelForProp = (name: string) =>
+    ABOUT_FIELD_FALLBACK_LABELS[name] ?? propMeta[name]?.label ?? name
+
+  // Liste effective des champs de la carte « À propos » selon les préférences user
+  const aboutFields: Array<{ name: string; label: string }> =
+    (aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES).map(name => ({ name, label: labelForProp(name) }))
 
   const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
   for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label, options: p.options }
@@ -744,7 +814,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <User size={15} /> À propos
               </div>
-              <button className="text-xs text-[#0e1e35] hover:underline">Actions</button>
+              <button
+                onClick={() => setShowCustomize(true)}
+                className="text-xs text-[#0e1e35] hover:underline flex items-center gap-1"
+                title="Personnaliser les propriétés affichées"
+              >
+                <SlidersHorizontal size={12} /> Personnaliser
+              </button>
             </div>
 
             {/* Quick actions */}
@@ -757,7 +833,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             <dl className="divide-y px-4 text-sm">
-              {ABOUT_FIELDS.map(f => {
+              {aboutFields.length === 0 && (
+                <div className="py-6 text-center text-xs text-[#a89e8a]">
+                  Aucune propriété affichée.{' '}
+                  <button onClick={() => setShowCustomize(true)} className="text-[#0e1e35] hover:underline font-medium">
+                    Personnaliser
+                  </button>
+                </div>
+              )}
+              {aboutFields.map(f => {
                 const val = allValues[f.name]
                 const meta = propMeta[f.name]
                 const isEditing = editing === f.name
@@ -1229,6 +1313,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           propertyLabel={historyProp.label}
           options={historyProp.options}
           onClose={() => setHistoryProp(null)}
+        />
+      )}
+
+      {/* Modale personnalisation des propriétés « À propos » */}
+      {showCustomize && (
+        <CustomizeAboutModal
+          allProperties={properties}
+          labelForProp={labelForProp}
+          selected={(aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES)}
+          saving={savingAboutFields}
+          onClose={() => setShowCustomize(false)}
+          onSave={async (names) => { await saveAboutFields(names); setShowCustomize(false) }}
+          onReset={async () => { await saveAboutFields(DEFAULT_ABOUT_FIELD_NAMES); setShowCustomize(false) }}
         />
       )}
 
@@ -2258,6 +2355,196 @@ function ParcoursupEditorModal({
             className="px-3 py-2 text-sm rounded bg-[#0038f0] text-white disabled:opacity-60"
           >
             {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ABOUT_FIELDS_MAX = 50
+
+function CustomizeAboutModal({
+  allProperties, labelForProp, selected, saving, onClose, onSave, onReset,
+}: {
+  allProperties: CRMProperty[]
+  labelForProp: (name: string) => string
+  selected: string[]
+  saving: boolean
+  onClose: () => void
+  onSave: (names: string[]) => void | Promise<void>
+  onReset: () => void | Promise<void>
+}) {
+  const [current, setCurrent] = useState<string[]>(selected)
+  const [search, setSearch] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+
+  const currentSet = new Set(current)
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= current.length) return
+    setCurrent(prev => {
+      const next = [...prev]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item)
+      return next
+    })
+  }
+
+  const remove = (name: string) => setCurrent(prev => prev.filter(n => n !== name))
+
+  const add = (name: string) => {
+    setCurrent(prev => (prev.includes(name) || prev.length >= ABOUT_FIELDS_MAX ? prev : [...prev, name]))
+  }
+
+  const q = search.trim().toLowerCase()
+  const candidates = allProperties
+    .filter(p => !currentSet.has(p.name))
+    .filter(p => !q || (p.label ?? '').toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
+    .slice(0, 60)
+
+  const atMax = current.length >= ABOUT_FIELDS_MAX
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+      <div
+        className="relative bg-white w-full max-w-md h-full shadow-2xl flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b flex items-start justify-between gap-3 bg-gradient-to-br from-[#0e1e35] to-[#1f3553] text-white">
+          <div>
+            <h2 className="text-base font-bold">Modifier les propriétés de la carte</h2>
+            <p className="text-xs text-white/70 mt-1 leading-relaxed">
+              Réorganisez et ajoutez des propriétés à cette carte. Les modifications ne seront visibles que pour vous.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white shrink-0" title="Fermer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Add properties */}
+        <div className="px-5 py-3 border-b relative">
+          <button
+            onClick={() => setShowAdd(v => !v)}
+            disabled={atMax}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm font-medium ${
+              atMax
+                ? 'bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200'
+                : 'bg-[#f7f4ee] text-[#0e1e35] border-[#e5ddc8] hover:bg-[#f0ead9]'
+            }`}
+          >
+            <span className="flex items-center gap-2"><Plus size={14} /> Ajouter des propriétés</span>
+            <span className="text-xs text-[#a89e8a]">({current.length}/{ABOUT_FIELDS_MAX})</span>
+          </button>
+
+          {showAdd && !atMax && (
+            <div className="mt-2 border rounded-md shadow-sm">
+              <div className="relative p-2 border-b">
+                <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Rechercher une propriété…"
+                  autoFocus
+                  className="w-full pl-8 pr-2 py-1.5 text-sm border rounded outline-none focus:ring-2 focus:ring-[#C9A84C]/20"
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {candidates.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-[#a89e8a]">
+                    {q ? 'Aucun résultat' : 'Toutes les propriétés sont déjà ajoutées'}
+                  </div>
+                ) : (
+                  candidates.map(p => (
+                    <button
+                      key={p.name}
+                      onClick={() => { add(p.name); setSearch('') }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-[#f7f4ee] flex items-center gap-2"
+                      title={p.name}
+                    >
+                      <Plus size={13} className="text-[#a89e8a] shrink-0" />
+                      <span className="truncate">{p.label || p.name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Selected list (reorderable) */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {current.length === 0 ? (
+            <p className="text-sm text-[#a89e8a] text-center py-8">
+              Aucune propriété sélectionnée. Ajoutez-en ci-dessus.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {current.map((name, idx) => (
+                <li
+                  key={name}
+                  draggable
+                  onDragStart={() => setDragIndex(idx)}
+                  onDragOver={e => { e.preventDefault() }}
+                  onDrop={() => { if (dragIndex !== null && dragIndex !== idx) move(dragIndex, idx); setDragIndex(null) }}
+                  onDragEnd={() => setDragIndex(null)}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-md border bg-white group ${
+                    dragIndex === idx ? 'border-[#C9A84C] opacity-60' : 'border-slate-200'
+                  }`}
+                >
+                  <GripVertical size={14} className="text-[#cbbfa6] cursor-grab shrink-0" />
+                  <span className="flex-1 text-sm truncate" title={name}>{labelForProp(name)}</span>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => move(idx, idx - 1)}
+                      disabled={idx === 0}
+                      className="p-1 text-[#a89e8a] hover:text-[#0e1e35] disabled:opacity-30"
+                      title="Monter"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      onClick={() => move(idx, idx + 1)}
+                      disabled={idx === current.length - 1}
+                      className="p-1 text-[#a89e8a] hover:text-[#0e1e35] disabled:opacity-30"
+                      title="Descendre"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
+                    <button
+                      onClick={() => remove(name)}
+                      className="p-1 text-[#a89e8a] hover:text-red-600"
+                      title="Retirer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t flex items-center gap-2">
+          <button
+            onClick={() => onSave(current)}
+            disabled={saving}
+            className="flex-1 px-4 py-2 rounded-md bg-[#C9A84C] text-[#0e1e35] font-semibold text-sm hover:bg-[#b8973f] disabled:opacity-60"
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <button
+            onClick={onReset}
+            disabled={saving}
+            className="px-4 py-2 rounded-md border border-slate-300 text-slate-700 text-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            Rétablir le système par défaut
           </button>
         </div>
       </div>

@@ -7,13 +7,20 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const db = createServiceClient()
+  // select('*') évite un 500 si une colonne (ex: contact_about_fields) n'a pas
+  // encore été ajoutée via migration : on renvoie ce qui existe.
   const { data } = await db
     .from('crm_user_prefs')
-    .select('col_order, col_widths')
+    .select('*')
     .eq('user_id', user.id)
     .single()
 
-  return NextResponse.json(data ?? {})
+  if (!data) return NextResponse.json({})
+  return NextResponse.json({
+    col_order: data.col_order ?? null,
+    col_widths: data.col_widths ?? null,
+    contact_about_fields: data.contact_about_fields ?? null,
+  })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -25,6 +32,7 @@ export async function PATCH(req: NextRequest) {
   const update: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() }
   if (body.col_order  !== undefined) update.col_order  = body.col_order
   if (body.col_widths !== undefined) update.col_widths = body.col_widths
+  if (body.contact_about_fields !== undefined) update.contact_about_fields = body.contact_about_fields
 
   const db = createServiceClient()
   const { error } = await db
