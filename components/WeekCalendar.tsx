@@ -37,9 +37,11 @@ type Commercial = {
   role: string
 }
 
-const HOURS = Array.from({ length: 11 }, (_, i) => i + 8) // 8h → 18h
-const HOUR_HEIGHT = 62       // hauteur d'une ligne d'heure en vue semaine
-const HOUR_HEIGHT_DAY = 84   // hauteur d'une ligne d'heure en vue jour
+const GRID_START_HOUR = 10
+const GRID_END_HOUR = 18
+const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 18h
+const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
+const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
 
 function getInitials(name: string) {
@@ -49,25 +51,25 @@ function getInitials(name: string) {
 function timeToPercent(dateStr: string, refDate: Date): number {
   const d = new Date(dateStr)
   const start = new Date(refDate)
-  start.setHours(8, 0, 0, 0)
+  start.setHours(GRID_START_HOUR, 0, 0, 0)
   const end = new Date(refDate)
-  end.setHours(18, 0, 0, 0)
+  end.setHours(GRID_END_HOUR, 0, 0, 0)
   const total = end.getTime() - start.getTime()
   const offset = d.getTime() - start.getTime()
   return Math.max(0, Math.min(100, (offset / total) * 100))
 }
 
-/** Hauteur min en % du créneau 8h–18h (≈ 20 min visuelles), sans minHeight px qui provoque des chevauchements verticaux. */
+/** Hauteur min en % du créneau visible (≈ 20 min visuelles). */
 function durationToPercent(startStr: string, endStr: string, refDate: Date): number {
   const start = new Date(startStr)
   const end = new Date(endStr)
   const refStart = new Date(refDate)
-  refStart.setHours(8, 0, 0, 0)
+  refStart.setHours(GRID_START_HOUR, 0, 0, 0)
   const refEnd = new Date(refDate)
-  refEnd.setHours(18, 0, 0, 0)
+  refEnd.setHours(GRID_END_HOUR, 0, 0, 0)
   const total = refEnd.getTime() - refStart.getTime()
   const duration = end.getTime() - start.getTime()
-  return Math.max(3.5, (duration / total) * 100)
+  return Math.max(4, (duration / total) * 100)
 }
 
 const MAX_SIDE_COLS = 2
@@ -293,9 +295,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     })
     const rightReserve = hasOverflowBadge ? 38 : 0
 
-    const nameSize = isDay ? 14 : (sideBySide ? 11 : 12)
-    const niveauSize = isDay ? 12 : (sideBySide ? 9 : 10)
-    const badgeSize = isDay ? 11 : 9
+    const nameSize = isDay ? 14 : (sideBySide ? 10 : 11)
+    const niveauSize = isDay ? 12 : (sideBySide ? 8 : 9)
+    const badgeSize = isDay ? 11 : 8
 
     return (
       <div
@@ -311,8 +313,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           background: isCancelled ? 'rgba(107,114,128,0.12)' : '#fff',
           border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${color}55`}`,
           borderLeft: `${isDay ? 4 : 3}px solid ${isCancelled ? '#6b7280' : color}`,
-          borderRadius: 6,
-          padding: isDay ? '6px 10px' : (sideBySide ? '3px 5px' : '4px 6px'),
+          borderRadius: 5,
+          padding: isDay ? '6px 10px' : (sideBySide ? '2px 4px' : '3px 5px'),
           cursor: 'pointer',
           overflow: 'hidden',
           zIndex: 1,
@@ -551,28 +553,88 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         </div>
       )}
 
-      {/* Mode admin : bar minimaliste avec compteurs + filtre */}
+      {/* Mode admin : barre unique compacte (stats + nav + filtres) */}
       {adminMode && (
         <div style={{
-          padding: '8px 24px',
+          padding: '6px 24px',
           background: '#ffffff',
           borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'center', gap: 16,
-          flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 12,
+          flexShrink: 0, flexWrap: 'wrap',
         }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <span style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700 }}>{rdvCount} RDV</span>
-            <span style={{ fontSize: 13, color: '#22c55e', fontWeight: 700 }}>{rdvEffectues} avancés</span>
+          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700 }}>{rdvCount} RDV</span>
+            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>{rdvEffectues} avancés</span>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          <div style={{ width: 1, height: 20, background: '#e5ddc8', flexShrink: 0 }} />
+
+          <button
+            onClick={() => view === 'day'
+              ? setSelectedDay(d => addDays(d, -1))
+              : setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
+            style={{
+              background: '#f0e9da', border: '1px solid #e5ddc8',
+              borderRadius: 8, width: 28, height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#4a6070', flexShrink: 0,
+            }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#0e1e35', textTransform: 'capitalize', flexShrink: 0 }}>
+            {view === 'day' ? (
+              format(selectedDay, 'EEEE d MMMM yyyy', { locale: fr })
+            ) : (
+              <>
+                {format(activeWeekStart, 'd MMMM', { locale: fr })}
+                {' '}—{' '}
+                {format(addDays(activeWeekStart, 6), 'd MMMM yyyy', { locale: fr })}
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => view === 'day'
+              ? setSelectedDay(d => addDays(d, 1))
+              : setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
+            style={{
+              background: '#f0e9da', border: '1px solid #e5ddc8',
+              borderRadius: 8, width: 28, height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#4a6070', flexShrink: 0,
+            }}
+          >
+            <ChevronRight size={15} />
+          </button>
+
+          <button
+            onClick={() => view === 'day'
+              ? setSelectedDay(new Date())
+              : setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            style={{
+              background: 'transparent', border: '1px solid #e5ddc8',
+              borderRadius: 8, padding: '4px 10px',
+              color: '#4a6070', fontSize: 11, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            Aujourd&apos;hui
+          </button>
+
+          {loading && (
+            <div style={{ fontSize: 11, color: '#4a6070', flexShrink: 0 }}>Chargement…</div>
+          )}
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <Users size={13} style={{ color: '#4a6070' }} />
             <select
               value={selectedCommercial}
               onChange={e => setSelectedCommercial(e.target.value)}
               style={{
                 background: '#f0e9da', border: '1px solid #e5ddc8',
-                borderRadius: 8, padding: '5px 10px', color: '#0e1e35',
-                fontSize: 12, cursor: 'pointer', outline: 'none',
+                borderRadius: 8, padding: '4px 8px', color: '#0e1e35',
+                fontSize: 11, cursor: 'pointer', outline: 'none',
               }}
             >
               <option value="all">Tous les closers</option>
@@ -580,11 +642,29 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+
+            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8' }}>
+              {(['day', 'week', 'list'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{
+                    background: view === v ? '#C9A84C' : 'transparent',
+                    border: 'none', borderRadius: 6, padding: '3px 10px',
+                    color: view === v ? 'white' : '#4a6070',
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Week nav */}
+      {/* Week nav — hors mode admin */}
+      {!adminMode && (
       <div style={{
         padding: '10px 24px',
         background: '#ffffff',
@@ -645,56 +725,55 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           Aujourd&apos;hui
         </button>
 
-        {/* Toggle view en mode admin */}
-        {adminMode && (
-          <div style={{ marginLeft: 'auto', display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #e5ddc8' }}>
-            {(['day', 'week', 'list'] as const).map(v => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                style={{
-                  background: view === v ? '#C9A84C' : 'transparent',
-                  border: 'none', borderRadius: 6, padding: '4px 12px',
-                  color: view === v ? 'white' : '#4a6070',
-                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Bouton + RDV — visible uniquement pour les closers */}
+        {/* Contrôles closer */}
         {closerId && !adminMode && (
-          <button
-            onClick={() => setShowNewRdvModal(true)}
-            style={{
-              marginLeft: 'auto',
-              background: 'rgba(204,172,113,0.15)',
-              border: '1px solid rgba(204,172,113,0.4)',
-              borderRadius: 8, padding: '6px 14px',
-              color: '#C9A84C', fontSize: 12, fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5,
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(204,172,113,0.25)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(204,172,113,0.15)'
-            }}
-          >
-            <Plus size={13} />
-            Nouveau RDV
-          </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setShowNewRdvModal(true)}
+              style={{
+                background: 'rgba(204,172,113,0.15)',
+                border: '1px solid rgba(204,172,113,0.4)',
+                borderRadius: 8, padding: '6px 14px',
+                color: '#C9A84C', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(204,172,113,0.25)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(204,172,113,0.15)'
+              }}
+            >
+              <Plus size={13} />
+              Nouveau RDV
+            </button>
+
+            <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 3, border: '1px solid #e5ddc8' }}>
+              {(['day', 'week', 'list'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{
+                    background: view === v ? '#C9A84C' : 'transparent',
+                    border: 'none', borderRadius: 6, padding: '4px 12px',
+                    color: view === v ? 'white' : '#4a6070',
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {v === 'day' ? 'Jour' : v === 'week' ? 'Semaine' : 'Liste'}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {loading && (
           <div style={{ fontSize: 12, color: '#4a6070', marginLeft: 8 }}>Chargement…</div>
         )}
       </div>
+      )}
 
       {weekIsDense && view === 'week' && (
         <div style={{
@@ -754,7 +833,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   onKeyDown={busyDay ? e => { if (e.key === 'Enter') setDayListModal({ day, appts: dayAppts }) } : undefined}
                   title={busyDay ? `Voir les ${dayAppts.length} RDV` : undefined}
                   style={{
-                    padding: '8px 6px',
+                    padding: '6px 4px',
                     textAlign: 'center',
                     borderRight: '1px solid #e5ddc8',
                     background: today ? 'rgba(204,172,113,0.06)' : 'transparent',
@@ -765,16 +844,16 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     {format(day, 'EEE', { locale: fr })}
                   </div>
                   <div style={{
-                    fontSize: 17, fontWeight: 700,
+                    fontSize: 15, fontWeight: 700,
                     color: today ? '#C9A84C' : '#0e1e35',
-                    lineHeight: 1.2, marginTop: 2,
+                    lineHeight: 1.2, marginTop: 1,
                   }}>
                     {format(day, 'd')}
                   </div>
                   {dayAppts.length > 0 && (
                     <div style={{
-                      marginTop: 4,
-                      minWidth: 20, height: 20, padding: '0 5px',
+                      marginTop: 2,
+                      minWidth: 18, height: 18, padding: '0 4px',
                       background: busyDay ? '#C9A84C' : '#4cabdb',
                       borderRadius: 10,
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
