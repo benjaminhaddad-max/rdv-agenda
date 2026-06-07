@@ -187,18 +187,18 @@ export default function AssignModal({
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+        background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#152438',
-        border: '1px solid #2d4a6b',
+        background: '#ffffff',
+        border: '1px solid #e5ddc8',
         borderRadius: 16,
         width: '100%', maxWidth: 560,
-        boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+        boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
         overflow: 'hidden',
         maxHeight: '90vh',
         display: 'flex', flexDirection: 'column',
@@ -206,7 +206,7 @@ export default function AssignModal({
         {/* Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid #2d4a6b',
+          borderBottom: '1px solid #e5ddc8',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
@@ -214,10 +214,10 @@ export default function AssignModal({
             <div style={{ fontSize: 11, fontWeight: 600, color: reassign ? '#C9A84C' : '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
               {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#e8eaf0' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1e35' }}>
               {appointment.prospect_name}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8b8fa8', fontSize: 13, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
               <Clock size={13} />
               <span>{format(start, 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(end, 'HH:mm')}</span>
             </div>
@@ -226,7 +226,7 @@ export default function AssignModal({
             onClick={onClose}
             style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#555870', padding: 4, display: 'flex', alignItems: 'center',
+              color: '#4a6070', padding: 4, display: 'flex', alignItems: 'center',
             }}
           >
             <X size={18} />
@@ -234,16 +234,16 @@ export default function AssignModal({
         </div>
 
         {/* Infos RDV */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #2d4a6b', flexShrink: 0 }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5ddc8', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {appointment.formation_type && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#8b8fa8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#4a6070' }}>
                 <Tag size={13} style={{ color: '#C9A84C' }} />
-                <span style={{ color: '#e8eaf0', fontWeight: 600 }}>{appointment.formation_type}</span>
+                <span style={{ color: '#0e1e35', fontWeight: 600 }}>{appointment.formation_type}</span>
               </div>
             )}
             {appointment.source && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#8b8fa8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#4a6070' }}>
                 <Zap size={13} style={{ color: '#C9A84C' }} />
                 <span>{SOURCE_LABEL[appointment.source] || appointment.source}</span>
               </div>
@@ -254,13 +254,13 @@ export default function AssignModal({
         {/* Liste des closers */}
         <div style={{ overflow: 'auto', flex: 1 }}>
           <div style={{ padding: '12px 24px 4px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Choisir un closer
             </div>
           </div>
           <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {closers.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#555870', padding: '20px 0', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0', fontSize: 13 }}>
                 Chargement des closers…
               </div>
             )}
@@ -278,8 +278,8 @@ export default function AssignModal({
                 <div
                   onClick={() => setSelected(closer.id)}
                   style={{
-                    background: isSelected ? `${color}12` : '#243d5c',
-                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.2)' : '#2d4a6b'}`,
+                    background: isSelected ? `${color}12` : '#f7f4ee',
+                    border: `1px solid ${isSelected ? color : blocked ? 'rgba(239,68,68,0.2)' : '#e5ddc8'}`,
                     borderRadius: 12,
                     padding: '12px 16px',
                     cursor: 'pointer',
@@ -303,7 +303,7 @@ export default function AssignModal({
                   {/* Info */}
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: '#e8eaf0' }}>{closer.name}</span>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: '#0e1e35' }}>{closer.name}</span>
                       {isCurrent && (
                         <span style={{
                           background: 'rgba(204,172,113,0.15)', color: '#C9A84C',
@@ -341,7 +341,7 @@ export default function AssignModal({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: '#555870', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: loadColor, fontWeight: 600 }}>{load} RDV</span>
                       <span>cette semaine</span>
                     </div>
@@ -352,11 +352,11 @@ export default function AssignModal({
                     onClick={(e) => { e.stopPropagation(); togglePreview(closer.id) }}
                     style={{
                       background: previewCloserId === closer.id ? 'rgba(204,172,113,0.15)' : 'transparent',
-                      border: `1px solid ${previewCloserId === closer.id ? 'rgba(204,172,113,0.4)' : '#2d4a6b'}`,
+                      border: `1px solid ${previewCloserId === closer.id ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
                       borderRadius: 8, width: 32, height: 32,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', flexShrink: 0,
-                      color: previewCloserId === closer.id ? '#C9A84C' : '#555870',
+                      color: previewCloserId === closer.id ? '#C9A84C' : '#94a3b8',
                     }}
                     title="Voir le planning"
                   >
@@ -372,14 +372,14 @@ export default function AssignModal({
                 {/* Preview panel */}
                 {previewCloserId === closer.id && (
                   <div style={{
-                    background: '#1d2f4b', border: '1px solid #2d4a6b',
+                    background: '#f7f4ee', border: '1px solid #e5ddc8',
                     borderRadius: 10, padding: '10px 14px', margin: '4px 16px 8px',
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#555870', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                       Planning semaine — {closer.name}
                     </div>
                     {previewLoading ? (
-                      <div style={{ color: '#555870', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, padding: '8px 0' }}>Chargement…</div>
                     ) : previewAppts.length === 0 ? (
                       <div style={{ color: '#22c55e', fontSize: 12, padding: '4px 0' }}>Aucun RDV cette semaine</div>
                     ) : (
@@ -401,7 +401,7 @@ export default function AssignModal({
                               <span style={{ fontSize: 11, color: '#C9A84C', fontWeight: 600, minWidth: 80 }}>
                                 {format(apptStart, 'EEE d · HH:mm', { locale: fr })}
                               </span>
-                              <span style={{ fontSize: 12, color: '#8b8fa8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 12, color: '#4a6070', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {appt.prospect_name}
                               </span>
                             </div>
@@ -418,7 +418,7 @@ export default function AssignModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #2d4a6b', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8', flexShrink: 0 }}>
           {error && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -433,8 +433,8 @@ export default function AssignModal({
               onClick={onClose}
               style={{
                 flex: 1, background: 'transparent',
-                border: '1px solid #2d4a6b', borderRadius: 10,
-                padding: '10px', color: '#8b8fa8', fontSize: 14,
+                border: '1px solid #e5ddc8', borderRadius: 10,
+                padding: '10px', color: '#4a6070', fontSize: 14,
                 cursor: 'pointer', fontWeight: 500,
               }}
             >
@@ -444,9 +444,9 @@ export default function AssignModal({
               onClick={assign}
               disabled={!selected || assigning}
               style={{
-                flex: 2, background: selected ? '#C9A84C' : '#243d5c',
+                flex: 2, background: selected ? '#C9A84C' : '#f0e9da',
                 border: 'none', borderRadius: 10,
-                padding: '10px', color: selected ? 'white' : '#555870', fontSize: 14,
+                padding: '10px', color: selected ? 'white' : '#94a3b8', fontSize: 14,
                 cursor: selected ? 'pointer' : 'default', fontWeight: 700,
                 transition: 'all 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
