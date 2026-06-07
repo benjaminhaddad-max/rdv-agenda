@@ -36,7 +36,7 @@ export default function AgendaPage() {
   }, [fetchCount])
 
   return (
-    <div className="min-h-screen bg-[#f7f4ee] flex flex-col">
+    <div className="h-full min-h-0 bg-[#f7f4ee] flex flex-col overflow-hidden">
       {/* Header principal */}
       <div className="bg-white border-b border-[#e5ddc8]">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">

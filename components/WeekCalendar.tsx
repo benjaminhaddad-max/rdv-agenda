@@ -868,8 +868,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           </div>
 
           {/* Time grid — remplit toute la hauteur dispo (scroll seulement si écran trop court) */}
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', height: '100%', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
             {/* Hour labels */}
             <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
               {HOURS.map(h => (
@@ -974,8 +974,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               </div>
 
               {/* Grille horaire — remplit toute la hauteur dispo */}
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', height: '100%', minHeight: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
                   {/* Libellés des heures */}
                   <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
                     {HOURS.map(h => (
