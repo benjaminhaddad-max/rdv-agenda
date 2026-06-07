@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useRef, lazy, Suspense } from 'react'
-import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw, Sparkles } from 'lucide-react'
+import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw, Sparkles, ChevronLeft } from 'lucide-react'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
-import AssignModal from './AssignModal'
+import { AssignCloserPanel } from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
@@ -322,8 +322,71 @@ export default function AppointmentModal({
         overflow: 'hidden',
         boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
         maxHeight: '90vh',
-        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        ...(showReassignModal ? {} : { overflowY: 'auto' as const }),
       }}>
+        {showReassignModal ? (
+          <>
+            {/* Vue réassignation — intégrée dans la même modale CRM */}
+            <div style={{
+              padding: '16px 24px',
+              borderBottom: '1px solid #e5ddc8',
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+              flexShrink: 0,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowReassignModal(false)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'none', border: 'none', padding: 0, marginBottom: 8,
+                    color: '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                  Retour au RDV
+                </button>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+                  {appointment.users ? '🔄 Réassigner le closer' : 'Assigner le closer'}
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  {appointment.prospect_name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
+                  <Clock size={13} />
+                  <span>
+                    {format(start, 'EEEE d MMMM', { locale: fr })} · {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#4a6070', padding: 4, borderRadius: 8,
+                  display: 'flex', alignItems: 'center', flexShrink: 0,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <AssignCloserPanel
+              appointment={appointment}
+              showMeta={false}
+              reassign={!!appointment.users}
+              currentCloserId={appointment.users?.id ?? null}
+              onCancel={() => setShowReassignModal(false)}
+              onAssigned={(updated) => {
+                onUpdate(updated as Partial<Appointment>)
+                setShowReassignModal(false)
+              }}
+            />
+          </>
+        ) : (
+        <>
         {/* Header */}
         <div style={{
           padding: '20px 24px',
@@ -1028,21 +1091,10 @@ export default function AppointmentModal({
             {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
-
-    {showReassignModal && (
-      <AssignModal
-        appointment={appointment}
-        onClose={() => setShowReassignModal(false)}
-        onAssigned={(updated) => {
-          onUpdate(updated)
-          setShowReassignModal(false)
-        }}
-        reassign={!!appointment.users}
-        currentCloserId={appointment.users?.id ?? null}
-      />
-    )}
 
     {showJitsi && appointment.meeting_link && (
       <Suspense fallback={null}>

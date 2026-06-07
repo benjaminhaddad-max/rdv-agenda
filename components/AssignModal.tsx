@@ -23,9 +23,9 @@ type Commercial = {
   avatar_color: string
   slug: string
   role: string
-  rdv_count?: number  // charge semaine
-  is_available?: boolean  // dispo sur ce créneau ?
-  is_blocked?: boolean    // jour bloqué ?
+  rdv_count?: number
+  is_available?: boolean
+  is_blocked?: boolean
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -40,18 +40,22 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-export default function AssignModal({
+/** Panneau de sélection closer — réutilisable en modale autonome ou inline dans AppointmentModal. */
+export function AssignCloserPanel({
   appointment,
-  onClose,
   onAssigned,
+  onCancel,
   reassign = false,
   currentCloserId,
+  showMeta = true,
 }: {
   appointment: Appointment
-  onClose: () => void
   onAssigned: (updatedAppointment: Record<string, unknown>) => void
+  onCancel: () => void
   reassign?: boolean
   currentCloserId?: string | null
+  /** Afficher filière / source (utile en modale autonome, masqué en inline). */
+  showMeta?: boolean
 }) {
   const [closers, setClosers] = useState<Commercial[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -61,19 +65,14 @@ export default function AssignModal({
   const [previewAppts, setPreviewAppts] = useState<{ id: string; prospect_name: string; start_at: string; end_at: string; status: string }[]>([])
   const [previewLoading, setPreviewLoading] = useState(false)
 
-  const start = new Date(appointment.start_at)
-  const end = new Date(appointment.end_at)
-
   useEffect(() => {
-    // Charger les closers + leur charge + dispo sur ce créneau
     fetch('/api/users')
       .then(r => r.json())
       .then(async (users: Commercial[]) => {
         const closersList = users.filter(u => u.role === 'closer' || u.role === 'admin')
 
-        // Charger le nombre de RDV de chaque closer cette semaine
         const weekStart = new Date(appointment.start_at)
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1) // Lundi
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
         const weekKey = format(weekStart, 'yyyy-MM-dd')
         const dateStr = format(new Date(appointment.start_at), 'yyyy-MM-dd')
 
@@ -84,24 +83,20 @@ export default function AssignModal({
             let is_blocked = false
 
             try {
-              // Charge de la semaine
               const resAppts = await fetch(`/api/appointments?commercial_id=${closer.id}&week=${weekKey}`)
               if (resAppts.ok) {
                 const appts = await resAppts.json()
                 rdv_count = appts.filter((a: { status: string }) => a.status !== 'annule').length
               }
 
-              // Check dispo sur le créneau du RDV
               const resSlots = await fetch(`/api/availability?commercial_id=${closer.id}&date=${dateStr}`)
               if (resSlots.ok) {
                 const slots: { start: string; end: string; available: boolean }[] = await resSlots.json()
-                // Le closer est dispo s'il a un slot libre qui couvre le créneau du RDV
                 is_available = slots.some(s =>
                   s.available &&
                   new Date(s.start).getTime() <= new Date(appointment.start_at).getTime() &&
                   new Date(s.end).getTime() >= new Date(appointment.end_at).getTime()
                 )
-                // Si aucun slot du tout → jour bloqué ou pas de dispo ce jour
                 if (slots.length === 0) is_blocked = true
               }
             } catch {}
@@ -110,7 +105,6 @@ export default function AssignModal({
           })
         )
 
-        // Sort: available first, then by load ascending
         const sorted = closersWithLoad.sort((a, b) => {
           if (a.is_available && !b.is_available) return -1
           if (!a.is_available && b.is_available) return 1
@@ -118,17 +112,12 @@ export default function AssignModal({
         })
         setClosers(sorted)
 
-        // Auto-select rules
         const available = sorted.filter(c => c.is_available)
         if (available.length === 1) {
-          // Un seul closer dispo → le sélectionner
           setSelected(available[0].id)
         } else if (available.length > 1) {
-          // Admin dispo → le sélectionner par défaut
           const admin = available.find(c => c.role === 'admin')
-          if (admin) {
-            setSelected(admin.id)
-          }
+          if (admin) setSelected(admin.id)
         }
       })
   }, [appointment.start_at, appointment.end_at])
@@ -146,7 +135,6 @@ export default function AssignModal({
       if (res.ok) {
         const updated = await res.json()
         onAssigned(updated)
-        onClose()
       } else {
         const data = await res.json()
         setError(data.error || 'Erreur lors de l\'assignation')
@@ -184,56 +172,8 @@ export default function AssignModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
-      }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e5ddc8',
-        borderRadius: 16,
-        width: '100%', maxWidth: 560,
-        boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
-        overflow: 'hidden',
-        maxHeight: '90vh',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '20px 24px',
-          borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: reassign ? '#C9A84C' : '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
-              {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1e35' }}>
-              {appointment.prospect_name}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
-              <Clock size={13} />
-              <span>{format(start, 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(end, 'HH:mm')}</span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#4a6070', padding: 4, display: 'flex', alignItems: 'center',
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Infos RDV */}
+    <>
+      {showMeta && (appointment.formation_type || appointment.source) && (
         <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5ddc8', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {appointment.formation_type && (
@@ -250,31 +190,31 @@ export default function AssignModal({
             )}
           </div>
         </div>
+      )}
 
-        {/* Liste des closers */}
-        <div style={{ overflow: 'auto', flex: 1 }}>
-          <div style={{ padding: '12px 24px 4px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Choisir un closer
-            </div>
+      <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+        <div style={{ padding: '12px 24px 4px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Choisir un closer
           </div>
-          <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {closers.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0', fontSize: 13 }}>
-                Chargement des closers…
-              </div>
-            )}
-            {closers.map((closer, idx) => {
-              const color = COLORS[idx % COLORS.length]
-              const isSelected = selected === closer.id
-              const isCurrent = reassign && currentCloserId === closer.id
-              const load = closer.rdv_count || 0
-              const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#C9A84C' : '#ef4444'
-              const available = closer.is_available
-              const blocked = closer.is_blocked
+        </div>
+        <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {closers.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0', fontSize: 13 }}>
+              Chargement des closers…
+            </div>
+          )}
+          {closers.map((closer, idx) => {
+            const color = COLORS[idx % COLORS.length]
+            const isSelected = selected === closer.id
+            const isCurrent = reassign && currentCloserId === closer.id
+            const load = closer.rdv_count || 0
+            const loadColor = load <= 3 ? '#22c55e' : load <= 6 ? '#C9A84C' : '#ef4444'
+            const available = closer.is_available
+            const blocked = closer.is_blocked
 
-              return (
-                <div key={closer.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            return (
+              <div key={closer.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 <div
                   onClick={() => setSelected(closer.id)}
                   style={{
@@ -288,7 +228,6 @@ export default function AssignModal({
                     opacity: blocked ? 0.5 : 1,
                   }}
                 >
-                  {/* Avatar */}
                   <div style={{
                     width: 40, height: 40, borderRadius: 10,
                     background: `${color}20`,
@@ -300,9 +239,8 @@ export default function AssignModal({
                     {getInitials(closer.name)}
                   </div>
 
-                  {/* Info */}
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 14, color: '#0e1e35' }}>{closer.name}</span>
                       {isCurrent && (
                         <span style={{
@@ -347,7 +285,6 @@ export default function AssignModal({
                     </div>
                   </div>
 
-                  {/* Eye preview */}
                   <button
                     onClick={(e) => { e.stopPropagation(); togglePreview(closer.id) }}
                     style={{
@@ -363,13 +300,11 @@ export default function AssignModal({
                     {previewCloserId === closer.id ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
 
-                  {/* Selected check */}
                   {isSelected && (
                     <CheckCircle size={20} style={{ color, flexShrink: 0 }} />
                   )}
                 </div>
 
-                {/* Preview panel */}
                 {previewCloserId === closer.id && (
                   <div style={{
                     background: '#f7f4ee', border: '1px solid #e5ddc8',
@@ -412,51 +347,128 @@ export default function AssignModal({
                   </div>
                 )}
               </div>
-              )
-            })}
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8', flexShrink: 0 }}>
+        {error && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            color: '#ef4444', fontSize: 13, marginBottom: 12,
+          }}>
+            <AlertCircle size={14} />
+            <span>{error}</span>
           </div>
+        )}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, background: 'transparent',
+              border: '1px solid #e5ddc8', borderRadius: 10,
+              padding: '10px', color: '#4a6070', fontSize: 14,
+              cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit',
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            onClick={assign}
+            disabled={!selected || assigning}
+            style={{
+              flex: 2, background: selected ? '#C9A84C' : '#f0e9da',
+              border: 'none', borderRadius: 10,
+              padding: '10px', color: selected ? '#0e1e35' : '#94a3b8', fontSize: 14,
+              cursor: selected ? 'pointer' : 'default', fontWeight: 700,
+              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'inherit',
+            }}
+          >
+            <User size={16} />
+            {assigning ? (reassign ? 'Réassignation…' : 'Assignation…') : (reassign ? 'Réassigner ce closer' : 'Assigner ce closer')}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/** Modale autonome (file d'attente admin, etc.) */
+export default function AssignModal({
+  appointment,
+  onClose,
+  onAssigned,
+  reassign = false,
+  currentCloserId,
+}: {
+  appointment: Appointment
+  onClose: () => void
+  onAssigned: (updatedAppointment: Record<string, unknown>) => void
+  reassign?: boolean
+  currentCloserId?: string | null
+}) {
+  const start = new Date(appointment.start_at)
+  const end = new Date(appointment.end_at)
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1100,
+        background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e5ddc8',
+        borderRadius: 16,
+        width: '100%', maxWidth: 560,
+        boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
+        overflow: 'hidden',
+        maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid #e5ddc8',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+              {reassign ? '🔄 Réassigner le closer' : 'Assigner le RDV'}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1e35' }}>
+              {appointment.prospect_name}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
+              <Clock size={13} />
+              <span>{format(start, 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(end, 'HH:mm')}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#4a6070', padding: 4, display: 'flex', alignItems: 'center',
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8', flexShrink: 0 }}>
-          {error && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              color: '#ef4444', fontSize: 13, marginBottom: 12,
-            }}>
-              <AlertCircle size={14} />
-              <span>{error}</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1, background: 'transparent',
-                border: '1px solid #e5ddc8', borderRadius: 10,
-                padding: '10px', color: '#4a6070', fontSize: 14,
-                cursor: 'pointer', fontWeight: 500,
-              }}
-            >
-              Annuler
-            </button>
-            <button
-              onClick={assign}
-              disabled={!selected || assigning}
-              style={{
-                flex: 2, background: selected ? '#C9A84C' : '#f0e9da',
-                border: 'none', borderRadius: 10,
-                padding: '10px', color: selected ? 'white' : '#94a3b8', fontSize: 14,
-                cursor: selected ? 'pointer' : 'default', fontWeight: 700,
-                transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              <User size={16} />
-              {assigning ? (reassign ? 'Réassignation…' : 'Assignation…') : (reassign ? 'Réassigner ce closer' : 'Assigner ce closer')}
-            </button>
-          </div>
-        </div>
+        <AssignCloserPanel
+          appointment={appointment}
+          onAssigned={(updated) => { onAssigned(updated); onClose() }}
+          onCancel={onClose}
+          reassign={reassign}
+          currentCloserId={currentCloserId}
+        />
       </div>
     </div>
   )
