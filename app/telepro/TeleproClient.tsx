@@ -10,6 +10,7 @@ import {
   ExternalLink, AlertCircle,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import WeekCalendar from '@/components/WeekCalendar'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
@@ -463,7 +464,7 @@ export default function TeleproClient({
   const teleproCrmFilterId = teleproUser.id || ''
   // Les transactions restent filtrées côté deal avec l'ID HubSpot existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -1202,6 +1203,14 @@ export default function TeleproClient({
                   </span>
                 )}
               </button>
+              <button onClick={() => setActiveTab('agenda')} style={{
+                background: activeTab === 'agenda' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'agenda' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'agenda' ? '#C9A84C' : '#4a6070',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <Calendar size={12} /> Agenda équipe
+              </button>
               <button onClick={() => setActiveTab('contacts')} style={{
                 background: activeTab === 'contacts' ? 'rgba(76,171,219,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${activeTab === 'contacts' ? 'rgba(76,171,219,0.4)' : '#475569'}`,
@@ -1273,6 +1282,15 @@ export default function TeleproClient({
           cancelling={cancellingRdv === selectedRdv.id}
           onReset={() => resetRdv(selectedRdv.id)}
         />
+      )}
+
+      {/* ── Onglet Agenda équipe ─────────────────────────────────────────── */}
+      {/* Tous les RDV de la semaine (toute l'équipe) : permet au télépro de
+          repérer où il reste de la place avant de placer un RDV. */}
+      {activeTab === 'agenda' && !isAdmin && (
+        <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+          <WeekCalendar teamView />
+        </div>
       )}
 
       {/* ── Onglet Mon Planning ──────────────────────────────────────────── */}

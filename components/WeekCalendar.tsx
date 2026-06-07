@@ -185,7 +185,7 @@ function computeDayLayout<T extends { id: string; start_at: string; end_at: stri
   return { slots, overflow }
 }
 
-export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string }) {
+export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName, teamView = false }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string; teamView?: boolean }) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -244,7 +244,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
 
   function handleSelectCommercial(id: string) {
-    if (closerId) return // verrouillé en mode closer
+    if (closerId && !teamView) return // verrouillé en mode closer (sauf vue équipe)
     setSelectedCommercial(id)
     if (!adminMode && typeof window !== 'undefined') {
       localStorage.setItem('rdv_selected_commercial', id)
@@ -258,7 +258,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }
 
   function getColorForCommercial(id: string) {
-    if (closerId && closerColor) return closerColor
+    // En vue équipe, chaque closer garde sa propre couleur (sinon tout serait
+    // de la couleur du closer courant). On ne force la couleur que pour ses RDV.
+    if (closerId && closerColor && (!teamView || id === closerId)) return closerColor
     const idx = closers.findIndex(c => c.id === id)
     return idx >= 0 ? COLORS[idx % COLORS.length] : '#C9A84C'
   }
@@ -499,19 +501,21 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Lien admin */}
-            <a
-              href="/admin"
-              style={{
-                background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
-                borderRadius: 8, padding: '6px 12px',
-                color: '#C9A84C', fontSize: 12,
-                textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <LayoutDashboard size={13} />
-              Admin
-            </a>
+            {/* Lien admin — masqué en vue équipe (télépro / closer) */}
+            {!teamView && (
+              <a
+                href="/admin"
+                style={{
+                  background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)',
+                  borderRadius: 8, padding: '6px 12px',
+                  color: '#C9A84C', fontSize: 12,
+                  textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <LayoutDashboard size={13} />
+                Admin
+              </a>
+            )}
 
             {/* Sélecteur closer */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -728,6 +732,29 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         {/* Contrôles closer */}
         {closerId && !adminMode && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Sélecteur équipe — permet au closer de voir tous les RDV pour
+                repérer où il reste de la place avant de placer un RDV. */}
+            {teamView && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Users size={14} style={{ color: '#4a6070' }} />
+                <select
+                  value={selectedCommercial}
+                  onChange={e => handleSelectCommercial(e.target.value)}
+                  style={{
+                    background: '#f0e9da', border: '1px solid #e5ddc8',
+                    borderRadius: 8, padding: '6px 10px', color: '#0e1e35',
+                    fontSize: 12, cursor: 'pointer', outline: 'none',
+                  }}
+                >
+                  {closerId && <option value={closerId}>Mon agenda</option>}
+                  <option value="all">Toute l&apos;équipe</option>
+                  {closers.filter(c => c.id !== closerId).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <button
               onClick={() => setShowNewRdvModal(true)}
               style={{
