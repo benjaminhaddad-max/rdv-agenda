@@ -748,9 +748,6 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 >
                   {closerId && <option value={closerId}>Mon agenda</option>}
                   <option value="all">Toute l&apos;équipe</option>
-                  {closers.filter(c => c.id !== closerId).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
                 </select>
               </div>
             )}
