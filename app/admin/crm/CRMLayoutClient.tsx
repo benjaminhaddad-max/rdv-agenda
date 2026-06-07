@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import CRMSidebar from '@/components/CRMSidebar'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
@@ -16,7 +16,10 @@ type Me = {
 
 function Inner({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const embed = searchParams.get('embed') === '1'
+  // Page agenda : pas de barre de recherche globale (gain de hauteur).
+  const hideSearchBar = pathname?.startsWith('/admin/crm/agenda')
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
@@ -51,7 +54,7 @@ function Inner({ children }: { children: React.ReactNode }) {
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
       {showAdminChrome && <CRMSidebar />}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh' }}>
-        {showAdminChrome && <CRMGlobalSearchBar />}
+        {showAdminChrome && !hideSearchBar && <CRMGlobalSearchBar />}
 
         {showUserChrome && (
           <div style={{ flexShrink: 0 }}>
@@ -89,7 +92,7 @@ function Inner({ children }: { children: React.ReactNode }) {
               )}
               <LogoutButton />
             </div>
-            <CRMGlobalSearchBar />
+            {!hideSearchBar && <CRMGlobalSearchBar />}
           </div>
         )}
 
