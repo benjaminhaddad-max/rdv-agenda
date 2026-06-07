@@ -562,7 +562,17 @@ export default function AppointmentModal({
             {appointment.users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>Closer : <strong style={{ color: '#0f172a' }}>{appointment.users.name}</strong></span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  Closer :
+                  {appointment.users.avatar_color && (
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: appointment.users.avatar_color,
+                      flexShrink: 0, display: 'inline-block',
+                    }} />
+                  )}
+                  <strong style={{ color: '#0f172a' }}>{appointment.users.name}</strong>
+                </span>
                 {showAssign && (
                   <button
                     onClick={() => setShowReassignModal(true)}

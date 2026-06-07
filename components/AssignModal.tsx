@@ -205,7 +205,9 @@ export function AssignCloserPanel({
             </div>
           )}
           {closers.map((closer, idx) => {
-            const color = COLORS[idx % COLORS.length]
+            // Code couleur stable par closer (sa couleur propre), avec repli
+            // sur la palette positionnelle si avatar_color est absent.
+            const color = closer.avatar_color || COLORS[idx % COLORS.length]
             const isSelected = selected === closer.id
             const isCurrent = reassign && currentCloserId === closer.id
             const load = closer.rdv_count || 0

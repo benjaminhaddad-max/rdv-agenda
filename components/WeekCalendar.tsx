@@ -258,6 +258,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   }
 
   function getColorForCommercial(id: string) {
+    // Code couleur stable par closer : on utilise sa couleur propre
+    // (avatar_color) pour que la même personne ait toujours la même couleur,
+    // dans l'agenda comme dans la fenêtre d'attribution.
+    const found = closers.find(c => c.id === id)
+    if (found?.avatar_color) return found.avatar_color
     // En vue équipe, chaque closer garde sa propre couleur (sinon tout serait
     // de la couleur du closer courant). On ne force la couleur que pour ses RDV.
     if (closerId && closerColor && (!teamView || id === closerId)) return closerColor
