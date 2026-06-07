@@ -84,12 +84,16 @@ export default function AppointmentModal({
   onClose,
   onUpdate,
   adminMode = false,
+  canAssign = false,
 }: {
   appointment: Appointment
   onClose: () => void
   onUpdate: (updated: Partial<Appointment>) => void
   adminMode?: boolean
+  canAssign?: boolean
 }) {
+  // Admin ou closer autorisé à (ré)assigner le RDV à un closer.
+  const showAssign = adminMode || canAssign
   const [status, setStatus] = useState<AppointmentStatus>(appointment.status)
   const [pendingStatus, setPendingStatus] = useState<AppointmentStatus | null>(null)
   const [notes, setNotes] = useState(appointment.notes || '')
@@ -496,7 +500,7 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
                 <span>Closer : <strong style={{ color: '#0f172a' }}>{appointment.users.name}</strong></span>
-                {adminMode && (
+                {showAssign && (
                   <button
                     onClick={() => setShowReassignModal(true)}
                     style={{
@@ -514,7 +518,7 @@ export default function AppointmentModal({
                 )}
               </div>
             )}
-            {adminMode && !appointment.users && (
+            {showAssign && !appointment.users && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
                 <span style={{ color: '#4a6070' }}>Aucun closer assigné</span>

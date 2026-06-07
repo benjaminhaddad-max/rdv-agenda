@@ -185,7 +185,7 @@ function computeDayLayout<T extends { id: string; start_at: string; end_at: stri
   return { slots, overflow }
 }
 
-export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName, teamView = false }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string; teamView?: boolean }) {
+export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string; teamView?: boolean; allowAssign?: boolean }) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -1262,6 +1262,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           appointment={selectedAppointment}
           onClose={() => setSelectedAppointment(null)}
           adminMode={adminMode}
+          canAssign={allowAssign}
           onUpdate={(updated) => {
             setAppointments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             setSelectedAppointment(prev => prev ? { ...prev, ...updated } : null)
