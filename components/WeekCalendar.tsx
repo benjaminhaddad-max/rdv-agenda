@@ -867,16 +867,16 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             })}
           </div>
 
-          {/* Time grid — zone scrollable */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', height: `${HOURS.length * HOUR_HEIGHT}px` }}>
+          {/* Time grid — remplit toute la hauteur dispo (scroll seulement si écran trop court) */}
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', height: '100%', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
             {/* Hour labels */}
-            <div style={{ borderRight: '1px solid #e5ddc8' }}>
+            <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
               {HOURS.map(h => (
                 <div
                   key={h}
                   style={{
-                    height: HOUR_HEIGHT,
+                    flex: 1, minHeight: 0,
                     display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
                     paddingRight: 8, paddingTop: 4,
                     fontSize: 12, color: '#4a6070', fontWeight: 600,
@@ -902,10 +902,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     position: 'relative',
                     background: today ? 'rgba(204,172,113,0.02)' : 'transparent',
                     minWidth: 0,
+                    display: 'flex', flexDirection: 'column',
                   }}
                 >
                   {HOURS.map(h => (
-                    <div key={h} style={{ height: HOUR_HEIGHT, borderBottom: '1px solid #e5ddc8' }} />
+                    <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #e5ddc8' }} />
                   ))}
 
                   {dayAppts.filter(a => !hiddenIds.has(a.id)).map(appt =>
@@ -972,16 +973,16 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                 <span style={{ fontSize: 12, color: '#4a6070' }}>RDV</span>
               </div>
 
-              {/* Grille horaire scrollable */}
-              <div style={{ flex: 1, overflow: 'auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', height: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
+              {/* Grille horaire — remplit toute la hauteur dispo */}
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', position: 'relative', height: '100%', minHeight: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
                   {/* Libellés des heures */}
-                  <div style={{ borderRight: '1px solid #e5ddc8' }}>
+                  <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
                     {HOURS.map(h => (
                       <div
                         key={h}
                         style={{
-                          height: HOUR_HEIGHT_DAY,
+                          flex: 1, minHeight: 0,
                           display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
                           paddingRight: 10, paddingTop: 4,
                           fontSize: 13, color: '#4a6070', fontWeight: 600,
@@ -993,9 +994,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   </div>
 
                   {/* Colonne du jour */}
-                  <div style={{ position: 'relative', minWidth: 0, background: today ? 'rgba(204,172,113,0.02)' : 'transparent' }}>
+                  <div style={{ position: 'relative', minWidth: 0, background: today ? 'rgba(204,172,113,0.02)' : 'transparent', display: 'flex', flexDirection: 'column' }}>
                     {HOURS.map(h => (
-                      <div key={h} style={{ height: HOUR_HEIGHT_DAY, borderBottom: '1px solid #e5ddc8' }} />
+                      <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #e5ddc8' }} />
                     ))}
 
                     {dayAppts.length === 0 && (
