@@ -225,7 +225,6 @@ export function AssignCloserPanel({
                     cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 14,
                     transition: 'all 0.15s',
-                    opacity: blocked ? 0.5 : 1,
                   }}
                 >
                   <div style={{
