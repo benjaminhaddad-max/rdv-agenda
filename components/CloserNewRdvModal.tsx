@@ -51,9 +51,9 @@ const FORMATIONS = [
 ]
 
 const HOURS: string[] = []
-for (let h = 8; h <= 18; h++) {
+for (let h = 8; h <= 22; h++) {
   HOURS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 18) HOURS.push(`${String(h).padStart(2, '0')}:30`)
+  if (h < 22) HOURS.push(`${String(h).padStart(2, '0')}:30`)
 }
 
 function generateJitsiLink() {

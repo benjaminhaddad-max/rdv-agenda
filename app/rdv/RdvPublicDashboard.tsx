@@ -106,10 +106,10 @@ export default function RdvPublicDashboard({
     setLoadingSlots(true); setSlots([]); setSelectedSlot(null); setSelectedDate(day)
     const base = new Date(day); base.setHours(9, 0, 0, 0)
     const result: Slot[] = []
-    while (base.getHours() < 18) {
+    while (base.getHours() < 22) {
       const start = new Date(base), end = new Date(base)
       end.setMinutes(base.getMinutes() + 30)
-      if (end.getHours() <= 18) result.push({ start: start.toISOString(), end: end.toISOString() })
+      if (end.getHours() <= 22) result.push({ start: start.toISOString(), end: end.toISOString() })
       base.setMinutes(base.getMinutes() + 30)
     }
     setSlots(result); setLoadingSlots(false); setStep('slot')

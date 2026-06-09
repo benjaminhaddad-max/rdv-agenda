@@ -54,11 +54,11 @@ export default function BookingPublic() {
     const base = new Date(selectedDate)
     base.setHours(9, 0, 0, 0)
     const daySlots: Slot[] = []
-    while (base.getHours() < 18) {
+    while (base.getHours() < 22) {
       const start = new Date(base)
       const end = new Date(base)
       end.setMinutes(base.getMinutes() + 30)
-      if (end.getHours() <= 18) daySlots.push({ start: start.toISOString(), end: end.toISOString() })
+      if (end.getHours() <= 22) daySlots.push({ start: start.toISOString(), end: end.toISOString() })
       base.setMinutes(base.getMinutes() + 30)
     }
     setSlots(daySlots)

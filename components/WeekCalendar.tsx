@@ -38,8 +38,8 @@ type Commercial = {
 }
 
 const GRID_START_HOUR = 10
-const GRID_END_HOUR = 18
-const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 18h
+const GRID_END_HOUR = 22
+const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 22h
 const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
 const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
