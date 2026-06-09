@@ -95,18 +95,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Applique les mises à jour, par lots.
+    // 3. Applique les mises à jour ligne par ligne.
+    //    (Un UPDATE groupé via .in() dépasse le statement timeout Supabase :
+    //     crm_contacts porte des triggers lourds — historique, MV, etc.)
     const now = new Date().toISOString()
     let updated = 0
-    const WRITE = 200
-    for (let i = 0; i < toUpdate.length; i += WRITE) {
-      const chunk = toUpdate.slice(i, i + WRITE)
+    let failed = 0
+    for (const id of toUpdate) {
       const { error } = await db
         .from('crm_contacts')
         .update({ hs_lead_status: STATUS_PREINSCRIT, synced_at: now })
-        .in('hubspot_contact_id', chunk)
-      if (error) throw new Error(`update contacts: ${error.message}`)
-      updated += chunk.length
+        .eq('hubspot_contact_id', id)
+      if (error) { failed++; continue }
+      updated += 1
     }
 
     return NextResponse.json({
@@ -117,6 +118,7 @@ export async function GET(req: NextRequest) {
       contacts_found_in_crm: foundInCrm,
       contacts_missing_in_crm: contactIds.length - foundInCrm,
       updated,
+      failed,
     })
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
