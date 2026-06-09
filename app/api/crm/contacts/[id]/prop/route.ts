@@ -26,6 +26,8 @@ const KNOWN_COLUMNS: Record<string, string> = {
   hs_lead_status:                        'hs_lead_status',
   origine:                               'origine',
   hubspot_owner_id:                      'hubspot_owner_id',
+  closer_du_contact_owner_id:            'closer_du_contact_owner_id',
+  telepro_user_id:                       'telepro_user_id',
   formation_souhaitee:                   'formation_souhaitee',
   'zone___localite':                     'zone_localite',
   'diploma_sante___formation_demandee':  'formation_demandee',

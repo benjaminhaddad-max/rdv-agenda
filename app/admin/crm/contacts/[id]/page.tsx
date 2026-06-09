@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, use, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -268,6 +269,8 @@ const PROP_NAME_TO_COLUMN: Record<string, string> = {
   hs_lead_status: 'hs_lead_status',
   origine: 'origine',
   hubspot_owner_id: 'hubspot_owner_id',
+  closer_du_contact_owner_id: 'closer_du_contact_owner_id',
+  telepro_user_id: 'telepro_user_id',
   formation_souhaitee: 'formation_souhaitee',
   'zone___localite': 'zone_localite',
   'diploma_sante___formation_demandee': 'formation_demandee',
@@ -281,6 +284,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [editing, setEditing] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  // Ref vers le champ d'édition inline actif (aside « À propos »).
+  const editFieldRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>(null)
+  // Ouvre l'éditeur inline ET force le focus dans le geste tactile (clavier iOS).
+  const startInlineEdit = useCallback((name: string, rawValue: Any, m?: CRMProperty) => {
+    flushSync(() => {
+      setEditing(name)
+      setEditValue(normalizeValueForEditor(rawValue, m))
+    })
+    editFieldRef.current?.focus()
+  }, [])
   const [timelineTab, setTimelineTab] = useState<TimelineTab>('all')
   const [timelineSearch, setTimelineSearch] = useState('')
   const [showAllProps, setShowAllProps] = useState(false)
@@ -301,7 +314,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [noteDraftSubject, setNoteDraftSubject] = useState('')
   const [noteDraftBody, setNoteDraftBody] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
   const loadGenRef = useRef(0)
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCrmUsers(d) })
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const force = opts?.force === true
@@ -479,21 +500,28 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
   for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label, options: p.options }
 
-  // Options pour les dropdowns "Propriétaire" / "Téléprospecteur" :
-  // toutes les valeurs possibles = tous les owners HubSpot actifs
-  const ownerOptions = owners.map(o => ({
-    value: o.hubspot_owner_id,
-    label: [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id,
-  }))
-
-  const ownerMap: Record<string, Owner> = {}
-  for (const o of owners) ownerMap[o.hubspot_owner_id] = o
+  // Options pour les dropdowns Propriétaire / Closer du contact / Télépro :
+  // rdv_users en priorité (noms explicites), complété par les owners actifs.
+  const ownerLabelMap: Record<string, string> = {}
+  for (const u of crmUsers) {
+    const label = u.name || u.email || u.id
+    if (u.hubspot_owner_id) ownerLabelMap[u.hubspot_owner_id] = label
+    if (u.hubspot_user_id) ownerLabelMap[u.hubspot_user_id] = label
+    ownerLabelMap[u.id] = label
+  }
+  for (const o of owners) {
+    if (!ownerLabelMap[o.hubspot_owner_id]) {
+      ownerLabelMap[o.hubspot_owner_id] =
+        [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
+    }
+  }
+  const ownerOptions = Object.entries(ownerLabelMap)
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
 
   const ownerLabel = (id?: string | null) => {
     if (!id) return '—'
-    const o = ownerMap[id]
-    if (!o) return id
-    return [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || id
+    return ownerLabelMap[id] || id
   }
 
   const stageLabel = (value?: string | null) => {
@@ -515,7 +543,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       return
     }
     const normalizedValue = normalizeValueForSave(value, meta)
-    setSaving(true)
+    const col = PROP_NAME_TO_COLUMN[propName]
+    const snapshot = data
+
+    // Mise à jour optimiste immédiate (pas d'écran de chargement)
+    setData(prev => {
+      if (!prev?.contact) return prev
+      const nextContact = {
+        ...prev.contact,
+        hubspot_raw: { ...(prev.contact.hubspot_raw ?? {}), [propName]: normalizedValue },
+      }
+      if (col) (nextContact as Record<string, unknown>)[col] = normalizedValue
+      return { ...prev, contact: nextContact }
+    })
+    setEditing(null)
+
     try {
       const res = await fetch(`/api/crm/contacts/${id}/prop`, {
         method: 'PATCH',
@@ -523,22 +565,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({ property: propName, value: normalizedValue }),
       })
       if (!res.ok) throw new Error(await res.text())
-      const col = PROP_NAME_TO_COLUMN[propName]
-      setData(prev => {
-        if (!prev?.contact) return prev
-        const nextContact = {
-          ...prev.contact,
-          hubspot_raw: { ...(prev.contact.hubspot_raw ?? {}), [propName]: normalizedValue },
-        }
-        if (col) (nextContact as Record<string, unknown>)[col] = normalizedValue
-        return { ...prev, contact: nextContact }
-      })
-      await load({ force: true })
-      setEditing(null)
+      // Revalidation silencieuse du cache en arrière-plan
+      const coreKey = `/api/crm/contacts/${id}/details?phase=core`
+      invalidate(coreKey)
+      void refetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000).then(core => {
+        setData(prev => prev ? { ...prev, ...core } : prev)
+      }).catch(() => {})
     } catch (e) {
+      if (snapshot) setData(snapshot)
       alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -874,13 +909,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                           onCancel={() => setEditing(null)}
                           saving={saving}
                           customOptions={isOwnerField ? ownerOptions : undefined}
+                          fieldRef={editFieldRef}
                         />
                       ) : f.name === 'hs_lead_status' && displayValue && displayValue !== '—' ? (
                         <button
                           onClick={() => {
                             if (isReadOnly) return
-                            setEditing(f.name)
-                            setEditValue(normalizeValueForEditor(val, meta))
+                            startInlineEdit(f.name, val, meta)
                           }}
                           className={`px-2.5 py-1 rounded-full text-xs font-medium border ${leadStatusColor}`}
                         >{displayValue}</button>
@@ -888,8 +923,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                         <button
                           onClick={() => {
                             if (isReadOnly) return
-                            setEditing(f.name)
-                            setEditValue(normalizeValueForEditor(val, meta))
+                            startInlineEdit(f.name, val, meta)
                           }}
                           className={`text-left w-full block text-sm truncate ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
                         >
@@ -1423,7 +1457,7 @@ function QuickAction({ icon, label, color, onClick }: { icon: React.ReactNode; l
   )
 }
 
-function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptions }: {
+function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptions, fieldRef }: {
   value: string
   meta?: CRMProperty
   onChange: (v: string) => void
@@ -1431,6 +1465,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
   onCancel: () => void
   saving: boolean
   customOptions?: Array<{ value: string; label: string }>
+  fieldRef?: React.RefObject<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 }) {
   const editorValue = normalizeValueForEditor(value, meta)
   // customOptions prend priorité (ex: liste des owners pour hubspot_owner_id)
@@ -1470,6 +1505,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
         </div>
       ) : options ? (
         <select
+          ref={fieldRef as React.RefObject<HTMLSelectElement>}
           value={editorValue}
           onChange={e => onChange(e.target.value)}
           className="flex-1 px-2 py-1 border rounded text-xs"
@@ -1481,6 +1517,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
       ) : (
         isBooleanProperty(meta) ? (
           <select
+            ref={fieldRef as React.RefObject<HTMLSelectElement>}
             value={editorValue}
             onChange={e => onChange(e.target.value)}
             className="flex-1 px-2 py-1 border rounded text-xs"
@@ -1492,6 +1529,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           </select>
         ) : isDateProperty(meta) ? (
           <input
+            ref={fieldRef as React.RefObject<HTMLInputElement>}
             type="date"
             value={editorValue}
             onChange={e => onChange(e.target.value)}
@@ -1500,6 +1538,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           />
         ) : isDateTimeProperty(meta) ? (
           <input
+            ref={fieldRef as React.RefObject<HTMLInputElement>}
             type="datetime-local"
             value={editorValue}
             onChange={e => onChange(e.target.value)}
@@ -1508,6 +1547,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           />
         ) : isNumberProperty(meta) ? (
           <input
+            ref={fieldRef as React.RefObject<HTMLInputElement>}
             type="number"
             step="any"
             value={editorValue}
@@ -1517,6 +1557,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           />
         ) : isTextareaProperty(meta) ? (
           <textarea
+            ref={fieldRef as React.RefObject<HTMLTextAreaElement>}
             value={editorValue}
             onChange={e => onChange(e.target.value)}
             className="flex-1 px-2 py-1 border rounded text-xs min-h-[68px]"
@@ -1524,6 +1565,7 @@ function EditCell({ value, meta, onChange, onSave, onCancel, saving, customOptio
           />
         ) : (
           <input
+            ref={fieldRef as React.RefObject<HTMLInputElement>}
             value={editorValue}
             onChange={e => onChange(e.target.value)}
             className="flex-1 px-2 py-1 border rounded text-xs"
@@ -2589,6 +2631,7 @@ function PropertiesModal({
   onClose: () => void
   onShowHistory?: (p: CRMProperty) => void
 }) {
+  const editFieldRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>(null)
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -2657,10 +2700,15 @@ function PropertiesModal({
                               onSave={() => onEditSave(p.name, editValue)}
                               onCancel={onEditCancel}
                               saving={saving}
+                              fieldRef={editFieldRef}
                             />
                           ) : (
                             <button
-                              onClick={() => { if (!isReadOnly) onEditStart(p.name, val) }}
+                              onClick={() => {
+                                if (isReadOnly) return
+                                flushSync(() => onEditStart(p.name, val))
+                                editFieldRef.current?.focus()
+                              }}
                               className={`text-left w-full block break-words ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
                             >
                               {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
