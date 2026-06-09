@@ -1092,13 +1092,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          <RightSection
-            icon={<Calendar size={14} />}
-            title="Rendez-vous"
-            count={appointments.length}
-            accent="gold"
-            onAdd={() => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))}
-          >
+          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="gold">
             <div className="mb-2">
               <button
                 onClick={() => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))}
@@ -1826,8 +1820,8 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
   )
 }
 
-function RightSection({ icon, title, count, accent, children, onAdd }: {
-  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode; onAdd?: () => void
+function RightSection({ icon, title, count, accent, children }: {
+  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode
 }) {
   // Persiste l'etat ouvert/ferme par section dans localStorage (defaut : ferme)
   const storageKey = `rs-open:${title}`
@@ -1861,19 +1855,7 @@ function RightSection({ icon, title, count, accent, children, onAdd }: {
           <span className="text-xs text-[#4a6070] bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
         <div className="flex gap-1 items-center">
-          {onAdd ? (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.stopPropagation(); onAdd() }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onAdd() } }}
-              className="text-[#a89e8a] hover:text-[#0e1e35] p-1 cursor-pointer"
-            >
-              <Plus size={14} />
-            </span>
-          ) : (
-            <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
-          )}
+          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
           <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Settings size={13} /></span>
           {open ? <ChevronDown size={14} className="text-[#a89e8a]" /> : <ChevronRight size={14} className="text-[#a89e8a]" />}
         </div>
