@@ -351,17 +351,17 @@ function SelectField({
     try { await onSave(id) } finally { setSaving(false) }
   }
 
-  // Close on outside click
+  // Close on outside click — pointerdown couvre souris ET tactile (iPad).
   useEffect(() => {
     if (!open) return
-    function handler(e: MouseEvent) {
+    function handler(e: Event) {
       const t = e.target as Node
       if (triggerRef.current?.contains(t)) return
       if (dropdownRef.current?.contains(t)) return
       setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => document.removeEventListener('pointerdown', handler)
   }, [open])
 
   // Close on scroll in drawer
@@ -376,7 +376,7 @@ function SelectField({
   const dropdown = open ? createPortal(
     <div
       ref={dropdownRef}
-      onMouseDown={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: pos.upward ? undefined : pos.top,
@@ -396,7 +396,7 @@ function SelectField({
         <button
           key={o.id}
           type="button"
-          onMouseDown={() => handleSelect(o.id)}
+          onClick={() => handleSelect(o.id)}
           style={{
             display: 'block',
             width: '100%',
@@ -935,7 +935,9 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
   // le lead est attribue a Meryeme (ou que l'utilisateur est sur la marque Linova).
   const shouldUseLinovaBooking = !isAdminUser && (isAssignedToMeryeme || isLinovaBrandUser)
   const showLinovaButton = isAdminUser || shouldUseLinovaBooking
-  const showDiplomaButton = isAdminUser || !shouldUseLinovaBooking
+  // Le CTA "Prendre rendez-vous Diploma" est toujours disponible (closer/telepro
+  // inclus), même quand le flux Linova s'applique : on propose alors les deux.
+  const showDiplomaButton = true
 
   async function patchContact(fields: Record<string, string | null>) {
     const res = await fetch(`/api/crm/contacts/${c.hubspot_contact_id}`, {
@@ -1216,7 +1218,9 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
                 <Calendar size={14} />
                 {isAdminUser
                   ? (showBooking ? 'Fermer le formulaire de RDV' : 'Programmer RDV Diploma')
-                  : (showBooking ? 'Fermer le formulaire de RDV' : 'Prendre un rendez-vous')}
+                  : (showBooking
+                      ? 'Fermer le formulaire de RDV'
+                      : (showLinovaButton ? 'Prendre rendez-vous Diploma' : 'Prendre un rendez-vous'))}
               </button>
             )}
             {showLinovaButton && (
