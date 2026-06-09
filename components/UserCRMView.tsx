@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus, Save } from 'lucide-react'
-import CRMContactsTable, { type CRMContact } from './CRMContactsTable'
+import CRMContactsTable, { type CRMContact, type ContactInlinePatch } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
@@ -655,6 +655,17 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     onTotalChange,
     assignedScopeOnly,
   ])
+
+  const handleContactPatched = useCallback((contactId: string, patch: ContactInlinePatch) => {
+    setContacts(prev => prev.map(c => {
+      if (c.hubspot_contact_id !== contactId) return c
+      let next = c
+      if (patch.contact) next = { ...next, ...patch.contact }
+      if (patch.deal && next.deal) next = { ...next, deal: { ...next.deal, ...patch.deal } }
+      return next
+    }))
+    void refreshTotalOnly()
+  }, [refreshTotalOnly])
 
   useEffect(() => {
     setFilterSource(initialSourceFilter ?? '')
@@ -1338,6 +1349,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           loading={loading}
           mode={mode}
           onRefresh={fetchContacts}
+          onContactPatched={handleContactPatched}
           onOpenDrawer={setDrawerContact}
           leadStatusOptions={leadStatusOptions}
           sourceOptions={sourceOptions}

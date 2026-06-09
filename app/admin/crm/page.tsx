@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen } from 'lucide-react'
-import CRMContactsTable, { CRMContact } from '@/components/CRMContactsTable'
+import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
 import { validateEmailDomain } from '@/lib/email-validation'
@@ -1165,6 +1165,16 @@ export default function CRMPage() {
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
 
+  const handleContactPatched = useCallback((contactId: string, patch: ContactInlinePatch) => {
+    setContacts(prev => prev.map(c => {
+      if (c.hubspot_contact_id !== contactId) return c
+      let next = c
+      if (patch.contact) next = { ...next, ...patch.contact }
+      if (patch.deal && next.deal) next = { ...next, deal: { ...next.deal, ...patch.deal } }
+      return next
+    }))
+  }, [])
+
   const fetchRef = useRef(fetchContacts)
   fetchRef.current = fetchContacts
 
@@ -2292,6 +2302,7 @@ export default function CRMPage() {
           loading={loading && displayed.length === 0}
           mode="admin"
           onRefresh={() => fetchContacts()}
+          onContactPatched={handleContactPatched}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onSelectAll={selectAllPage}

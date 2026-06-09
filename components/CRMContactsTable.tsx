@@ -518,11 +518,18 @@ function readContactField(c: CRMContact, field: string): string {
   return v == null ? '' : String(v)
 }
 
+export type ContactInlinePatch = {
+  contact?: Record<string, string>
+  deal?: Record<string, string>
+}
+
 interface Props {
   contacts: CRMContact[]
   loading?: boolean
   mode?: 'admin' | 'closer' | 'telepro'
   onRefresh?: () => void
+  /** Mise à jour locale après édition inline (évite un reload qui fait disparaître la ligne si le filtre actif ne correspond plus). */
+  onContactPatched?: (contactId: string, patch: ContactInlinePatch) => void
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
   onSelectAll?: (ids: string[]) => void
@@ -1025,6 +1032,7 @@ export default function CRMContactsTable({
   loading,
   mode = 'admin',
   onRefresh,
+  onContactPatched,
   selectedIds,
   onToggleSelect,
   onSelectAll,
@@ -1384,7 +1392,10 @@ export default function CRMContactsTable({
         body: JSON.stringify({ dealstage: stageId }),
       })
       if (!res.ok) throw new Error('patch failed')
-      onRefresh?.()
+      const cid = contactIdForDeal(dealId)
+      if (cid) onContactPatched?.(cid, { deal: { dealstage: stageId } })
+      else onRefresh?.()
+      clearDealOptimistic(dealId, 'dealstage')
     } catch {
       clearDealOptimistic(dealId, 'dealstage')
       alert('La mise à jour de l’étape a échoué. Réessayez.')
@@ -1403,7 +1414,10 @@ export default function CRMContactsTable({
         body: JSON.stringify({ [field]: value }),
       })
       if (!res.ok) throw new Error('patch failed')
-      onRefresh?.()
+      // Ne pas recharger toute la liste : un filtre actif (ex. statut « Nouveau »)
+      // ferait disparaître la ligne alors que la fiche existe toujours en base.
+      onContactPatched?.(contactId, { contact: { [field]: value } })
+      clearContactOptimistic(contactId, field)
     } catch {
       clearContactOptimistic(contactId, field)
       alert('La mise à jour a échoué. Réessayez.')
@@ -1422,7 +1436,10 @@ export default function CRMContactsTable({
         body: JSON.stringify({ [field]: value }),
       })
       if (!res.ok) throw new Error('patch failed')
-      onRefresh?.()
+      const cid = contactIdForDeal(dealId)
+      if (cid) onContactPatched?.(cid, { deal: { [field]: value } })
+      else onRefresh?.()
+      clearDealOptimistic(dealId, field)
     } catch {
       clearDealOptimistic(dealId, field)
       alert('La mise à jour a échoué. Réessayez.')
