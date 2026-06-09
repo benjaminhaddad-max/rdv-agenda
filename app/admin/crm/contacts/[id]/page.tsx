@@ -314,7 +314,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [noteDraftSubject, setNoteDraftSubject] = useState('')
   const [noteDraftBody, setNoteDraftBody] = useState('')
   const [savingNote, setSavingNote] = useState(false)
-  const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
+  const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; email?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
   const loadGenRef = useRef(0)
 
   useEffect(() => {
