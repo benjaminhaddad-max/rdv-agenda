@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
     departement,
     classe_actuelle,        // classe → mis à jour sur le contact HubSpot
     call_notes,
+    booking_note,           // note libre saisie lors de la prise de RDV → activité contact
     meeting_type,           // 'visio' | 'telephone' | 'presentiel'
     meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
@@ -412,6 +413,31 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error('[appointments POST] Création deal RDV pris exception:', e)
+    }
+  }
+
+  // ── Note de prise de RDV → activité dans la fiche contact ────────────────
+  // La note libre saisie au moment du RDV doit se retrouver dans la timeline
+  // "Activité" du contact. On la logue comme activité native (crm_activities),
+  // toujours rattachée par hubspot_contact_id (donc visible quelle que soit la
+  // liaison deal). Best-effort : n'impacte pas la réponse API.
+  const bookingNoteText = typeof booking_note === 'string' ? booking_note.trim() : ''
+  if (hubspot_contact_id && bookingNoteText) {
+    try {
+      let dateStr = ''
+      try { dateStr = formatParis(new Date(start_at as string)) } catch { /* noop */ }
+      await db.from('crm_activities').insert({
+        activity_type: 'meeting',
+        hubspot_contact_id,
+        hubspot_deal_id: (appointment.hubspot_deal_id as string | null) ?? null,
+        subject: dateStr ? `Note RDV — ${dateStr}` : 'Note RDV',
+        body: bookingNoteText,
+        owner_id: assignedOwnerId || teleproHsUserId || null,
+        metadata: { source: 'appointment_booking', appointment_id: appointment.id },
+        occurred_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error('[appointments POST] Log activité note RDV failed:', e)
     }
   }
 

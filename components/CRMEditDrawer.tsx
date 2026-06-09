@@ -548,6 +548,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
             meetingType === 'presentiel' && meetingCampus ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
+          booking_note: notes.trim() || null,
         }),
       })
       if (res.ok) {

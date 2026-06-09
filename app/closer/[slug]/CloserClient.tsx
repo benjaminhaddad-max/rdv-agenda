@@ -647,6 +647,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
+          booking_note: notes.trim() || null,
         }),
       })
       if (res.ok) { setRdvSuccess(true) }

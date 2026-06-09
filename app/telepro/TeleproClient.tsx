@@ -1100,6 +1100,7 @@ export default function TeleproClient({
             meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
             notes.trim() ? `\n📝 Notes d'appel :\n${notes.trim()}` : '',
           ].filter(Boolean).join('\n'),
+          booking_note: notes.trim() || null,
         }),
       })
       if (res.ok) { setSuccess(true) }
