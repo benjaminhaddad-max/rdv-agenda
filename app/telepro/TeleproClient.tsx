@@ -922,10 +922,12 @@ export default function TeleproClient({
     if (!lookupInput.trim()) return
     setLookupLoading(true); setLookupError(null); setSearchResults([])
     try {
+      // global_search=1 : un telepro doit pouvoir retrouver N'IMPORTE QUEL
+      // contact de la base CRM (pas seulement ses propres leads assignés), car
+      // il prend parfois des RDV pour des contacts d'autres télépros.
       // all_classes=1 + show_external=1 pour ne PAS filtrer le lookup sur les
-      // classes prioritaires / l'equipe externe — un telepro doit pouvoir
-      // retrouver n'importe quel contact (admin, equipe, etc.).
-      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10&all_classes=1&show_external=1`)
+      // classes prioritaires / l'equipe externe.
+      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10&all_classes=1&show_external=1&global_search=1`)
       const data = await res.json()
       if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
       const results = data.data ?? []
@@ -1090,9 +1092,6 @@ export default function TeleproClient({
           meeting_type: meetingType,
           meeting_link: meetingType === 'visio' ? meetingLink || null : (meetingType === 'presentiel' ? meetingCampus : null),
           telepro_id: teleproUser.id,
-          // Si le contact est déjà attribué à un AUTRE télépro, on transmet l'info
-          // pour que l'API crée un doublon télépro à arbitrer par Pascal.
-          existing_telepro_user_id: (existingTeleproId && existingTeleproId !== teleproUser.id) ? existingTeleproId : null,
           call_notes: [
             `📚 Formation demandée : ${formationLabel}`,
             `📍 Département : ${departement}`,
@@ -1869,7 +1868,7 @@ export default function TeleproClient({
                             onClick={async () => {
                               // Charge le contact existant DANS le flow télépro (pas de redirection vers le CRM admin)
                               try {
-                                const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(newEmailExisting.email)}&limit=1&all_classes=1&show_external=1`)
+                                const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(newEmailExisting.email)}&limit=1&all_classes=1&show_external=1&global_search=1`)
                                 const data = await res.json()
                                 const found = (data?.data ?? [])[0]
                                 if (found) {
@@ -2044,12 +2043,12 @@ export default function TeleproClient({
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex : 0612345678" style={inputStyle} />
                 </div>
                 {/* Téléprospecteur déjà assigné — affiché en grisé UNIQUEMENT si ≠ télépro courant
-                    (signale qu'un doublon télépro sera créé pour arbitrage Pascal au moment du Valider) */}
+                    (signale qu'au Valider, le contact sera réassigné au télépro courant) */}
                 {existingTeleproId && existingTeleproId !== teleproUser.id && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={labelStyle}>
-                      <User size={12} style={{ color: '#94a3b8' }} /> Téléprospecteur du contact
-                      <span style={{ fontSize: 10, color: '#a4844c', fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(doublon — Pascal arbitrera)</span>
+                      <User size={12} style={{ color: '#94a3b8' }} /> Téléprospecteur actuel du contact
+                      <span style={{ fontSize: 10, color: '#a4844c', fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(sera réassigné à vous au Valider)</span>
                     </div>
                     <input
                       type="text"

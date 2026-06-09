@@ -173,7 +173,6 @@ export async function POST(req: NextRequest) {
     meeting_type,           // 'visio' | 'telephone' | 'presentiel'
     meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
-    existing_telepro_user_id, // si fourni → contact déjà attribué à un autre télépro → doublon à arbitrer
   } = body
 
   if (!prospect_name || !prospect_email || !start_at || !end_at) {
@@ -273,22 +272,17 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // ── Doublon télépro : créer un conflict à arbitrer par Pascal ────────────
-  // Si le contact était déjà attribué à un AUTRE télépro avant la prise du RDV,
-  // on enregistre le conflict (le RDV se fait quand même par le télépro courant ;
-  // c'est juste l'attribution du *contact* que Pascal arbitrera).
-  if (existing_telepro_user_id && telepro_id && existing_telepro_user_id !== telepro_id && hubspot_contact_id) {
-    try {
-      await db.from('crm_telepro_conflicts').insert({
-        hubspot_contact_id,
-        appointment_id: appointment.id,
-        existing_telepro_id: existing_telepro_user_id,
-        new_telepro_id: telepro_id,
-        status: 'pending',
-      })
-    } catch (e) {
-      console.error('[appointments POST] Telepro conflict insert failed:', e)
-    }
+  // ── hubspot_user_id du télépro qui place le RDV ──────────────────────────
+  // Utilisé pour (ré)assigner le contact et attribuer la transaction.
+  // crm_contacts.telepro_user_id stocke le hubspot_user_id (pas l'UUID rdv_users).
+  let teleproHsUserId: string | null = null
+  if (telepro_id) {
+    const { data: tp } = await db
+      .from('rdv_users')
+      .select('hubspot_user_id')
+      .eq('id', telepro_id)
+      .maybeSingle()
+    teleproHsUserId = tp?.hubspot_user_id || null
   }
 
   // ── SMS de confirmation immédiat au prospect (best-effort) ───────────────
@@ -350,6 +344,12 @@ export async function POST(req: NextRequest) {
       }
       if (source === 'telepro') {
         contactUpdate.hs_lead_status = 'RDV pris'
+        // Le télépro qui place le RDV devient le télépro du contact, même si le
+        // contact appartenait à un autre télépro (réassignation directe, plus
+        // d'arbitrage manuel par Pascal).
+        if (teleproHsUserId) {
+          contactUpdate.telepro_user_id = teleproHsUserId
+        }
       }
       if (assignedOwnerId) {
         contactUpdate.closer_du_contact_owner_id = assignedOwnerId
@@ -370,17 +370,6 @@ export async function POST(req: NextRequest) {
   if (hubspot_contact_id && source === 'telepro') {
     try {
       const dealId = `rdv_${appointment.id}`
-
-      // hubspot_user_id du télépro → attribution dans le kanban / filtres
-      let teleproHsUserId: string | null = null
-      if (telepro_id) {
-        const { data: tp } = await db
-          .from('rdv_users')
-          .select('hubspot_user_id')
-          .eq('id', telepro_id)
-          .maybeSingle()
-        teleproHsUserId = tp?.hubspot_user_id || null
-      }
 
       const dealName = formatDealName({
         prospectName: prospect_name,
