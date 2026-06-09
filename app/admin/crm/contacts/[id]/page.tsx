@@ -18,6 +18,7 @@ import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/cli
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
 const PropertyHistoryPanel = dynamic(() => import('@/components/crm/PropertyHistoryPanel'), { ssr: false })
 const LinovaAppointmentModal = dynamic(() => import('@/components/crm/LinovaAppointmentModal'), { ssr: false })
+const DiplomaAppointmentModal = dynamic(() => import('@/components/crm/DiplomaAppointmentModal'), { ssr: false })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -288,6 +289,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [historyProp, setHistoryProp] = useState<{ name: string; label: string; options?: Array<{ label: string; value: string }> } | null>(null)
   const [showLinovaModal, setShowLinovaModal] = useState(false)
+  const [showDiplomaModal, setShowDiplomaModal] = useState(false)
   // Personnalisation par utilisateur des propriétés de la carte « À propos »
   const [aboutFieldNames, setAboutFieldNames] = useState<string[] | null>(null)
   const [showCustomize, setShowCustomize] = useState(false)
@@ -1090,17 +1092,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             )}
           </RightSection>
 
-          <RightSection icon={<Calendar size={14} />} title="Rendez-vous" count={appointments.length} accent="gold">
-            {isLinovaContact && (
-              <div className="mb-2">
-                <button
-                  onClick={() => setShowLinovaModal(true)}
-                  className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0e1e35] text-white hover:bg-[#1f3553]"
-                >
-                  Programmer RDV admission Linova
-                </button>
-              </div>
-            )}
+          <RightSection
+            icon={<Calendar size={14} />}
+            title="Rendez-vous"
+            count={appointments.length}
+            accent="gold"
+            onAdd={() => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))}
+          >
+            <div className="mb-2">
+              <button
+                onClick={() => (isLinovaContact ? setShowLinovaModal(true) : setShowDiplomaModal(true))}
+                className="w-full text-sm font-semibold px-3 py-2 rounded-lg bg-[#0e1e35] text-white hover:bg-[#1f3553]"
+              >
+                {isLinovaContact ? 'Programmer RDV admission Linova' : 'Programmer rendez-vous Diploma Santé'}
+              </button>
+            </div>
             {appointments.length === 0 ? (
               <EmptyRight text="Aucun RDV." />
             ) : (
@@ -1292,6 +1298,22 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             classe_actuelle: contact.classe_actuelle,
           }}
           onClose={() => setShowLinovaModal(false)}
+          onSaved={() => load({ force: true })}
+        />
+      )}
+
+      {showDiplomaModal && (
+        <DiplomaAppointmentModal
+          contact={{
+            id,
+            firstname: contact.firstname,
+            lastname: contact.lastname,
+            email: contact.email,
+            phone: contact.phone,
+            classe_actuelle: contact.classe_actuelle,
+            departement: contact.departement,
+          }}
+          onClose={() => setShowDiplomaModal(false)}
           onSaved={() => load({ force: true })}
         />
       )}
@@ -1804,8 +1826,8 @@ function EmailStatusBadges({ sendStatus, stats }: { sendStatus?: string; stats?:
   )
 }
 
-function RightSection({ icon, title, count, accent, children }: {
-  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode
+function RightSection({ icon, title, count, accent, children, onAdd }: {
+  icon: React.ReactNode; title: string; count: number; accent: 'brand' | 'gold' | 'dark'; children: React.ReactNode; onAdd?: () => void
 }) {
   // Persiste l'etat ouvert/ferme par section dans localStorage (defaut : ferme)
   const storageKey = `rs-open:${title}`
@@ -1839,7 +1861,19 @@ function RightSection({ icon, title, count, accent, children }: {
           <span className="text-xs text-[#4a6070] bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
         <div className="flex gap-1 items-center">
-          <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
+          {onAdd ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onAdd() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onAdd() } }}
+              className="text-[#a89e8a] hover:text-[#0e1e35] p-1 cursor-pointer"
+            >
+              <Plus size={14} />
+            </span>
+          ) : (
+            <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Plus size={14} /></span>
+          )}
           <span className="text-[#a89e8a] hover:text-[#4a6070] p-1"><Settings size={13} /></span>
           {open ? <ChevronDown size={14} className="text-[#a89e8a]" /> : <ChevronRight size={14} className="text-[#a89e8a]" />}
         </div>
