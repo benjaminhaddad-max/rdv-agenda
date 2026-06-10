@@ -11,6 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     consigne_text, consigne_echeance, consigne_rien_a_faire,
     contexte_concurrence, financement, jpo_invitation,
     email_parent,
+    start_at, end_at,
   } = body
 
   const db = createServiceClient()
@@ -29,6 +30,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (fetchErr || !appointment) {
     return NextResponse.json({ error: 'RDV introuvable' }, { status: 404 })
+  }
+
+  // === CAS 0 : DÉPLACEMENT (glisser-déposer dans l'agenda) ===
+  // Change uniquement le créneau (nouvelles dates start_at / end_at), sans
+  // toucher au statut ni à l'assignation.
+  if (start_at !== undefined && end_at !== undefined && commercial_id === undefined && status === undefined) {
+    const newStart = new Date(start_at)
+    const newEnd = new Date(end_at)
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime()) || newEnd <= newStart) {
+      return NextResponse.json({ error: 'Créneau invalide' }, { status: 400 })
+    }
+
+    // Conflit : le closer a déjà un autre RDV qui chevauche le nouveau créneau
+    if (appointment.commercial_id) {
+      const { data: conflict } = await db
+        .from('rdv_appointments')
+        .select('id')
+        .eq('commercial_id', appointment.commercial_id)
+        .neq('status', 'annule')
+        .neq('id', id)
+        .lt('start_at', end_at)
+        .gt('end_at', start_at)
+        .limit(1)
+
+      if (conflict && conflict.length > 0) {
+        return NextResponse.json({ error: 'Le closer a déjà un RDV sur ce créneau' }, { status: 409 })
+      }
+    }
+
+    const { data: updated, error: updateErr } = await db
+      .from('rdv_appointments')
+      .update({ start_at, end_at })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    // Aligner la date de la transaction liée (closedate = start_at). Best-effort.
+    if (appointment.hubspot_deal_id) {
+      try {
+        await db
+          .from('crm_deals')
+          .update({ closedate: start_at, synced_at: new Date().toISOString() })
+          .eq('hubspot_deal_id', appointment.hubspot_deal_id)
+      } catch (e) {
+        console.error(`[appointments PATCH] Sync closedate deal échouée pour ${id}:`, e)
+      }
+    }
+
+    return NextResponse.json(updated)
   }
 
   // === CAS 1 : ASSIGNATION / RÉASSIGNATION (Pascal assigne à un closer) ===

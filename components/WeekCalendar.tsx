@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Calendar, Users, LayoutDashboard, Plus } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -42,6 +42,8 @@ const GRID_END_HOUR = 22
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 22h
 const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
 const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
+const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
+const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
 
 function getInitials(name: string) {
@@ -207,6 +209,18 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
   const [showNewRdvModal, setShowNewRdvModal] = useState(false)
 
+  // ── Glisser-déposer (déplacer un RDV sur un autre créneau) ──────────────
+  const dragRef = useRef<{ id: string; grabOffsetY: number; durationMs: number; startISO: string; endISO: string } | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
+  const [moveToast, setMoveToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  useEffect(() => {
+    if (!moveToast) return
+    const t = setTimeout(() => setMoveToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [moveToast])
+
   // En vue jour, la semaine chargée est celle du jour sélectionné (pour le fetch).
   const activeWeekStart = view === 'day'
     ? startOfWeek(selectedDay, { weekStartsOn: 1 })
@@ -270,6 +284,93 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     return idx >= 0 ? COLORS[idx % COLORS.length] : '#C9A84C'
   }
 
+  /** Applique le déplacement : calcule le nouveau créneau, met à jour de façon
+   *  optimiste, puis persiste via l'API (rollback si conflit/erreur). */
+  function moveAppointment(
+    drag: NonNullable<typeof dragRef.current>,
+    day: Date,
+    newTopPx: number,
+    colHeight: number,
+  ) {
+    if (colHeight <= 0) return
+    const durMin = drag.durationMs / 60000
+    const fraction = newTopPx / colHeight
+    let minutes = Math.round((fraction * GRID_TOTAL_MIN) / SNAP_MIN) * SNAP_MIN
+    minutes = Math.max(0, Math.min(GRID_TOTAL_MIN - durMin, minutes))
+
+    const newStart = new Date(day)
+    newStart.setHours(GRID_START_HOUR, 0, 0, 0)
+    newStart.setMinutes(newStart.getMinutes() + minutes)
+    const newEnd = new Date(newStart.getTime() + drag.durationMs)
+    const newStartISO = newStart.toISOString()
+    const newEndISO = newEnd.toISOString()
+
+    if (newStartISO === drag.startISO) return // pas de changement
+
+    const { id } = drag
+    const prevStart = drag.startISO
+    const prevEnd = drag.endISO
+
+    // Mise à jour optimiste
+    setAppointments(prev => prev.map(a =>
+      a.id === id ? { ...a, start_at: newStartISO, end_at: newEndISO } : a,
+    ))
+
+    fetch(`/api/appointments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_at: newStartISO, end_at: newEndISO }),
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}))
+          setAppointments(prev => prev.map(a =>
+            a.id === id ? { ...a, start_at: prevStart, end_at: prevEnd } : a,
+          ))
+          setMoveToast({ kind: 'err', msg: j.error || 'Déplacement impossible' })
+        } else {
+          setMoveToast({
+            kind: 'ok',
+            msg: `RDV déplacé au ${format(newStart, 'EEEE d MMMM à HH:mm', { locale: fr })}`,
+          })
+        }
+      })
+      .catch(() => {
+        setAppointments(prev => prev.map(a =>
+          a.id === id ? { ...a, start_at: prevStart, end_at: prevEnd } : a,
+        ))
+        setMoveToast({ kind: 'err', msg: 'Erreur réseau, déplacement annulé' })
+      })
+  }
+
+  /** Drop sur une colonne de jour : calcule la position verticale du curseur. */
+  function handleColumnDrop(e: React.DragEvent<HTMLDivElement>, day: Date) {
+    e.preventDefault()
+    setDragOverDay(null)
+    const drag = dragRef.current
+    if (!drag) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const newTopPx = e.clientY - rect.top - drag.grabOffsetY
+    moveAppointment(drag, day, newTopPx, rect.height)
+  }
+
+  /** Handlers communs aux colonnes de jour (vues semaine et jour). */
+  function columnDragProps(day: Date) {
+    const key = day.toISOString()
+    return {
+      onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+        if (!dragRef.current) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        if (dragOverDay !== key) setDragOverDay(key)
+      },
+      onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null)
+      },
+      onDrop: (e: React.DragEvent<HTMLDivElement>) => handleColumnDrop(e, day),
+    }
+  }
+
   /** Carte RDV positionnée (vue semaine ou jour). `scale='day'` = plus grand. */
   function renderApptCard(
     appt: Appointment,
@@ -306,11 +407,32 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     const niveauSize = isDay ? 12 : (sideBySide ? 8 : 9)
     const badgeSize = isDay ? 11 : 8
 
+    const isDragging = draggingId === appt.id
+
     return (
       <div
         key={appt.id}
         onClick={() => setSelectedAppointment(appt)}
         title={tooltip}
+        draggable={!isCancelled}
+        onDragStart={e => {
+          const rect = e.currentTarget.getBoundingClientRect()
+          dragRef.current = {
+            id: appt.id,
+            grabOffsetY: e.clientY - rect.top,
+            durationMs: new Date(appt.end_at).getTime() - new Date(appt.start_at).getTime(),
+            startISO: appt.start_at,
+            endISO: appt.end_at,
+          }
+          setDraggingId(appt.id)
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', appt.id)
+        }}
+        onDragEnd={() => {
+          setDraggingId(null)
+          setDragOverDay(null)
+          dragRef.current = null
+        }}
         style={{
           position: 'absolute',
           left: `calc(${leftPct}% + ${lay.col === 0 ? 3 : gap}px)`,
@@ -322,19 +444,22 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           borderLeft: `${isDay ? 4 : 3}px solid ${isCancelled ? '#6b7280' : color}`,
           borderRadius: 5,
           padding: isDay ? '6px 10px' : (sideBySide ? '2px 4px' : '3px 5px'),
-          cursor: 'pointer',
+          cursor: isCancelled ? 'pointer' : 'grab',
           overflow: 'hidden',
-          zIndex: 1,
+          zIndex: isDragging ? 9 : 1,
+          opacity: isDragging ? 0.45 : 1,
           boxSizing: 'border-box',
           boxShadow: '0 1px 2px rgba(14,30,53,0.06)',
-          transition: 'box-shadow 0.12s, z-index 0s',
+          transition: 'box-shadow 0.12s, z-index 0s, opacity 0.12s',
         }}
         onMouseEnter={e => {
+          if (draggingId) return
           const el = e.currentTarget as HTMLDivElement
           el.style.zIndex = '8'
           el.style.boxShadow = '0 6px 16px rgba(14,30,53,0.16)'
         }}
         onMouseLeave={e => {
+          if (draggingId) return
           const el = e.currentTarget as HTMLDivElement
           el.style.zIndex = '1'
           el.style.boxShadow = '0 1px 2px rgba(14,30,53,0.06)'
@@ -926,10 +1051,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
               return (
                 <div
                   key={day.toISOString()}
+                  {...columnDragProps(day)}
                   style={{
                     borderRight: '1px solid #e5ddc8',
                     position: 'relative',
-                    background: today ? 'rgba(204,172,113,0.02)' : 'transparent',
+                    background: dragOverDay === day.toISOString()
+                      ? 'rgba(204,172,113,0.12)'
+                      : (today ? 'rgba(204,172,113,0.02)' : 'transparent'),
                     minWidth: 0,
                     display: 'flex', flexDirection: 'column',
                   }}
@@ -1023,7 +1151,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   </div>
 
                   {/* Colonne du jour */}
-                  <div style={{ position: 'relative', minWidth: 0, background: today ? 'rgba(204,172,113,0.02)' : 'transparent', display: 'flex', flexDirection: 'column' }}>
+                  <div
+                    {...columnDragProps(selectedDay)}
+                    style={{ position: 'relative', minWidth: 0, background: dragOverDay === selectedDay.toISOString() ? 'rgba(204,172,113,0.12)' : (today ? 'rgba(204,172,113,0.02)' : 'transparent'), display: 'flex', flexDirection: 'column' }}
+                  >
                     {HOURS.map(h => (
                       <div key={h} style={{ flex: 1, minHeight: 0, borderBottom: '1px solid #e5ddc8' }} />
                     ))}
@@ -1286,6 +1417,29 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             fetchAppointments()
           }}
         />
+      )}
+
+      {/* Toast de déplacement (glisser-déposer) */}
+      {moveToast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 80,
+            background: moveToast.kind === 'ok' ? '#0e1e35' : '#b91c1c',
+            color: '#fff',
+            padding: '10px 18px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 8px 24px rgba(14,30,53,0.25)',
+            maxWidth: '90vw',
+          }}
+        >
+          {moveToast.msg}
+        </div>
       )}
     </div>
   )
