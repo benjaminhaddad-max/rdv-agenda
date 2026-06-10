@@ -62,6 +62,8 @@ export const CONTACT_IDENTITY_COLUMNS = [
   'origine',
   'hubspot_owner_id',
   'hs_lead_status',
+  'closer_du_contact_owner_id',
+  'telepro_user_id',
   'hubspot_raw',
 ] as const
 
@@ -87,7 +89,33 @@ export function mergeSafeHubspotRaw(
     if (present && rawMissing) safeRaw[rawKey] = colVal
   }
 
-  return { ...safeRaw, ...propertyPatches }
+  // GARDE-FOU télépro : un trigger Postgres resynchronise la colonne
+  // telepro_user_id depuis hubspot_raw->>'teleprospecteur' à CHAQUE écriture
+  // de hubspot_raw. Si cette clé est absente (ou périmée), le trigger écrase
+  // l'attribution télépro avec NULL (ou une vieille valeur) — bug constaté en
+  // prod le 10/06 ("le télépro ne s'enregistre pas"). On force donc les deux
+  // clés à refléter la colonne courante, AVANT application des patches.
+  if ('telepro_user_id' in existing) {
+    const colVal = existing.telepro_user_id
+    const v = colVal === null || colVal === undefined || String(colVal).trim() === ''
+      ? null
+      : String(colVal)
+    safeRaw['telepro_user_id'] = v
+    safeRaw['teleprospecteur'] = v
+  }
+
+  const merged = { ...safeRaw, ...propertyPatches }
+
+  // Si un patch modifie l'une des deux clés télépro sans l'autre, on les
+  // aligne — sinon le trigger ré-applique l'ancienne valeur restée dans
+  // l'autre clé.
+  if ('telepro_user_id' in propertyPatches && !('teleprospecteur' in propertyPatches)) {
+    merged['teleprospecteur'] = propertyPatches.telepro_user_id ?? null
+  } else if ('teleprospecteur' in propertyPatches && !('telepro_user_id' in propertyPatches)) {
+    merged['telepro_user_id'] = propertyPatches.teleprospecteur ?? null
+  }
+
+  return merged
 }
 
 /** Applique des patches hubspot_raw (clés = noms propriétés HubSpot). */
@@ -98,6 +126,9 @@ export function hubspotRawPatchesFromColumns(
   for (const [col, val] of Object.entries(columnUpdates)) {
     const rawKey = COLUMN_TO_HUBSPOT_RAW_KEY[col]
     if (rawKey) patches[rawKey] = val
+    // Le trigger SQL lit hubspot_raw->>'teleprospecteur' : toujours écrire
+    // les deux clés pour une attribution télépro.
+    if (col === 'telepro_user_id') patches['teleprospecteur'] = val
   }
   return patches
 }
