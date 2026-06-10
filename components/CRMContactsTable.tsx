@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye } from 'lucide-react'
+import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
@@ -1062,6 +1062,18 @@ export default function CRMContactsTable({
   const [savingDealField,   setSavingDealField]    = useState<string | null>(null)
   const [renderedCount,     setRenderedCount]      = useState(RENDER_CHUNK)
 
+  // Pastille de confirmation (style HubSpot) après une édition inline.
+  const [saveToast, setSaveToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
+  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showSaveToast = useCallback((msg: string, kind: 'success' | 'error' = 'success') => {
+    if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current)
+    setSaveToast({ msg, kind })
+    saveToastTimerRef.current = setTimeout(() => setSaveToast(null), kind === 'success' ? 2500 : 6000)
+  }, [])
+  useEffect(() => () => {
+    if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current)
+  }, [])
+
   // ── Mises à jour optimistes ───────────────────────────────────────────────
   // Quand on change une propriété (télépro, closer, statut, étape…) on applique
   // immédiatement la nouvelle valeur à l'écran sans attendre l'aller-retour
@@ -1396,9 +1408,10 @@ export default function CRMContactsTable({
       if (cid) onContactPatched?.(cid, { deal: { dealstage: stageId } })
       else onRefresh?.()
       clearDealOptimistic(dealId, 'dealstage')
+      showSaveToast('Modification enregistrée')
     } catch {
       clearDealOptimistic(dealId, 'dealstage')
-      alert('La mise à jour de l’étape a échoué. Réessayez.')
+      showSaveToast('La mise à jour de l’étape a échoué. Réessayez.', 'error')
     } finally {
       setSavingStage(null)
     }
@@ -1418,9 +1431,10 @@ export default function CRMContactsTable({
       // ferait disparaître la ligne alors que la fiche existe toujours en base.
       onContactPatched?.(contactId, { contact: { [field]: value } })
       clearContactOptimistic(contactId, field)
+      showSaveToast('Modification enregistrée')
     } catch {
       clearContactOptimistic(contactId, field)
-      alert('La mise à jour a échoué. Réessayez.')
+      showSaveToast('La mise à jour a échoué. Réessayez.', 'error')
     } finally {
       setSavingContactField(null)
     }
@@ -1440,9 +1454,10 @@ export default function CRMContactsTable({
       if (cid) onContactPatched?.(cid, { deal: { [field]: value } })
       else onRefresh?.()
       clearDealOptimistic(dealId, field)
+      showSaveToast('Modification enregistrée')
     } catch {
       clearDealOptimistic(dealId, field)
-      alert('La mise à jour a échoué. Réessayez.')
+      showSaveToast('La mise à jour a échoué. Réessayez.', 'error')
     } finally {
       setSavingDealField(null)
     }
@@ -2483,10 +2498,43 @@ export default function CRMContactsTable({
         />
       )}
 
+      {/* Pastille de confirmation d'enregistrement (style HubSpot) */}
+      {saveToast && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            bottom: 28,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#ffffff',
+            background: saveToast.kind === 'success' ? '#0f7b43' : '#b3261e',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+            pointerEvents: 'none',
+            animation: 'crmToastIn 0.18s ease-out',
+          }}
+        >
+          {saveToast.kind === 'success' ? <Check size={15} /> : <AlertTriangle size={15} />}
+          {saveToast.msg}
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg) }
           to   { transform: rotate(360deg) }
+        }
+        @keyframes crmToastIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(8px) }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0) }
         }
       `}</style>
     </>

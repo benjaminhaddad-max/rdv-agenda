@@ -925,9 +925,57 @@ export async function GET(req: NextRequest) {
           ? (hasMore ? (page + 2) * limit : mvOffset + pageRows.length)
           : (mvCount ?? 0)
 
-        const enriched = pageRows.map((c) => {
+        // Overlay "live" : la MV peut avoir plusieurs minutes de retard sur les
+        // éditions inline (télépro, closer, statut, étape…). Sans ça, toute
+        // modification semble "ne pas s'enregistrer" : elle est bien en base
+        // mais le prochain refetch resservait l'ancienne valeur de la MV.
+        // On réhydrate donc les champs éditables depuis les tables sources
+        // pour la page courante (lookups par PK, coût négligeable).
+        const pageContactIds = pageRows
+          .map(r => (r.hubspot_contact_id == null ? '' : String(r.hubspot_contact_id)))
+          .filter(Boolean)
+        const pageDealIds = pageRows
+          .map(r => (r.deal_hubspot_deal_id == null ? '' : String(r.deal_hubspot_deal_id)))
+          .filter(Boolean)
+        const liveContactById = new Map<string, Record<string, unknown>>()
+        const liveDealById = new Map<string, Record<string, unknown>>()
+        if (pageContactIds.length > 0) {
+          const { data: liveContacts } = await db
+            .from('crm_contacts')
+            .select(
+              `hubspot_contact_id, firstname, lastname, email, phone,
+               departement, classe_actuelle, zone_localite, formation_demandee,
+               hubspot_owner_id, closer_du_contact_owner_id, telepro_user_id,
+               hs_lead_status, origine`
+            )
+            .in('hubspot_contact_id', pageContactIds)
+          for (const row of (liveContacts ?? []) as unknown as Array<Record<string, unknown>>) {
+            liveContactById.set(String(row.hubspot_contact_id), row)
+          }
+        }
+        if (pageDealIds.length > 0) {
+          const { data: liveDeals } = await db
+            .from('crm_deals')
+            .select('hubspot_deal_id, dealstage, hubspot_owner_id, teleprospecteur, formation, closedate')
+            .in('hubspot_deal_id', pageDealIds)
+          for (const row of (liveDeals ?? []) as Array<Record<string, unknown>>) {
+            liveDealById.set(String(row.hubspot_deal_id), row)
+          }
+        }
+
+        const enriched = pageRows.map((raw) => {
+          const liveContact = liveContactById.get(String(raw.hubspot_contact_id ?? ''))
+          // Si la ligne live existe, ses valeurs font foi (y compris null = désassigné).
+          const c = liveContact ? { ...raw, ...liveContact } : raw
+          const liveDeal = raw.deal_hubspot_deal_id ? liveDealById.get(String(raw.deal_hubspot_deal_id)) : undefined
+          const dealStage      = liveDeal ? liveDeal.dealstage : raw.dealstage
+          const dealOwnerIdRaw = liveDeal ? liveDeal.hubspot_owner_id : raw.deal_hubspot_owner_id
+          const dealTelepro    = liveDeal ? liveDeal.teleprospecteur : raw.deal_teleprospecteur
+          const dealFormation  = liveDeal ? liveDeal.formation : raw.formation_deal
+          const dealClosedate  = liveDeal ? liveDeal.closedate : raw.deal_closedate
+
           const closerContactId = typeof c.closer_du_contact_owner_id === 'string' ? c.closer_du_contact_owner_id : null
-          const dealOwnerId = typeof c.deal_hubspot_owner_id === 'string' ? c.deal_hubspot_owner_id : null
+          const dealOwnerId = typeof dealOwnerIdRaw === 'string' ? dealOwnerIdRaw : null
           const teleproUserId = typeof c.telepro_user_id === 'string' ? c.telepro_user_id : null
           const contactOwnerId = typeof c.hubspot_owner_id === 'string' ? c.hubspot_owner_id : null
           const closerRef = closerContactId || dealOwnerId
@@ -955,15 +1003,15 @@ export async function GET(req: NextRequest) {
             origine: c.origine,
             contact_owner: contactOwner,
             telepro,
-            deal: c.deal_hubspot_deal_id ? {
-              hubspot_deal_id: c.deal_hubspot_deal_id,
-              dealstage: c.dealstage,
-              formation: c.formation_deal,
-              closedate: c.deal_closedate,
-              createdate: c.deal_createdate,
-              supabase_appt_id: c.deal_supabase_appt_id,
-              hubspot_owner_id: c.deal_hubspot_owner_id,
-              teleprospecteur: c.deal_teleprospecteur,
+            deal: raw.deal_hubspot_deal_id ? {
+              hubspot_deal_id: raw.deal_hubspot_deal_id,
+              dealstage: dealStage,
+              formation: dealFormation,
+              closedate: dealClosedate,
+              createdate: raw.deal_createdate,
+              supabase_appt_id: raw.deal_supabase_appt_id,
+              hubspot_owner_id: dealOwnerIdRaw,
+              teleprospecteur: dealTelepro,
               closer,
               telepro,
             } : null,
@@ -977,11 +1025,10 @@ export async function GET(req: NextRequest) {
           page,
           limit,
         })
-        if (bypassCache) {
-          r.headers.set('Cache-Control', 'no-store')
-        } else {
-          r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
-        }
+        // no-store systématique : avec un cache HTTP, une édition inline
+        // (télépro…) pouvait être resservie avec l'ancienne valeur pendant
+        // ~75s (max-age + stale-while-revalidate) → impression de non-save.
+        r.headers.set('Cache-Control', 'no-store')
         return withPerfHeader(r)
       }
     } catch {
@@ -1261,7 +1308,7 @@ export async function GET(req: NextRequest) {
               page,
               limit,
             })
-            r.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
+            r.headers.set('Cache-Control', 'no-store')
             return withPerfHeader(r)
           }
         }
@@ -2126,11 +2173,7 @@ export async function GET(req: NextRequest) {
   // client (lib/client-cache.ts), les retours de page sont quasi instantanes.
   // Pas de cache si on est en mode export (10000 lignes, donnees lourdes).
   if (!isExport && !countOnly) {
-    if (bypassCache) {
-      response.headers.set('Cache-Control', 'no-store')
-    } else {
-      response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60')
-    }
+    response.headers.set('Cache-Control', 'no-store')
   }
   return withPerfHeader(response)
 }
