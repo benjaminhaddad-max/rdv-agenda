@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { sendSms, buildBookingSms } from '@/lib/smsfactor'
+import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
+import { formatParis } from '@/lib/date-paris'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +25,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select(`
       hubspot_deal_id, status, commercial_id,
       prospect_name, prospect_email, prospect_phone,
-      start_at, formation_type,
+      start_at, end_at, formation_type,
+      meeting_type, meeting_link,
       hubspot_contact_id, notes, departement, classe_actuelle, email_parent
     `)
     .eq('id', id)
@@ -33,13 +37,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // === CAS 0 : DÉPLACEMENT (glisser-déposer dans l'agenda) ===
-  // Change uniquement le créneau (nouvelles dates start_at / end_at), sans
-  // toucher au statut ni à l'assignation.
+  // Nouveau créneau + remise à zéro du workflow SMS/email (comme une nouvelle prise de RDV).
   if (start_at !== undefined && end_at !== undefined && commercial_id === undefined && status === undefined) {
     const newStart = new Date(start_at)
     const newEnd = new Date(end_at)
     if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime()) || newEnd <= newStart) {
       return NextResponse.json({ error: 'Créneau invalide' }, { status: 400 })
+    }
+
+    const sameSlot =
+      new Date(appointment.start_at).getTime() === newStart.getTime() &&
+      new Date(appointment.end_at).getTime() === newEnd.getTime()
+    if (sameSlot) {
+      return NextResponse.json(appointment)
     }
 
     // Conflit : le closer a déjà un autre RDV qui chevauche le nouveau créneau
@@ -59,14 +69,73 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const updatePayload: Record<string, unknown> = {
+      start_at,
+      end_at,
+      sms_booking_sent_at: null,
+      sms_48h_sent_at: null,
+      sms_24h_relance_sent_at: null,
+      sms_morning_sent_at: null,
+      sms_1h_sent_at: null,
+      sms_5min_sent_at: null,
+    }
+    // Le prospect doit re-confirmer sa présence sur le nouveau créneau
+    if (appointment.status === 'confirme_prospect') {
+      updatePayload.status = 'confirme'
+    }
+
     const { data: updated, error: updateErr } = await db
       .from('rdv_appointments')
-      .update({ start_at, end_at })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single()
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    // SMS + email de confirmation immédiats (nouvelle date), comme à la création du RDV
+    const dateStr = formatParis(newStart)
+    const firstName = String(appointment.prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
+
+    if (appointment.prospect_phone) {
+      try {
+        const message = buildBookingSms(
+          firstName,
+          dateStr,
+          appointment.meeting_type || null,
+          appointment.meeting_link || null,
+        )
+        const smsResult = await sendSms(appointment.prospect_phone, message)
+        if (smsResult.ok) {
+          await db
+            .from('rdv_appointments')
+            .update({ sms_booking_sent_at: new Date().toISOString() })
+            .eq('id', id)
+        } else {
+          console.error('[appointments PATCH reschedule] Booking SMS failed:', smsResult.error)
+        }
+      } catch (e) {
+        console.error('[appointments PATCH reschedule] Booking SMS exception:', e)
+      }
+    }
+
+    if (appointment.prospect_email) {
+      try {
+        const emailResult = await sendBookingConfirmationEmail(
+          { prospectEmail: appointment.prospect_email, emailParent: appointment.email_parent || null },
+          firstName,
+          dateStr,
+          appointment.meeting_type || null,
+          appointment.meeting_link || null,
+          id,
+        )
+        if (!emailResult.ok) {
+          console.error('[appointments PATCH reschedule] Booking email failed:', emailResult.error)
+        }
+      } catch (e) {
+        console.error('[appointments PATCH reschedule] Booking email exception:', e)
+      }
+    }
 
     // Aligner la date de la transaction liée (closedate = start_at). Best-effort.
     if (appointment.hubspot_deal_id) {
@@ -80,7 +149,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    return NextResponse.json(updated)
+    // Recharger pour inclure sms_booking_sent_at si mis à jour
+    const { data: finalRow } = await db.from('rdv_appointments').select().eq('id', id).single()
+    return NextResponse.json(finalRow ?? updated)
   }
 
   // === CAS 1 : ASSIGNATION / RÉASSIGNATION (Pascal assigne à un closer) ===

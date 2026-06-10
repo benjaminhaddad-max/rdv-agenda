@@ -311,10 +311,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     const prevStart = drag.startISO
     const prevEnd = drag.endISO
 
-    // Mise à jour optimiste
-    setAppointments(prev => prev.map(a =>
-      a.id === id ? { ...a, start_at: newStartISO, end_at: newEndISO } : a,
-    ))
+    // Mise à jour optimiste (dates + retrait confirmation prospect si besoin)
+    setAppointments(prev => prev.map(a => {
+      if (a.id !== id) return a
+      const patch: Partial<Appointment> = { start_at: newStartISO, end_at: newEndISO }
+      if (a.status === 'confirme_prospect') patch.status = 'confirme'
+      return { ...a, ...patch }
+    }))
 
     fetch(`/api/appointments/${id}`, {
       method: 'PATCH',
@@ -329,9 +332,13 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           ))
           setMoveToast({ kind: 'err', msg: j.error || 'Déplacement impossible' })
         } else {
+          const data = await res.json().catch(() => null)
+          if (data?.id) {
+            setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...data } : a))
+          }
           setMoveToast({
             kind: 'ok',
-            msg: `RDV déplacé au ${format(newStart, 'EEEE d MMMM à HH:mm', { locale: fr })}`,
+            msg: `RDV déplacé au ${format(newStart, 'EEEE d MMMM à HH:mm', { locale: fr })} — rappels SMS/email relancés`,
           })
         }
       })
