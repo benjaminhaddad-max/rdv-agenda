@@ -83,12 +83,14 @@ export default function AppointmentModal({
   appointment,
   onClose,
   onUpdate,
+  onDelete,
   adminMode = false,
   canAssign = false,
 }: {
   appointment: Appointment
   onClose: () => void
   onUpdate: (updated: Partial<Appointment>) => void
+  onDelete?: (id: string) => void
   adminMode?: boolean
   canAssign?: boolean
 }) {
@@ -107,6 +109,8 @@ export default function AppointmentModal({
   const [showJitsi, setShowJitsi] = useState(false)
   const [aiGenerated, setAiGenerated] = useState(false)
   const [studentLinkCopied, setStudentLinkCopied] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // New closer report fields
   const [negatifReason, setNegatifReason] = useState<string | null>(appointment.negatif_reason || null)
@@ -296,6 +300,25 @@ export default function AppointmentModal({
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteAppointment() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}?hard=true`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        onDelete?.(appointment.id)
+        onClose()
+      } else {
+        setDeleting(false)
+        setConfirmDelete(false)
+      }
+    } catch {
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -1101,6 +1124,65 @@ export default function AppointmentModal({
             {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
         </div>
+
+        {/* Zone danger — suppression définitive du RDV (admin/agenda uniquement) */}
+        {onDelete && (
+          <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8' }}>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
+                  borderRadius: 8, padding: '8px 14px',
+                  color: '#ef4444', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                🗑️ Supprimer le RDV
+              </button>
+            ) : (
+              <div style={{
+                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10, padding: '12px 14px',
+              }}>
+                <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600, marginBottom: 4 }}>
+                  Supprimer définitivement ce RDV ?
+                </div>
+                <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 12 }}>
+                  Cette action est irréversible. Le RDV disparaîtra de l&apos;agenda.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={deleteAppointment}
+                    disabled={deleting}
+                    style={{
+                      background: '#ef4444', color: '#fff', border: 'none',
+                      borderRadius: 8, padding: '8px 16px',
+                      cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                      opacity: deleting ? 0.7 : 1, fontFamily: 'inherit',
+                    }}
+                  >
+                    {deleting ? 'Suppression…' : 'Oui, supprimer'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleting}
+                    style={{
+                      background: 'transparent', border: '1px solid #e5ddc8',
+                      borderRadius: 8, padding: '8px 16px',
+                      color: '#4a6070', fontSize: 13, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         </>
         )}
       </div>

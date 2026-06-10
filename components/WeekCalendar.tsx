@@ -1410,6 +1410,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             setAppointments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             setSelectedAppointment(prev => prev ? { ...prev, ...updated } : null)
           }}
+          onDelete={(deletedId) => {
+            setAppointments(prev => prev.filter(a => a.id !== deletedId))
+            setSelectedAppointment(null)
+            setMoveToast({ kind: 'ok', msg: 'RDV supprimé' })
+          }}
         />
       )}
 

@@ -361,14 +361,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json(data)
 }
 
-// DELETE /api/appointments/:id — Soft delete (annulation)
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// DELETE /api/appointments/:id — Suppression
+//   - ?hard=true  → suppression définitive de la ligne (+ deal auto-créé "rdv_*")
+//   - sinon       → soft delete (status = 'annule'), comportement historique
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const hard = req.nextUrl.searchParams.get('hard') === 'true'
   const db = createServiceClient()
+
+  if (!hard) {
+    const { error } = await db
+      .from('rdv_appointments')
+      .update({ status: 'annule' })
+      .eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // Suppression définitive : retirer d'abord le deal auto-créé lié au RDV
+  // (hubspot_deal_id = "rdv_<id>"), best-effort, pour ne pas laisser de
+  // transaction orpheline dans le pipeline.
+  try {
+    await db.from('crm_deals').delete().eq('hubspot_deal_id', `rdv_${id}`)
+  } catch (e) {
+    console.error(`[appointments DELETE] Suppression deal lié échouée pour ${id}:`, e)
+  }
 
   const { error } = await db
     .from('rdv_appointments')
-    .update({ status: 'annule' })
+    .delete()
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
