@@ -51,12 +51,13 @@ const FORMATION_OPTIONS = [
   'Je ne sais pas encore',
 ]
 
-// ─── Couleurs (look Calendly) ─────────────────────────────────────────────────
-const BLUE = '#0069ff'
-const BLUE_LIGHT = '#e8f1fd'
+// ─── Charte Diploma Santé ─────────────────────────────────────────────────────
 const NAVY = '#1d2f4b'
+const BLUE = '#4cabdb'
+const GOLD = '#C9A84C'
+const BLUE_LIGHT = '#eaf4fa'
 const GREY = '#6b7a8f'
-const BORDER = '#e2e8f0'
+const BORDER = '#e2ecf5'
 
 type Step = 'date' | 'form' | 'success'
 type Slot = { start: string; end: string }
@@ -255,11 +256,16 @@ export default function BookingDiploma({
   const labelStyle: React.CSSProperties = {
     display: 'block', fontSize: 13.5, fontWeight: 700, color: NAVY, marginBottom: 6,
   }
+  // Focus doré (charte) sur les champs
+  const focusProps = {
+    onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = GOLD },
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = BORDER },
+  }
 
   return (
     <div style={{
       fontFamily: "'Inter', 'Open Sans', system-ui, -apple-system, sans-serif",
-      background: embedded ? 'transparent' : '#f6f8fa',
+      background: embedded ? 'transparent' : '#f0f4f9',
       minHeight: embedded ? '100vh' : '100vh',
       height: embedded ? '100vh' : undefined,
       overflowY: embedded ? 'auto' : undefined,
@@ -282,11 +288,14 @@ export default function BookingDiploma({
         {/* ════════ ÉTAPE 1 : DATE + HEURE ════════ */}
         {step === 'date' && (
           <div>
-            {/* En-tête événement */}
-            <div style={{ padding: '28px 28px 22px', borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>
+            {/* Bandeau navy charte */}
+            <div style={{ background: NAVY, borderBottom: `3px solid ${GOLD}`, padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 44, display: 'block', margin: '0 auto 14px' }} />
-              <div style={{ fontSize: 14, fontWeight: 700, color: GREY, marginBottom: 4 }}>{EVENT_ORG}</div>
+              <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 24 }} />
+            </div>
+            {/* En-tête événement */}
+            <div style={{ padding: '24px 28px 22px', borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{EVENT_ORG}</div>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: NAVY, margin: '0 0 14px', lineHeight: 1.25 }}>
                 {EVENT_TITLE}
               </h1>
@@ -361,15 +370,15 @@ export default function BookingDiploma({
                               border: 'none', fontFamily: 'inherit',
                               fontSize: 14.5, fontWeight: avail ? 700 : 400,
                               cursor: avail ? 'pointer' : 'default',
-                              background: sel ? BLUE : avail ? BLUE_LIGHT : 'transparent',
-                              color: sel ? '#fff' : avail ? BLUE : '#9aa7b5',
+                              background: sel ? NAVY : avail ? BLUE_LIGHT : 'transparent',
+                              color: sel ? '#fff' : avail ? NAVY : '#9aa7b5',
                               transition: 'background 0.12s',
                             }}
                           >
                             {format(day, 'd')}
                           </button>
                           {isToday && (
-                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: sel ? BLUE : '#9aa7b5', marginTop: 2 }} />
+                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: sel ? GOLD : '#9aa7b5', marginTop: 2 }} />
                           )}
                         </div>
                       )
@@ -399,7 +408,7 @@ export default function BookingDiploma({
                           return (
                             <div key={slot.start} style={{ display: 'flex', gap: 7 }}>
                               <div style={{
-                                flex: 1, background: '#5c6b7d', color: '#fff',
+                                flex: 1, background: NAVY, color: '#fff',
                                 borderRadius: 6, padding: '12px 0', textAlign: 'center',
                                 fontSize: 14.5, fontWeight: 700,
                               }}>
@@ -408,9 +417,9 @@ export default function BookingDiploma({
                               <button
                                 onClick={() => confirmSlot(slot)}
                                 style={{
-                                  flex: 1, background: BLUE, color: '#fff',
+                                  flex: 1, background: GOLD, color: NAVY,
                                   border: 'none', borderRadius: 6, padding: '12px 0',
-                                  fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                                  fontSize: 14.5, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
                                 }}
                               >
                                 Suivant
@@ -423,14 +432,14 @@ export default function BookingDiploma({
                             key={slot.start}
                             onClick={() => setPendingSlot(slot)}
                             style={{
-                              background: '#fff', border: `1px solid ${BLUE}88`,
+                              background: '#fff', border: `1.5px solid ${BLUE}`,
                               borderRadius: 6, padding: '12px 0',
-                              color: BLUE, fontSize: 14.5, fontWeight: 700,
+                              color: NAVY, fontSize: 14.5, fontWeight: 700,
                               cursor: 'pointer', fontFamily: 'inherit',
-                              transition: 'border-color 0.12s',
+                              transition: 'border-color 0.12s, color 0.12s',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = BLUE }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = `${BLUE}88` }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = BLUE; e.currentTarget.style.color = NAVY }}
                           >
                             {format(new Date(slot.start), 'HH:mm')}
                           </button>
@@ -447,6 +456,11 @@ export default function BookingDiploma({
         {/* ════════ ÉTAPE 2 : FORMULAIRE ════════ */}
         {step === 'form' && selectedSlot && (
           <div>
+            {/* Bandeau navy charte */}
+            <div style={{ background: NAVY, borderBottom: `3px solid ${GOLD}`, padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 24 }} />
+            </div>
             {/* En-tête avec retour + récap */}
             <div style={{ padding: '24px 28px 22px', borderBottom: `1px solid ${BORDER}`, position: 'relative', textAlign: 'center' }}>
               <button
@@ -457,14 +471,12 @@ export default function BookingDiploma({
                   width: 40, height: 40, borderRadius: '50%',
                   border: `1px solid ${BORDER}`, background: '#fff',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: BLUE,
+                  cursor: 'pointer', color: NAVY,
                 }}
               >
                 <ArrowLeft size={19} />
               </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 44, display: 'block', margin: '0 auto 12px' }} />
-              <div style={{ fontSize: 14, fontWeight: 700, color: GREY, marginBottom: 4 }}>{EVENT_ORG}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{EVENT_ORG}</div>
               <h1 style={{ fontSize: 23, fontWeight: 800, color: NAVY, margin: '0 0 14px', lineHeight: 1.25 }}>
                 {EVENT_TITLE}
               </h1>
@@ -499,18 +511,18 @@ export default function BookingDiploma({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
                 <div>
                   <label style={labelStyle}>Prénom *</label>
-                  <input style={inputStyle} value={prenom} onChange={e => setPrenom(e.target.value)} autoComplete="given-name" />
+                  <input style={inputStyle} {...focusProps} value={prenom} onChange={e => setPrenom(e.target.value)} autoComplete="given-name" />
                 </div>
                 <div>
                   <label style={labelStyle}>Nom *</label>
-                  <input style={inputStyle} value={nom} onChange={e => setNom(e.target.value)} autoComplete="family-name" />
+                  <input style={inputStyle} {...focusProps} value={nom} onChange={e => setNom(e.target.value)} autoComplete="family-name" />
                 </div>
               </div>
 
               {/* Email */}
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>E-mail *</label>
-                <input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+                <input style={inputStyle} {...focusProps} type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
               </div>
 
               {/* Lieu */}
@@ -526,7 +538,7 @@ export default function BookingDiploma({
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         fontSize: 14.5, color: NAVY, cursor: 'pointer',
-                        border: `1px solid ${lieu === opt.key ? BLUE : 'transparent'}`,
+                        border: `1.5px solid ${lieu === opt.key ? GOLD : BORDER}`,
                         background: lieu === opt.key ? BLUE_LIGHT : 'transparent',
                         borderRadius: 8, padding: '8px 10px',
                       }}
@@ -536,7 +548,7 @@ export default function BookingDiploma({
                         name="lieu"
                         checked={lieu === opt.key}
                         onChange={() => setLieu(opt.key)}
-                        style={{ width: 17, height: 17, accentColor: BLUE, cursor: 'pointer' }}
+                        style={{ width: 17, height: 17, accentColor: NAVY, cursor: 'pointer' }}
                       />
                       {opt.icon}
                       {opt.label}
@@ -548,10 +560,14 @@ export default function BookingDiploma({
               {/* Téléphone */}
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Numéro de téléphone *</label>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  border: `1px solid ${BORDER}`, borderRadius: 8, background: '#fff',
-                }}>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    border: `1px solid ${BORDER}`, borderRadius: 8, background: '#fff',
+                  }}
+                  onFocusCapture={e => { e.currentTarget.style.borderColor = GOLD }}
+                  onBlurCapture={e => { e.currentTarget.style.borderColor = BORDER }}
+                >
                   <span style={{ padding: '11px 10px 11px 12px', fontSize: 15, borderRight: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 6, color: NAVY }}>
                     🇫🇷 <span style={{ color: GREY }}>+33</span>
                   </span>
@@ -571,6 +587,7 @@ export default function BookingDiploma({
                 <label style={labelStyle}>DÉPARTEMENT EX : 75 (EN 2 CHIFFRES) *</label>
                 <input
                   style={inputStyle}
+                  {...focusProps}
                   value={departement}
                   onChange={e => setDepartement(e.target.value.slice(0, 3))}
                   inputMode="numeric"
@@ -583,6 +600,7 @@ export default function BookingDiploma({
                 <label style={labelStyle}>Votre classe actuelle *</label>
                 <select
                   style={{ ...inputStyle, cursor: 'pointer', color: classe ? NAVY : GREY }}
+                  {...focusProps}
                   value={classe}
                   onChange={e => setClasse(e.target.value)}
                 >
@@ -596,6 +614,7 @@ export default function BookingDiploma({
                 <label style={labelStyle}>Formation souhaitée *</label>
                 <select
                   style={{ ...inputStyle, cursor: 'pointer', color: formation ? NAVY : GREY }}
+                  {...focusProps}
                   value={formation}
                   onChange={e => setFormation(e.target.value)}
                 >
@@ -622,11 +641,14 @@ export default function BookingDiploma({
                 onClick={submit}
                 disabled={submitting || !formValid}
                 style={{
-                  background: formValid ? BLUE : '#aac6ee',
-                  color: '#fff', border: 'none', borderRadius: 24,
-                  padding: '13px 28px', fontSize: 15.5, fontWeight: 700,
+                  background: formValid ? GOLD : '#e8eef5',
+                  color: formValid ? NAVY : '#9aafc4',
+                  border: 'none', borderRadius: 24,
+                  padding: '13px 28px', fontSize: 15.5, fontWeight: 800,
                   cursor: formValid && !submitting ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit',
+                  boxShadow: formValid ? '0 4px 16px rgba(201,168,76,0.35)' : 'none',
+                  letterSpacing: '0.01em',
                 }}
               >
                 {submitting ? 'Planification…' : 'Planifier l\u2019événement'}
@@ -637,8 +659,20 @@ export default function BookingDiploma({
 
         {/* ════════ ÉTAPE 3 : CONFIRMATION ════════ */}
         {step === 'success' && selectedSlot && (
-          <div style={{ padding: '48px 28px 44px', textAlign: 'center' }}>
-            <CheckCircle2 size={52} style={{ color: '#1ca65a', marginBottom: 16 }} />
+          <div>
+            {/* Bandeau navy charte */}
+            <div style={{ background: NAVY, borderBottom: `3px solid ${GOLD}`, padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 24 }} />
+            </div>
+            <div style={{ padding: '40px 28px 44px', textAlign: 'center' }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%', margin: '0 auto 18px',
+              background: `${GOLD}18`, border: `2px solid ${GOLD}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <CheckCircle2 size={36} style={{ color: GOLD }} />
+            </div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: NAVY, margin: '0 0 8px' }}>
               Votre rendez-vous est enregistré !
             </h1>
@@ -684,13 +718,14 @@ export default function BookingDiploma({
                 <button
                   onClick={resetAll}
                   style={{
-                    background: 'none', color: BLUE, border: `1px solid ${BLUE}`, borderRadius: 24,
+                    background: 'none', color: NAVY, border: `1.5px solid ${NAVY}`, borderRadius: 24,
                     padding: '11px 26px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
                   Prendre un autre rendez-vous
                 </button>
               )}
+            </div>
             </div>
           </div>
         )}
