@@ -200,7 +200,10 @@ export default function BookingDiploma({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          web_booking: true, // → upsert fiche CRM par email + assignation Pascal
           prospect_name: `${prenom.trim()} ${nom.trim()}`,
+          prospect_firstname: prenom.trim(),
+          prospect_lastname: nom.trim(),
           prospect_email: email.trim(),
           prospect_phone: normalizePhone(phone),
           start_at: selectedSlot.start,

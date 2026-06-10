@@ -174,6 +174,9 @@ export async function POST(req: NextRequest) {
     meeting_type,           // 'visio' | 'telephone' | 'presentiel'
     meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
+    web_booking,            // true si RDV pris via le widget/lien public (BookingDiploma)
+    prospect_firstname,     // prénom séparé (widget web) — pour la fiche contact
+    prospect_lastname,      // nom séparé (widget web)
   } = body
 
   if (!prospect_name || !prospect_email || !start_at || !end_at) {
@@ -206,6 +209,69 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient()
 
+  // ── Widget web (BookingDiploma) : lier le RDV à la fiche contact CRM ──────
+  // Règles métier (validées 10/06/2026) :
+  //   - le lead existe déjà (match par email) → on met la fiche à jour
+  //   - le lead n'existe pas → on crée la fiche (ID natif, comme les formulaires)
+  //   - le RDV est toujours assigné à Pascal Tawfik (redispatch manuel)
+  const isWebBooking = web_booking === true && source === 'prospect'
+  let contactId: string | null = hubspot_contact_id || null
+
+  if (isWebBooking && prospect_email) {
+    try {
+      const emailClean = String(prospect_email).toLowerCase().trim()
+      const nameParts = String(prospect_name).trim().split(/\s+/)
+      const firstname = String(prospect_firstname || nameParts[0] || '').trim()
+      const lastname = String(prospect_lastname || nameParts.slice(1).join(' ') || '').trim()
+      const nowIso = new Date().toISOString()
+
+      const contactFields: Record<string, unknown> = { synced_at: nowIso }
+      if (firstname) contactFields.firstname = firstname
+      if (lastname) contactFields.lastname = lastname
+      if (prospect_phone) contactFields.phone = String(prospect_phone).replace(/\s+/g, '')
+      if (classe_actuelle) contactFields.classe_actuelle = classe_actuelle
+      if (departement) contactFields.departement = String(departement)
+      if (formation_type) contactFields.formation_souhaitee = formation_type
+
+      const { data: existingList } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id')
+        .eq('email', emailClean)
+        .order('contact_createdate', { ascending: true })
+        .limit(1)
+      const existing = existingList?.[0] ?? null
+
+      if (existing) {
+        await db
+          .from('crm_contacts')
+          .update(contactFields)
+          .eq('hubspot_contact_id', existing.hubspot_contact_id)
+        contactId = existing.hubspot_contact_id
+      } else {
+        const nativeId = 'NATIVE_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10)
+        const { data: created, error: createErr } = await db
+          .from('crm_contacts')
+          .insert({
+            ...contactFields,
+            email: emailClean,
+            hubspot_contact_id: nativeId,
+            hubspot_owner_id: null,
+            origine: 'Prise de RDV - Site web',
+            contact_createdate: nowIso,
+          })
+          .select('hubspot_contact_id')
+          .single()
+        if (createErr) {
+          console.error('[appointments POST] Création contact web booking failed:', createErr)
+        } else if (created) {
+          contactId = created.hubspot_contact_id
+        }
+      }
+    } catch (e) {
+      console.error('[appointments POST] Upsert contact web booking failed:', e)
+    }
+  }
+
   // ── Auto-attribution closer (si télépro et pas de closer pré-assigné) ─────
   // Règle actuelle (cf. lib/closer-assignment.ts) :
   //   → tous les RDV télépro sont assignés par défaut à Pascal Tawfik,
@@ -213,7 +279,7 @@ export async function POST(req: NextRequest) {
   let assignedCommercialId: string | null = commercial_id || null
   let assignedOwnerId: string | null = null
   let autoAssignedToPascal = false
-  if (!assignedCommercialId && source === 'telepro') {
+  if (!assignedCommercialId && (source === 'telepro' || isWebBooking)) {
     try {
       const closer = await assignCloserForSlot(db, start_at, end_at)
       if (closer) {
@@ -260,7 +326,7 @@ export async function POST(req: NextRequest) {
       status: assignedCommercialId ? 'confirme' : 'non_assigne',
       source,
       formation_type: formation_type || null,
-      hubspot_contact_id: hubspot_contact_id || null,
+      hubspot_contact_id: contactId || null,
       departement: departement ? String(departement) : null,
       classe_actuelle: classe_actuelle || null,
       notes: call_notes || null,
@@ -338,12 +404,12 @@ export async function POST(req: NextRequest) {
   // ── Mettre à jour les propriétés contact CRM après prise de RDV télépro ────
   // Règle métier: quand un télépro place un RDV, le lead passe en "RDV pris".
   // Si un closer a été auto-assigné, on met aussi à jour closer_du_contact_owner_id.
-  if (hubspot_contact_id && (source === 'telepro' || !!assignedOwnerId)) {
+  if (contactId && (source === 'telepro' || isWebBooking || !!assignedOwnerId)) {
     try {
       const contactUpdate: Record<string, string> = {
         synced_at: new Date().toISOString(),
       }
-      if (source === 'telepro') {
+      if (source === 'telepro' || isWebBooking) {
         contactUpdate.hs_lead_status = 'RDV pris'
         // Le télépro qui place le RDV devient le télépro du contact, même si le
         // contact appartenait à un autre télépro (réassignation directe, plus
@@ -358,7 +424,7 @@ export async function POST(req: NextRequest) {
       await db
         .from('crm_contacts')
         .update(contactUpdate)
-        .eq('hubspot_contact_id', hubspot_contact_id)
+        .eq('hubspot_contact_id', contactId)
     } catch (e) {
       console.error('[appointments POST] Update CRM contact post-booking failed:', e)
     }
@@ -368,7 +434,7 @@ export async function POST(req: NextRequest) {
   // Règle métier: une prise de RDV par un télépro crée une transaction liée à la
   // fiche contact (visible dans la fiche + le pipeline). Best-effort, idempotent
   // (un seul deal par RDV grâce à hubspot_deal_id = "rdv_<appointment.id>").
-  if (hubspot_contact_id && source === 'telepro') {
+  if (contactId && (source === 'telepro' || isWebBooking)) {
     try {
       const dealId = `rdv_${appointment.id}`
 
@@ -385,7 +451,7 @@ export async function POST(req: NextRequest) {
         .upsert(
           {
             hubspot_deal_id: dealId,
-            hubspot_contact_id,
+            hubspot_contact_id: contactId,
             dealname: dealName,
             dealstage: STAGES.rdvPris,
             pipeline: PIPELINE_2026_2027,
@@ -394,7 +460,9 @@ export async function POST(req: NextRequest) {
             formation: formation_type || null,
             closedate: start_at,
             createdate: nowIso,
-            description: `RDV ${meeting_type || ''} placé par télépro`.trim(),
+            description: isWebBooking
+              ? `RDV ${meeting_type || ''} pris via le site (widget web)`.trim()
+              : `RDV ${meeting_type || ''} placé par télépro`.trim(),
             supabase_appt_id: appointment.id,
             synced_at: nowIso,
           },
@@ -422,13 +490,13 @@ export async function POST(req: NextRequest) {
   // toujours rattachée par hubspot_contact_id (donc visible quelle que soit la
   // liaison deal). Best-effort : n'impacte pas la réponse API.
   const bookingNoteText = typeof booking_note === 'string' ? booking_note.trim() : ''
-  if (hubspot_contact_id && bookingNoteText) {
+  if (contactId && bookingNoteText) {
     try {
       let dateStr = ''
       try { dateStr = formatParis(new Date(start_at as string)) } catch { /* noop */ }
       await db.from('crm_activities').insert({
         activity_type: 'meeting',
-        hubspot_contact_id,
+        hubspot_contact_id: contactId,
         hubspot_deal_id: (appointment.hubspot_deal_id as string | null) ?? null,
         subject: dateStr ? `Note RDV — ${dateStr}` : 'Note RDV',
         body: bookingNoteText,
