@@ -18,7 +18,7 @@ import {
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  Clock, Globe2, ChevronLeft, ChevronRight, ArrowLeft, CalendarDays, CheckCircle2, MapPin,
+  Clock, Globe2, ChevronLeft, ChevronRight, ArrowLeft, CalendarDays, CheckCircle2, MapPin, Video,
 } from 'lucide-react'
 
 // ─── Réglages faciles à modifier ──────────────────────────────────────────────
@@ -69,20 +69,6 @@ export type BookingUtm = {
   utm_campaign?: string | null
   utm_content?: string | null
   ref?: string | null
-}
-
-// Petit logo Google Meet (inline, sans dépendance)
-function MeetIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 87.5 72" aria-hidden="true">
-      <path fill="#00832d" d="M49.5 36l8.53 9.75 11.47 7.33 2-17.02-2-16.64-11.69 6.44z" />
-      <path fill="#0066da" d="M0 51.5V66c0 3.315 2.685 6 6 6h14.5l3-10.96-3-9.54-9.95-3z" />
-      <path fill="#e94235" d="M20.5 0L0 20.5l10.55 3 9.95-3 2.95-9.41z" />
-      <path fill="#2684fc" d="M20.5 20.5H0v31h20.5z" />
-      <path fill="#00ac47" d="M82.6 8.68L69.5 19.42v33.66l13.16 10.79c1.97 1.54 4.85.135 4.85-2.37V11c0-2.535-2.945-3.925-4.91-2.32zM49.5 36v15.5h-29V72h43c3.315 0 6-2.685 6-6V53.08z" />
-      <path fill="#ffba00" d="M63.5 0h-43v20.5h29V36l20-16.57V6c0-3.315-2.685-6-6-6z" />
-    </svg>
-  )
 }
 
 export default function BookingDiploma({
@@ -193,7 +179,7 @@ export default function BookingDiploma({
       utm?.ref && `ref=${utm.ref}`,
     ].filter(Boolean)
     const trackingNote = utmParts.length > 0 ? `[Tracking: ${utmParts.join(' | ')}]` : ''
-    const lieuNote = lieu === 'presentiel' ? `Lieu : ${ADRESSE_PRESENTIEL}` : 'Lieu : Google Meet'
+    const lieuNote = lieu === 'presentiel' ? `Lieu : ${ADRESSE_PRESENTIEL}` : 'Lieu : Visioconférence'
     const notes = [lieuNote, trackingNote].filter(Boolean).join(' — ')
 
     try {
@@ -530,8 +516,8 @@ export default function BookingDiploma({
                 <label style={labelStyle}>Lieu *</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {([
-                    { key: 'presentiel' as Lieu, label: ADRESSE_PRESENTIEL, icon: <MapPin size={18} style={{ color: '#d63aff' }} /> },
-                    { key: 'visio' as Lieu, label: 'Google Meet', icon: <MeetIcon size={18} /> },
+                    { key: 'presentiel' as Lieu, label: ADRESSE_PRESENTIEL, icon: <MapPin size={18} style={{ color: GOLD }} /> },
+                    { key: 'visio' as Lieu, label: 'En visioconférence', icon: <Video size={18} style={{ color: BLUE }} /> },
                   ]).map(opt => (
                     <label
                       key={opt.key}
@@ -694,8 +680,8 @@ export default function BookingDiploma({
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   {lieu === 'presentiel'
-                    ? <><MapPin size={16} style={{ color: '#d63aff', flexShrink: 0 }} /> {ADRESSE_PRESENTIEL}</>
-                    : <><MeetIcon size={16} /> Google Meet — lien envoyé par e-mail</>}
+                    ? <><MapPin size={16} style={{ color: GOLD, flexShrink: 0 }} /> {ADRESSE_PRESENTIEL}</>
+                    : <><Video size={16} style={{ color: BLUE, flexShrink: 0 }} /> En visioconférence — lien envoyé par e-mail et SMS</>}
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <Globe2 size={16} style={{ color: GREY, flexShrink: 0 }} /> Heure d&apos;Europe centrale
