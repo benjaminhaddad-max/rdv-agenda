@@ -272,6 +272,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Fallback : résoudre la fiche CRM par email pour TOUTE prise de RDV ─────
+  // Règle métier : dès qu'un lead prend un RDV (peu importe le canal — widget
+  // web, lien public /book, /book/[slug], etc.), son statut doit passer en
+  // "RDV pris". Il faut donc retrouver sa fiche par email même hors flux
+  // télépro/web_booking, sinon la mise à jour du statut plus bas est ignorée.
+  if (!contactId && prospect_email) {
+    try {
+      const emailClean = String(prospect_email).toLowerCase().trim()
+      const { data: list } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id')
+        .eq('email', emailClean)
+        .order('contact_createdate', { ascending: true })
+        .limit(1)
+      if (list?.[0]) contactId = list[0].hubspot_contact_id
+    } catch (e) {
+      console.error('[appointments POST] Résolution contact par email failed:', e)
+    }
+  }
+
   // ── Auto-attribution closer (si télépro et pas de closer pré-assigné) ─────
   // Règle actuelle (cf. lib/closer-assignment.ts) :
   //   → tous les RDV télépro sont assignés par défaut à Pascal Tawfik,
@@ -401,16 +421,18 @@ export async function POST(req: NextRequest) {
     void notifyQueueAlert(appointment, source)
   }
 
-  // ── Mettre à jour les propriétés contact CRM après prise de RDV télépro ────
-  // Règle métier: quand un télépro place un RDV, le lead passe en "RDV pris".
-  // Si un closer a été auto-assigné, on met aussi à jour closer_du_contact_owner_id.
-  if (contactId && (source === 'telepro' || isWebBooking || !!assignedOwnerId)) {
+  // ── Mettre à jour les propriétés contact CRM après prise de RDV ───────────
+  // Règle métier (IMPORTANTE) : dès qu'un lead prend un RDV — quel que soit le
+  // canal (télépro, widget web, lien public /book…) — son statut de lead passe
+  // en "RDV pris". On le force donc systématiquement dès qu'une fiche contact
+  // est rattachée au RDV.
+  if (contactId) {
     try {
       const contactUpdate: Record<string, string> = {
         synced_at: new Date().toISOString(),
+        hs_lead_status: 'RDV pris',
       }
       if (source === 'telepro' || isWebBooking) {
-        contactUpdate.hs_lead_status = 'RDV pris'
         // Le télépro qui place le RDV devient le télépro du contact, même si le
         // contact appartenait à un autre télépro (réassignation directe, plus
         // d'arbitrage manuel par Pascal).
