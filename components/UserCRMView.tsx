@@ -501,6 +501,21 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   // ─ Drawer
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
 
+  // ─ Création d'un nouveau contact (closer + télépro)
+  const [showCreate, setShowCreate]   = useState(false)
+  const [creatingContact, setCreatingContact] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [newLastname, setNewLastname]   = useState('')
+  const [newFirstname, setNewFirstname] = useState('')
+  const [newEmail, setNewEmail]         = useState('')
+  const [newPhone, setNewPhone]         = useState('')
+  const [newClasse, setNewClasse]       = useState('')
+  const [newZone, setNewZone]           = useState('')
+  const [newOrigine, setNewOrigine]     = useState('')
+  const [newCloser, setNewCloser]       = useState('')
+  const [newTelepro, setNewTelepro]     = useState('')
+  const [newLeadStatus, setNewLeadStatus] = useState('Nouveau')
+
   // ─ Users (pour drawer)
   const [closers, setClosers]   = useState<RdvUser[]>([])
   const [telepros, setTelePros] = useState<RdvUser[]>([])
@@ -888,6 +903,67 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     setAdvancedRules(prev => prev.filter(r => r.id !== id))
     setPage(0)
   }
+
+  // ── Création d'un nouveau contact ────────────────────────────────────────
+  // Préremplit le commercial courant (closer OU télépro) pour que le contact
+  // créé apparaisse immédiatement dans « Mes Contacts ».
+  function openCreate() {
+    setCreateError(null)
+    setNewLastname(''); setNewFirstname(''); setNewEmail(''); setNewPhone('')
+    setNewClasse(''); setNewZone(''); setNewOrigine(''); setNewLeadStatus('Nouveau')
+    if (mode === 'closer') {
+      setNewCloser(ownerId || '')
+      setNewTelepro('')
+    } else {
+      const me = telepros.find(u => u.id === ownerId)
+      // telepro_user_id peut être bigint en base : on ne préremplit qu'avec un
+      // identifiant HubSpot numérique (jamais l'UUID CRM).
+      setNewTelepro(me ? (me.hubspot_owner_id || me.hubspot_user_id || '') : '')
+      setNewCloser('')
+    }
+    setShowCreate(true)
+  }
+
+  async function submitCreate() {
+    if (
+      !newLastname.trim() || !newFirstname.trim() || !newEmail.trim() ||
+      !newPhone.trim() || !newClasse || !newZone.trim()
+    ) {
+      setCreateError('Remplis tous les champs obligatoires (*).')
+      return
+    }
+    setCreatingContact(true)
+    setCreateError(null)
+    try {
+      const res = await fetch('/api/crm/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstname: newFirstname.trim(),
+          lastname: newLastname.trim(),
+          email: newEmail.trim(),
+          phone: newPhone.trim(),
+          classe_actuelle: newClasse,
+          zone_localite: newZone.trim(),
+          origine: newOrigine || undefined,
+          hs_lead_status: newLeadStatus || undefined,
+          closer_du_contact_owner_id: newCloser || undefined,
+          telepro_user_id: newTelepro || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setCreateError(data.error || 'Erreur lors de la création'); return }
+      if (data.existed) { setCreateError('Un contact existe déjà avec cet email.'); return }
+      setShowCreate(false)
+      setPage(0)
+      await fetchContacts()
+      void refreshTotalOnly()
+    } catch {
+      setCreateError('Erreur réseau')
+    } finally {
+      setCreatingContact(false)
+    }
+  }
   const closerSelectOptions = [
     { id: '', label: '— Aucun —' },
     ...closers.map(u => ({ id: u.hubspot_owner_id || u.id, label: u.name })),
@@ -944,28 +1020,49 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               Contacts + transactions depuis HubSpot
             </div>
           </div>
-          <button
-            onClick={() => { setPage(0); fetchContacts() }}
-            disabled={loading}
-            style={{
-              background: '#12314d',
-              border: '1px solid #12314d',
-              borderRadius: 8,
-              padding: '7px 14px',
-              color: '#ffffff',
-              cursor: loading ? 'default' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              fontFamily: 'inherit',
-              fontWeight: 600,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-            {loading ? 'Chargement…' : 'Actualiser'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={openCreate}
+              style={{
+                background: GOLD,
+                border: `1px solid ${GOLD}`,
+                borderRadius: 8,
+                padding: '7px 14px',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontFamily: 'inherit',
+                fontWeight: 600,
+              }}
+            >
+              <Plus size={13} /> Créer un contact
+            </button>
+            <button
+              onClick={() => { setPage(0); fetchContacts() }}
+              disabled={loading}
+              style={{
+                background: '#12314d',
+                border: '1px solid #12314d',
+                borderRadius: 8,
+                padding: '7px 14px',
+                color: '#ffffff',
+                cursor: loading ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontFamily: 'inherit',
+                fontWeight: 600,
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              {loading ? 'Chargement…' : 'Actualiser'}
+            </button>
+          </div>
         </div>
 
         {/* ── Barre d'onglets de vues (privées à l'utilisateur) ─────────── */}
@@ -1449,6 +1546,160 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           preloadedZones={zoneOpts}
         />
       )}
+
+      {/* ── Modale : Créer un nouveau contact ───────────────────────────── */}
+      {showCreate && (() => {
+        const modalInput: React.CSSProperties = {
+          width: '100%', background: NAVY_BG, border: `1px solid ${NAVY_BDR}`,
+          borderRadius: 8, padding: '9px 11px', color: TEXT_MID, fontSize: 13,
+          fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+        }
+        const modalLabel: React.CSSProperties = {
+          fontSize: 11, fontWeight: 700, color: TEXT_DIM, marginBottom: 5,
+          display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em',
+        }
+        return (
+          <div
+            onClick={() => !creatingContact && setShowCreate(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(11,25,41,0.55)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 16,
+                width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+              }}
+            >
+              {/* En-tête modale */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '18px 22px', borderBottom: `1px solid ${NAVY_BDR}`,
+              }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={17} style={{ color: GOLD }} /> Créer un nouveau contact
+                </div>
+                <button
+                  onClick={() => !creatingContact && setShowCreate(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT_DIM, display: 'flex', padding: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Corps */}
+              <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={modalLabel}>Nom *</label>
+                    <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom" style={modalInput} />
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Prénom *</label>
+                    <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom" style={modalInput} />
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Mail *</label>
+                    <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@exemple.com" style={modalInput} />
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Tél *</label>
+                    <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+33 6 00 00 00 00" style={modalInput} />
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Classe actuelle *</label>
+                    <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                      <option value="">Sélectionner…</option>
+                      {CLASSE_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Zone / localité *</label>
+                    <input
+                      list="crm-create-zones"
+                      value={newZone}
+                      onChange={e => setNewZone(e.target.value)}
+                      placeholder="ex : Paris, 75, IDF…"
+                      style={modalInput}
+                    />
+                    <datalist id="crm-create-zones">
+                      {zoneOpts.map(z => <option key={z} value={z} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Origine</label>
+                    <select value={newOrigine} onChange={e => setNewOrigine(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                      <option value="">— Aucune —</option>
+                      {sourceOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Statut du lead *</label>
+                    <select value={newLeadStatus} onChange={e => setNewLeadStatus(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                      {leadStatusOpts.length === 0 && <option value="Nouveau">Nouveau</option>}
+                      {leadStatusOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Closer du contact</label>
+                    <select value={newCloser} onChange={e => setNewCloser(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                      {closerSelectOptions.map(o => <option key={o.id || 'none'} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={modalLabel}>Télépro</label>
+                    <select value={newTelepro} onChange={e => setNewTelepro(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                      {teleproSelectOptions.map((o, i) => <option key={`${o.id}-${i}`} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {createError && (
+                  <div style={{
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    borderRadius: 8, padding: '9px 12px', color: '#ef4444', fontSize: 12,
+                  }}>
+                    {createError}
+                  </div>
+                )}
+              </div>
+
+              {/* Pied modale */}
+              <div style={{
+                display: 'flex', justifyContent: 'flex-end', gap: 10,
+                padding: '16px 22px', borderTop: `1px solid ${NAVY_BDR}`,
+              }}>
+                <button
+                  onClick={() => setShowCreate(false)}
+                  disabled={creatingContact}
+                  style={{
+                    background: 'transparent', border: `1px solid ${NAVY_BDR}`, borderRadius: 8,
+                    padding: '9px 18px', color: TEXT_MID, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={submitCreate}
+                  disabled={creatingContact}
+                  style={{
+                    background: GOLD, border: `1px solid ${GOLD}`, borderRadius: 8,
+                    padding: '9px 20px', color: '#ffffff', fontSize: 13, fontWeight: 700,
+                    cursor: creatingContact ? 'default' : 'pointer', fontFamily: 'inherit',
+                    opacity: creatingContact ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  {creatingContact ? 'Création…' : <><Check size={14} /> Créer le contact</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

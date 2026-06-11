@@ -2197,6 +2197,11 @@ export async function POST(req: NextRequest) {
     const classeRaw    = body.classe_actuelle ? String(body.classe_actuelle).trim() : null
     const classe       = classeRaw ? (normalizeClasseActuelle(classeRaw) ?? 'Autres') : null
     const formation    = body.formation    ? String(body.formation).trim()    : null
+    const zoneLocalite = body.zone_localite ? String(body.zone_localite).trim() : null
+    const origine      = body.origine      ? String(body.origine).trim()      : null
+    const leadStatus   = body.hs_lead_status ? String(body.hs_lead_status).trim() : 'Nouveau'
+    const closerOwnerId = body.closer_du_contact_owner_id ? String(body.closer_du_contact_owner_id).trim() : null
+    const teleproUserId = body.telepro_user_id ? String(body.telepro_user_id).trim() : null
 
     if (!firstname || !lastname || !email) {
       return NextResponse.json({ error: 'Prénom, nom et email requis' }, { status: 400 })
@@ -2246,7 +2251,11 @@ export async function POST(req: NextRequest) {
         departement,
         classe_actuelle:      classe,
         formation_demandee:   formation,
-        hs_lead_status:       'Nouveau',
+        zone_localite:        zoneLocalite,
+        origine,
+        hs_lead_status:       leadStatus,
+        closer_du_contact_owner_id: closerOwnerId,
+        telepro_user_id:      teleproUserId,
         contact_createdate:   now,
         synced_at:            now,
       })
