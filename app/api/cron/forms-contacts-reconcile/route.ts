@@ -21,6 +21,8 @@ import { createServiceClient } from '@/lib/supabase'
 import { requireCronSecret } from '@/lib/api-auth'
 import { logger } from '@/lib/logger'
 import { isIdentityGhost, repairContactIdentity } from '@/lib/contact-identity-repair'
+import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
+import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
 
 export const maxDuration = 60
 
@@ -88,6 +90,14 @@ export async function GET(req: NextRequest) {
     .from('form_fields')
     .select('form_id, field_key, crm_field')
     .in('form_id', formIds)
+  const { data: allForms } = await db
+    .from('forms')
+    .select('id, name')
+    .in('id', formIds)
+  const formNameById = new Map<string, string>()
+  for (const f of (allForms ?? []) as Array<{ id: string; name: string | null }>) {
+    if (f?.id) formNameById.set(f.id, f.name || 'Formulaire web')
+  }
   const fieldMapByForm = new Map<string, Map<string, string>>()
   for (const f of (allFields ?? []) as Array<{ form_id: string; field_key: string; crm_field: string | null }>) {
     if (!fieldMapByForm.has(f.form_id)) fieldMapByForm.set(f.form_id, new Map())
@@ -135,8 +145,24 @@ export async function GET(req: NextRequest) {
     const mapped = mapSubmission(s.form_id, s.data || {})
     if (!mapped.email && !mapped.phone && !mapped.firstname) continue
 
-    const update: Record<string, unknown> = { ...mapped, synced_at: new Date().toISOString() }
+    const formName = formNameById.get(s.form_id) || 'Formulaire web'
+    const conversionMeta = buildConversionFieldsForSubmission(s.submitted_at, formName, null)
+
+    const { data: existingC } = await db
+      .from('crm_contacts')
+      .select(CONTACT_IDENTITY_COLUMNS.join(','))
+      .eq('hubspot_contact_id', cid)
+      .maybeSingle()
+
+    const update: Record<string, unknown> = {
+      ...mapped,
+      ...conversionMeta,
+      synced_at: new Date().toISOString(),
+    }
     if (!update.origine) update.origine = 'Formulaire web'
+    if (existingC) {
+      update.hubspot_raw = mergeSafeHubspotRaw({ ...existingC, ...update, hubspot_contact_id: cid }, {})
+    }
 
     const { error: upErr } = await db.from('crm_contacts').update(update).eq('hubspot_contact_id', cid)
     if (upErr) {

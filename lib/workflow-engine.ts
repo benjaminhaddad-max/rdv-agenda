@@ -17,6 +17,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from './crm-contact-write'
 import {
   sendBrevoEmail,
   renderTemplate,
@@ -404,30 +405,12 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
         if (KNOWN_COLUMNS[property]) update[KNOWN_COLUMNS[property]] = value === '' ? null : value
         const { data: existing } = await db
           .from('crm_contacts')
-          .select('hubspot_raw, firstname, lastname, email, phone, classe_actuelle, departement, zone_localite, formation_souhaitee, formation_demandee, origine, hubspot_owner_id')
+          .select(CONTACT_IDENTITY_COLUMNS.join(','))
           .eq('hubspot_contact_id', contact.hubspot_contact_id)
           .maybeSingle()
         if (existing) {
           const ex = existing as Record<string, unknown>
-          const raw = (ex.hubspot_raw && typeof ex.hubspot_raw === 'object') ? (ex.hubspot_raw as Record<string, unknown>) : {}
-          // GARDE-FOU : réinjecte l'identité (colonnes) dans hubspot_raw pour
-          // neutraliser le trigger de resync depuis hubspot_raw (sinon il vide
-          // nom/email/téléphone sur les leads dont l'identité n'est qu'en colonnes).
-          const COLUMN_TO_RAW_KEY: Record<string, string> = {
-            firstname: 'firstname', lastname: 'lastname', email: 'email', phone: 'phone',
-            classe_actuelle: 'classe_actuelle', departement: 'departement',
-            zone_localite: 'zone___localite', formation_souhaitee: 'formation_souhaitee',
-            formation_demandee: 'diploma_sante___formation_demandee',
-            origine: 'origine', hubspot_owner_id: 'hubspot_owner_id',
-          }
-          const safeRaw: Record<string, unknown> = { ...raw }
-          for (const [colName, rawKey] of Object.entries(COLUMN_TO_RAW_KEY)) {
-            const colVal = ex[colName]
-            const present = colVal !== null && colVal !== undefined && String(colVal).trim() !== ''
-            const rawMissing = safeRaw[rawKey] === null || safeRaw[rawKey] === undefined || String(safeRaw[rawKey] ?? '').trim() === ''
-            if (present && rawMissing) safeRaw[rawKey] = colVal
-          }
-          update.hubspot_raw = { ...safeRaw, [property]: value }
+          update.hubspot_raw = mergeSafeHubspotRaw(ex, { [property]: value })
         }
         await db.from('crm_contacts').update(update).eq('hubspot_contact_id', contact.hubspot_contact_id)
         await db.from('crm_property_history').insert({

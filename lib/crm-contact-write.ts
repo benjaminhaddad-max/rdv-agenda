@@ -28,6 +28,11 @@ export const COLUMN_TO_HUBSPOT_RAW_KEY: Record<string, string> = {
   hs_lead_status: 'hs_lead_status',
   closer_du_contact_owner_id: 'closer_du_contact_owner_id',
   telepro_user_id: 'telepro_user_id',
+  first_conversion_date: 'first_conversion_date',
+  first_conversion_event_name: 'first_conversion_event_name',
+  recent_conversion_date: 'recent_conversion_date',
+  recent_conversion_event: 'recent_conversion_event_name',
+  recent_conversion_event_name: 'recent_conversion_event_name',
 }
 
 /** Propriété HubSpot (prop route) → colonne Supabase. */
@@ -64,6 +69,11 @@ export const CONTACT_IDENTITY_COLUMNS = [
   'hs_lead_status',
   'closer_du_contact_owner_id',
   'telepro_user_id',
+  'first_conversion_date',
+  'first_conversion_event_name',
+  'recent_conversion_date',
+  'recent_conversion_event',
+  'recent_conversion_event_name',
   'hubspot_raw',
 ] as const
 
@@ -87,6 +97,14 @@ export function mergeSafeHubspotRaw(
       || safeRaw[rawKey] === undefined
       || String(safeRaw[rawKey] ?? '').trim() === ''
     if (present && rawMissing) safeRaw[rawKey] = colVal
+    // Colonne recent_conversion_event → propriété HubSpot recent_conversion_event_name.
+    if (colName === 'recent_conversion_event' && present) {
+      if (rawMissing) safeRaw['recent_conversion_event_name'] = colVal
+      if (safeRaw['recent_conversion_event'] === null || safeRaw['recent_conversion_event'] === undefined
+          || String(safeRaw['recent_conversion_event'] ?? '').trim() === '') {
+        safeRaw['recent_conversion_event'] = colVal
+      }
+    }
   }
 
   // GARDE-FOU télépro : un trigger Postgres resynchronise la colonne

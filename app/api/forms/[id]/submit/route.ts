@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
+import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -335,30 +336,20 @@ export async function POST(req: Request, { params }: Params) {
       if (origineFromTracking) {
         updateData.origine = origineFromTracking
       }
-      // Merge tracking publicitaire + champs custom dans hubspot_raw.
-      // - Tracking pub : first-touch wins (on n'écrase pas un click ID déjà capté).
-      // - Champs custom du form : last-touch wins (la dernière soumission gagne).
-      const hasRawWrite =
-        Object.keys(trackingForContactRaw).length > 0 ||
-        Object.keys(customRaw).length > 0
-      if (hasRawWrite) {
-        const { data: existingRaw } = await db
-          .from('crm_contacts')
-          .select('hubspot_raw')
-          .eq('hubspot_contact_id', existing.hubspot_contact_id)
-          .maybeSingle()
-        const currentRaw = (existingRaw?.hubspot_raw && typeof existingRaw.hubspot_raw === 'object')
-          ? (existingRaw.hubspot_raw as Record<string, unknown>)
-          : {}
-        const mergedRaw: Record<string, unknown> = { ...currentRaw }
-        for (const [k, v] of Object.entries(trackingForContactRaw)) {
-          if (!mergedRaw[k]) mergedRaw[k] = v
-        }
-        for (const [k, v] of Object.entries(customRaw)) {
-          mergedRaw[k] = v
-        }
-        updateData.hubspot_raw = mergedRaw
+      const { data: existingRow } = await db
+        .from('crm_contacts')
+        .select(CONTACT_IDENTITY_COLUMNS.join(','))
+        .eq('hubspot_contact_id', existing.hubspot_contact_id)
+        .maybeSingle()
+      const mergedContact = {
+        ...(existingRow ?? {}),
+        ...updateData,
+        hubspot_contact_id: existing.hubspot_contact_id,
       }
+      updateData.hubspot_raw = mergeSafeHubspotRaw(mergedContact, {
+        ...trackingForContactRaw,
+        ...customRaw,
+      })
       await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
       contactId = existing.hubspot_contact_id
     } else {
@@ -373,10 +364,10 @@ export async function POST(req: Request, { params }: Params) {
         hubspot_owner_id:   null,
         origine:            origineFromTracking ?? 'Formulaire web',
       }
-      const initialRaw: Record<string, unknown> = { ...trackingForContactRaw, ...customRaw }
-      if (Object.keys(initialRaw).length > 0) {
-        insertData.hubspot_raw = initialRaw
-      }
+      insertData.hubspot_raw = mergeSafeHubspotRaw(
+        { ...insertData, hubspot_contact_id: nativeId },
+        { ...trackingForContactRaw, ...customRaw },
+      )
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
         .insert(insertData)
@@ -400,7 +391,7 @@ export async function POST(req: Request, { params }: Params) {
     if (contactId) {
       const { data: persisted } = await db
         .from('crm_contacts')
-        .select('email, phone, firstname, lastname, classe_actuelle, departement')
+        .select('email, phone, firstname, lastname, classe_actuelle, departement, recent_conversion_date, recent_conversion_event, first_conversion_date, first_conversion_event_name')
         .eq('hubspot_contact_id', contactId)
         .maybeSingle()
       const fieldLost = (col: string) => {
@@ -413,16 +404,33 @@ export async function POST(req: Request, { params }: Params) {
         )
       }
       const lostCols = ['email', 'phone', 'firstname', 'lastname', 'classe_actuelle', 'departement'].filter(fieldLost)
-      if (lostCols.length > 0) {
-        const repair: Record<string, unknown> = { synced_at: new Date().toISOString() }
+      const conversionLost =
+        Boolean(conversionMeta.recent_conversion_date) &&
+        !persisted?.recent_conversion_date &&
+        Boolean(persisted?.recent_conversion_event || conversionMeta.recent_conversion_event)
+      if (lostCols.length > 0 || conversionLost) {
+        const repair: Record<string, unknown> = {
+          synced_at: new Date().toISOString(),
+          ...conversionMeta,
+        }
         for (const [k, v] of Object.entries(contactData)) {
           if (v !== undefined && v !== null && String(v).trim() !== '') repair[k] = v
+        }
+        if (persisted) {
+          repair.hubspot_raw = mergeSafeHubspotRaw(
+            { ...persisted, ...repair, hubspot_contact_id: contactId },
+            {},
+          )
         }
         await db.from('crm_contacts').update(repair).eq('hubspot_contact_id', contactId)
         logger.error(
           'forms-submit-contact-fields-lost',
-          new Error('Champs identité absents après écriture contact — réparé automatiquement'),
-          { form_id: form.id, contact_id: contactId, email: contactData.email, lost: lostCols.join(',') },
+          new Error(
+            conversionLost && lostCols.length === 0
+              ? 'Dates de conversion absentes après écriture contact — réparé automatiquement'
+              : 'Champs identité absents après écriture contact — réparé automatiquement',
+          ),
+          { form_id: form.id, contact_id: contactId, email: contactData.email, lost: lostCols.join(','), conversionLost },
         )
       }
     }
