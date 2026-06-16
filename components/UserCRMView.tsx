@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus, Save } from 'lucide-react'
+import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus, Save, Clock } from 'lucide-react'
 import CRMContactsTable, { type CRMContact, type ContactInlinePatch } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
@@ -500,6 +500,51 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   // ─ Drawer
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
+
+  // ─ Historique de recherche (par utilisateur) : derniers contacts ouverts.
+  // Permet d'aller directement à la fiche sans relancer une recherche globale.
+  const RECENT_MAX = 5
+  const recentStorageKey = `crm-recent-contacts-${mode}-${ownerId ?? 'anon'}`
+  const [recentContacts, setRecentContacts] = useState<CRMContact[]>([])
+  const [searchFocused, setSearchFocused] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem(recentStorageKey)
+      setRecentContacts(saved ? (JSON.parse(saved) as CRMContact[]) : [])
+    } catch {
+      setRecentContacts([])
+    }
+  }, [recentStorageKey])
+
+  // Ouvre la fiche d'un contact et l'enregistre en tête de l'historique.
+  const openDrawerAndRecord = useCallback((contact: CRMContact) => {
+    setDrawerContact(contact)
+    setRecentContacts(prev => {
+      const next = [contact, ...prev.filter(c => c.hubspot_contact_id !== contact.hubspot_contact_id)].slice(0, RECENT_MAX)
+      try {
+        localStorage.setItem(recentStorageKey, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }, [recentStorageKey])
+
+  function clearRecentContacts() {
+    setRecentContacts([])
+    try {
+      localStorage.removeItem(recentStorageKey)
+    } catch {
+      // ignore
+    }
+  }
+
+  function contactDisplayName(c: CRMContact): string {
+    const name = `${c.firstname ?? ''} ${c.lastname ?? ''}`.trim()
+    return name || c.email || c.phone || `Contact #${c.hubspot_contact_id}`
+  }
 
   // ─ Création d'un nouveau contact (closer + télépro)
   const [showCreate, setShowCreate]   = useState(false)
@@ -1203,6 +1248,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             <input
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               placeholder="Rechercher…"
               style={{
                 width: '100%',
@@ -1222,6 +1269,63 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               <button onClick={() => handleSearchChange('')} style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: TEXT_DIM, cursor: 'pointer', padding: 0, display: 'flex' }}>
                 <X size={11} />
               </button>
+            )}
+
+            {/* Historique des derniers contacts ouverts — accès direct à la fiche */}
+            {searchFocused && !search && recentContacts.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  right: 0,
+                  background: '#ffffff',
+                  border: `1px solid ${NAVY_BDR}`,
+                  borderRadius: 8,
+                  boxShadow: '0 8px 24px rgba(18,49,77,0.12)',
+                  zIndex: 50,
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderBottom: `1px solid ${NAVY_BDR}` }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    <Clock size={11} /> Récemment consultés
+                  </span>
+                  <button
+                    onMouseDown={e => { e.preventDefault(); clearRecentContacts() }}
+                    style={{ background: 'none', border: 'none', color: TEXT_DIM, fontSize: 10.5, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
+                  >
+                    Effacer
+                  </button>
+                </div>
+                {recentContacts.map(c => (
+                  <button
+                    key={c.hubspot_contact_id}
+                    onMouseDown={e => { e.preventDefault(); openDrawerAndRecord(c); setSearchFocused(false) }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 1,
+                      padding: '7px 10px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: `1px solid ${NAVY_BG}`,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = NAVY_BG)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: TEXT_MID }}>{contactDisplayName(c)}</span>
+                    {(c.email || c.phone) && (
+                      <span style={{ fontSize: 11, color: TEXT_DIM }}>{c.email || c.phone}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
@@ -1447,7 +1551,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           mode={mode}
           onRefresh={fetchContacts}
           onContactPatched={handleContactPatched}
-          onOpenDrawer={setDrawerContact}
+          onOpenDrawer={openDrawerAndRecord}
           leadStatusOptions={leadStatusOptions}
           sourceOptions={sourceOptions}
           closerSelectOptions={closerSelectOptions}

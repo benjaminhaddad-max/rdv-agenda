@@ -489,6 +489,94 @@ export default function TeleproClient({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [searchResults, setSearchResults] = useState<any[]>([])
 
+  // ── Historique de recherche (par télépro) ─────────────────────────────
+  // Mémorise les derniers contacts ouverts pour y revenir d'un clic, sans
+  // relancer une recherche globale dans le CRM.
+  const RECENT_LOOKUP_MAX = 5
+  const recentLookupKey = `telepro-recent-contacts-${teleproUser.id || 'anon'}`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [recentLookups, setRecentLookups] = useState<any[]>([])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem(recentLookupKey)
+      setRecentLookups(saved ? JSON.parse(saved) : [])
+    } catch {
+      setRecentLookups([])
+    }
+  }, [recentLookupKey])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function recordRecentLookup(c: any) {
+    const entry = {
+      hubspot_contact_id: c.hubspot_contact_id,
+      firstname: c.firstname ?? null,
+      lastname: c.lastname ?? null,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      departement: c.departement ?? null,
+      classe_actuelle: c.classe_actuelle ?? null,
+      formation_demandee: c.formation_demandee ?? null,
+      telepro: c.telepro ?? null,
+    }
+    setRecentLookups(prev => {
+      const next = [entry, ...prev.filter(p => p.hubspot_contact_id !== entry.hubspot_contact_id)].slice(0, RECENT_LOOKUP_MAX)
+      try { localStorage.setItem(recentLookupKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  function clearRecentLookups() {
+    setRecentLookups([])
+    try { localStorage.removeItem(recentLookupKey) } catch { /* ignore */ }
+  }
+
+  // Liste des derniers contacts ouverts — affichée tant qu'aucune recherche
+  // n'est en cours, pour rouvrir une fiche d'un seul clic.
+  function renderRecentLookups() {
+    if (lookupInput.trim() || searchResults.length > 0 || recentLookups.length === 0) return null
+    return (
+      <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid #f7f4ee' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <Clock size={12} /> Recherches récentes
+          </span>
+          <button onClick={clearRecentLookups} style={{ background: 'none', border: 'none', color: '#4a6070', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Effacer
+          </button>
+        </div>
+        {recentLookups.map(r => {
+          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
+          return (
+            <button key={r.hubspot_contact_id}
+              onClick={() => pickSearchResult(r)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '10px 14px',
+                background: 'transparent', border: 'none',
+                borderBottom: '1px solid #f7f4ee',
+                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Clock size={14} style={{ color: '#C9A84C' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
+                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   // ── Nouveau contact ──────────────────────────────────────────────────
   const [newFirstname, setNewFirstname] = useState('')
   const [newLastname, setNewLastname] = useState('')
@@ -955,6 +1043,7 @@ export default function TeleproClient({
     }
     setContact(shaped)
     setSearchResults([])
+    recordRecentLookup(c)
     const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
     if (c.phone) setPhone(c.phone)
     if (c.departement) setDepartement(String(c.departement))
@@ -1798,6 +1887,7 @@ export default function TeleproClient({
                     <div style={{ fontSize: 11, color: '#4a6070', marginTop: 10 }}>
                       Recherche dans la base contacts du CRM (nom, email, téléphone).
                     </div>
+                    {renderRecentLookups()}
                     {searchResults.length > 0 && (
                       <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
                         {searchResults.map(r => {
@@ -2217,6 +2307,7 @@ export default function TeleproClient({
                         {lookupLoading ? '…' : 'Rechercher'}
                       </button>
                     </div>
+                    {renderRecentLookups()}
                     {searchResults.length > 0 && (
                       <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
                         {searchResults.map(r => {
