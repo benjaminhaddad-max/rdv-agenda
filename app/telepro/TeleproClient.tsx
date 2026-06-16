@@ -1103,7 +1103,13 @@ export default function TeleproClient({
           booking_note: notes.trim() || null,
         }),
       })
-      if (res.ok) { setSuccess(true) }
+      if (res.ok) {
+        // Le serveur génère le vrai lien (Google Meet) et le renvoie : on
+        // affiche celui-ci, pas le lien temporaire généré côté client.
+        const created = await res.json().catch(() => null)
+        if (created?.meeting_link) setMeetingLink(created.meeting_link)
+        setSuccess(true)
+      }
       else { const data = await res.json(); setError(data.error || 'Erreur') }
     } finally { setSubmitting(false) }
   }

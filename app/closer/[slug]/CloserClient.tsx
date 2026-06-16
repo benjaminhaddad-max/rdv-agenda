@@ -650,7 +650,13 @@ export default function CloserClient({ user }: { user: CloserUser }) {
           booking_note: notes.trim() || null,
         }),
       })
-      if (res.ok) { setRdvSuccess(true) }
+      if (res.ok) {
+        // Le serveur génère le vrai lien (Google Meet) et le renvoie : on
+        // affiche celui-ci, pas le lien temporaire généré côté client.
+        const created = await res.json().catch(() => null)
+        if (created?.meeting_link) setMeetingLink(created.meeting_link)
+        setRdvSuccess(true)
+      }
       else { const data = await res.json(); setSubmitError(data.error || 'Erreur') }
     } finally { setSubmitting(false) }
   }
