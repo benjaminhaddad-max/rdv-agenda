@@ -342,7 +342,7 @@ export async function POST(req: Request, { params }: Params) {
         .eq('hubspot_contact_id', existing.hubspot_contact_id)
         .maybeSingle()
       const mergedContact = {
-        ...(existingRow ?? {}),
+        ...((existingRow as unknown as Record<string, unknown>) ?? {}),
         ...updateData,
         hubspot_contact_id: existing.hubspot_contact_id,
       }

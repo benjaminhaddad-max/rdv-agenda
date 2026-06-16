@@ -409,7 +409,7 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
           .eq('hubspot_contact_id', contact.hubspot_contact_id)
           .maybeSingle()
         if (existing) {
-          const ex = existing as Record<string, unknown>
+          const ex = existing as unknown as Record<string, unknown>
           update.hubspot_raw = mergeSafeHubspotRaw(ex, { [property]: value })
         }
         await db.from('crm_contacts').update(update).eq('hubspot_contact_id', contact.hubspot_contact_id)

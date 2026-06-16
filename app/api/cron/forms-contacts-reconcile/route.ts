@@ -161,7 +161,10 @@ export async function GET(req: NextRequest) {
     }
     if (!update.origine) update.origine = 'Formulaire web'
     if (existingC) {
-      update.hubspot_raw = mergeSafeHubspotRaw({ ...existingC, ...update, hubspot_contact_id: cid }, {})
+      update.hubspot_raw = mergeSafeHubspotRaw(
+        { ...(existingC as unknown as Record<string, unknown>), ...update, hubspot_contact_id: cid },
+        {},
+      )
     }
 
     const { error: upErr } = await db.from('crm_contacts').update(update).eq('hubspot_contact_id', cid)

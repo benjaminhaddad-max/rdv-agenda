@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (fetchErr) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 })
   }
-  const existingRow = existing as Record<string, unknown> | null
+  const existingRow = existing as unknown as Record<string, unknown> | null
   if (!existingRow) {
     return NextResponse.json({ error: 'Contact introuvable' }, { status: 404 })
   }
