@@ -7,6 +7,7 @@ import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
+import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import {
   CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   type CRMFilterField, type CRMFilterOp, type SelectOption,
@@ -502,43 +503,57 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
 
   // ─ Historique de recherche (par utilisateur) : derniers contacts ouverts.
-  // Permet d'aller directement à la fiche sans relancer une recherche globale.
+  // Synchronisé en base (suit le compte sur tous les appareils). localStorage
+  // sert de cache instantané + repli hors-ligne.
   const RECENT_MAX = 5
+  const recentContext = `crm-${mode}`
   const recentStorageKey = `crm-recent-contacts-${mode}-${ownerId ?? 'anon'}`
   const [recentContacts, setRecentContacts] = useState<CRMContact[]>([])
   const [searchFocused, setSearchFocused] = useState(false)
 
+  function cacheRecent(list: CRMContact[]) {
+    try {
+      localStorage.setItem(recentStorageKey, JSON.stringify(list))
+    } catch {
+      // ignore
+    }
+  }
+
+  // 1) Cache local immédiat → 2) source de vérité serveur (compte).
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const saved = localStorage.getItem(recentStorageKey)
-      setRecentContacts(saved ? (JSON.parse(saved) as CRMContact[]) : [])
+      if (saved) setRecentContacts(JSON.parse(saved) as CRMContact[])
     } catch {
-      setRecentContacts([])
+      // ignore
     }
-  }, [recentStorageKey])
+    let cancelled = false
+    fetchRecentContacts(recentContext).then(remote => {
+      if (cancelled || remote === null) return
+      setRecentContacts(remote as CRMContact[])
+      cacheRecent(remote as CRMContact[])
+    })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentContext, recentStorageKey])
 
   // Ouvre la fiche d'un contact et l'enregistre en tête de l'historique.
   const openDrawerAndRecord = useCallback((contact: CRMContact) => {
     setDrawerContact(contact)
     setRecentContacts(prev => {
       const next = [contact, ...prev.filter(c => c.hubspot_contact_id !== contact.hubspot_contact_id)].slice(0, RECENT_MAX)
-      try {
-        localStorage.setItem(recentStorageKey, JSON.stringify(next))
-      } catch {
-        // ignore
-      }
+      cacheRecent(next)
       return next
     })
-  }, [recentStorageKey])
+    void saveRecentContact(recentContext, contact as unknown as { hubspot_contact_id: string })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentContext, recentStorageKey])
 
   function clearRecentContacts() {
     setRecentContacts([])
-    try {
-      localStorage.removeItem(recentStorageKey)
-    } catch {
-      // ignore
-    }
+    cacheRecent([])
+    void clearRecentContactsRemote(recentContext)
   }
 
   function contactDisplayName(c: CRMContact): string {

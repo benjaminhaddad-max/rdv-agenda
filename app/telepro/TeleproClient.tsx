@@ -17,6 +17,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { validateEmailDomain } from '@/lib/email-validation'
@@ -491,20 +492,35 @@ export default function TeleproClient({
 
   // ── Historique de recherche (par télépro) ─────────────────────────────
   // Mémorise les derniers contacts ouverts pour y revenir d'un clic, sans
-  // relancer une recherche globale dans le CRM.
+  // relancer une recherche globale. Synchronisé en base (suit le compte sur
+  // tous les appareils) ; localStorage sert de cache instantané + repli.
   const RECENT_LOOKUP_MAX = 5
+  const recentLookupContext = 'telepro-lookup'
   const recentLookupKey = `telepro-recent-contacts-${teleproUser.id || 'anon'}`
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [recentLookups, setRecentLookups] = useState<any[]>([])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function cacheRecentLookups(list: any[]) {
+    try { localStorage.setItem(recentLookupKey, JSON.stringify(list)) } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const saved = localStorage.getItem(recentLookupKey)
-      setRecentLookups(saved ? JSON.parse(saved) : [])
+      if (saved) setRecentLookups(JSON.parse(saved))
     } catch {
-      setRecentLookups([])
+      // ignore
     }
+    let cancelled = false
+    fetchRecentContacts(recentLookupContext).then(remote => {
+      if (cancelled || remote === null) return
+      setRecentLookups(remote)
+      cacheRecentLookups(remote)
+    })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentLookupKey])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -522,14 +538,16 @@ export default function TeleproClient({
     }
     setRecentLookups(prev => {
       const next = [entry, ...prev.filter(p => p.hubspot_contact_id !== entry.hubspot_contact_id)].slice(0, RECENT_LOOKUP_MAX)
-      try { localStorage.setItem(recentLookupKey, JSON.stringify(next)) } catch { /* ignore */ }
+      cacheRecentLookups(next)
       return next
     })
+    void saveRecentContact(recentLookupContext, entry)
   }
 
   function clearRecentLookups() {
     setRecentLookups([])
-    try { localStorage.removeItem(recentLookupKey) } catch { /* ignore */ }
+    cacheRecentLookups([])
+    void clearRecentContactsRemote(recentLookupContext)
   }
 
   // Liste des derniers contacts ouverts — affichée tant qu'aucune recherche
