@@ -6,6 +6,7 @@ import { sendSms, buildBookingSms } from '@/lib/smsfactor'
 import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
+import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -332,6 +333,48 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Lien de visio : génération d'un vrai lien Google Meet (serveur) ───────
+  // Pour les RDV en visio, on génère le lien Meet côté serveur via l'API Google
+  // Calendar (l'app native Meet permet le partage d'écran sur iPad, contrairement
+  // au navigateur). On ignore donc tout lien /visio/ (LiveKit) envoyé par le front.
+  // Best-effort : si Google échoue ou n'est pas configuré, on retombe sur le lien
+  // fourni par le client (legacy) pour ne pas bloquer la prise de RDV.
+  let finalMeetingLink: string | null = meeting_link || null
+  let googleEventId: string | null = null
+  if (meeting_type === 'visio') {
+    // Email du closer (si assigné) — ajouté comme invité, sans notification Google.
+    let closerEmail: string | null = null
+    if (assignedCommercialId) {
+      try {
+        const { data: closerRow } = await db
+          .from('rdv_users')
+          .select('email')
+          .eq('id', assignedCommercialId)
+          .maybeSingle()
+        closerEmail = closerRow?.email || null
+      } catch {
+        // best-effort
+      }
+    }
+
+    if (isGoogleMeetConfigured()) {
+      const meet = await createMeetEvent({
+        summary: `RDV Diploma Santé — ${prospect_name}`,
+        startAtIso: new Date(start_at as string).toISOString(),
+        endAtIso: new Date(end_at as string).toISOString(),
+        prospectEmail: prospect_email || null,
+        closerEmail,
+        description: formation_type ? `Formation : ${formation_type}` : null,
+      })
+      if (meet) {
+        finalMeetingLink = meet.meetLink
+        googleEventId = meet.eventId
+      } else {
+        console.error('[appointments POST] Génération lien Meet échouée — fallback lien client')
+      }
+    }
+  }
+
   // Créer le RDV en DB
   const { data: appointment, error } = await db
     .from('rdv_appointments')
@@ -351,7 +394,8 @@ export async function POST(req: NextRequest) {
       classe_actuelle: classe_actuelle || null,
       notes: call_notes || null,
       meeting_type: meeting_type || null,
-      meeting_link: meeting_link || null,
+      meeting_link: finalMeetingLink,
+      google_event_id: googleEventId,
       telepro_id: telepro_id || null,
     })
     .select()
@@ -378,7 +422,7 @@ export async function POST(req: NextRequest) {
       const startDate = new Date(start_at as string)
       const dateStr = formatParis(startDate)
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
-      const message = buildBookingSms(firstName, dateStr, meeting_type || null, meeting_link || null)
+      const message = buildBookingSms(firstName, dateStr, meeting_type || null, finalMeetingLink)
       const smsResult = await sendSms(prospect_phone, message)
       if (smsResult.ok) {
         await db
@@ -404,7 +448,7 @@ export async function POST(req: NextRequest) {
         firstName,
         dateStr,
         meeting_type || null,
-        meeting_link || null,
+        finalMeetingLink,
         appointment.id,
       )
       if (!emailResult.ok) {
