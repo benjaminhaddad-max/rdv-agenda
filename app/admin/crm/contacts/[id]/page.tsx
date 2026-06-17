@@ -215,6 +215,26 @@ interface ParcoursupPayload {
 
 type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting'
 
+function timelineTabToQuickAction(tab: TimelineTab): QuickActionType | null {
+  const map: Partial<Record<TimelineTab, QuickActionType>> = {
+    all: 'note',
+    note: 'note',
+    email: 'email',
+    call: 'call',
+    task: 'task',
+    meeting: 'meeting',
+  }
+  return map[tab] ?? null
+}
+
+const TIMELINE_ADD_LABELS: Record<QuickActionType, string> = {
+  note: 'Ajouter une note',
+  email: 'Logger un e-mail',
+  call: 'Logger un appel',
+  task: 'Créer une tâche',
+  meeting: 'Logger une réunion',
+}
+
 // Liste par défaut des propriétés affichées dans la carte « À propos ».
 // Chaque utilisateur peut la personnaliser (stockée dans crm_user_prefs).
 const DEFAULT_ABOUT_FIELDS: Array<{ name: string; label: string }> = [
@@ -953,14 +973,30 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         {/* Colonne centrale */}
         <section className="col-span-6">
           <div className="bg-white rounded-lg shadow-sm border">
-            <div className="flex border-b px-2 overflow-x-auto">
-              <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes" count={counts.all} />
-              <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
-              <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
-              <TimelineTabBtn active={timelineTab === 'sms'}     onClick={() => setTimelineTab('sms')}     label="SMS"       count={counts.sms} />
-              <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"    count={counts.call} />
-              <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
-              <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
+            <div className="flex items-center border-b">
+              <div className="flex px-2 overflow-x-auto flex-1 min-w-0">
+                <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes" count={counts.all} />
+                <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
+                <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
+                <TimelineTabBtn active={timelineTab === 'sms'}     onClick={() => setTimelineTab('sms')}     label="SMS"       count={counts.sms} />
+                <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"    count={counts.call} />
+                <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
+                <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
+              </div>
+              {(() => {
+                const addAction = timelineTabToQuickAction(timelineTab)
+                if (!addAction) return null
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setQuickAction(addAction)}
+                    title={TIMELINE_ADD_LABELS[addAction]}
+                    className="shrink-0 mr-2 w-8 h-8 flex items-center justify-center rounded-md border border-[#e5ddc8] text-[#0e1e35] hover:bg-[#C9A84C]/10 hover:border-[#C9A84C]/50 transition-colors"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )
+              })()}
             </div>
             <div className="p-3 border-b">
               <div className="relative">
@@ -976,7 +1012,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="p-4">
               {timelineFiltered.length === 0 ? (
-                <EmptyTimeline />
+                <EmptyTimeline
+                  onAdd={timelineTabToQuickAction(timelineTab) ? () => setQuickAction(timelineTabToQuickAction(timelineTab)!) : undefined}
+                  addLabel={timelineTabToQuickAction(timelineTab) ? TIMELINE_ADD_LABELS[timelineTabToQuickAction(timelineTab)!] : undefined}
+                />
               ) : (
                 <div className="relative pl-8">
                   <div className="absolute left-3.5 top-3 bottom-3 w-px bg-slate-200" />
@@ -2040,7 +2079,7 @@ function PendingTasks({ tasks, owners, onUpdated, onAdd }: {
   )
 }
 
-function EmptyTimeline() {
+function EmptyTimeline({ onAdd, addLabel }: { onAdd?: () => void; addLabel?: string }) {
   return (
     <div className="text-center py-12 px-6">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-[#a89e8a] mb-3">
@@ -2048,6 +2087,16 @@ function EmptyTimeline() {
       </div>
       <p className="text-sm font-medium text-[#4a6070]">Pas encore d&apos;activité</p>
       <p className="text-xs text-[#a89e8a] mt-1">Les notes, appels, emails, formulaires apparaîtront ici.</p>
+      {onAdd && addLabel && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-[#C9A84C]/40 text-[#0e1e35] bg-[#C9A84C]/5 hover:bg-[#C9A84C]/15 transition-colors"
+        >
+          <Plus size={14} />
+          {addLabel}
+        </button>
+      )}
     </div>
   )
 }
