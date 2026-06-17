@@ -200,6 +200,31 @@ function resolvePresentielCampus(meetingLink?: string | null): string {
   return PREPA_ADDRESS
 }
 
+// ─── SMS changement de mode (visio ↔ présentiel) ─────────────────────────────
+
+/**
+ * SMS immédiat quand le mode du RDV est modifié (visio → présentiel ou l'inverse).
+ * Les relances planifiées (48h, matin, etc.) repartent à zéro côté serveur.
+ */
+export function buildModeChangeSms(
+  firstName: string,
+  dateStr: string,
+  newMeetingType: 'visio' | 'presentiel',
+  meetingLink?: string | null,
+): string {
+  if (newMeetingType === 'presentiel') {
+    const campus = resolvePresentielCampus(meetingLink)
+    return `Bonjour ${firstName}, votre RDV Diploma Santé du ${dateStr} aura lieu en présentiel. Campus : ${campus}. Un mail de confirmation vous a également été envoyé.`
+  }
+
+  const personalized = personalizeVisioUrl(meetingLink, firstName)
+  if (personalized) {
+    return `Bonjour ${firstName}, votre RDV Diploma Santé du ${dateStr} aura lieu en visioconférence. Lien : ${personalized}`
+  }
+
+  return `Bonjour ${firstName}, votre RDV Diploma Santé du ${dateStr} aura lieu en visioconférence. Vous recevrez le lien de connexion par SMS avant le RDV. Un mail de confirmation vous a également été envoyé.`
+}
+
 // ─── SMS replanification ─────────────────────────────────────────────────────
 
 /**

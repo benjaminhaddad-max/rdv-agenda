@@ -609,6 +609,68 @@ export async function sendReplanifierEmail(
   })
 }
 
+// ─── Email changement de mode (visio ↔ présentiel) ──────────────────────────
+
+export async function sendMeetingModeChangeEmail(
+  target: ReminderTarget,
+  firstName: string,
+  dateStr: string,
+  meetingType: 'visio' | 'presentiel',
+  meetingLink: string | null | undefined,
+  apptId: string,
+): Promise<ReminderResult> {
+  const meetingLabel = getMeetingLabel(meetingType, meetingLink)
+  const meetingPrepItems = getMeetingPrepItems(meetingType, meetingLink)
+  const studentLink = personalizeVisioUrl(meetingLink, firstName)
+  const visioBlock = (meetingType === 'visio' && meetingLink) ? `
+    ${sectionTitle('LIEN DE VISIO')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
+      <tr>
+        <td style="background:#12314d;border-radius:6px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+            Rejoindre la visioconférence&nbsp;&nbsp;→
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
+    </p>
+  ` : ''
+
+  const modeIntro = meetingType === 'presentiel'
+    ? 'Votre rendez-vous se déroulera désormais <strong>en présentiel</strong> dans nos locaux.'
+    : 'Votre rendez-vous se déroulera désormais <strong>en visioconférence</strong>.'
+
+  const content = `
+    <p style="margin:0 0 14px">Bonjour <strong>${firstName}</strong>,</p>
+    <p style="margin:0 0 14px">
+      Le mode de votre rendez-vous Diploma Santé a été modifié. ${modeIntro}
+    </p>
+
+    ${rdvBox(dateStr, meetingLabel)}
+    ${visioBlock}
+
+    ${sectionTitle('COMMENT BIEN PRÉPARER LE RDV')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 6px;border-collapse:collapse;width:100%">
+      ${[
+        ...meetingPrepItems,
+        `Notez les <strong>questions</strong> que vous voulez aborder pendant l&rsquo;échange.`,
+      ].map((html, i) => numberedItem(i + 1, html)).join('')}
+    </table>
+  `
+
+  return sendReminderEmail({
+    target,
+    subject: `Modification de votre RDV Diploma Santé — ${dateStr}`,
+    html: emailLayout(content, {
+      heroTitle: 'Votre rendez-vous a été modifié',
+      heroSubtitle: 'Retrouvez ici les informations mises à jour pour votre échange.',
+    }),
+    tag: `reminder:mode-change:${apptId}`,
+  })
+}
+
 // ─── Helper interne ─────────────────────────────────────────────────────────
 async function sendReminderEmail(opts: {
   target: ReminderTarget

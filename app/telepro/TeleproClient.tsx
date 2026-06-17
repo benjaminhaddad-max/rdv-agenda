@@ -13,6 +13,7 @@ import LogoutButton from '@/components/LogoutButton'
 import WeekCalendar from '@/components/WeekCalendar'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
+import MeetingModeSwitcher from '@/components/MeetingModeSwitcher'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
@@ -140,6 +141,7 @@ function generateJitsiLink() {
 // ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────
 function TeleproRdvModal({
   rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming, onCancel, cancelling, onReset,
+  onMeetingModeUpdated,
 }: {
   rdv: MyAppointment
   noteValue: string
@@ -153,6 +155,7 @@ function TeleproRdvModal({
   onCancel?: () => void
   cancelling?: boolean
   onReset?: () => void
+  onMeetingModeUpdated?: (updated: { meeting_type: string; meeting_link: string | null }) => void
 }) {
   const start = new Date(rdv.start_at)
   const end = new Date(rdv.end_at)
@@ -209,18 +212,29 @@ function TeleproRdvModal({
               </div>
             )}
             {rdv.meeting_type && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                {rdv.meeting_type === 'visio' ? <Video size={14} style={{ color: meetingColor, flexShrink: 0 }} />
-                  : rdv.meeting_type === 'telephone' ? <PhoneCall size={14} style={{ color: meetingColor, flexShrink: 0 }} />
-                  : <MapPin size={14} style={{ color: meetingColor, flexShrink: 0 }} />}
-                <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
-                {rdv.meeting_type === 'visio' && rdv.meeting_link && (
-                  <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
-                    style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <Video size={11} /> Rejoindre
-                  </a>
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
+                  {rdv.meeting_type === 'visio' ? <Video size={14} style={{ color: meetingColor, flexShrink: 0 }} />
+                    : rdv.meeting_type === 'telephone' ? <PhoneCall size={14} style={{ color: meetingColor, flexShrink: 0 }} />
+                    : <MapPin size={14} style={{ color: meetingColor, flexShrink: 0 }} />}
+                  <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
+                  {rdv.meeting_type === 'visio' && rdv.meeting_link && (
+                    <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
+                      style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Video size={11} /> Rejoindre
+                    </a>
+                  )}
+                </div>
+                {onMeetingModeUpdated && (
+                  <MeetingModeSwitcher
+                    appointmentId={rdv.id}
+                    meetingType={rdv.meeting_type}
+                    meetingLink={rdv.meeting_link}
+                    status={rdv.status}
+                    onUpdated={onMeetingModeUpdated}
+                  />
                 )}
-              </div>
+              </>
             )}
             {rdv.classe_actuelle && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
@@ -1394,6 +1408,10 @@ export default function TeleproClient({
           onCancel={() => cancelRdv(selectedRdv.id)}
           cancelling={cancellingRdv === selectedRdv.id}
           onReset={() => resetRdv(selectedRdv.id)}
+          onMeetingModeUpdated={(updated) => {
+            setSelectedRdv(prev => prev ? { ...prev, ...updated } : null)
+            setMyRdvs(prev => prev.map(r => r.id === selectedRdv.id ? { ...r, ...updated } : r))
+          }}
         />
       )}
 

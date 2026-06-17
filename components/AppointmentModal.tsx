@@ -7,6 +7,7 @@ import { AssignCloserPanel } from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
+import MeetingModeSwitcher from './MeetingModeSwitcher'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -574,6 +575,14 @@ export default function AppointmentModal({
                     </>
                   )
                 })()}
+                <MeetingModeSwitcher
+                  appointmentId={appointment.id}
+                  meetingType={appointment.meeting_type}
+                  meetingLink={appointment.meeting_link}
+                  status={status}
+                  disabled={saving}
+                  onUpdated={(updated) => onUpdate(updated)}
+                />
               </div>
             )}
             {appointment.classe_actuelle && (

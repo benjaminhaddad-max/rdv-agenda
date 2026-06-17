@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, buildBookingSms } from '@/lib/smsfactor'
-import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
+import { sendSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
+import { sendBookingConfirmationEmail, sendMeetingModeChangeEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
+import { isValidCampus } from '@/lib/campus'
+import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       hubspot_deal_id, status, commercial_id,
       prospect_name, prospect_email, prospect_phone,
       start_at, end_at, formation_type,
-      meeting_type, meeting_link,
+      meeting_type, meeting_link, google_event_id,
       hubspot_contact_id, notes, departement, classe_actuelle, email_parent
     `)
     .eq('id', id)
@@ -306,6 +308,138 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json(data)
+  }
+
+  // === CAS 2e : CHANGEMENT DE MODE (visio ↔ présentiel) ===
+  if (body.change_meeting_mode === true) {
+    const newMeetingType = body.meeting_type as string | undefined
+    if (newMeetingType !== 'visio' && newMeetingType !== 'presentiel') {
+      return NextResponse.json({ error: 'Type de RDV invalide (visio ou presentiel)' }, { status: 400 })
+    }
+    if (appointment.status === 'annule') {
+      return NextResponse.json({ error: 'Impossible de modifier un RDV annulé' }, { status: 400 })
+    }
+    if (appointment.meeting_type === newMeetingType) {
+      return NextResponse.json(appointment)
+    }
+
+    let finalMeetingLink: string | null = null
+    let googleEventId: string | null = appointment.google_event_id || null
+
+    if (newMeetingType === 'presentiel') {
+      const campus = String(body.meeting_link || '').trim()
+      if (!campus || !isValidCampus(campus)) {
+        return NextResponse.json({ error: 'Campus invalide' }, { status: 400 })
+      }
+      finalMeetingLink = campus
+      googleEventId = null
+    } else {
+      let closerEmail: string | null = null
+      if (appointment.commercial_id) {
+        try {
+          const { data: closerRow } = await db
+            .from('rdv_users')
+            .select('email')
+            .eq('id', appointment.commercial_id)
+            .maybeSingle()
+          closerEmail = closerRow?.email || null
+        } catch {
+          // best-effort
+        }
+      }
+
+      if (isGoogleMeetConfigured()) {
+        const meet = await createMeetEvent({
+          summary: `RDV Diploma Santé — ${appointment.prospect_name}`,
+          startAtIso: new Date(appointment.start_at).toISOString(),
+          endAtIso: new Date(appointment.end_at).toISOString(),
+          prospectEmail: appointment.prospect_email || null,
+          closerEmail,
+          description: appointment.formation_type ? `Formation : ${appointment.formation_type}` : null,
+        })
+        if (meet) {
+          finalMeetingLink = meet.meetLink
+          googleEventId = meet.eventId
+        } else {
+          return NextResponse.json(
+            { error: 'Impossible de générer le lien Google Meet. Réessayez ou contactez l\'admin.' },
+            { status: 503 },
+          )
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Google Meet non configuré — impossible de passer en visio' },
+          { status: 503 },
+        )
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      meeting_type: newMeetingType,
+      meeting_link: finalMeetingLink,
+      google_event_id: googleEventId,
+      sms_booking_sent_at: null,
+      sms_48h_sent_at: null,
+      sms_24h_relance_sent_at: null,
+      sms_morning_sent_at: null,
+      sms_1h_sent_at: null,
+      sms_5min_sent_at: null,
+    }
+
+    const { data: updated, error: updateErr } = await db
+      .from('rdv_appointments')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    const dateStr = formatParis(new Date(appointment.start_at))
+    const firstName = String(appointment.prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
+
+    if (appointment.prospect_phone) {
+      try {
+        const message = buildModeChangeSms(
+          firstName,
+          dateStr,
+          newMeetingType,
+          finalMeetingLink,
+        )
+        const smsResult = await sendSms(appointment.prospect_phone, message, { autoShorten: true })
+        if (smsResult.ok) {
+          await db
+            .from('rdv_appointments')
+            .update({ sms_booking_sent_at: new Date().toISOString() })
+            .eq('id', id)
+        } else {
+          console.error('[appointments PATCH mode] Mode change SMS failed:', smsResult.error)
+        }
+      } catch (e) {
+        console.error('[appointments PATCH mode] Mode change SMS exception:', e)
+      }
+    }
+
+    if (appointment.prospect_email) {
+      try {
+        const emailResult = await sendMeetingModeChangeEmail(
+          { prospectEmail: appointment.prospect_email, emailParent: appointment.email_parent || null },
+          firstName,
+          dateStr,
+          newMeetingType,
+          finalMeetingLink,
+          id,
+        )
+        if (!emailResult.ok) {
+          console.error('[appointments PATCH mode] Mode change email failed:', emailResult.error)
+        }
+      } catch (e) {
+        console.error('[appointments PATCH mode] Mode change email exception:', e)
+      }
+    }
+
+    const { data: finalRow } = await db.from('rdv_appointments').select().eq('id', id).single()
+    return NextResponse.json(finalRow ?? updated)
   }
 
   // === CAS 2 : MISE À JOUR STATUT ===
