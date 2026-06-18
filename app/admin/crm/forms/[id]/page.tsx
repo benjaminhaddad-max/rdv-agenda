@@ -244,6 +244,8 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
       const data = await formRes.json()
       const normalized = {
         ...data,
+        notify_emails: Array.isArray(data.notify_emails) ? data.notify_emails : [],
+        default_tags: Array.isArray(data.default_tags) ? data.default_tags : [],
         // Compatibilité env sans colonne redirect_file_url:
         // si redirect_url pointe vers un fichier, on le reflète dans le champ fichier.
         redirect_file_url: data.redirect_file_url ?? (looksLikeFileUrl(data.redirect_url) ? data.redirect_url : null),
