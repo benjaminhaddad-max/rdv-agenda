@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
-import { notifyFormSubmissionRecipients } from '@/lib/form-submission-notify'
+import { notifyFormSubmissionRecipients, parseNotifyEmails } from '@/lib/form-submission-notify'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -511,26 +511,33 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
-  // 9. Notifie les emails configurés sur le formulaire (best-effort, non bloquant)
-  void notifyFormSubmissionRecipients({
-    form,
-    submissionId: submission.id,
-    contactId,
-    data: submissionData,
-    fields: (fields || []) as Array<{ field_key?: string; label?: string | null }>,
-    sourceUrl: submissionRow.source_url,
-    utm: {
-      utm_source: submissionRow.utm_source,
-      utm_medium: submissionRow.utm_medium,
-      utm_campaign: submissionRow.utm_campaign,
-    },
-  }).catch((e) => {
-    logger.error('forms-submit-notify-emails', e, {
-      form_id: form.id,
-      submission_id: submission.id,
-      notify_emails: form.notify_emails,
-    })
-  })
+  // 9. Notifie les emails configurés sur le formulaire.
+  // Doit être await : en serverless (Vercel), un void/async fire-and-forget
+  // est tué dès que la réponse HTTP part, avant l'envoi Brevo.
+  const notifyRecipients = parseNotifyEmails(form.notify_emails)
+  if (notifyRecipients.length > 0) {
+    try {
+      await notifyFormSubmissionRecipients({
+        form,
+        submissionId: submission.id,
+        contactId,
+        data: submissionData,
+        fields: (fields || []) as Array<{ field_key?: string; label?: string | null }>,
+        sourceUrl: submissionRow.source_url,
+        utm: {
+          utm_source: submissionRow.utm_source,
+          utm_medium: submissionRow.utm_medium,
+          utm_campaign: submissionRow.utm_campaign,
+        },
+      })
+    } catch (e) {
+      logger.error('forms-submit-notify-emails', e, {
+        form_id: form.id,
+        submission_id: submission.id,
+        notify_emails: notifyRecipients,
+      })
+    }
+  }
 
   return NextResponse.json(
     {

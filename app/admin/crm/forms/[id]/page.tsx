@@ -341,6 +341,22 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
     update({ fields: newFields })
   }
 
+  const saveNotifyEmails = async (emails: string[]): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/forms/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ notify_emails: emails }),
+      })
+      if (!res.ok) return false
+      const saved = await res.json()
+      setForm((prev) => prev ? { ...prev, notify_emails: Array.isArray(saved.notify_emails) ? saved.notify_emails : emails } : prev)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const save = async () => {
     if (!form) return
     setSaving(true)
@@ -470,7 +486,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             crmProperties={crmProperties}
           />
         )}
-        {tab === 'settings' && <SettingsTab form={form} update={update} />}
+        {tab === 'settings' && <SettingsTab form={form} update={update} onSaveNotifyEmails={saveNotifyEmails} />}
         {tab === 'embed' && <EmbedTab form={form} />}
         {tab === 'submissions' && <SubmissionsTab formId={id} fields={form.fields} />}
       </div>
@@ -940,7 +956,20 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
 }
 
 // ─── Tab Réglages ────────────────────────────────────────────────────────
-function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<FormData>) => void }) {
+function SettingsTab({ form, update, onSaveNotifyEmails }: {
+  form: FormData
+  update: (p: Partial<FormData>) => void
+  onSaveNotifyEmails: (emails: string[]) => Promise<boolean>
+}) {
+  const [notifySaveStatus, setNotifySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const persistNotifyEmails = async () => {
+    setNotifySaveStatus('saving')
+    const ok = await onSaveNotifyEmails(form.notify_emails)
+    setNotifySaveStatus(ok ? 'saved' : 'error')
+    if (ok) setTimeout(() => setNotifySaveStatus('idle'), 2500)
+  }
+
   const conditionalDefaultEnabled = isDiplomaConditionalRedirectEligible(form)
   const conditionalEnabled = form.conditional_redirect_enabled ?? conditionalDefaultEnabled
 
@@ -1284,9 +1313,16 @@ function SettingsTab({ form, update }: { form: FormData; update: (p: Partial<For
           <input
             value={form.notify_emails.join(', ')}
             onChange={e => update({ notify_emails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+            onBlur={() => { void persistNotifyEmails() }}
             placeholder="commercial@diploma-sante.fr"
             style={inputStyle}
           />
+          <div style={{ fontSize: 11, marginTop: 6, minHeight: 16, color: notifySaveStatus === 'error' ? '#dc2626' : notifySaveStatus === 'saved' ? '#16a34a' : '#64748b' }}>
+            {notifySaveStatus === 'saving' && 'Enregistrement…'}
+            {notifySaveStatus === 'saved' && '✓ Emails enregistrés'}
+            {notifySaveStatus === 'error' && 'Erreur — réessaie ou clique Enregistrer en haut'}
+            {notifySaveStatus === 'idle' && form.notify_emails.length > 0 && 'Enregistré automatiquement à la sortie du champ'}
+          </div>
         </Field>
       </Card>
     </div>
