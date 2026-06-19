@@ -23,8 +23,8 @@ import {
   detectUrls,
   replaceUrlsWithShortPlaceholder,
 } from '@/lib/smsfactor'
+import { resolveSegmentIds, resolveContactsFromFilterGroups } from '@/lib/segment-recipients'
 import { logger } from '@/lib/logger'
-import { viewToParams } from '@/lib/crm-views'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 
 interface TrackedLink {
@@ -75,37 +75,6 @@ function estimateSegments(text: string): number {
   return Math.ceil(len / 67)
 }
 
-async function resolveContactsFromFilterGroups(
-  baseUrl: string,
-  cookies: string,
-  filterGroups: CRMFilterGroup[],
-  presetFlags: Record<string, unknown> | null,
-): Promise<ContactRow[]> {
-  const view = {
-    id: 'sms-campaign',
-    name: '',
-    groups: filterGroups,
-    presetFlags: (presetFlags ?? undefined) as
-      | { noTelepro?: boolean; recentFormMonths?: number; recentFormDays?: number; createdBeforeDays?: number }
-      | undefined,
-  }
-  const params = viewToParams(view)
-  params.set('export', '1')
-  const url = `${baseUrl.replace(/\/$/, '')}/api/crm/contacts?${params.toString()}`
-  const res = await fetch(url, { headers: { cookie: cookies } })
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    throw new Error(`/api/crm/contacts a renvoye ${res.status}: ${txt.slice(0, 200)}`)
-  }
-  const json = await res.json()
-  const data = (json.data ?? []) as Array<{ hubspot_contact_id: string; firstname: string | null; phone: string | null }>
-  return data.map(c => ({
-    hubspot_contact_id: c.hubspot_contact_id,
-    firstname: c.firstname,
-    phone: c.phone,
-  }))
-}
-
 /**
  * Envoie une campagne SMS de bout en bout :
  *  1. Charge la campagne
@@ -140,12 +109,25 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     let contacts: ContactRow[] = []
     const manualPhones: string[] = Array.isArray(campaign.manual_phones) ? campaign.manual_phones : []
     const manualIds: string[] = Array.isArray(campaign.manual_contact_ids) ? campaign.manual_contact_ids : []
+    const segmentIds: string[] = Array.isArray(campaign.segment_ids) ? campaign.segment_ids.filter(Boolean) : []
     const filterGroups: CRMFilterGroup[] = Array.isArray(campaign.filter_groups) ? campaign.filter_groups : []
 
     if (manualPhones.length > 0) {
       contacts = manualPhones.map(p => ({ hubspot_contact_id: null, firstname: null, phone: p }))
+    } else if (segmentIds.length > 0) {
+      const resolved = await resolveSegmentIds(db, segmentIds, { channel: 'sms', baseUrl, cookies })
+      contacts = resolved.map(c => ({
+        hubspot_contact_id: c.contact_id,
+        firstname: c.first_name,
+        phone: c.phone,
+      }))
     } else if (filterGroups.length > 0) {
-      contacts = await resolveContactsFromFilterGroups(baseUrl, cookies, filterGroups, campaign.preset_flags ?? null)
+      const rows = await resolveContactsFromFilterGroups(baseUrl, cookies, filterGroups, campaign.preset_flags ?? null)
+      contacts = rows.map(c => ({
+        hubspot_contact_id: c.hubspot_contact_id,
+        firstname: c.firstname,
+        phone: c.phone,
+      }))
     } else if (manualIds.length > 0) {
       const { data } = await db.from('crm_contacts')
         .select('hubspot_contact_id, firstname, phone')

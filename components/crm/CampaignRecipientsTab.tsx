@@ -172,7 +172,7 @@ export default function CampaignRecipientsTab({
         <Card title="Segments" icon={Users}>
           {segments.length === 0 ? (
             <div style={{ fontSize: 12, color: '#4a6070', padding: '8px 0' }}>
-              Aucun segment enregistré. Tu peux créer un segment depuis le CRM ou utiliser les filtres ad-hoc ci-dessous.
+              Aucun segment enregistré. <a href="/admin/crm/campaigns/segments" style={{ color: '#0038f0' }}>Créer un segment</a> ou utilise les filtres ad-hoc ci-dessous.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 6 }}>

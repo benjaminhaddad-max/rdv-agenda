@@ -43,6 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Marketing',
     items: [
       { key: 'campaigns', label: 'Campagnes',     href: '/admin/crm/campaigns',       icon: Mail },
+      { key: 'segments',  label: 'Segments',      href: '/admin/crm/campaigns/segments', icon: Users },
       { key: 'templates', label: 'Modèles email', href: '/admin/crm/email-templates', icon: FileText },
       { key: 'workflows', label: 'Workflows',     href: '/admin/crm/workflows',       icon: Workflow },
       { key: 'forms',     label: 'Formulaires',   href: '/admin/crm/forms',           icon: FileText },

@@ -23,6 +23,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveSegmentIds } from '@/lib/segment-recipients'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FilterShape = Record<string, any>
@@ -34,19 +35,33 @@ export interface ResolvedRecipient {
   last_name: string | null
 }
 
-interface Segment {
-  id: string
-  filters: FilterShape | null
-}
 
 const COLUMNS = 'hubspot_contact_id, email, firstname, lastname'
+
+async function intersectWithExtraFilters(
+  db: SupabaseClient,
+  contactIds: string[],
+  extraFilters: FilterShape,
+): Promise<Array<{ hubspot_contact_id: string; email: string | null; firstname: string | null; lastname: string | null }>> {
+  const out: Array<{ hubspot_contact_id: string; email: string | null; firstname: string | null; lastname: string | null }> = []
+  for (let i = 0; i < contactIds.length; i += 200) {
+    const chunk = contactIds.slice(i, i + 200)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = db.from('crm_contacts').select(COLUMNS).in('hubspot_contact_id', chunk)
+    q = applyFilters(q, extraFilters)
+    q = q.not('email', 'is', null).neq('email', '')
+    const { data, error } = await q
+    if (error) throw new Error(`intersectWithExtraFilters: ${error.message}`)
+    if (data) out.push(...(data as typeof out))
+  }
+  return out
+}
 
 /**
  * Applique un objet de filtres sur un query builder Supabase. Renvoie le
  * builder modifié (chaining-friendly). Le type `any` est nécessaire car le
  * type chain de PostgrestFilterBuilder est trop complexe à exprimer.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilters(query: any, filters: FilterShape | null): any {
   if (!filters || typeof filters !== 'object') return query
 
@@ -107,6 +122,8 @@ function applyFilters(query: any, filters: FilterShape | null): any {
 
   return query
 }
+
+export { applyFilters }
 
 /**
  * Pagine sur Supabase pour récupérer TOUS les contacts qui matchent un
@@ -169,28 +186,28 @@ export async function resolveCampaignRecipients(
     }
   }
 
-  // 1. Charger les segments référencés
+  // 1–2. Segments (OR) + extra_filters (AND)
   const segmentIds = (campaign.segment_ids || []).filter(Boolean)
-  let segments: Segment[] = []
-  if (segmentIds.length > 0) {
-    const { data, error } = await db
-      .from('email_segments')
-      .select('id, filters')
-      .in('id', segmentIds)
-    if (error) throw new Error(`load segments: ${error.message}`)
-    segments = (data ?? []) as Segment[]
-  }
+  const hasExtra = campaign.extra_filters && Object.keys(campaign.extra_filters).length > 0
 
-  // 2. Pour chaque segment : résoudre avec ses filters + extra_filters AND
-  if (segments.length > 0) {
-    for (const seg of segments) {
-      const combined = { ...(seg.filters ?? {}), ...(campaign.extra_filters ?? {}) }
-      const rows = await fetchAll(db, combined)
-      add(rows)
+  if (segmentIds.length > 0) {
+    const resolved = await resolveSegmentIds(db, segmentIds, { channel: 'email' })
+    let rows = resolved
+      .filter(c => !!c.email)
+      .map(c => ({
+        hubspot_contact_id: c.contact_id,
+        email: c.email,
+        firstname: c.first_name,
+        lastname: c.last_name,
+      }))
+
+    if (hasExtra) {
+      const ids = rows.map(r => r.hubspot_contact_id).filter(Boolean)
+      rows = await intersectWithExtraFilters(db, ids, campaign.extra_filters!)
     }
-  } else if (campaign.extra_filters && Object.keys(campaign.extra_filters).length > 0) {
-    // 2b. Pas de segment, mais extra_filters : appliquer seul
-    const rows = await fetchAll(db, campaign.extra_filters)
+    add(rows)
+  } else if (hasExtra) {
+    const rows = await fetchAll(db, campaign.extra_filters!)
     add(rows)
   }
 

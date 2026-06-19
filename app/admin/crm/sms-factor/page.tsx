@@ -329,7 +329,9 @@ function TypeBadge({ type }: { type: CampaignType }) {
 
 // ─── New Campaign Modal ────────────────────────────────────────────────────
 
-type TargetingMode = 'filters' | 'view' | 'phones'
+type TargetingMode = 'filters' | 'view' | 'segment' | 'phones'
+
+type AudienceSegment = { id: string; name: string; contact_count?: number | null }
 
 function NewCampaignModal({ onClose, onCreated }: {
   onClose: () => void
@@ -368,6 +370,8 @@ function NewCampaignModal({ onClose, onCreated }: {
   // Vues sauvegardées
   const [views, setViews] = useState<SavedView[]>([])
   const [selectedViewId, setSelectedViewId] = useState('')
+  const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([])
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([])
 
   // Numéros bruts
   const [phonesText, setPhonesText] = useState('')
@@ -380,6 +384,12 @@ function NewCampaignModal({ onClose, onCreated }: {
   const [err, setErr] = useState<string | null>(null)
 
   // Charger les vues sauvegardées
+  useEffect(() => {
+    fetch('/api/segments').then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setAudienceSegments(d)
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetch('/api/crm/views')
       .then(r => r.json())
@@ -505,6 +515,17 @@ function NewCampaignModal({ onClose, onCreated }: {
       setEstimate(phonesParsed.valid.length)
       return
     }
+    if (mode === 'segment') {
+      if (selectedSegmentIds.length === 0) { setEstimate(0); return }
+      setEstimateLoading(true)
+      fetch('/api/segments/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ segment_ids: selectedSegmentIds, channel: 'sms', sample_size: 1 }),
+      }).then(r => r.json()).then(d => setEstimate(d.total ?? 0)).catch(() => setEstimate(null))
+        .finally(() => setEstimateLoading(false))
+      return
+    }
     if (filterGroups.length === 0) {
       setEstimate(0)
       return
@@ -518,7 +539,7 @@ function NewCampaignModal({ onClose, onCreated }: {
       .then(d => setEstimate(d.total ?? 0))
       .catch(() => setEstimate(null))
       .finally(() => setEstimateLoading(false))
-  }, [filterGroups, presetFlags, mode, phonesParsed.valid.length])
+  }, [filterGroups, presetFlags, mode, phonesParsed.valid.length, selectedSegmentIds])
 
   const segments = estimateSegments(message)
   const charCount = [...message].length
@@ -537,6 +558,7 @@ function NewCampaignModal({ onClose, onCreated }: {
     if (!message.trim()) return setErr('Le message est requis')
     if (mode === 'phones' && phonesParsed.valid.length === 0) return setErr('Aucun numéro valide')
     if ((mode === 'filters' || mode === 'view') && filterGroups.length === 0) return setErr('Aucun filtre défini')
+    if (mode === 'segment' && selectedSegmentIds.length === 0) return setErr('Sélectionnez au moins un segment')
 
     let scheduledIso: string | null = null
     if (scheduleMode === 'later') {
@@ -571,8 +593,9 @@ function NewCampaignModal({ onClose, onCreated }: {
           campaign_type: campaignType,
           shorten_links: shortenLinks,
           tracked_links: trackedLinks,
-          filter_groups: mode === 'phones' ? [] : filterGroups,
-          preset_flags: mode === 'phones' ? null : presetFlags,
+          filter_groups: (mode === 'filters' || mode === 'view') ? filterGroups : [],
+          preset_flags: (mode === 'filters' || mode === 'view') ? presetFlags : null,
+          segment_ids: mode === 'segment' ? selectedSegmentIds : [],
           manual_phones: mode === 'phones' ? phonesParsed.valid : [],
           scheduled_at: scheduledIso,
         }),
@@ -898,9 +921,37 @@ function NewCampaignModal({ onClose, onCreated }: {
 
             <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: '#f7f4ee', padding: 4, borderRadius: 8 }}>
               <ModeTab icon={<Filter size={12} />} active={mode === 'filters'} onClick={() => setMode('filters')}>Filtres CRM</ModeTab>
+              <ModeTab icon={<Users size={12} />} active={mode === 'segment'} onClick={() => setMode('segment')}>Segment</ModeTab>
               <ModeTab icon={<FileText size={12} />} active={mode === 'view'} onClick={() => setMode('view')}>Vue sauvegardée</ModeTab>
-              <ModeTab icon={<Upload size={12} />} active={mode === 'phones'} onClick={() => setMode('phones')}>Liste de numéros</ModeTab>
+              <ModeTab icon={<Upload size={12} />} active={mode === 'phones'} onClick={() => setMode('phones')}>Numéros</ModeTab>
             </div>
+
+            {mode === 'segment' && (
+              <div style={{ marginBottom: 12 }}>
+                <Field label="Segments / listes">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {audienceSegments.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#4a6070' }}>
+                        Aucun segment. <a href="/admin/crm/campaigns/segments" style={{ color: '#0038f0' }}>Créer un segment</a>
+                      </div>
+                    ) : audienceSegments.map(s => {
+                      const sel = selectedSegmentIds.includes(s.id)
+                      return (
+                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', padding: '6px 8px', borderRadius: 6, border: `1px solid ${sel ? '#0038f0' : '#e5ddc8'}`, background: sel ? 'rgba(46,163,242,0.06)' : '#fff' }}>
+                          <input
+                            type="checkbox"
+                            checked={sel}
+                            onChange={() => setSelectedSegmentIds(prev => sel ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                          />
+                          <span style={{ flex: 1 }}>{s.name}</span>
+                          {typeof s.contact_count === 'number' && <span style={{ color: '#4a6070' }}>~{s.contact_count}</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </Field>
+              </div>
+            )}
 
             {mode === 'view' && (
               <div style={{ marginBottom: 12 }}>
