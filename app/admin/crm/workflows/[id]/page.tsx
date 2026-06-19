@@ -7,6 +7,7 @@ import {
   Trash2, ChevronUp, ChevronDown, Play, Pause, Activity, AlertCircle, MessageSquare,
   CalendarClock, Target, FlaskConical, Copy,
 } from 'lucide-react'
+import { SMS_SENDERS } from '@/lib/smsfactor'
 
 interface Wf {
   id: string
@@ -50,14 +51,6 @@ const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: strin
   update_property: { label: 'Modifier une propriété',   icon: Edit3,        color: '#a855f7' },
   webhook:         { label: 'Appeler un webhook',       icon: Webhook,      color: '#ef4444' },
 }
-
-const SMS_SENDERS = [
-  { value: 'DiploSante',  label: 'DiploSante' },
-  { value: 'Diploma',     label: 'Diploma' },
-  { value: 'PrepaMed',    label: 'PrepaMed' },
-  { value: 'Edumove',     label: 'Edumove' },
-  { value: 'PASS-LAS',    label: 'PASS-LAS' },
-]
 
 export default function WorkflowEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)

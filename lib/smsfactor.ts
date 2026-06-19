@@ -27,6 +27,7 @@ export const SMS_SENDERS: Array<{ value: string; label: string }> = [
   { value: 'PrepaMed',    label: 'PrepaMed' },
   { value: 'Edumove',     label: 'Edumove' },
   { value: 'PASS-LAS',    label: 'PASS-LAS' },
+  { value: 'Hermione',    label: 'Hermione' },
 ]
 
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'

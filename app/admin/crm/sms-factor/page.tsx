@@ -8,14 +8,7 @@ import {
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import { viewToParams } from '@/lib/crm-views'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
-
-const SMS_SENDERS = [
-  { value: 'DiploSante', label: 'DiploSante' },
-  { value: 'Diploma',    label: 'Diploma' },
-  { value: 'PrepaMed',   label: 'PrepaMed' },
-  { value: 'Edumove',    label: 'Edumove' },
-  { value: 'PASS-LAS',   label: 'PASS-LAS' },
-]
+import { SMS_SENDERS } from '@/lib/smsfactor'
 
 type CampaignType = 'alert' | 'marketing'
 
