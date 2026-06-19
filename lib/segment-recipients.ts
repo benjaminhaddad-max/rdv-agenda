@@ -109,6 +109,46 @@ async function fetchAllWithFlatFilters(
   return out
 }
 
+function isMissingColumnError(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return m.includes('column') || m.includes('segment_type') || m.includes('filter_groups')
+}
+
+const SEGMENT_FULL_SELECT =
+  'id, name, segment_type, filters, filter_groups, preset_flags, manual_contact_ids'
+const SEGMENT_LEGACY_SELECT = 'id, name, filters'
+
+function normalizeLegacySegmentRow(row: Record<string, unknown>): SegmentRow {
+  return {
+    id: String(row.id),
+    name: (row.name as string | null) ?? null,
+    segment_type: 'dynamic',
+    filters: (row.filters as FilterShape | null) ?? null,
+    filter_groups: [],
+    preset_flags: null,
+    manual_contact_ids: [],
+  }
+}
+
+async function loadSegmentRows(db: SupabaseClient, segmentIds: string[]): Promise<SegmentRow[]> {
+  const ids = segmentIds.filter(Boolean)
+  if (ids.length === 0) return []
+
+  let { data, error } = await db.from('email_segments').select(SEGMENT_FULL_SELECT).in('id', ids)
+  if (error && isMissingColumnError(error.message)) {
+    const fallback = await db.from('email_segments').select(SEGMENT_LEGACY_SELECT).in('id', ids)
+    data = (fallback.data ?? []).map(r => normalizeLegacySegmentRow(r as Record<string, unknown>))
+    error = fallback.error
+  }
+  if (error) throw new Error(`load segments: ${error.message}`)
+  return (data ?? []) as SegmentRow[]
+}
+
+async function loadSegmentRow(db: SupabaseClient, segmentId: string): Promise<SegmentRow | null> {
+  const rows = await loadSegmentRows(db, [segmentId])
+  return rows[0] ?? null
+}
+
 async function fetchByContactIds(db: SupabaseClient, ids: string[]): Promise<ContactDbRow[]> {
   const out: ContactDbRow[] = []
   for (let i = 0; i < ids.length; i += 200) {
@@ -184,15 +224,11 @@ export async function resolveSegmentIds(
   const ids = segmentIds.filter(Boolean)
   if (ids.length === 0) return []
 
-  const { data, error } = await db
-    .from('email_segments')
-    .select('id, name, segment_type, filters, filter_groups, preset_flags, manual_contact_ids')
-    .in('id', ids)
-  if (error) throw new Error(`load segments: ${error.message}`)
+  const segments = await loadSegmentRows(db, ids)
 
   const channel = opts.channel ?? 'any'
   const seen = new Map<string, ResolvedSegmentContact>()
-  for (const seg of (data ?? []) as SegmentRow[]) {
+  for (const seg of segments) {
     const contacts = await resolveSegment(db, seg, opts)
     for (const c of contacts) {
       const key = dedupeKey(c, channel)
@@ -240,11 +276,7 @@ export async function refreshSegmentContactCount(
   segmentId: string,
   opts: { baseUrl?: string; cookies?: string } = {},
 ): Promise<number> {
-  const { data } = await db
-    .from('email_segments')
-    .select('id, name, segment_type, filters, filter_groups, preset_flags, manual_contact_ids')
-    .eq('id', segmentId)
-    .single()
+  const data = await loadSegmentRow(db, segmentId)
   if (!data) return 0
   const { total } = await previewSegments(db, data as SegmentRow, { ...opts, channel: 'any', sampleSize: 1 })
   await db.from('email_segments').update({ contact_count: total }).eq('id', segmentId)
