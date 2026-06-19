@@ -134,14 +134,16 @@ async function loadSegmentRows(db: SupabaseClient, segmentIds: string[]): Promis
   const ids = segmentIds.filter(Boolean)
   if (ids.length === 0) return []
 
-  let { data, error } = await db.from('email_segments').select(SEGMENT_FULL_SELECT).in('id', ids)
-  if (error && isMissingColumnError(error.message)) {
+  const full = await db.from('email_segments').select(SEGMENT_FULL_SELECT).in('id', ids)
+  if (!full.error) return (full.data ?? []) as SegmentRow[]
+
+  if (isMissingColumnError(full.error.message)) {
     const fallback = await db.from('email_segments').select(SEGMENT_LEGACY_SELECT).in('id', ids)
-    data = (fallback.data ?? []).map(r => normalizeLegacySegmentRow(r as Record<string, unknown>))
-    error = fallback.error
+    if (fallback.error) throw new Error(`load segments: ${fallback.error.message}`)
+    return (fallback.data ?? []).map(r => normalizeLegacySegmentRow(r as Record<string, unknown>))
   }
-  if (error) throw new Error(`load segments: ${error.message}`)
-  return (data ?? []) as SegmentRow[]
+
+  throw new Error(`load segments: ${full.error.message}`)
 }
 
 async function loadSegmentRow(db: SupabaseClient, segmentId: string): Promise<SegmentRow | null> {
