@@ -39,6 +39,7 @@ type Campaign = {
   sent_count: number
   failed_count: number
   segments_used: number
+  segment_ids?: string[] | null
   filters: Record<string, string> | null
   filter_groups: CRMFilterGroup[] | null
   manual_contact_ids: string[] | null
@@ -61,6 +62,7 @@ export default function SMSFactorPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [segmentById, setSegmentById] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,6 +78,19 @@ export default function SMSFactorPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    fetch('/api/segments')
+      .then(r => r.json())
+      .then(rows => {
+        const map: Record<string, string> = {}
+        for (const s of (Array.isArray(rows) ? rows : [])) {
+          if (s?.id && s?.name) map[s.id] = s.name
+        }
+        setSegmentById(map)
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
@@ -130,7 +145,7 @@ export default function SMSFactorPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {campaigns.map(c => (
-              <CampaignRow key={c.id} campaign={c} onChange={load} />
+              <CampaignRow key={c.id} campaign={c} segmentById={segmentById} onChange={load} />
             ))}
           </div>
         )}
@@ -146,7 +161,15 @@ export default function SMSFactorPage() {
 
 // ─── Campaign Row ──────────────────────────────────────────────────────────
 
-function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () => void }) {
+function CampaignRow({
+  campaign,
+  segmentById,
+  onChange,
+}: {
+  campaign: Campaign
+  segmentById: Record<string, string>
+  onChange: () => void
+}) {
   const [sending, setSending] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -192,6 +215,12 @@ function CampaignRow({ campaign, onChange }: { campaign: Campaign; onChange: () 
   const targetingLabel = (() => {
     if (campaign.manual_phones && campaign.manual_phones.length > 0) {
       return `${campaign.manual_phones.length} numéros (liste)`
+    }
+    if (campaign.segment_ids && campaign.segment_ids.length > 0) {
+      const names = campaign.segment_ids.map(id => segmentById[id] || `segment ${id.slice(0, 8)}…`)
+      return names.length === 1
+        ? `Segment : ${names[0]}`
+        : `${names.length} segments : ${names.join(' · ')}`
     }
     if (campaign.filter_groups && campaign.filter_groups.length > 0) {
       const total = campaign.filter_groups.reduce((acc, g) => acc + g.rules.length, 0)
