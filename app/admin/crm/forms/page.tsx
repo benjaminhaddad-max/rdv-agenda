@@ -27,8 +27,8 @@ const STATUS_META: Record<Form['status'], { label: string; color: string; bg: st
   archived:  { label: 'Archivé',    color: '#4a6070', bg: 'rgba(139,143,168,0.15)', icon: Archive },
 }
 
-// Dossiers de classement des formulaires (5 marques du groupe)
-const FOLDERS = ['Diploma Santé', 'Edumove', 'Linova Education', 'AFEM', 'Prépa Médecine.fr'] as const
+// Dossiers de classement des formulaires (6 marques du groupe)
+const FOLDERS = ['Diploma Santé', 'Edumove', 'Linova Education', 'AFEM', 'Prépa Médecine.fr', 'Hermione'] as const
 type Folder = typeof FOLDERS[number]
 const DEFAULT_FOLDER: Folder = 'Diploma Santé'
 
@@ -39,6 +39,7 @@ const FOLDER_COLOR: Record<Folder, string> = {
   'Linova Education':  '#a855f7',
   'AFEM':              '#f59e0b',
   'Prépa Médecine.fr': '#ef4444',
+  'Hermione':          '#ec4899',
 }
 
 function getFolder(f: Form): Folder {
@@ -80,7 +81,7 @@ export default function FormsPage() {
 
   // Compteurs par dossier (pour les tabs)
   const folderCounts: Record<Folder, number> = {
-    'Diploma Santé': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0,
+    'Diploma Santé': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0, 'Hermione': 0,
   }
   for (const f of forms) folderCounts[getFolder(f)]++
 

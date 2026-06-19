@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const prefix = (body.prefix ?? 'NS') as string
   const dryRun = !!body.dryRun
   // Dossier cible pour les forms importés (Diploma Santé, Edumove, Linova
-  // Education, AFEM, Prépa Médecine.fr). Diploma Santé par défaut.
+  // Education, AFEM, Prépa Médecine.fr, Hermione). Diploma Santé par défaut.
   const folder = (body.folder ?? 'Diploma Santé') as string
 
   try {
