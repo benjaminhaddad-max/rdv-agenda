@@ -139,9 +139,15 @@ export async function resolveSegment(
 
   let rows: ContactDbRow[] = []
 
+  const legacyContactIds = Array.isArray((segment.filters as { contact_ids?: unknown } | null)?.contact_ids)
+    ? ((segment.filters as { contact_ids: string[] }).contact_ids).filter(Boolean)
+    : []
+
   if (segment.segment_type === 'static') {
     const ids = (segment.manual_contact_ids ?? []).filter(Boolean)
     if (ids.length > 0) rows = await fetchByContactIds(db, ids)
+  } else if (legacyContactIds.length > 0) {
+    rows = await fetchByContactIds(db, legacyContactIds)
   } else {
     const filterGroups = Array.isArray(segment.filter_groups) ? segment.filter_groups : []
     const hasAdvanced = filterGroups.some(g => (g.rules?.length ?? 0) > 0)
