@@ -24,6 +24,11 @@ import {
   replaceUrlsWithShortPlaceholder,
 } from '@/lib/smsfactor'
 import { resolveSegmentIds, resolveContactsFromFilterGroups } from '@/lib/segment-recipients'
+import {
+  enrichContactsForHermione,
+  isHermioneOrientationUrl,
+  resolveTrackedLinkDestination,
+} from '@/lib/hermione-orientation-link'
 import { logger } from '@/lib/logger'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 
@@ -37,8 +42,15 @@ interface TrackedLink {
 interface ContactRow {
   hubspot_contact_id: string | null
   firstname: string | null
+  lastname: string | null
+  email: string | null
   phone: string | null
+  departement: string | null
+  classe_actuelle: string | null
 }
+
+const CRM_SMS_CONTACT_COLUMNS =
+  'hubspot_contact_id, firstname, lastname, email, phone, departement, classe_actuelle'
 
 export interface RunOptions {
   campaignId: string
@@ -113,29 +125,45 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     const filterGroups: CRMFilterGroup[] = Array.isArray(campaign.filter_groups) ? campaign.filter_groups : []
 
     if (manualPhones.length > 0) {
-      contacts = manualPhones.map(p => ({ hubspot_contact_id: null, firstname: null, phone: p }))
+      contacts = manualPhones.map(p => ({
+        hubspot_contact_id: null,
+        firstname: null,
+        lastname: null,
+        email: null,
+        phone: p,
+        departement: null,
+        classe_actuelle: null,
+      }))
     } else if (segmentIds.length > 0) {
       const resolved = await resolveSegmentIds(db, segmentIds, { channel: 'sms', baseUrl, cookies })
       contacts = resolved.map(c => ({
         hubspot_contact_id: c.contact_id,
         firstname: c.first_name,
+        lastname: c.last_name,
+        email: c.email,
         phone: c.phone,
+        departement: null,
+        classe_actuelle: null,
       }))
     } else if (filterGroups.length > 0) {
       const rows = await resolveContactsFromFilterGroups(baseUrl, cookies, filterGroups, campaign.preset_flags ?? null)
       contacts = rows.map(c => ({
         hubspot_contact_id: c.hubspot_contact_id,
         firstname: c.firstname,
+        lastname: c.lastname,
+        email: c.email,
         phone: c.phone,
+        departement: null,
+        classe_actuelle: null,
       }))
     } else if (manualIds.length > 0) {
       const { data } = await db.from('crm_contacts')
-        .select('hubspot_contact_id, firstname, phone')
+        .select(CRM_SMS_CONTACT_COLUMNS)
         .in('hubspot_contact_id', manualIds)
       contacts = (data || []) as ContactRow[]
     } else if (campaign.filters && Object.keys(campaign.filters).length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = db.from('crm_contacts').select('hubspot_contact_id, firstname, phone')
+      let q: any = db.from('crm_contacts').select(CRM_SMS_CONTACT_COLUMNS)
       const f = campaign.filters as Record<string, string | string[]>
       if (f.classe_actuelle) q = q.eq('classe_actuelle', f.classe_actuelle)
       if (f.formation_souhaitee) q = q.eq('formation_souhaitee', f.formation_souhaitee)
@@ -149,6 +177,15 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     if (contacts.length === 0) {
       await db.from('sms_campaigns').update({ status: 'draft' }).eq('id', id)
       return { ok: false, total_recipients: 0, valid: 0, sent: 0, failed: 0, skipped: 0, segments_used: 0, error: 'Aucun destinataire' }
+    }
+
+    const trackedLinks: TrackedLink[] = Array.isArray(campaign.tracked_links) ? campaign.tracked_links : []
+    const needsHermioneEnrich = trackedLinks.some(l => l?.url && isHermioneOrientationUrl(l.url))
+    if (needsHermioneEnrich) {
+      contacts = await enrichContactsForHermione(db, contacts)
+      if (!process.env.HERMIONE_LINK_SECRET) {
+        logger.warn('sms-campaign-send', 'HERMIONE_LINK_SECRET manquant — liens Hermione non signés', { campaign_id: id })
+      }
     }
 
     // 4. Validation phone + dedup + render template (firstname)
@@ -204,7 +241,6 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     }
 
     // 4-bis. Tokens des liens trackes
-    const trackedLinks: TrackedLink[] = Array.isArray(campaign.tracked_links) ? campaign.tracked_links : []
     const urlByRecipientPhone = new Map<string, Record<string, string>>()
     const tokenInserts: Array<{
       token: string; campaign_id: string; recipient_id: string
@@ -224,9 +260,10 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
             continue
           }
           const token = makeToken()
+          const originalUrl = resolveTrackedLinkDestination(link.url, r.contact)
           tokenInserts.push({
             token, campaign_id: id, recipient_id: recipientId,
-            placeholder: link.placeholder, label: link.label ?? null, original_url: link.url,
+            placeholder: link.placeholder, label: link.label ?? null, original_url: originalUrl,
           })
           map[link.placeholder] = `${baseClean}/r/${token}`
         }
