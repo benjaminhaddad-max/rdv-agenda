@@ -7,8 +7,8 @@
  */
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || ''
-const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'Diploma Santé'
+const BREVO_SENDER_EMAIL = (process.env.BREVO_SENDER_EMAIL || 'admissions@diploma-sante.fr').trim()
+const BREVO_SENDER_NAME = (process.env.BREVO_SENDER_NAME || 'Diploma Santé').trim()
 const BREVO_BASE_URL = 'https://api.brevo.com/v3'
 
 // ─── Types ─────────────────────────────────────────────────────────────────

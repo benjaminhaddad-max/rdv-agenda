@@ -171,10 +171,10 @@ export default function ConfirmPage() {
               Ce lien de confirmation est invalide ou a expiré. Contactez-nous à
               <br />
               <a
-                href="mailto:rdv@diploma-sante.fr"
+                href="mailto:admissions@diploma-sante.fr"
                 style={{ color: '#4fabdb', textDecoration: 'none' }}
               >
-                rdv@diploma-sante.fr
+                admissions@diploma-sante.fr
               </a>{' '}
               pour obtenir un nouveau lien.
             </div>

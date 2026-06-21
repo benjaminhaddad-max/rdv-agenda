@@ -22,8 +22,8 @@ const PREPA_CODE = process.env.PREPA_CODE || ''
 const REPLANIF_URL = process.env.REPLANIF_URL || SITE_URL
 
 const SENDER = {
-  email: process.env.BREVO_SENDER_EMAIL || 'rdv@diploma-sante.fr',
-  name: process.env.BREVO_SENDER_NAME || 'Diploma Santé',
+  email: (process.env.BREVO_SENDER_EMAIL || 'admissions@diploma-sante.fr').trim(),
+  name: (process.env.BREVO_SENDER_NAME || 'Diploma Santé').trim(),
 }
 
 // ─── Layout commun ──────────────────────────────────────────────────────────
