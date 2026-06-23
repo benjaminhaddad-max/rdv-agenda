@@ -111,6 +111,10 @@ function applyFilters(query: any, filters: FilterShape | null): any {
   if (filters.no_owner === true) {
     query = query.is('hubspot_owner_id', null)
   }
+  const formEventContains = single(filters.form_event_contains)
+  if (formEventContains) {
+    query = query.ilike('recent_conversion_event', `%${formEventContains}%`)
+  }
   const ra = single(filters.recent_conversion_after)
   if (ra)  query = query.gte('recent_conversion_date', ra)
   const rb = single(filters.recent_conversion_before)
