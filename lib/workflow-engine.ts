@@ -446,7 +446,8 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
           source: 'workflow',
           sourceId: execution.workflow_id,
         })
-        const result = await sendSms(contact.phone, trackedText, { sender, pushtype })
+        const autoShorten = step.config?.auto_shorten === true
+        const result = await sendSms(contact.phone, trackedText, { sender, pushtype, autoShorten })
         if (!result.ok) {
           await logStep(db, execution, step, 'failed', { ticket: result.ticket }, result.error || 'Échec envoi SMS')
           break
