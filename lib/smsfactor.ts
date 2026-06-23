@@ -421,3 +421,110 @@ export function replaceUrlsWithShortPlaceholder(text: string): { text: string; u
   })
   return { text: out, urls }
 }
+
+export interface BulkSmsRecipient {
+  phone: string
+  gsmsmsid?: string
+}
+
+export interface BulkSmsCampaignResult {
+  ok: boolean
+  ticket?: string
+  total?: number
+  sent?: number
+  invalid?: number
+  blacklisted?: number
+  duplicated?: number
+  error?: string
+}
+
+/**
+ * Envoi campagne SMS Factor : un seul appel API pour tous les destinataires
+ * (comme le dashboard SMS Factor). Doc : POST /send — send-campaign.
+ */
+export async function sendSmsCampaignBulk(
+  recipients: BulkSmsRecipient[],
+  text: string,
+  opts: SendSmsOptions = {},
+): Promise<BulkSmsCampaignResult> {
+  if (!SMS_FACTOR_TOKEN) {
+    return { ok: false, error: 'API key manquante' }
+  }
+  if (!recipients.length) {
+    return { ok: false, error: 'Aucun destinataire' }
+  }
+
+  const pushtype: SmsPushType = opts.pushtype ?? 'alert'
+  let shortenLinksOpt = opts.shortenLinks
+
+  if (opts.autoShorten && !shortenLinksOpt && detectUrls(text).length > 0) {
+    const transformed = replaceUrlsWithShortPlaceholder(text)
+    text = transformed.text
+    shortenLinksOpt = { urls: transformed.urls }
+  }
+
+  const cleanSender = (opts.sender || DEFAULT_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || DEFAULT_SENDER
+
+  const gsm: Array<{ gsmsmsid?: string; value: string }> = []
+  for (const r of recipients) {
+    const formatted = formatPhoneForSms(r.phone)
+    if (!formatted) continue
+    const entry: { gsmsmsid?: string; value: string } = { value: formatted }
+    if (r.gsmsmsid) entry.gsmsmsid = r.gsmsmsid
+    gsm.push(entry)
+  }
+  if (gsm.length === 0) {
+    return { ok: false, error: 'Aucun numéro valide' }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const message: Record<string, any> = {
+    text,
+    pushtype,
+    sender: cleanSender,
+  }
+  if (shortenLinksOpt && shortenLinksOpt.urls.length > 0) {
+    message.links = shortenLinksOpt.urls
+  }
+
+  try {
+    const res = await fetch('https://api.smsfactor.com/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SMS_FACTOR_TOKEN}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sms: {
+          message,
+          recipients: { gsm },
+        },
+      }),
+    })
+    const data = await res.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const status = (data?.status ?? data?.details?.status) as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ticket = (data?.ticket ?? data?.details?.ticket) as any
+    if (!res.ok || (status !== 1 && status !== '1' && status !== -8)) {
+      const errMsg = data?.message ?? data?.details?.message ?? JSON.stringify(data)
+      console.error(`[smsfactor] Erreur campagne bulk (${gsm.length} nums) : ${errMsg}`)
+      return { ok: false, error: errMsg }
+    }
+    console.log(`[smsfactor] Campagne bulk soumise : ${gsm.length} nums, ticket ${ticket}`)
+    return {
+      ok: true,
+      ticket: String(ticket ?? ''),
+      total: Number(data?.total ?? data?.details?.total ?? gsm.length),
+      sent: Number(data?.sent ?? data?.details?.sent ?? gsm.length),
+      invalid: Number(data?.invalid ?? data?.details?.invalid ?? 0),
+      blacklisted: Number(data?.blacklisted ?? data?.details?.blacklisted ?? 0),
+      duplicated: Number(data?.duplicated ?? data?.details?.duplicated ?? 0),
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[smsfactor] Exception campagne bulk : ${message}`)
+    return { ok: false, error: message }
+  }
+}

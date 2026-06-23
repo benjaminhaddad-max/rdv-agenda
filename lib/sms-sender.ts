@@ -19,6 +19,7 @@ import { randomBytes } from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import {
   sendSms,
+  sendSmsCampaignBulk,
   formatPhoneForSms,
   detectUrls,
   replaceUrlsWithShortPlaceholder,
@@ -79,6 +80,23 @@ function makeToken(): string {
 
 function renderMessage(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m)
+}
+
+function buildFinalCampaignSmsText(
+  rendered: string,
+  linkMap: Record<string, string> | undefined,
+  isMarketing: boolean,
+): string {
+  let textToSend = rendered
+  if (linkMap) {
+    for (const [placeholder, finalUrl] of Object.entries(linkMap)) {
+      textToSend = textToSend.split(placeholder).join(finalUrl)
+    }
+  }
+  if (isMarketing) {
+    textToSend = textToSend.replace(/\s+$/, '') + '\nSTOP 36035'
+  }
+  return textToSend
 }
 
 function estimateSegments(text: string): number {
@@ -294,76 +312,132 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     let failedCount = 0
     let segmentsUsed = 0
 
-    for (const r of validRecipients) {
-      try {
-        let textToSend = r.rendered
-        const linkMap = urlByRecipientPhone.get(r.phone)
-        if (linkMap) {
-          for (const [placeholder, finalUrl] of Object.entries(linkMap)) {
-            textToSend = textToSend.split(placeholder).join(finalUrl)
-          }
-        }
+    const prepared = validRecipients.map(r => {
+      const linkMap = urlByRecipientPhone.get(r.phone)
+      const textToSend = buildFinalCampaignSmsText(r.rendered, linkMap, isMarketing)
+      return {
+        phone: r.phone,
+        contact: r.contact,
+        textToSend,
+        recipientId: recipientIdByPhone.get(r.phone),
+      }
+    })
 
-        // Marketing : on ajoute nous-memes "\nSTOP 36035" a la fin du
-        // message (apres un \n force). pushtype='alert' au moment de
-        // l'envoi pour que SMS Factor n'append PAS son propre STOP par
-        // dessus (sinon il se collait a l'URL — leur trim casse notre
-        // \n trailing). La mention legale reste presente.
-        if (isMarketing) {
-          textToSend = textToSend.replace(/\s+$/, '') + '\nSTOP 36035'
-        }
+    const canBulkSend =
+      prepared.length > 0 &&
+      prepared.every(p => p.textToSend === prepared[0].textToSend)
 
-        let shortenLinksOpt: { urls: string[] } | undefined
-        if (shortenLinks) {
-          const urls = detectUrls(textToSend)
-          if (urls.length > 0) {
-            const transformed = replaceUrlsWithShortPlaceholder(textToSend)
-            textToSend = transformed.text
-            shortenLinksOpt = { urls: transformed.urls }
-          }
+    if (canBulkSend) {
+      let textToSend = prepared[0].textToSend
+      let shortenLinksOpt: { urls: string[] } | undefined
+      if (shortenLinks) {
+        const urls = detectUrls(textToSend)
+        if (urls.length > 0) {
+          const transformed = replaceUrlsWithShortPlaceholder(textToSend)
+          textToSend = transformed.text
+          shortenLinksOpt = { urls: transformed.urls }
         }
+      }
+      const finalSegments = estimateSegments(textToSend)
+      const nowIso = new Date().toISOString()
 
-        const finalSegments = estimateSegments(textToSend)
-        const recipientId = recipientIdByPhone.get(r.phone)
-        if (recipientId) {
+      for (const p of prepared) {
+        if (p.recipientId) {
           await db.from('sms_campaign_recipients').update({
             rendered_message: textToSend,
             segments_count: finalSegments,
-          }).eq('id', recipientId)
+          }).eq('id', p.recipientId)
         }
+      }
 
-        const result = await sendSms(r.phone, textToSend, {
+      const bulkResult = await sendSmsCampaignBulk(
+        prepared.map(p => ({
+          phone: p.phone,
+          gsmsmsid: p.recipientId ?? undefined,
+        })),
+        textToSend,
+        {
           sender: campaign.sender,
           pushtype,
           shortenLinks: shortenLinksOpt,
-        })
+        },
+      )
 
-        if (result.ok) {
-          sentCount++
-          segmentsUsed += finalSegments
+      if (bulkResult.ok) {
+        sentCount = bulkResult.sent ?? prepared.length
+        segmentsUsed = sentCount * finalSegments
+        const nowIso = new Date().toISOString()
+        const ids = prepared.map(p => p.recipientId).filter(Boolean) as string[]
+        for (let i = 0; i < ids.length; i += 100) {
+          const chunk = ids.slice(i, i + 100)
           await db.from('sms_campaign_recipients').update({
             status: 'sent',
-            sms_factor_ticket: result.ticket || null,
-            sent_at: new Date().toISOString(),
-          }).eq('campaign_id', id).eq('phone', r.phone).eq('status', 'pending')
-        } else {
-          failedCount++
-          await db.from('sms_campaign_recipients').update({
-            status: 'failed',
-            error_message: result.error || 'Erreur inconnue',
-          }).eq('campaign_id', id).eq('phone', r.phone).eq('status', 'pending')
+            sms_factor_ticket: bulkResult.ticket || null,
+            sent_at: nowIso,
+          }).in('id', chunk)
         }
-      } catch (e) {
-        failedCount++
-        const msg = e instanceof Error ? e.message : String(e)
-        logger.error('sms-campaign-send', e, { campaign_id: id, phone: r.phone })
+        if (bulkResult.invalid) failedCount += bulkResult.invalid
+      } else {
+        failedCount = prepared.length
         await db.from('sms_campaign_recipients').update({
           status: 'failed',
-          error_message: msg,
-        }).eq('campaign_id', id).eq('phone', r.phone).eq('status', 'pending')
+          error_message: bulkResult.error || 'Erreur campagne bulk',
+        }).eq('campaign_id', id).eq('status', 'pending')
       }
-      // Rate limit 10 SMS/sec
-      await new Promise(resolve => setTimeout(resolve, 100))
+    } else {
+      for (const p of prepared) {
+        try {
+          let textToSend = p.textToSend
+          let shortenLinksOpt: { urls: string[] } | undefined
+          if (shortenLinks) {
+            const urls = detectUrls(textToSend)
+            if (urls.length > 0) {
+              const transformed = replaceUrlsWithShortPlaceholder(textToSend)
+              textToSend = transformed.text
+              shortenLinksOpt = { urls: transformed.urls }
+            }
+          }
+
+          const finalSegments = estimateSegments(textToSend)
+          if (p.recipientId) {
+            await db.from('sms_campaign_recipients').update({
+              rendered_message: textToSend,
+              segments_count: finalSegments,
+            }).eq('id', p.recipientId)
+          }
+
+          const result = await sendSms(p.phone, textToSend, {
+            sender: campaign.sender,
+            pushtype,
+            shortenLinks: shortenLinksOpt,
+          })
+
+          if (result.ok) {
+            sentCount++
+            segmentsUsed += finalSegments
+            await db.from('sms_campaign_recipients').update({
+              status: 'sent',
+              sms_factor_ticket: result.ticket || null,
+              sent_at: new Date().toISOString(),
+            }).eq('campaign_id', id).eq('phone', p.phone).eq('status', 'pending')
+          } else {
+            failedCount++
+            await db.from('sms_campaign_recipients').update({
+              status: 'failed',
+              error_message: result.error || 'Erreur inconnue',
+            }).eq('campaign_id', id).eq('phone', p.phone).eq('status', 'pending')
+          }
+        } catch (e) {
+          failedCount++
+          const msg = e instanceof Error ? e.message : String(e)
+          logger.error('sms-campaign-send', e, { campaign_id: id, phone: p.phone })
+          await db.from('sms_campaign_recipients').update({
+            status: 'failed',
+            error_message: msg,
+          }).eq('campaign_id', id).eq('phone', p.phone).eq('status', 'pending')
+        }
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
     }
 
     // 6. Met a jour la campagne
