@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { sendSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
 import { sendBookingConfirmationEmail, sendMeetingModeChangeEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
+import { syncAppointmentRecapToContactActivity } from '@/lib/appointment-recap-activity'
 import { isValidCampus } from '@/lib/campus'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 
@@ -477,6 +478,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Recap closer → note sur la fiche contact (best-effort, idempotent).
+  if (report_summary !== undefined || report_telepro_advice !== undefined) {
+    try {
+      await syncAppointmentRecapToContactActivity(db, {
+        id,
+        hubspot_contact_id: (data.hubspot_contact_id as string | null) ?? appointment.hubspot_contact_id,
+        hubspot_deal_id: (data.hubspot_deal_id as string | null) ?? appointment.hubspot_deal_id,
+        prospect_email: (data.prospect_email as string | null) ?? appointment.prospect_email,
+        prospect_phone: (data.prospect_phone as string | null) ?? appointment.prospect_phone,
+        commercial_id: (data.commercial_id as string | null) ?? appointment.commercial_id,
+        start_at: (data.start_at as string | null) ?? appointment.start_at,
+        report_summary: data.report_summary as string | null,
+        report_telepro_advice: data.report_telepro_advice as string | null,
+      })
+    } catch (e) {
+      console.error(`[appointments PATCH] sync recap activité contact échouée pour ${id}:`, e)
+    }
+  }
 
   // Règle métier : un RDV marqué "No-show" fait passer le statut du lead
   // (hs_lead_status du contact) en "A replanifier". Best-effort — n'impacte

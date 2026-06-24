@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase'
+import { syncAppointmentRecapToContactActivity } from '@/lib/appointment-recap-activity'
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -91,13 +92,28 @@ Génère deux champs au format JSON strict (pas de markdown, pas de \`\`\`, just
 
     // ── Step 3: Save to database ──────────────────────────────────────
     const db = createServiceClient()
-    await db
+    const { data: updatedAppt, error: updateErr } = await db
       .from('rdv_appointments')
       .update({
         report_summary: report.report_summary,
         report_telepro_advice: report.report_telepro_advice,
       })
       .eq('id', appointmentId)
+      .select('id, hubspot_contact_id, hubspot_deal_id, prospect_email, prospect_phone, commercial_id, start_at, report_summary, report_telepro_advice')
+      .single()
+
+    if (updateErr) {
+      console.error('[transcribe-meeting] DB update failed:', updateErr)
+      return NextResponse.json({ error: 'Failed to save report' }, { status: 500 })
+    }
+
+    if (updatedAppt) {
+      try {
+        await syncAppointmentRecapToContactActivity(db, updatedAppt)
+      } catch (e) {
+        console.error('[transcribe-meeting] sync recap activité contact échouée:', e)
+      }
+    }
 
     return NextResponse.json({
       report_summary: report.report_summary,
