@@ -12,7 +12,7 @@ import {
   GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
   SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical,
 } from 'lucide-react'
-import type { QuickActionType } from '@/components/crm/QuickActionModal'
+import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
@@ -678,6 +678,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     body?: string
     subtitle?: string
     ownerId?: string
+    authorLabel?: string | null
     emailStats?: EmailStats
     sendStatus?: string
     sms?: SMSMessage
@@ -704,6 +705,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       body: a.body ?? undefined,
       subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
       ownerId: a.owner_id ?? (a.metadata?.author_user_id as string | undefined),
+      authorLabel: resolveActivityAuthorLabel(
+        { owner_id: a.owner_id, metadata: a.metadata, hubspot_engagement_id: a.hubspot_engagement_id },
+        ownerLabelMap,
+      ),
       emailStats: stats,
       sendStatus: type === 'email' ? a.status : undefined,
       activityId: String(a.id),
@@ -1040,10 +1045,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <TypeBadge type={t.type} />
                                   <div className="text-sm font-semibold">{t.title}</div>
-                                  {t.ownerId && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
+                                  {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
                                       <User size={10} />
-                                      {ownerLabel(t.ownerId)}
+                                      {t.authorLabel}
                                     </span>
                                   )}
                                   {t.type === 'email' && <EmailStatusBadges sendStatus={t.sendStatus} stats={t.emailStats} />}

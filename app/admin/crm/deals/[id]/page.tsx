@@ -8,7 +8,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, DollarSign, User,
 } from 'lucide-react'
-import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
+import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -31,6 +31,8 @@ interface Activity {
   direction?: string
   status?: string
   owner_id?: string | null
+  metadata?: Record<string, unknown> | null
+  hubspot_engagement_id?: string | null
   occurred_at: string
 }
 
@@ -181,6 +183,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
     body?: string
     subtitle?: string
     ownerId?: string
+    authorLabel?: string | null
   }
   const timeline: TimelineItem[] = activities.map(a => {
     const t = a.activity_type.toLowerCase()
@@ -194,6 +197,10 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
       body: a.body ?? undefined,
       subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
       ownerId: a.owner_id ?? undefined,
+      authorLabel: resolveActivityAuthorLabel(
+        { owner_id: a.owner_id, metadata: a.metadata as Record<string, unknown> | null, hubspot_engagement_id: null },
+        ownerLabelMap,
+      ),
     }
   })
   timeline.sort((a, b) => b.timestamp - a.timestamp)
@@ -360,10 +367,10 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <div className="text-sm font-medium">{t.title}</div>
-                                  {t.ownerId && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
+                                  {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
                                       <User size={10} />
-                                      {ownerLabel(t.ownerId)}
+                                      {t.authorLabel}
                                     </span>
                                   )}
                                 </div>
