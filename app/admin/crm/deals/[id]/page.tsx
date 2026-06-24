@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
-  Plus, Search, Settings, DollarSign,
+  Plus, Search, Settings, DollarSign, User,
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 
@@ -30,6 +30,7 @@ interface Activity {
   body?: string
   direction?: string
   status?: string
+  owner_id?: string | null
   occurred_at: string
 }
 
@@ -78,6 +79,19 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const [propSearch, setPropSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; hubspot_owner_id?: string | null } | null>(null)
+  const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; email?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
+
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.id) setCurrentUser(d) })
+      .catch(() => {})
+    fetch('/api/users')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCrmUsers(d) })
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -140,6 +154,25 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  const ownerLabelMap: Record<string, string> = {}
+  for (const u of crmUsers) {
+    const label = u.name || u.email || u.id
+    if (u.hubspot_owner_id) ownerLabelMap[u.hubspot_owner_id] = label
+    if (u.hubspot_user_id) ownerLabelMap[u.hubspot_user_id] = label
+    ownerLabelMap[u.id] = label
+  }
+  for (const o of owners) {
+    if (!ownerLabelMap[o.hubspot_owner_id]) {
+      ownerLabelMap[o.hubspot_owner_id] =
+        [o.firstname, o.lastname].filter(Boolean).join(' ') || o.email || o.hubspot_owner_id
+    }
+  }
+  const ownerLabel = (id?: string | null) => {
+    if (!id) return '—'
+    return ownerLabelMap[id] || id
+  }
+  const actorOwnerId = currentUser?.hubspot_owner_id ?? currentUser?.id ?? null
+
   type TimelineItem = {
     id: string
     type: 'note' | 'call' | 'email' | 'meeting' | 'task'
@@ -147,6 +180,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
     title: string
     body?: string
     subtitle?: string
+    ownerId?: string
   }
   const timeline: TimelineItem[] = activities.map(a => {
     const t = a.activity_type.toLowerCase()
@@ -159,6 +193,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
       title: a.subject || labelForType(type),
       body: a.body ?? undefined,
       subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
+      ownerId: a.owner_id ?? undefined,
     }
   })
   timeline.sort((a, b) => b.timestamp - a.timestamp)
@@ -323,7 +358,15 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                             <TypeIcon type={t.type} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <div className="text-sm font-medium">{t.title}</div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <div className="text-sm font-medium">{t.title}</div>
+                                  {t.ownerId && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
+                                      <User size={10} />
+                                      {ownerLabel(t.ownerId)}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-xs text-[#4a6070] whitespace-nowrap">
                                   {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
                                 </div>
@@ -389,6 +432,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           dealId={id}
           contactId={contact?.hubspot_contact_id as string | undefined}
           defaultOwnerId={deal.hubspot_owner_id as string | undefined}
+          actorOwnerId={actorOwnerId}
           onClose={() => setQuickAction(null)}
           onSaved={() => load()}
         />

@@ -26,7 +26,10 @@ interface Props {
   contactId?: string | null
   dealId?: string | null
   owners?: Owner[]
+  /** Propriétaire par défaut pour l'assignation de tâches */
   defaultOwnerId?: string | null
+  /** Auteur de l'activité (note, appel, email loggé, réunion) — utilisateur connecté */
+  actorOwnerId?: string | null
   onClose: () => void
   onSaved: () => void
 }
@@ -58,7 +61,7 @@ const TASK_TYPES: Array<{ value: string; label: string }> = [
 ]
 
 export default function QuickActionModal({
-  type, contactId, dealId, owners = [], defaultOwnerId, onClose, onSaved,
+  type, contactId, dealId, owners = [], defaultOwnerId, actorOwnerId, onClose, onSaved,
 }: Props) {
   // Champs communs
   const [subject, setSubject]         = useState('')
@@ -198,7 +201,7 @@ export default function QuickActionModal({
             subject:    subject.trim() || undefined,
             html:       bodyHtml.trim() || (body ? `<p>${body.replace(/\n/g, '<br>')}</p>` : undefined),
             replyTo:    emailReplyTo.trim() || undefined,
-            ownerId:    defaultOwnerId ?? null,
+            ownerId:    actorOwnerId ?? null,
             attachments: attachments.length > 0 ? attachments : undefined,
           }),
         })
@@ -211,7 +214,7 @@ export default function QuickActionModal({
           hubspot_deal_id:     dealId ?? null,
           subject:             subject.trim() || null,
           body:                body.trim() || null,
-          owner_id:            defaultOwnerId ?? null,
+          owner_id:            actorOwnerId ?? null,
         }
         if (type === 'call') {
           payload.status    = callOutcome

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
 
 /**
  * POST /api/crm/activities
@@ -13,11 +14,14 @@ import { createServiceClient } from '@/lib/supabase'
  *   body               : contenu (markdown / HTML simple)
  *   direction          : INCOMING | OUTGOING (pour appels/emails)
  *   status             : COMPLETED | NO_ANSWER | LEFT_VOICEMAIL …
- *   owner_id           : qui a logué l'activité
+ *   owner_id           : ignoré — l'auteur est toujours l'utilisateur connecté
  *   metadata           : objet JSON (durée appel, participants…)
  *   occurred_at        : ISO date (défaut : maintenant)
  */
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin', 'closer', 'telepro', 'manager'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   const body = await req.json()
 
@@ -31,6 +35,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const actorOwnerId = authz.ctx.hubspotOwnerId ?? authz.ctx.appUserId
+
   const insert = {
     activity_type:       String(body.activity_type).toLowerCase(),
     hubspot_contact_id:  body.hubspot_contact_id ?? null,
@@ -39,8 +45,11 @@ export async function POST(req: NextRequest) {
     body:                body.body ?? null,
     direction:           body.direction ?? null,
     status:              body.status ?? null,
-    owner_id:            body.owner_id ?? null,
-    metadata:            body.metadata ?? null,
+    owner_id:            actorOwnerId,
+    metadata:            {
+      ...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
+      author_user_id: authz.ctx.appUserId,
+    },
     occurred_at:         body.occurred_at ?? new Date().toISOString(),
     // hubspot_engagement_id reste null → activité native
   }

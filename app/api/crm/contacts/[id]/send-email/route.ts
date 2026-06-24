@@ -122,7 +122,7 @@ export async function POST(
     body:              renderedHtml,
     direction:         'OUTGOING',
     status:            sendError ? 'FAILED' : 'SENT',
-    owner_id:          body.ownerId ?? null,
+    owner_id:          authz.ctx.hubspotOwnerId ?? authz.ctx.appUserId,
     metadata: {
       brevo_message_id: messageId ?? null,
       template_id:      body.templateId ?? null,
