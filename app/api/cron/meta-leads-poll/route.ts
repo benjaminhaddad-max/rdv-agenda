@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { fetchFormLeads, processMetaLead, type MetaLead } from '@/lib/meta'
+import { fetchFormLeads, processMetaLead, syncPageLeadFormsToDb, type MetaLead } from '@/lib/meta'
 import { logger } from '@/lib/logger'
 import { requireCronSecret } from '@/lib/api-auth'
 
@@ -40,18 +40,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: 'Aucune page active', processed: 0 })
   }
 
-  // Forms ACTIVE uniquement (ARCHIVED on skip pour pas spammer l'API)
   const pageIds = pages.map(p => p.page_id)
+  const pageTokenById = new Map(pages.map(p => [p.page_id, p.access_token as string]))
+
+  // Sync les formulaires Meta → meta_lead_forms avant le poll.
+  // Sans ça, les nouveaux forms de campagne ne sont jamais pollés (refresh manuel uniquement).
+  let formsSynced = 0
+  for (const page of pages) {
+    try {
+      formsSynced += await syncPageLeadFormsToDb(page.page_id, page.access_token as string)
+    } catch (e) {
+      logger.error('meta-leads-poll-sync-forms', e, { page_id: page.page_id })
+    }
+  }
+
   const { data: forms } = await db.from('meta_lead_forms')
     .select('form_id, page_id, name, origine_label, default_owner_id, workflow_id, field_mappings, status')
     .in('page_id', pageIds)
   const activeForms = (forms ?? []).filter(f => isFormProcessable(f.status as string | null | undefined))
 
   if (activeForms.length === 0) {
-    return NextResponse.json({ ok: true, message: 'Aucun form actif', processed: 0 })
+    return NextResponse.json({ ok: true, message: 'Aucun form actif', processed: 0, forms_synced: formsSynced })
   }
-
-  const pageTokenById = new Map(pages.map(p => [p.page_id, p.access_token as string]))
 
   // Fenetre logique de secours : le webhook doit etre temps reel, ce cron
   // rattrape les trous (delay/retry Meta, cold start, etc.).
@@ -147,6 +157,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    forms_synced: formsSynced,
     forms_polled: activeForms.length,
     window_minutes: WINDOW_MINUTES,
     backfill_mode: backfillMode,

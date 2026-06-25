@@ -258,6 +258,25 @@ export async function fetchPageLeadForms(pageId: string, pageToken: string): Pro
   return j.data ?? []
 }
 
+/** Sync les formulaires Meta d'une page vers meta_lead_forms (upsert, préserve origine/workflow). */
+export async function syncPageLeadFormsToDb(pageId: string, pageToken: string): Promise<number> {
+  const db = createServiceClient()
+  const forms = await fetchPageLeadForms(pageId, pageToken)
+  const nowIso = new Date().toISOString()
+  for (const f of forms) {
+    await db.from('meta_lead_forms').upsert({
+      form_id: f.id,
+      page_id: pageId,
+      name: f.name || null,
+      status: f.status || null,
+      leads_count: f.leads_count || 0,
+      questions: f.questions || null,
+      refreshed_at: nowIso,
+    }, { onConflict: 'form_id', ignoreDuplicates: false })
+  }
+  return forms.length
+}
+
 // ─── Lead fetch (depuis le webhook) ─────────────────────────────────────────
 
 export async function fetchLeadById(leadgenId: string, pageToken: string): Promise<MetaLead> {
