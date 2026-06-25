@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, lazy, Suspense } from 'react'
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw, Sparkles, ChevronLeft } from 'lucide-react'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import { AssignCloserPanel } from './AssignModal'
@@ -80,6 +80,33 @@ function openVisioLink(link: string, onJitsi: () => void): void {
   onJitsi()
 }
 
+function toDateInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function toTimeInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function combineDateAndTime(dateStr: string, timeStr: string): Date {
+  const [y, m, day] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr.split(':').map(Number)
+  return new Date(y, m - 1, day, hh, mm, 0, 0)
+}
+
+const scheduleInputStyle: React.CSSProperties = {
+  background: '#ffffff',
+  border: '1px solid #e5ddc8',
+  borderRadius: 8,
+  padding: '6px 10px',
+  color: '#0f172a',
+  fontSize: 13,
+  outline: 'none',
+  fontFamily: 'inherit',
+}
+
 export default function AppointmentModal({
   appointment,
   onClose,
@@ -138,6 +165,28 @@ export default function AppointmentModal({
 
   const start = new Date(appointment.start_at)
   const end = new Date(appointment.end_at)
+  const [rdvDate, setRdvDate] = useState(() => toDateInputValue(start))
+  const [rdvStartTime, setRdvStartTime] = useState(() => toTimeInputValue(start))
+  const [rdvEndTime, setRdvEndTime] = useState(() => toTimeInputValue(end))
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null)
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
+  const [rescheduleOk, setRescheduleOk] = useState(false)
+
+  useEffect(() => {
+    const s = new Date(appointment.start_at)
+    const e = new Date(appointment.end_at)
+    setRdvDate(toDateInputValue(s))
+    setRdvStartTime(toTimeInputValue(s))
+    setRdvEndTime(toTimeInputValue(e))
+    setRescheduleError(null)
+    setRescheduleOk(false)
+  }, [appointment.start_at, appointment.end_at])
+
+  const displayStart = combineDateAndTime(rdvDate, rdvStartTime)
+  const displayEnd = combineDateAndTime(rdvDate, rdvEndTime)
+  const hasScheduleChange =
+    displayStart.getTime() !== start.getTime() ||
+    displayEnd.getTime() !== end.getTime()
   const isNonAssigne = status === 'non_assigne'
 
   const meetingInfo = appointment.meeting_type ? MEETING_TYPE_LABEL[appointment.meeting_type] : null
@@ -264,6 +313,38 @@ export default function AppointmentModal({
     }
   }
 
+  async function saveReschedule() {
+    if (!hasScheduleChange) return
+    if (displayEnd <= displayStart) {
+      setRescheduleError('L\'heure de fin doit être après l\'heure de début.')
+      return
+    }
+    setRescheduleSaving(true)
+    setRescheduleError(null)
+    setRescheduleOk(false)
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_at: displayStart.toISOString(),
+          end_at: displayEnd.toISOString(),
+        }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        onUpdate(updated)
+        setRescheduleOk(true)
+        setTimeout(() => setRescheduleOk(false), 3000)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setRescheduleError(data.error || 'Impossible de modifier le créneau')
+      }
+    } finally {
+      setRescheduleSaving(false)
+    }
+  }
+
   async function saveAll() {
     // Si un statut est en attente mais le rapport n'est pas complet, bloquer
     if (pendingStatus && !reportFilled) {
@@ -382,7 +463,7 @@ export default function AppointmentModal({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
                   <Clock size={13} />
                   <span>
-                    {format(start, 'EEEE d MMMM', { locale: fr })} · {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                    {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
                   </span>
                 </div>
               </div>
@@ -424,7 +505,7 @@ export default function AppointmentModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 14 }}>
               <Clock size={14} />
               <span>
-                {format(start, 'EEEE d MMMM', { locale: fr })} · {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
               </span>
             </div>
           </div>
@@ -446,6 +527,77 @@ export default function AppointmentModal({
         {/* Prospect info */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Date et heure modifiables */}
+            <div style={{
+              background: '#f7f4ee',
+              border: '1px solid #e5ddc8',
+              borderRadius: 10,
+              padding: '12px 14px',
+            }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, color: '#4a6070',
+                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8,
+              }}>
+                Date et heure du RDV
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Clock size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
+                <input
+                  type="date"
+                  value={rdvDate}
+                  onChange={e => { setRdvDate(e.target.value); setRescheduleError(null); setRescheduleOk(false) }}
+                  style={scheduleInputStyle}
+                />
+                <input
+                  type="time"
+                  value={rdvStartTime}
+                  onChange={e => { setRdvStartTime(e.target.value); setRescheduleError(null); setRescheduleOk(false) }}
+                  style={scheduleInputStyle}
+                />
+                <span style={{ color: '#94a3b8', fontSize: 13 }}>–</span>
+                <input
+                  type="time"
+                  value={rdvEndTime}
+                  onChange={e => { setRdvEndTime(e.target.value); setRescheduleError(null); setRescheduleOk(false) }}
+                  style={scheduleInputStyle}
+                />
+                {hasScheduleChange && (
+                  <button
+                    type="button"
+                    onClick={saveReschedule}
+                    disabled={rescheduleSaving}
+                    style={{
+                      background: '#C9A84C',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: rescheduleSaving ? 'wait' : 'pointer',
+                      fontFamily: 'inherit',
+                      opacity: rescheduleSaving ? 0.7 : 1,
+                    }}
+                  >
+                    {rescheduleSaving ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
+                {format(displayStart, 'EEEE d MMMM yyyy', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
+              </div>
+              {rescheduleError && (
+                <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 6, fontWeight: 600 }}>
+                  {rescheduleError}
+                </div>
+              )}
+              {rescheduleOk && (
+                <div style={{ fontSize: 12, color: '#15803d', marginTop: 6, fontWeight: 600 }}>
+                  Créneau mis à jour — confirmation envoyée au prospect
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
               <Mail size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
               <span>{appointment.prospect_email}</span>
