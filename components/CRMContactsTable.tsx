@@ -5,6 +5,7 @@ import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLi
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
+import { useIsMobile } from '@/lib/useIsMobile'
 import {
   parcoursupVerdictBadgeStyle,
   parcoursupVerdictDefaultLabel,
@@ -1050,6 +1051,7 @@ export default function CRMContactsTable({
   onExtraColumnsChange,
   onRequestProps,
 }: Props) {
+  const isMobile = useIsMobile()
   const RENDER_CHUNK = 120
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
@@ -1102,9 +1104,13 @@ export default function CRMContactsTable({
   }, [])
 
   // Progressive rendering: mount a first chunk quickly, then append rows on scroll.
+  const listIdentity = useMemo(
+    () => `${contacts.length}:${contacts[0]?.hubspot_contact_id ?? ''}:${contacts[contacts.length - 1]?.hubspot_contact_id ?? ''}`,
+    [contacts],
+  )
   useEffect(() => {
     setRenderedCount(RENDER_CHUNK)
-  }, [contacts.length, RENDER_CHUNK])
+  }, [listIdentity, RENDER_CHUNK])
 
   const loadMoreRef = useRef<HTMLTableRowElement | null>(null)
   useEffect(() => {
@@ -2009,6 +2015,176 @@ export default function CRMContactsTable({
         <div style={{ fontWeight: 600, marginBottom: 4, color: '#4a6070' }}>Aucun contact trouvé</div>
         <div style={{ fontSize: 12 }}>Essayez de modifier vos filtres</div>
       </div>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 12px 16px' }}>
+          {visibleContacts.map(contact => {
+            const name = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
+            return (
+              <div
+                key={contact.hubspot_contact_id}
+                onMouseEnter={() => handleRowEnter(contact.hubspot_contact_id)}
+                onMouseLeave={handleRowLeave}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e5ddc8',
+                  borderRadius: 12,
+                  padding: '14px 14px 12px',
+                  boxShadow: '0 1px 3px rgba(14,30,53,0.04)',
+                }}
+              >
+                {onToggleSelect && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds?.has(contact.hubspot_contact_id) || false}
+                      onChange={() => onToggleSelect(contact.hubspot_contact_id)}
+                      style={{ width: 16, height: 16, accentColor: '#4cabdb' }}
+                    />
+                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Sélectionner</span>
+                  </label>
+                )}
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#0e1e35', lineHeight: 1.25, wordBreak: 'break-word' }}>
+                  {name}
+                </div>
+                {contact.email && (
+                  <div style={{ fontSize: 13, color: '#4a6070', marginTop: 4, wordBreak: 'break-all' }}>
+                    {contact.email}
+                  </div>
+                )}
+                {contact.phone && (
+                  <a
+                    href={`tel:${contact.phone}`}
+                    onClick={e => e.stopPropagation()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, color: '#22c55e', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+                  >
+                    <Phone size={13} />{formatPhone(contact.phone)}
+                  </a>
+                )}
+                {contact.deal?.dealstage && (
+                  <div style={{ marginTop: 8 }}>
+                    <StageBadge stageId={contact.deal.dealstage} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  {onOpenDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenDrawer(contact)}
+                      style={{
+                        flex: 1,
+                        background: 'rgba(76,171,219,0.10)',
+                        border: '1px solid rgba(76,171,219,0.28)',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        color: '#2d7fa6',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Eye size={14} /> Aperçu
+                    </button>
+                  )}
+                  <a
+                    href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(18,49,77,0.06)',
+                      border: '1px solid rgba(18,49,77,0.20)',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      color: '#12314d',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <ExternalLink size={14} /> Ouvrir
+                  </a>
+                </div>
+              </div>
+            )
+          })}
+          {renderedCount < contacts.length && (
+            <button
+              type="button"
+              onClick={() => setRenderedCount(c => Math.min(c + RENDER_CHUNK, contacts.length))}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e5ddc8',
+                borderRadius: 10,
+                padding: '12px',
+                color: '#4cabdb',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Afficher plus ({contacts.length - renderedCount} restants)
+            </button>
+          )}
+        </div>
+        {noteModal && (
+          <CRMNoteModal
+            dealId={noteModal.dealId}
+            contactName={noteModal.name}
+            onClose={() => setNoteModal(null)}
+            onSaved={onRefresh}
+          />
+        )}
+        {assignPanel && (
+          <CRMAssignPanel
+            dealId={assignPanel.dealId}
+            contactName={assignPanel.name}
+            mode={assignPanel.mode}
+            currentCloserHsId={assignPanel.currentCloserHsId}
+            currentTeleproHsId={assignPanel.currentTeleproHsId}
+            onClose={() => setAssignPanel(null)}
+            onAssigned={onRefresh}
+          />
+        )}
+        {saveToast && (
+          <div
+            role="status"
+            style={{
+              position: 'fixed',
+              bottom: 80,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 2000,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#ffffff',
+              background: saveToast.kind === 'success' ? '#0f7b43' : '#b3261e',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+              pointerEvents: 'none',
+            }}
+          >
+            {saveToast.kind === 'success' ? <Check size={15} /> : <AlertTriangle size={15} />}
+            {saveToast.msg}
+          </div>
+        )}
+      </>
     )
   }
 
