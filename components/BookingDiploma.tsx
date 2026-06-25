@@ -74,9 +74,12 @@ export type BookingUtm = {
 export default function BookingDiploma({
   utm,
   embedded = false,
+  embedPopup = false,
 }: {
   utm?: BookingUtm
   embedded?: boolean
+  /** true = iframe dans une popup (hauteur fixe, scroll interne, pas d'auto-resize) */
+  embedPopup?: boolean
 }) {
   const today = startOfToday()
   const firstAvailable = addDays(today, 1) // réservation à partir de demain
@@ -100,9 +103,9 @@ export default function BookingDiploma({
   const [error, setError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // Auto-resize pour l'embed inline (/api/booking/embed.js) et iframe manuelle
+  // Auto-resize pour l'embed inline (/api/booking/embed.js) — désactivé en popup (?popup=1)
   useEffect(() => {
-    if (!embedded) return
+    if (!embedded || embedPopup) return
     const send = () => {
       const h = Math.max(
         rootRef.current?.scrollHeight ?? 0,
@@ -125,7 +128,7 @@ export default function BookingDiploma({
       obs.disconnect()
       window.removeEventListener('load', send)
     }
-  }, [embedded, step, selectedDate, pendingSlot, error, submitting])
+  }, [embedded, embedPopup, step, selectedDate, pendingSlot, error, submitting])
 
   // ── Calendrier ──────────────────────────────────────────────────────────────
   const weeks = useMemo(() => {

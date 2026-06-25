@@ -13,6 +13,7 @@ export default async function EmbedRdvPage({
   return (
     <BookingDiploma
       embedded
+      embedPopup={sp.popup === '1'}
       utm={{
         utm_source: sp.utm_source ?? null,
         utm_medium: sp.utm_medium ?? null,

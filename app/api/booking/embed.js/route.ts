@@ -3,16 +3,16 @@ import { NextResponse } from 'next/server'
 /**
  * Widget inline de prise de RDV — remplace l'iframe /embed/rdv.
  *
- * Intégration sur le site :
+ * Intégration INLINE (page web, l'iframe s'agrandit toute seule) :
  *   <div data-diploma-rdv-inline></div>
  *   <script src="https://hub.diploma-sante.fr/api/booking/embed.js" async></script>
  *
- * Le <div> est optionnel : sans container explicite, le script en crée un
- * automatiquement juste avant la balise <script>.
+ * Intégration POPUP Divi / modal (hauteur fixe, scroll DANS l'iframe) :
+ *   <div data-diploma-rdv-popup data-height="680px"></div>
+ *   <script src="https://hub.diploma-sante.fr/api/booking/embed.js" async></script>
  *
- * IMPORTANT : attribut data-diploma-rdv-inline (pas data-diploma-rdv).
- * data-diploma-rdv = popup via /api/booking/widget.js
- * data-diploma-rdv-inline = formulaire affiché directement sur la page
+ * IMPORTANT : ne pas mélanger auto-resize et popup Divi.
+ * Dans une popup, utiliser data-diploma-rdv-popup (pas data-diploma-rdv-inline).
  */
 
 export async function GET(req: Request) {
@@ -29,14 +29,16 @@ export async function GET(req: Request) {
 }
 
 function generateEmbedScript(host: string): string {
-  return `/* Diploma Santé — RDV inline (remplace l'iframe /embed/rdv) */
+  return `/* Diploma Santé — RDV embed (inline ou popup) */
 (function(){
   "use strict";
   if (window.DiplomaRdvEmbed) return;
 
   var HOST = ${JSON.stringify(host)};
-  var SELECTOR = '[data-diploma-rdv-inline]';
+  var INLINE_SELECTOR = '[data-diploma-rdv-inline]';
+  var POPUP_SELECTOR = '[data-diploma-rdv-popup]';
   var MIN_HEIGHT = 560;
+  var DEFAULT_POPUP_HEIGHT = 680;
 
   function findOwnScript() {
     if (document.currentScript) return document.currentScript;
@@ -46,31 +48,48 @@ function generateEmbedScript(host: string): string {
     return s[s.length - 1];
   }
 
-  function buildIframeSrc() {
-    var src = HOST + '/embed/rdv';
+  function copyUtmParams(base) {
     try {
       var qs = new URLSearchParams(location.search);
-      var keep = new URLSearchParams();
       ['utm_source','utm_medium','utm_campaign','utm_content','ref'].forEach(function(k){
         var v = qs.get(k);
-        if (v) keep.set(k, v);
+        if (v) base.set(k, v);
       });
-      var str = keep.toString();
-      if (str) src += '?' + str;
     } catch(e){ /* ignore */ }
-    return src;
+    return base;
   }
 
-  function mount(container) {
+  function buildIframeSrc(popup) {
+    var params = copyUtmParams(new URLSearchParams());
+    if (popup) params.set('popup', '1');
+    var str = params.toString();
+    return HOST + '/embed/rdv' + (str ? '?' + str : '');
+  }
+
+  function parseHeight(value, fallback) {
+    if (!value) return fallback;
+    if (value.endsWith('vh')) {
+      var n = parseFloat(value);
+      if (!isNaN(n)) return Math.round(window.innerHeight * n / 100);
+    }
+    if (value.endsWith('px')) {
+      var px = parseInt(value, 10);
+      if (!isNaN(px)) return px;
+    }
+    var num = parseInt(value, 10);
+    return !isNaN(num) ? num : fallback;
+  }
+
+  function mountInline(container) {
     if (container.dataset.mounted) return;
     container.dataset.mounted = '1';
 
     var iframe = document.createElement('iframe');
-    iframe.src = buildIframeSrc();
-    iframe.style.cssText = 'border:0;width:100%;min-height:' + MIN_HEIGHT + 'px;height:' + MIN_HEIGHT + 'px;max-width:100%;display:block;background:transparent;overflow:auto;';
+    iframe.src = buildIframeSrc(false);
+    iframe.style.cssText = 'border:0;width:100%;min-height:' + MIN_HEIGHT + 'px;height:' + MIN_HEIGHT + 'px;max-width:100%;display:block;background:transparent;';
     iframe.setAttribute('title', 'Prise de rendez-vous Diploma Santé');
     iframe.setAttribute('loading', 'lazy');
-    iframe.setAttribute('scrolling', 'yes');
+    iframe.setAttribute('scrolling', 'no');
     iframe.allow = 'clipboard-write';
     container.appendChild(iframe);
 
@@ -85,9 +104,35 @@ function generateEmbedScript(host: string): string {
     });
   }
 
+  function mountPopup(container) {
+    if (container.dataset.mounted) return;
+    container.dataset.mounted = '1';
+
+    var height = parseHeight(
+      container.dataset.height || container.style.height,
+      DEFAULT_POPUP_HEIGHT
+    );
+
+    container.style.overflow = 'hidden';
+    container.style.width = '100%';
+    if (!container.style.height) container.style.height = height + 'px';
+
+    var iframe = document.createElement('iframe');
+    iframe.src = buildIframeSrc(true);
+    iframe.style.cssText = 'border:0;width:100%;height:100%;max-width:100%;display:block;background:transparent;';
+    iframe.setAttribute('title', 'Prise de rendez-vous Diploma Santé');
+    iframe.setAttribute('loading', 'eager');
+    iframe.setAttribute('scrolling', 'yes');
+    iframe.setAttribute('data-no-lazy', '1');
+    iframe.allow = 'clipboard-write';
+    container.appendChild(iframe);
+  }
+
   function init() {
-    var containers = document.querySelectorAll(SELECTOR);
-    if (!containers.length) {
+    var popupContainers = document.querySelectorAll(POPUP_SELECTOR);
+    var inlineContainers = document.querySelectorAll(INLINE_SELECTOR);
+
+    if (!popupContainers.length && !inlineContainers.length) {
       var ownScript = findOwnScript();
       var auto = document.createElement('div');
       auto.setAttribute('data-diploma-rdv-inline', '');
@@ -97,9 +142,11 @@ function generateEmbedScript(host: string): string {
       } else {
         document.body.appendChild(auto);
       }
-      containers = [auto];
+      inlineContainers = [auto];
     }
-    Array.prototype.forEach.call(containers, mount);
+
+    Array.prototype.forEach.call(popupContainers, mountPopup);
+    Array.prototype.forEach.call(inlineContainers, mountInline);
   }
 
   if (document.readyState === 'loading') {
