@@ -12,6 +12,7 @@ import {
   GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
   SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical,
 } from 'lucide-react'
+import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 

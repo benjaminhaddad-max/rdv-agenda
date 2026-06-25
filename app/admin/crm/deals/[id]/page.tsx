@@ -8,6 +8,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, DollarSign, User,
 } from 'lucide-react'
+import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
