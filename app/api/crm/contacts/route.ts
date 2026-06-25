@@ -9,6 +9,7 @@ import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
 import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
+import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -363,6 +364,9 @@ export async function GET(req: NextRequest) {
   if (viewIdParam === 'v_meta_ads_all') {
     customFilters = [{ field: 'meta_lead_ads', operator: 'is', value: '1' }]
   }
+  if (viewIdParam === META_BACKFILL_TERM_IDF_VIEW_ID) {
+    customFilters = [{ field: 'meta_backfill_term_idf', operator: 'is', value: '1' }]
+  }
   if (viewIdParam && viewIdParam !== 'all') {
     if (!hasShowExternalParam) effectiveShowExternal = true
     if (!hasAllClassesParam) effectiveAllClassesInput = true
@@ -569,6 +573,14 @@ export async function GET(req: NextRequest) {
         }
       }
     }
+  }
+
+  // Vue dédiée : 4 formulaires Meta rattrapés (juin 2026), Terminale + IDF.
+  if (viewIdParam === META_BACKFILL_TERM_IDF_VIEW_ID && !skipHeavyFormResolver) {
+    formEventContactIds = await resolveMetaBackfillTermIdfContactIds(db)
+    formEventNames = null
+    formEventMetaOnlyIds = null
+    customFilters = customFilters.filter(r => r.field !== 'meta_backfill_term_idf')
   }
 
   // ── Resolver dédié : "Leads Meta ADS" (tous les leads Meta) ───────────────
