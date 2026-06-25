@@ -5,13 +5,13 @@
  *
  * Utilisé par :
  *   - /book/diploma   (page autonome, lien envoyé par les télépros)
- *   - /embed/rdv      (iframe ouverte en popup par /api/booking/widget.js)
+ *   - /embed/rdv      (iframe inline via /api/booking/embed.js ou popup via widget.js)
  *
  * IMPORTANT : composant 100% isolé. Ne partage rien avec le système de
  * formulaires (/api/forms/[slug]/embed.js) pour ne jamais les impacter.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import {
   format, addMonths, startOfMonth, startOfToday, addDays,
   isSameDay, isSameMonth, getDay,
@@ -98,6 +98,34 @@ export default function BookingDiploma({
   const [formation, setFormation] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Auto-resize pour l'embed inline (/api/booking/embed.js) et iframe manuelle
+  useEffect(() => {
+    if (!embedded) return
+    const send = () => {
+      const h = Math.max(
+        rootRef.current?.scrollHeight ?? 0,
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+      )
+      window.parent.postMessage({ type: 'diploma-rdv-resize', height: h }, '*')
+    }
+    send()
+    const t1 = window.setTimeout(send, 100)
+    const t2 = window.setTimeout(send, 400)
+    const obs = new ResizeObserver(send)
+    const el = rootRef.current
+    if (el) obs.observe(el)
+    obs.observe(document.body)
+    window.addEventListener('load', send)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      obs.disconnect()
+      window.removeEventListener('load', send)
+    }
+  }, [embedded, step, selectedDate, pendingSlot, error, submitting])
 
   // ── Calendrier ──────────────────────────────────────────────────────────────
   const weeks = useMemo(() => {
@@ -249,13 +277,11 @@ export default function BookingDiploma({
   }
 
   return (
-    <div style={{
+    <div ref={rootRef} style={{
       fontFamily: "'Inter', 'Open Sans', system-ui, -apple-system, sans-serif",
       background: embedded ? 'transparent' : '#f0f4f9',
-      minHeight: embedded ? '100vh' : '100vh',
-      height: embedded ? '100vh' : undefined,
-      overflowY: embedded ? 'auto' : undefined,
-      WebkitOverflowScrolling: 'touch',
+      minHeight: embedded ? undefined : '100vh',
+      overflowY: embedded ? undefined : undefined,
       display: 'flex', justifyContent: 'center',
       padding: embedded ? 0 : '24px 12px',
       color: NAVY,
@@ -268,7 +294,7 @@ export default function BookingDiploma({
         width: '100%',
         maxWidth: 760,
         height: 'fit-content',
-        overflow: 'hidden',
+        overflow: embedded ? 'visible' : 'hidden',
       }}>
 
         {/* ════════ ÉTAPE 1 : DATE + HEURE ════════ */}

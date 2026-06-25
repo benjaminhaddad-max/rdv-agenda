@@ -1,6 +1,6 @@
 import BookingDiploma from '@/components/BookingDiploma'
 
-// Version iframe — ouverte en popup par le script /api/booking/widget.js.
+// Version iframe — inline via /api/booking/embed.js ou popup via widget.js.
 // Hérite du layout /embed (fond transparent, body overflow hidden) :
 // le composant gère son propre scroll interne en mode embedded.
 
