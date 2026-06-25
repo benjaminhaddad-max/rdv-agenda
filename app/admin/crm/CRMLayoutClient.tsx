@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import CRMSidebar from '@/components/CRMSidebar'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import LogoutButton from '@/components/LogoutButton'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type Me = {
   role?: string
@@ -17,6 +18,7 @@ type Me = {
 function Inner({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
+  const isMobile = useIsMobile()
   const embed = searchParams.get('embed') === '1'
   // Page agenda : pas de barre de recherche globale (gain de hauteur).
   const hideSearchBar = pathname?.startsWith('/admin/crm/agenda')
@@ -38,6 +40,7 @@ function Inner({ children }: { children: React.ReactNode }) {
   const role = me?.role
   // Sidebar + barre de recherche admin réservées aux admins.
   const showAdminChrome = !embed && role === 'admin'
+  const mobileBottomPad = showAdminChrome && isMobile ? 56 : 0
   // Closers/télépros : pas de navigation admin, mais une barre du haut
   // (retour vers leur espace + recherche globale) pour pouvoir se balader
   // dans le CRM et traiter des leads même non attribués.
@@ -53,7 +56,10 @@ function Inner({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
       {showAdminChrome && <CRMSidebar />}
-      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh' }}>
+      <main style={{
+        flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+        maxHeight: '100vh', paddingBottom: mobileBottomPad,
+      }}>
         {showAdminChrome && !hideSearchBar && <CRMGlobalSearchBar />}
 
         {showUserChrome && (

@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X,
 } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface NavItem {
   key: string
@@ -82,9 +83,18 @@ const COLORS = {
   danger:       '#ef6b51',   // rouge HubSpot-style
 }
 
+const MOBILE_TABS = [
+  { key: 'crm-dashboard', label: 'Dashboard', href: '/admin/crm/dashboard', icon: LayoutDashboard },
+  { key: 'agenda',        label: 'Agenda',    href: '/admin/crm/agenda',       icon: Calendar },
+  { key: 'contacts',      label: 'Contacts',  href: '/admin/crm',              icon: Users },
+  { key: 'transactions',  label: 'Deals',     href: '/admin/crm/transactions', icon: Briefcase },
+] as const
+
 export default function CRMSidebar() {
   const pathname = usePathname()
+  const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [errorCount, setErrorCount] = useState<number>(0)
 
   useEffect(() => {
@@ -128,7 +138,199 @@ export default function CRMSidebar() {
     return pathname.startsWith(href)
   }
 
-  const width = collapsed ? 60 : 232
+  const width = isMobile ? 0 : (collapsed ? 60 : 232)
+
+  const navLinkStyle = (active: boolean, compact = false): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: compact ? '10px' : '8px 12px',
+    borderRadius: 6,
+    textDecoration: 'none',
+    color: active ? COLORS.textPrimary : COLORS.textMuted,
+    background: active ? COLORS.accentBg : 'transparent',
+    borderLeft: active ? `3px solid ${COLORS.accent}` : '3px solid transparent',
+    paddingLeft: compact ? '10px' : '9px',
+    fontSize: 13,
+    fontWeight: active ? 600 : 500,
+    transition: 'all .12s',
+    justifyContent: compact ? 'center' : 'flex-start',
+    position: 'relative',
+  })
+
+  if (isMobile) {
+    return (
+      <>
+        {/* Menu complet (overlay) */}
+        {mobileMenuOpen && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 50,
+              background: 'rgba(14,30,53,0.45)',
+              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+            }}
+            onClick={e => { if (e.target === e.currentTarget) setMobileMenuOpen(false) }}
+          >
+            <div style={{
+              background: COLORS.bg,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              maxHeight: '85vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 -8px 32px rgba(14,30,53,0.15)',
+            }}>
+              <div style={{
+                padding: '14px 16px',
+                borderBottom: `1px solid ${COLORS.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.textPrimary }}>Menu CRM</div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: COLORS.textMuted, cursor: 'pointer', padding: 4,
+                  }}
+                  aria-label="Fermer le menu"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px 20px' }}>
+                {NAV_SECTIONS.map(section => (
+                  <div key={section.title} style={{ marginBottom: 16 }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, color: COLORS.textMuted,
+                      textTransform: 'uppercase', letterSpacing: 1,
+                      padding: '0 12px 8px',
+                    }}>
+                      {section.title}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {section.items.map(item => {
+                        const active = isActive(item.href)
+                        const Icon = item.icon
+                        const badge = badgeFor(item.badgeKey)
+                        return (
+                          <a
+                            key={item.key}
+                            href={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            style={navLinkStyle(active)}
+                          >
+                            <Icon size={16} strokeWidth={2} style={{ color: active ? COLORS.accent : COLORS.textLight, flexShrink: 0 }} />
+                            <span style={{ flex: 1 }}>{item.label}</span>
+                            {badge > 0 && (
+                              <span style={{
+                                background: COLORS.danger, color: '#fff',
+                                fontSize: 10, fontWeight: 700,
+                                minWidth: 18, height: 18, padding: '0 6px',
+                                borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {badge > 99 ? '99+' : badge}
+                              </span>
+                            )}
+                          </a>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <a
+                  href="/login"
+                  onClick={async (e) => {
+                    e.preventDefault()
+                    try {
+                      const { createClient } = await import('@/lib/supabase')
+                      await createClient().auth.signOut()
+                    } catch {}
+                    window.location.href = '/login'
+                  }}
+                  style={{ ...navLinkStyle(false), color: COLORS.danger, marginTop: 8 }}
+                >
+                  <LogOut size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
+                  <span>Déconnexion</span>
+                </a>
+              </nav>
+            </div>
+          </div>
+        )}
+
+        {/* Barre de navigation basse */}
+        <nav
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 56,
+            background: COLORS.bg,
+            borderTop: `1px solid ${COLORS.border}`,
+            display: 'flex',
+            alignItems: 'stretch',
+            zIndex: 40,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            fontFamily: '"Lexend Deca", -apple-system, BlinkMacSystemFont, "Avenir Next", Avenir, "Helvetica Neue", sans-serif',
+          }}
+        >
+          {MOBILE_TABS.map(item => {
+            const active = isActive(item.href)
+            const Icon = item.icon
+            return (
+              <a
+                key={item.key}
+                href={item.href}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                  textDecoration: 'none',
+                  color: active ? COLORS.accent : COLORS.textMuted,
+                  fontSize: 10,
+                  fontWeight: active ? 700 : 500,
+                  padding: '4px 2px',
+                }}
+              >
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                <span>{item.label}</span>
+              </a>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              background: 'transparent',
+              border: 'none',
+              color: mobileMenuOpen ? COLORS.accent : COLORS.textMuted,
+              fontSize: 10,
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: '4px 2px',
+              fontFamily: 'inherit',
+            }}
+          >
+            <Menu size={18} />
+            <span>Menu</span>
+          </button>
+        </nav>
+      </>
+    )
+  }
 
   return (
     <>

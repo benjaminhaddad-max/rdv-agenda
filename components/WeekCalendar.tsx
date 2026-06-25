@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale'
 import StatusBadge, { AppointmentStatus } from './StatusBadge'
 import AppointmentModal from './AppointmentModal'
 import CloserNewRdvModal from './CloserNewRdvModal'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type Appointment = {
   id: string
@@ -42,6 +43,8 @@ const GRID_END_HOUR = 22
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i) => i + GRID_START_HOUR) // 10h → 22h
 const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
 const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
+const MOBILE_TIME_COL = 40   // colonne heures en vue semaine mobile (scroll horizontal)
+const MOBILE_DAY_COL = 88    // largeur min d'un jour en vue semaine mobile
 const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
 const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
@@ -188,6 +191,8 @@ function computeDayLayout<T extends { id: string; start_at: string; end_at: stri
 }
 
 export default function WeekCalendar({ adminMode = false, closerId, closerColor, closerName, teamView = false, allowAssign = false }: { adminMode?: boolean; closerId?: string; closerColor?: string; closerName?: string; teamView?: boolean; allowAssign?: boolean }) {
+  const isMobile = useIsMobile()
+  const mobileViewInit = useRef(false)
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -208,6 +213,20 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const [view, setView] = useState<'day' | 'week' | 'list'>('week')
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
   const [showNewRdvModal, setShowNewRdvModal] = useState(false)
+
+  // Sur mobile, la vue semaine est illisible : on démarre en vue liste.
+  useEffect(() => {
+    if (isMobile && !mobileViewInit.current) {
+      setView('list')
+      mobileViewInit.current = true
+    }
+  }, [isMobile])
+
+  const padX = isMobile ? 12 : 24
+  const weekGridCols = isMobile
+    ? `${MOBILE_TIME_COL}px repeat(7, ${MOBILE_DAY_COL}px)`
+    : '56px repeat(7, 1fr)'
+  const weekGridMinWidth = isMobile ? MOBILE_TIME_COL + 7 * MOBILE_DAY_COL : undefined
 
   // ── Glisser-déposer (déplacer un RDV sur un autre créneau) ──────────────
   const dragRef = useRef<{ id: string; grabOffsetY: number; durationMs: number; startISO: string; endISO: string } | null>(null)
@@ -697,7 +716,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       {/* Mode admin : barre unique compacte (stats + nav + filtres) */}
       {adminMode && (
         <div style={{
-          padding: '6px 24px',
+          padding: `6px ${padX}px`,
           background: '#ffffff',
           borderBottom: '1px solid #e5ddc8',
           display: 'flex', alignItems: 'center', gap: 12,
@@ -936,7 +955,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       </div>
       )}
 
-      {weekIsDense && view === 'week' && (
+      {weekIsDense && view === 'week' && !isMobile && (
         <div style={{
           padding: '8px 24px',
           background: '#fff8eb',
@@ -968,13 +987,61 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         </div>
       )}
 
+      {isMobile && view === 'week' && (
+        <div style={{
+          padding: `8px ${padX}px`,
+          background: '#fff8eb',
+          borderBottom: '1px solid #f0d9a8',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          flexShrink: 0,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600, flex: 1, minWidth: 0 }}>
+            Sur mobile, la vue liste est plus lisible. Glissez horizontalement pour parcourir la semaine.
+          </span>
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            style={{
+              background: '#C9A84C',
+              border: 'none',
+              borderRadius: 8,
+              padding: '5px 10px',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Vue Liste
+          </button>
+        </div>
+      )}
+
       {/* Calendar grid */}
       {view === 'week' ? (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{
+            flex: 1,
+            overflow: 'auto',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+          }}>
+          <div style={{
+            minWidth: weekGridMinWidth,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: '100%',
+          }}>
           {/* Day headers — fixes, ne scrollent pas */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '56px repeat(7, 1fr)',
+            gridTemplateColumns: weekGridCols,
             borderBottom: '1px solid #e5ddc8',
             background: '#ffffff',
             flexShrink: 0,
@@ -1030,7 +1097,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
 
           {/* Time grid — remplit toute la hauteur dispo (scroll seulement si écran trop court) */}
           <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: weekGridCols, position: 'relative', flex: '1 0 auto', minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}>
             {/* Hour labels */}
             <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column' }}>
               {HOURS.map(h => (
@@ -1104,6 +1171,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             })}
           </div>
           </div>{/* fin overflow: auto */}
+          </div>{/* fin minWidth wrapper */}
+          </div>{/* fin scroll container */}
         </div>
       ) : view === 'day' ? (
         /* Day view — grille horaire d'une seule colonne, plus grande */
@@ -1209,7 +1278,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         })()
       ) : (
         /* List view */
-        <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? 12 : 24 }}>
           {activeAppointments.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#4a6070', paddingTop: 60 }}>
               Aucun RDV assigné cette semaine
@@ -1224,8 +1293,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   onClick={() => setSelectedAppointment(appt)}
                   style={{
                     background: '#e5ddc8', border: '1px solid #e5ddc8',
-                    borderRadius: 12, padding: '14px 18px',
-                    display: 'flex', alignItems: 'center', gap: 16,
+                    borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 18px',
+                    display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
                     cursor: 'pointer', transition: 'border-color 0.15s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}

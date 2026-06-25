@@ -39,19 +39,20 @@ export default function AgendaPage() {
     <div className="h-full min-h-0 bg-[#f7f4ee] flex flex-col overflow-hidden">
       {/* Header principal */}
       <div className="bg-white border-b border-[#e5ddc8]">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
-              <CalendarIcon size={18} className="text-white" />
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center flex-shrink-0">
+              <CalendarIcon size={16} className="text-white sm:hidden" />
+              <CalendarIcon size={18} className="text-white hidden sm:block" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-[#0e1e35]">Agenda</h1>
-              <p className="text-xs text-[#4a6070]">Planification et RDV de toute l&apos;équipe</p>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-[#0e1e35]">Agenda</h1>
+              <p className="text-xs text-[#4a6070] hidden sm:block">Planification et RDV de toute l&apos;équipe</p>
             </div>
           </div>
           <a
             href="/telepro"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-[#C9A84C] hover:bg-[#b89a5e] text-white transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#C9A84C] hover:bg-[#b89a5e] text-white transition-colors flex-shrink-0"
           >
             <Plus size={13} /> Nouveau RDV
           </a>
@@ -60,7 +61,7 @@ export default function AgendaPage() {
 
       {/* Barre secondaire — outils */}
       <div className="bg-white border-b border-[#e5ddc8]">
-        <div className="max-w-[1600px] mx-auto px-6 py-2.5 flex items-center gap-3 flex-wrap">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 flex-wrap overflow-x-auto">
           {/* File d'attente */}
           <button
             onClick={() => setShowQueue(true)}
@@ -84,7 +85,7 @@ export default function AgendaPage() {
           <div className="w-px h-5 bg-slate-200" />
 
           {/* Équipe */}
-          <span className="text-[10px] font-bold text-[#a89e8a] uppercase tracking-wider">Équipe</span>
+          <span className="text-[10px] font-bold text-[#a89e8a] uppercase tracking-wider hidden sm:inline">Équipe</span>
           <ToolBtn icon={<Users size={12} />}     label="Télépros"       onClick={() => setShowTelepros(true)} />
           <ToolBtn icon={<Briefcase size={12} />} label="Closers"        onClick={() => setShowClosers(true)} />
           <ToolBtn icon={<Clock size={12} />}     label="Disponibilités" onClick={() => setShowAvailability(true)} color="green" />
