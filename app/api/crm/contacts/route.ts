@@ -102,6 +102,10 @@ export async function GET(req: NextRequest) {
   const parcoursupVerdictFilter = searchParams.get('parcoursup_verdict') ?? ''
   const metaAdsOnlyParam = searchParams.get('meta_ads_only') === '1'
   const viewIdParam      = searchParams.get('view_id') ?? ''
+  const isMetaBackfillTermIdfView = viewIdParam === META_BACKFILL_TERM_IDF_VIEW_ID
+  const metaBackfillTermIdfContactIds: string[] | null = isMetaBackfillTermIdfView
+    ? await resolveMetaBackfillTermIdfContactIds(db)
+    : null
   const zone             = searchParams.get('zone') ?? ''
   const departement      = searchParams.get('departement') ?? ''
 
@@ -142,7 +146,7 @@ export async function GET(req: NextRequest) {
   const bypassCache      = searchParams.get('no_cache') === '1'
   // Garde-fou client: permet de bypass les fast paths quand un front détecte
   // un état incohérent (total > 0 avec data vide).
-  const forceSql         = searchParams.get('force_sql') === '1' || !!contactOwnerHsId
+  const forceSql         = searchParams.get('force_sql') === '1' || !!contactOwnerHsId || isMetaBackfillTermIdfView
   const page             = parseInt(searchParams.get('page') ?? '0', 10)
   const limit            = countOnly ? 1 : isExport ? 10000 : Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
@@ -309,6 +313,7 @@ export async function GET(req: NextRequest) {
   }
 
   const appendCustomFiltersFromView = async (viewId: string, reset = false) => {
+    if (viewId === META_BACKFILL_TERM_IDF_VIEW_ID) return
     const { data: viewRow } = await db
       .from('crm_saved_views')
       .select('name, filter_groups, preset_flags')
@@ -498,7 +503,7 @@ export async function GET(req: NextRequest) {
   //      contient le form_uuid HubSpot
   //   3. Fallback : recent_conversion_event = nom (last submission match)
   // Les contact_ids resultants sont passes via .in() sur la requete principale.
-  let formEventContactIds: string[] | null = null
+  let formEventContactIds: string[] | null = metaBackfillTermIdfContactIds
   let formEventNames: string[] | null = null
   let formEventMetaOnlyIds: string[] | null = null
   let formEventParamResolved = false
@@ -509,7 +514,7 @@ export async function GET(req: NextRequest) {
   //  - .in('hubspot_contact_id', metaOnlyIds) UNIQUEMENT pour les Meta Ads
   //    qui ne sont pas déjà couverts par les noms (typiquement quelques 100s)
   const skipHeavyFormResolver = deferCount
-  {
+  if (!isMetaBackfillTermIdfView) {
     // Détecte un filtre form_event op 'is' ou 'is_any' dans cf
     const formFilter = customFilters.find(
       r => (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
@@ -575,11 +580,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Vue dédiée : 4 formulaires Meta rattrapés (juin 2026), Terminale + IDF.
-  if (viewIdParam === META_BACKFILL_TERM_IDF_VIEW_ID && !skipHeavyFormResolver) {
-    formEventContactIds = await resolveMetaBackfillTermIdfContactIds(db)
-    formEventNames = null
-    formEventMetaOnlyIds = null
+  if (isMetaBackfillTermIdfView) {
     customFilters = customFilters.filter(r => r.field !== 'meta_backfill_term_idf')
   }
 
@@ -729,6 +730,13 @@ export async function GET(req: NextRequest) {
         fastQ = fastQ.in('hubspot_contact_id', parcoursupVerdictContactIds)
       }
     }
+    if (formEventContactIds !== null) {
+      if (formEventContactIds.length === 0) {
+        fastQ = fastQ.eq('hubspot_contact_id', '__none__')
+      } else {
+        fastQ = fastQ.in('hubspot_contact_id', formEventContactIds)
+      }
+    }
     if (leadStatus) {
       const vals = fastSplit(leadStatus)
       fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
@@ -813,6 +821,7 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
+    isMetaBackfillTermIdfView ||
     extraProps.length > 0 ||
     !effectiveShowExternal
   )
@@ -895,6 +904,13 @@ export async function GET(req: NextRequest) {
       }
       if (metaLeadAdsOnly) {
         fastMvQ = fastMvQ.eq('source', 'meta_lead_ads')
+      }
+      if (formEventContactIds !== null) {
+        if (formEventContactIds.length === 0) {
+          fastMvQ = fastMvQ.eq('hubspot_contact_id', '__none__')
+        } else {
+          fastMvQ = fastMvQ.in('hubspot_contact_id', formEventContactIds)
+        }
       }
       if (zone) {
         const vals = splitMultiFast(zone)
