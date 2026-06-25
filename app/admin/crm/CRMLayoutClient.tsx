@@ -22,7 +22,6 @@ function Inner({ children }: { children: React.ReactNode }) {
   const embed = searchParams.get('embed') === '1'
   // Page agenda : pas de barre de recherche globale (gain de hauteur).
   const hideSearchBar = pathname?.startsWith('/admin/crm/agenda')
-    || (isMobile && pathname === '/admin/crm')
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
