@@ -602,8 +602,7 @@ function InlineBookingWidget({ contact, onSuccess }: { contact: CRMContact; onSu
           {weekDays.map(day => {
             const isPast = day < today
             const isSelected = selectedDate && formatDateKey(day) === formatDateKey(selectedDate)
-            const isSunday = day.getDay() === 0
-            const disabled = isPast || isSunday
+            const disabled = isPast
             return (
               <button
                 key={formatDateKey(day)}
