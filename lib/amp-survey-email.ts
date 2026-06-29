@@ -94,7 +94,8 @@ export function buildAmpSurveyHtmlFallback({
 <body style="font-family:Inter,Arial,sans-serif;color:#12314d;line-height:1.6;padding:20px;background:#f6f8fc">
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:24px">
     <p style="font-size:11px;color:#b06000;background:#fef7e0;padding:6px 10px;border-radius:4px;margin:0 0 16px">
-      Version classique — ouvrez ce message dans l'application Gmail pour le formulaire intégré (badge ⚡)
+      Version classique affichée — le formulaire interactif (badge ⚡) n'est pas actif sur ce message.
+      Vérifiez : e-mail envoyé en AMP, expéditeur enregistré chez Google, et « E-mails dynamiques » activé dans Gmail.
     </p>
     <h1 style="font-size:20px;margin:0 0 8px">Bonjour ${safePrenom}</h1>
     <p style="margin:0 0 16px;color:#5f6368;font-size:14px">
