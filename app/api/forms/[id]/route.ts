@@ -4,9 +4,13 @@ import { invalidatePublicFormCache } from '@/lib/public-forms'
 
 type Params = { params: Promise<{ id: string }> }
 
-// GET /api/forms/[id] — récupère un formulaire + ses champs
+// GET /api/forms/[id] — récupère un formulaire + ses champs (id = UUID)
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'Form not found' }, { status: 404 })
+  }
   const db = createServiceClient()
 
   const [formRes, fieldsRes] = await Promise.all([

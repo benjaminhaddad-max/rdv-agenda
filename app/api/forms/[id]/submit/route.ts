@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
 import { notifyFormSubmissionRecipients, parseNotifyEmails } from '@/lib/form-submission-notify'
+import { valuesFromTokenPayload, verifyFormContactToken } from '@/lib/form-contact-link'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -116,6 +117,33 @@ export async function POST(req: Request, { params }: Params) {
   const body = await req.json().catch(() => ({}))
   const data = (body.data || {}) as Record<string, unknown>
 
+  let forcedContactId: string | null = null
+  const contactTokenRaw = typeof body.contact_token === 'string' ? body.contact_token.trim() : ''
+  if (contactTokenRaw) {
+    const tokenPayload = verifyFormContactToken(contactTokenRaw)
+    if (!tokenPayload) {
+      return NextResponse.json(
+        { error: 'Lien personnalisé invalide ou expiré' },
+        { status: 400, headers: CORS_HEADERS },
+      )
+    }
+    if (tokenPayload.slug && tokenPayload.slug !== slug) {
+      return NextResponse.json(
+        { error: 'Ce lien ne correspond pas à ce formulaire' },
+        { status: 400, headers: CORS_HEADERS },
+      )
+    }
+    forcedContactId = tokenPayload.cid
+    const tokenValues = valuesFromTokenPayload(tokenPayload)
+    for (const [k, v] of Object.entries(tokenValues)) {
+      if (v && (!data[k] || String(data[k]).trim() === '')) data[k] = v
+    }
+    if (tokenValues.firstname && !data.firstname) data.firstname = tokenValues.firstname
+    if (tokenValues.lastname && !data.lastname) data.lastname = tokenValues.lastname
+    if (tokenValues.email && !data.email) data.email = tokenValues.email
+    if (tokenValues.phone && !data.phone) data.phone = tokenValues.phone
+  }
+
   // ── Attribution publicitaire ─────────────────────────────────────────────
   // Le frontend envoie {gclid, fbclid, msclkid, ttclid, li_fat_id, sccid,
   // gbraid, wbraid} depuis l'URL ou le cookie 90j pose par diploma-tracker.js
@@ -204,7 +232,7 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true }, { status: 200, headers: CORS_HEADERS })
   }
 
-  // 3. Validation des champs requis
+  // 3. Validation des champs requis (identité masquée via token = valeurs déjà injectées)
   const missingRequired: string[] = []
   for (const f of (fields || [])) {
     if (f.required) {
@@ -283,9 +311,11 @@ export async function POST(req: Request, { params }: Params) {
   let contactId: string | null = null
   let contactCreated = false
 
-  // Création contact par défaut (sauf si explicitement désactivé : auto_create_contact === false)
-  if (form.auto_create_contact !== false && (contactData.email || contactData.phone)) {
-    // Cherche par email en priorité, sinon par téléphone (PK = hubspot_contact_id)
+  const shouldSyncContact =
+    form.auto_create_contact !== false &&
+    (forcedContactId || contactData.email || contactData.phone)
+
+  if (shouldSyncContact) {
     let existing: {
       hubspot_contact_id: string
       first_conversion_date: string | null
@@ -294,7 +324,21 @@ export async function POST(req: Request, { params }: Params) {
       recent_conversion_event: string | null
       recent_conversion_event_name: string | null
     } | null = null
-    if (contactData.email) {
+
+    if (forcedContactId) {
+      const { data: c } = await db
+        .from('crm_contacts')
+        .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
+        .eq('hubspot_contact_id', forcedContactId)
+        .maybeSingle()
+      existing = c
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'Contact introuvable pour ce lien personnalisé' },
+          { status: 404, headers: CORS_HEADERS },
+        )
+      }
+    } else if (contactData.email) {
       const { data: c } = await db
         .from('crm_contacts')
         .select('hubspot_contact_id, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
@@ -302,7 +346,7 @@ export async function POST(req: Request, { params }: Params) {
         .maybeSingle()
       existing = c
     }
-    if (!existing && contactData.phone) {
+    if (!existing && !forcedContactId && contactData.phone) {
       const phoneClean = String(contactData.phone).replace(/\s+/g, '')
       const { data: c } = await db
         .from('crm_contacts')

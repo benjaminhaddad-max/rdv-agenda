@@ -27,6 +27,7 @@
     "livekit-server-sdk": "^2.9.0",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
+    "nodemailer": "^9.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-email-editor": "^1.8.0"

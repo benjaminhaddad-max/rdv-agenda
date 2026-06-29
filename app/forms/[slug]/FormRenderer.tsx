@@ -34,6 +34,8 @@ export default function FormRenderer({
   const [values, setValues] = useState<Record<string, string>>(() => (initialForm ? buildInitialValues(initialForm) : {}))
   const [error, setError] = useState<string | null>(null)
   const [hp, setHp] = useState('') // honeypot
+  const [contactToken, setContactToken] = useState<string | null>(null)
+  const [hiddenFieldKeys, setHiddenFieldKeys] = useState<Set<string>>(new Set())
   const formRef = useRef<HTMLFormElement>(null)
   const successRef = useRef<HTMLDivElement>(null)
 
@@ -41,6 +43,30 @@ export default function FormRenderer({
     if (!form) return
     setValues(buildInitialValues(form))
   }, [form])
+
+  // Lien signé ?t= — pré-remplit et masque identité (nom, email…)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('t')?.trim()
+    if (!t) return
+
+    setContactToken(t)
+    fetch(`/api/forms/prefill?t=${encodeURIComponent(t)}&slug=${encodeURIComponent(slug)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then((data: { values?: Record<string, string>; hidden_field_keys?: string[] }) => {
+        if (data.values) {
+          setValues(prev => ({ ...prev, ...data.values }))
+        }
+        if (data.hidden_field_keys?.length) {
+          setHiddenFieldKeys(new Set(data.hidden_field_keys))
+        }
+      })
+      .catch(() => {
+        setError('Lien personnalisé invalide ou expiré. Utilisez le lien depuis votre e-mail.')
+        setContactToken(null)
+      })
+  }, [slug])
 
   // 1. Charge le formulaire
   useEffect(() => {
@@ -121,6 +147,7 @@ export default function FormRenderer({
         body: JSON.stringify({
           data: values,
           hp,
+          contact_token: contactToken || undefined,
           source_url: window.location.href,
           ...utm,
           attribution,
@@ -200,7 +227,7 @@ export default function FormRenderer({
         {form.subtitle && <p style={{ margin: '0 0 24px', fontSize: 15, color: text, opacity: 0.7 }}>{form.subtitle}</p>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {form.fields.map(f => (
+          {form.fields.filter(f => !hiddenFieldKeys.has(f.field_key)).map(f => (
             <FieldRenderer
               key={f.field_key}
               field={f}

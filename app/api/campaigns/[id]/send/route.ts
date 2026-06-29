@@ -7,6 +7,7 @@ import {
   BREVO_DEFAULT_SENDER,
 } from '@/lib/brevo'
 import { resolveCampaignRecipients } from '@/lib/campaign-recipients'
+import { buildFormContactUrl } from '@/lib/form-contact-link'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -155,10 +156,21 @@ export async function POST(req: Request, { params }: Params) {
 
   for (const r of (pending ?? [])) {
     try {
+      const formSlug = (process.env.CAMPAIGN_PREFILL_FORM_SLUG || '').trim()
+      const lienFormulaire = formSlug
+        ? buildFormContactUrl(formSlug, {
+            hubspot_contact_id: r.contact_id,
+            firstname: r.first_name,
+            lastname: r.last_name,
+            email: r.email,
+          }) || ''
+        : ''
+
       const vars = {
         prenom: r.first_name || '',
         nom: r.last_name || '',
         email: r.email,
+        lien_formulaire: lienFormulaire,
       }
       const html = renderTemplate(campaign.html_body, vars)
       const subject = renderTemplate(campaign.subject, vars)
