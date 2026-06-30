@@ -18,7 +18,7 @@ export default function MarketingNav({ title }: { title?: string }) {
   const path = usePathname()
 
   return (
-    <div style={{ padding: '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ padding: '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#0e1e35' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12 }}>← CRM</a>
         <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />

@@ -32,13 +32,13 @@ export default function ProgramsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6f8fc' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35' }}>
       <MarketingNav title="Programmes email" />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <p style={{ color: '#5f6368', fontSize: 14, marginBottom: 16 }}>
           Séquences automatiques J1, J3, J5… (ex. Last Chance Médecine). Chaque étape = marque + objet + template.
         </p>
-        <button type="button" onClick={seed} style={{ marginBottom: 20, padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8', background: '#fff', cursor: 'pointer' }}>
+        <button type="button" onClick={seed} style={{ marginBottom: 20, padding: '8px 14px', borderRadius: 8, border: '1px solid #e5ddc8', background: '#fff', color: '#0e1e35', cursor: 'pointer' }}>
           Recharger la liste
         </button>
         {programs.map(p => (
