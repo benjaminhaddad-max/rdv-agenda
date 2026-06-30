@@ -1,9 +1,14 @@
 'use client'
 
-import { use, useCallback, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import { getBrandCharter, wrapCharterEmailHtml } from '@/lib/brand-charter'
-import { Eye, Code, Play, Save } from 'lucide-react'
+import {
+  buildHtmlFromContent,
+  resolveStepContent,
+  type ProgramStepContent,
+} from '@/lib/marketing/step-content'
+import { Eye, Code, Play, Plus, Save, Trash2 } from 'lucide-react'
 
 interface Step {
   id: string
@@ -13,6 +18,8 @@ interface Step {
   subject: string
   preheader: string | null
   html_body: string
+  content_json: ProgramStepContent | null
+  brand_id: string | null
   email_brands?: { slug: string; name: string; sender_email: string; active: boolean } | null
 }
 
@@ -22,9 +29,6 @@ interface Program {
   slug: string
   status: string
   interval_days: number
-  start_at: string | null
-  crm_segment_ids: string[]
-  marketing_audience_ids: string[]
   enrolled: number
   steps: Step[]
 }
@@ -56,22 +60,25 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { load() }, [load])
 
-  const saveStep = async (step: Step) => {
+  const saveStep = async (stepToSave: Step) => {
+    if (!program) return
     setSaving(true)
-    await fetch(`/api/email-programs/${id}/steps`, {
+    const res = await fetch(`/api/email-programs/${id}/steps`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        steps: program!.steps.map(s =>
-          s.id === step.id
-            ? { ...s, subject: step.subject, preheader: step.preheader, html_body: step.html_body }
-            : s,
-        ),
+        steps: program.steps.map(s => (s.id === stepToSave.id ? stepToSave : s)),
       }),
     })
     setSaving(false)
-    setMsg('Enregistré')
-    setTimeout(() => setMsg(''), 2500)
+    if (res.ok) {
+      setMsg('Enregistré')
+      setTimeout(() => setMsg(''), 2500)
+      await load()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      setMsg(err.error || 'Erreur enregistrement')
+    }
   }
 
   const enroll = async () => {
@@ -109,7 +116,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div style={{ color: PAGE_TEXT }}>
       <MarketingNav title={program.name} />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: 24 }}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
           <button type="button" onClick={enroll} style={btn}>
             <Play size={14} /> Inscrire l&apos;audience
@@ -134,7 +141,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             onChange={updated => {
               setProgram(p => (p ? { ...p, steps: p.steps.map(s => (s.id === step.id ? updated : s)) } : p))
             }}
-            onSave={() => saveStep(step)}
+            onSave={saveStep}
             saving={saving}
           />
         ))}
@@ -151,105 +158,200 @@ function StepEditor({
 }: {
   step: Step
   onChange: (s: Step) => void
-  onSave: () => void
+  onSave: (s: Step) => void
   saving: boolean
 }) {
-  const [mode, setMode] = useState<'preview' | 'html'>('preview')
+  const [showHtml, setShowHtml] = useState(false)
   const brand = step.email_brands
   const charter = brand?.slug ? getBrandCharter(brand.slug) : null
+
+  const content = useMemo(
+    () => resolveStepContent(step.step_index, step.content_json, brand?.slug),
+    [step.step_index, step.content_json, brand?.slug],
+  )
+
+  const applyContent = (next: ProgramStepContent) => {
+    const html = charter ? buildHtmlFromContent(next, charter, step.label) : step.html_body
+    onChange({ ...step, content_json: next, html_body: html })
+  }
+
+  const patchContent = (patch: Partial<ProgramStepContent>) => {
+    applyContent({ ...content, ...patch, version: 1 })
+  }
+
   const previewHtml = charter
     ? wrapCharterEmailHtml(charter, step.html_body.replace(/\{\{prenom\}\}/g, 'Marie'))
     : step.html_body.replace(/\{\{prenom\}\}/g, 'Marie')
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, marginBottom: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 12 }}>
+    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
         <div>
-          <strong style={{ fontSize: 15, color: PAGE_TEXT }}>{step.label}</strong>
+          <strong style={{ fontSize: 16, color: PAGE_TEXT }}>{step.label}</strong>
           <span style={{ marginLeft: 8, fontSize: 12, color: PAGE_MUTED }}>J+{step.day_offset}</span>
           {brand && (
-            <span style={{ marginLeft: 8, fontSize: 11, background: '#f0f4ff', color: PAGE_TEXT, padding: '2px 8px', borderRadius: 4 }}>
-              {brand.name} · {brand.sender_email} {!brand.active && '(expéditeur à valider Brevo)'}
+            <span style={{ marginLeft: 8, fontSize: 11, background: '#f0f4ff', color: PAGE_TEXT, padding: '3px 8px', borderRadius: 4 }}>
+              {brand.name} · expéditeur : {brand.sender_email}
+              {!brand.active && ' (inactif)'}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button type="button" onClick={() => setMode('preview')} style={mode === 'preview' ? tabActive : tab}>
-            <Eye size={12} /> Aperçu
-          </button>
-          <button type="button" onClick={() => setMode('html')} style={mode === 'html' ? tabActive : tab}>
-            <Code size={12} /> HTML
-          </button>
-          <button type="button" onClick={onSave} disabled={saving} style={btnSmall}>
-            <Save size={12} /> Enregistrer
-          </button>
-        </div>
+        <button type="button" onClick={() => onSave(step)} disabled={saving} style={btnPrimary}>
+          <Save size={14} /> {saving ? '…' : 'Enregistrer'}
+        </button>
       </div>
 
-      <label style={labelStyle}>Objet</label>
-      <input
-        value={step.subject}
-        onChange={e => onChange({ ...step, subject: e.target.value })}
-        style={{ ...FIELD, marginBottom: 12, fontWeight: 500 }}
-      />
-
-      <label style={labelStyle}>Préheader (aperçu boîte mail)</label>
-      <input
-        value={step.preheader || ''}
-        onChange={e => onChange({ ...step, preheader: e.target.value })}
-        style={{ ...FIELD, marginBottom: 12, fontSize: 13 }}
-      />
-
-      <label style={labelStyle}>Corps du mail</label>
-      {mode === 'preview' ? (
-        <div
-          style={{
-            border: '1px solid #e5ddc8',
-            borderRadius: 8,
-            overflow: 'hidden',
-            background: '#f9f9f9',
-            marginBottom: 8,
-          }}
-        >
-          <iframe
-            title={`Aperçu ${step.label}`}
-            srcDoc={previewHtml}
-            style={{ width: '100%', height: 420, border: 'none', background: '#fff' }}
-            sandbox=""
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+        {/* ── Colonne édition ── */}
+        <div>
+          <label style={labelStyle}>Objet</label>
+          <input
+            value={step.subject}
+            onChange={e => onChange({ ...step, subject: e.target.value })}
+            style={{ ...FIELD, marginBottom: 14, fontWeight: 500 }}
           />
-          <p style={{ fontSize: 11, color: PAGE_MUTED, padding: '8px 12px', margin: 0 }}>
-            Aperçu avec la charte {brand?.name || 'marque'}. Passez en mode HTML pour modifier le texte.
-          </p>
+
+          <label style={labelStyle}>Préheader (aperçu boîte mail)</label>
+          <input
+            value={step.preheader || ''}
+            onChange={e => onChange({ ...step, preheader: e.target.value })}
+            style={{ ...FIELD, marginBottom: 18, fontSize: 13 }}
+          />
+
+          <label style={labelStyle}>Paragraphes du mail</label>
+          {content.paragraphs.map((p, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <textarea
+                value={p}
+                onChange={e => {
+                  const paragraphs = [...content.paragraphs]
+                  paragraphs[idx] = e.target.value
+                  patchContent({ paragraphs })
+                }}
+                rows={3}
+                placeholder={`Paragraphe ${idx + 1}…`}
+                style={{ ...FIELD, flex: 1, resize: 'vertical' }}
+              />
+              {content.paragraphs.length > 1 && (
+                <button
+                  type="button"
+                  title="Supprimer"
+                  onClick={() => patchContent({ paragraphs: content.paragraphs.filter((_, i) => i !== idx) })}
+                  style={{ ...btnIcon, color: '#b91c1c' }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => patchContent({ paragraphs: [...content.paragraphs, ''] })}
+            style={{ ...btn, marginBottom: 18, fontSize: 12 }}
+          >
+            <Plus size={12} /> Ajouter un paragraphe
+          </button>
+
+          <div style={{ background: '#f7f4ee', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+            <label style={labelStyle}>Bouton principal (CTA)</label>
+            <label style={subLabel}>Texte du bouton</label>
+            <input
+              value={content.ctaLabel}
+              onChange={e => patchContent({ ctaLabel: e.target.value })}
+              style={{ ...FIELD, marginBottom: 10 }}
+            />
+            <label style={subLabel}>Lien du bouton (URL)</label>
+            <input
+              type="url"
+              value={content.ctaHref}
+              onChange={e => patchContent({ ctaHref: e.target.value })}
+              placeholder="https://…"
+              style={{ ...FIELD, marginBottom: 0, fontFamily: 'ui-monospace, monospace', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ background: '#f7f4ee', borderRadius: 10, padding: 14 }}>
+            <label style={{ ...labelStyle, marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={content.showFormLink}
+                onChange={e => patchContent({ showFormLink: e.target.checked })}
+                style={{ marginRight: 8 }}
+              />
+              Lien formulaire pré-rempli CRM
+            </label>
+            {content.showFormLink && (
+              <>
+                <label style={subLabel}>Texte du lien formulaire</label>
+                <input
+                  value={content.formLinkLabel}
+                  onChange={e => patchContent({ formLinkLabel: e.target.value })}
+                  style={{ ...FIELD, marginBottom: 8 }}
+                />
+                <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
+                  URL auto : <code style={{ background: '#fff', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
+                </p>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowHtml(v => !v)}
+            style={{ ...btn, marginTop: 14, fontSize: 12 }}
+          >
+            <Code size={12} /> {showHtml ? 'Masquer HTML' : 'HTML avancé'}
+          </button>
+          {showHtml && (
+            <textarea
+              value={step.html_body}
+              onChange={e => onChange({ ...step, html_body: e.target.value })}
+              rows={8}
+              style={{ ...FIELD, marginTop: 8, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+            />
+          )}
         </div>
-      ) : (
-        <textarea
-          value={step.html_body}
-          onChange={e => onChange({ ...step, html_body: e.target.value })}
-          rows={10}
-          style={{
-            ...FIELD,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            fontSize: 13,
-            resize: 'vertical',
-          }}
-        />
-      )}
+
+        {/* ── Colonne aperçu live ── */}
+        <div>
+          <label style={labelStyle}>
+            <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+            Aperçu en direct
+          </label>
+          <div style={{ border: '1px solid #e5ddc8', borderRadius: 10, overflow: 'hidden', position: 'sticky', top: 16 }}>
+            <iframe
+              title={`Aperçu ${step.label}`}
+              srcDoc={previewHtml}
+              style={{ width: '100%', height: 560, border: 'none', background: '#fff', display: 'block' }}
+              sandbox=""
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
+  fontSize: 11,
+  fontWeight: 700,
   color: PAGE_MUTED,
   marginBottom: 6,
   textTransform: 'uppercase',
-  letterSpacing: '0.03em',
+  letterSpacing: '0.04em',
+}
+
+const subLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 600,
+  color: PAGE_TEXT,
+  marginBottom: 4,
 }
 
 const btn: React.CSSProperties = {
-  display: 'flex',
+  display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
   padding: '8px 14px',
@@ -261,7 +363,15 @@ const btn: React.CSSProperties = {
   fontSize: 13,
 }
 
-const btnPrimary: React.CSSProperties = { ...btn, background: '#0e1e35', color: '#fff', border: 'none', fontWeight: 600 }
-const btnSmall: React.CSSProperties = { ...btn, padding: '5px 10px', fontSize: 11 }
-const tab: React.CSSProperties = { ...btnSmall, background: '#f7f4ee' }
-const tabActive: React.CSSProperties = { ...btnSmall, background: '#0e1e35', color: '#fff', border: 'none' }
+const btnIcon: React.CSSProperties = {
+  ...btn,
+  padding: '8px 10px',
+}
+
+const btnPrimary: React.CSSProperties = {
+  ...btn,
+  background: '#0e1e35',
+  color: '#fff',
+  border: 'none',
+  fontWeight: 600,
+}

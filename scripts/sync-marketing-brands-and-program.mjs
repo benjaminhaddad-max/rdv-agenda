@@ -12,6 +12,7 @@ import {
   LAST_CHANCE_MEDECINE_STEPS,
   buildLastChanceStepBody,
 } from '../lib/marketing/last-chance-medecine-steps.ts'
+import { contentFromStepDef } from '../lib/marketing/step-content.ts'
 
 function loadEnv() {
   try {
@@ -116,13 +117,21 @@ const rows = LAST_CHANCE_MEDECINE_STEPS.map((step, i) => {
     label: step.label,
     subject: step.subject,
     preheader: step.preheader,
+    content_json: contentFromStepDef(step),
     html_body: buildLastChanceStepBody(step, charter),
     text_body: null,
   }
 })
 
 const { error: stepsErr } = await db.from('email_program_steps').insert(rows)
-if (stepsErr) throw stepsErr
+if (stepsErr?.message?.includes('content_json')) {
+  console.warn('⚠ Colonne content_json absente — exécutez supabase-migration-marketing-step-content-json.sql')
+  const fallback = rows.map(({ content_json, ...r }) => r)
+  const { error: e2 } = await db.from('email_program_steps').insert(fallback)
+  if (e2) throw e2
+} else if (stepsErr) {
+  throw stepsErr
+}
 
 console.log(`✅ ${rows.length} étapes avec contenu rédigé`)
 console.log('→ https://hub.diploma-sante.fr/admin/crm/campaigns/programs/' + programId)
