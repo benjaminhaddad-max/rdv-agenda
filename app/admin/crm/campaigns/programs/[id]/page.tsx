@@ -63,12 +63,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const saveStep = async (stepToSave: Step) => {
     if (!program) return
     setSaving(true)
+    const steps = program.steps.map(s => (s.id === stepToSave.id ? stepToSave : s))
     const res = await fetch(`/api/email-programs/${id}/steps`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        steps: program.steps.map(s => (s.id === stepToSave.id ? stepToSave : s)),
-      }),
+      body: JSON.stringify({ steps }),
     })
     setSaving(false)
     if (res.ok) {
@@ -162,12 +161,13 @@ function StepEditor({
   saving: boolean
 }) {
   const [showHtml, setShowHtml] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
   const brand = step.email_brands
   const charter = brand?.slug ? getBrandCharter(brand.slug) : null
 
   const content = useMemo(
-    () => resolveStepContent(step.step_index, step.content_json, brand?.slug),
-    [step.step_index, step.content_json, brand?.slug],
+    () => resolveStepContent(step.step_index, step.content_json, brand?.slug, step.html_body),
+    [step.step_index, step.content_json, brand?.slug, step.html_body],
   )
 
   const applyContent = (next: ProgramStepContent) => {
@@ -201,9 +201,26 @@ function StepEditor({
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-        {/* ── Colonne édition ── */}
-        <div>
+      <div
+        style={{
+          background: '#eef4ff',
+          border: '1px solid #b8cce8',
+          borderRadius: 10,
+          padding: '12px 14px',
+          marginBottom: 16,
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: PAGE_TEXT,
+        }}
+      >
+        <strong>Modifier le mail ici</strong> — éditez l&apos;objet et les paragraphes dans les champs ci-dessous.
+        L&apos;aperçu en bas est en <strong>lecture seule</strong> (il se met à jour en direct). Cliquez sur{' '}
+        <strong>Enregistrer</strong> pour sauvegarder.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* ── Zone d'édition ── */}
+        <div style={{ background: '#faf8f4', border: '2px solid #c5b89a', borderRadius: 12, padding: 18 }}>
           <label style={labelStyle}>Objet</label>
           <input
             value={step.subject}
@@ -218,7 +235,9 @@ function StepEditor({
             style={{ ...FIELD, marginBottom: 18, fontSize: 13 }}
           />
 
-          <label style={labelStyle}>Paragraphes du mail</label>
+          <label style={{ ...labelStyle, fontSize: 12, color: PAGE_TEXT }}>
+            Corps du mail — paragraphes (modifiables)
+          </label>
           {content.paragraphs.map((p, idx) => (
             <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <textarea
@@ -228,16 +247,16 @@ function StepEditor({
                   paragraphs[idx] = e.target.value
                   patchContent({ paragraphs })
                 }}
-                rows={3}
+                rows={4}
                 placeholder={`Paragraphe ${idx + 1}…`}
-                style={{ ...FIELD, flex: 1, resize: 'vertical' }}
+                style={{ ...FIELD, flex: 1, resize: 'vertical', minHeight: 88, fontSize: 15 }}
               />
               {content.paragraphs.length > 1 && (
                 <button
                   type="button"
                   title="Supprimer"
                   onClick={() => patchContent({ paragraphs: content.paragraphs.filter((_, i) => i !== idx) })}
-                  style={{ ...btnIcon, color: '#b91c1c' }}
+                  style={{ ...btnIcon, color: '#b91c1c', alignSelf: 'flex-start' }}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -252,7 +271,7 @@ function StepEditor({
             <Plus size={12} /> Ajouter un paragraphe
           </button>
 
-          <div style={{ background: '#f7f4ee', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, border: '1px solid #e5ddc8' }}>
             <label style={labelStyle}>Bouton principal (CTA)</label>
             <label style={subLabel}>Texte du bouton</label>
             <input
@@ -270,7 +289,7 @@ function StepEditor({
             />
           </div>
 
-          <div style={{ background: '#f7f4ee', borderRadius: 10, padding: 14 }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid #e5ddc8' }}>
             <label style={{ ...labelStyle, marginBottom: 8 }}>
               <input
                 type="checkbox"
@@ -289,7 +308,7 @@ function StepEditor({
                   style={{ ...FIELD, marginBottom: 8 }}
                 />
                 <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
-                  URL auto : <code style={{ background: '#fff', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
+                  URL auto : <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
                 </p>
               </>
             )}
@@ -312,20 +331,37 @@ function StepEditor({
           )}
         </div>
 
-        {/* ── Colonne aperçu live ── */}
+        {/* ── Aperçu lecture seule ── */}
         <div>
-          <label style={labelStyle}>
-            <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
-            Aperçu en direct
-          </label>
-          <div style={{ border: '1px solid #e5ddc8', borderRadius: 10, overflow: 'hidden', position: 'sticky', top: 16 }}>
-            <iframe
-              title={`Aperçu ${step.label}`}
-              srcDoc={previewHtml}
-              style={{ width: '100%', height: 560, border: 'none', background: '#fff', display: 'block' }}
-              sandbox=""
-            />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>
+              <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Aperçu (lecture seule)
+            </label>
+            <button type="button" onClick={() => setShowPreview(v => !v)} style={{ ...btn, fontSize: 12, padding: '6px 10px' }}>
+              {showPreview ? 'Masquer' : 'Afficher'}
+            </button>
           </div>
+          {showPreview && (
+            <div
+              style={{
+                border: '2px dashed #c5b89a',
+                borderRadius: 10,
+                overflow: 'hidden',
+                background: '#f7f4ee',
+              }}
+            >
+              <p style={{ margin: 0, padding: '8px 12px', fontSize: 11, color: PAGE_MUTED, background: '#fff', borderBottom: '1px solid #e5ddc8' }}>
+                Non cliquable — modifiez le texte dans les champs au-dessus
+              </p>
+              <iframe
+                title={`Aperçu ${step.label}`}
+                srcDoc={previewHtml}
+                style={{ width: '100%', height: 520, border: 'none', background: '#fff', display: 'block', pointerEvents: 'none' }}
+                sandbox=""
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

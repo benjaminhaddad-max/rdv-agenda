@@ -66,7 +66,9 @@ export function brandToCharter(brand: EmailBrand): BrandCharter {
     muted_color: '#888',
     font_family: brand.font_family || 'Inter, Arial, sans-serif',
     logo_url: brand.logo_url,
+    logo_header_url: null,
     logo_text: brand.logo_text,
+    header_style: 'dark',
     cta_style: 'rounded',
     tone: brand.tone || '',
   }

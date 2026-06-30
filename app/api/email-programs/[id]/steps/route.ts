@@ -72,7 +72,7 @@ export async function PUT(req: Request, { params }: Params) {
 
   let { data, error } = await db.from('email_program_steps').insert(rows).select()
   if (error?.message?.includes('content_json')) {
-    const stripped = rows.map(r => {
+    const stripped = rows.map((r: Record<string, unknown>) => {
       const { content_json, ...rest } = r as Record<string, unknown> & { content_json?: unknown }
       return rest
     })
