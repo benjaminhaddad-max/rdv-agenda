@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import { getBrandCharter, wrapCharterEmailHtml } from '@/lib/brand-charter'
 import {
@@ -347,24 +347,57 @@ function StepEditor({
               style={{
                 border: '2px dashed #c5b89a',
                 borderRadius: 10,
-                overflow: 'hidden',
+                overflow: 'auto',
+                maxHeight: 'min(80vh, 900px)',
                 background: '#f7f4ee',
               }}
             >
               <p style={{ margin: 0, padding: '8px 12px', fontSize: 11, color: PAGE_MUTED, background: '#fff', borderBottom: '1px solid #e5ddc8' }}>
-                Non cliquable — modifiez le texte dans les champs au-dessus
+                Faites défiler pour lire tout le mail — modifiez le texte dans les champs au-dessus
               </p>
-              <iframe
-                title={`Aperçu ${step.label}`}
-                srcDoc={previewHtml}
-                style={{ width: '100%', height: 520, border: 'none', background: '#fff', display: 'block', pointerEvents: 'none' }}
-                sandbox=""
-              />
+              <EmailPreviewFrame html={previewHtml} title={`Aperçu ${step.label}`} />
             </div>
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+/** Aperçu email scrollable — hauteur auto selon le contenu */
+function EmailPreviewFrame({ html, title }: { html: string; title: string }) {
+  const ref = useRef<HTMLIFrameElement>(null)
+  const [height, setHeight] = useState(480)
+
+  const resize = useCallback(() => {
+    const doc = ref.current?.contentDocument
+    if (!doc) return
+    const bodyH = doc.body?.scrollHeight ?? 0
+    const docH = doc.documentElement?.scrollHeight ?? 0
+    setHeight(Math.max(bodyH, docH, 320) + 8)
+  }, [])
+
+  useEffect(() => {
+    setHeight(480)
+    resize()
+  }, [html, resize])
+
+  return (
+    <iframe
+      ref={ref}
+      title={title}
+      srcDoc={html}
+      onLoad={resize}
+      scrolling="no"
+      style={{
+        width: '100%',
+        height,
+        border: 'none',
+        background: '#fff',
+        display: 'block',
+      }}
+      sandbox="allow-same-origin"
+    />
   )
 }
 
