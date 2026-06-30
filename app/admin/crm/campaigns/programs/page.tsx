@@ -32,7 +32,7 @@ export default function ProgramsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35' }}>
+    <div style={{ color: '#0e1e35' }}>
       <MarketingNav title="Programmes email" />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <p style={{ color: '#5f6368', fontSize: 14, marginBottom: 16 }}>

@@ -38,8 +38,8 @@ export default function MarketingListsPage() {
     setCreating(false)
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f6f8fc' }}>
+    return (
+    <div>
       <MarketingNav title="Listes marketing (hors CRM)" />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <div style={{ background: '#fef7e0', border: '1px solid #f0d78c', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: '#7a5a00' }}>

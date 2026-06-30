@@ -11,6 +11,7 @@ interface Step {
   day_offset: number
   label: string
   subject: string
+  preheader: string | null
   html_body: string
   email_brands?: { slug: string; name: string; sender_email: string; active: boolean } | null
 }
@@ -62,7 +63,9 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         steps: program!.steps.map(s =>
-          s.id === step.id ? { ...s, subject: step.subject, html_body: step.html_body } : s,
+          s.id === step.id
+            ? { ...s, subject: step.subject, preheader: step.preheader, html_body: step.html_body }
+            : s,
         ),
       }),
     })
@@ -100,15 +103,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }
 
   if (!program) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f7f4ee', color: PAGE_TEXT, padding: 40 }}>
-        Chargement…
-      </div>
-    )
+    return <div style={{ padding: 40, color: PAGE_TEXT }}>Chargement…</div>
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: PAGE_TEXT }}>
+    <div style={{ color: PAGE_TEXT }}>
       <MarketingNav title={program.name} />
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -192,6 +191,13 @@ function StepEditor({
         value={step.subject}
         onChange={e => onChange({ ...step, subject: e.target.value })}
         style={{ ...FIELD, marginBottom: 12, fontWeight: 500 }}
+      />
+
+      <label style={labelStyle}>Préheader (aperçu boîte mail)</label>
+      <input
+        value={step.preheader || ''}
+        onChange={e => onChange({ ...step, preheader: e.target.value })}
+        style={{ ...FIELD, marginBottom: 12, fontSize: 13 }}
       />
 
       <label style={labelStyle}>Corps du mail</label>

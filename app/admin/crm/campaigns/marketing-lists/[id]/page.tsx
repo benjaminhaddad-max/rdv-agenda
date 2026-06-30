@@ -46,7 +46,7 @@ export default function MarketingListDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6f8fc' }}>
+    <div>
       <MarketingNav title={name || 'Liste marketing'} />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <p style={{ color: '#5f6368', marginBottom: 16 }}>{count} contacts · hors CRM</p>

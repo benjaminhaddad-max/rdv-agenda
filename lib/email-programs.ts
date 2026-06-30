@@ -215,12 +215,17 @@ async function sendProgramStepToEnrollment(
     lien_formulaire: lienFormulaire,
   }
 
-  let html = renderTemplate(step.html_body || '', vars)
-  if (brand) {
-    html = wrapBrandEmailHtml(brand, html)
-  }
-
   const subject = renderTemplate(step.subject, vars)
+  const preheader = step.preheader ? renderTemplate(step.preheader, vars) : ''
+
+  let inner = renderTemplate(step.html_body || '', vars)
+  if (preheader) {
+    inner = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preheader}</div>${inner}`
+  }
+  let html = inner
+  if (brand) {
+    html = wrapBrandEmailHtml(brand, inner)
+  }
 
   try {
     const result = await sendBrevoEmail({
@@ -289,5 +294,3 @@ async function sendProgramStepToEnrollment(
     return false
   }
 }
-
-import { defaultBrandStepBody } from '@/lib/brand-charter'
