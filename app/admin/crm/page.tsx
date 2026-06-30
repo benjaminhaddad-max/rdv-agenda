@@ -32,6 +32,7 @@ import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/component
 import { getCached, invalidate, refetch } from '@/lib/client-cache'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { buildEdumoveGroups, isEdumoveGroups } from '@/lib/edumove-crm-view'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -493,12 +494,26 @@ export default function CRMPage() {
         if (!Array.isArray(rows) || rows.length === 0) { setViewsLoaded(true); return }
         const dbViews: CRMSavedView[] = rows.map(r => {
           const rawGroups = (r.filter_groups as CRMFilterGroup[]) ?? []
+          const nameLower = (r.name || '').toLowerCase()
           // Vue LINOVA impose explicitement les 2 forms cibles.
-          const shouldForceLinova = (r.name || '').toLowerCase().includes('linova')
-          const groups = shouldForceLinova ? buildLinovaGroups() : rawGroups
+          const shouldForceLinova = nameLower.includes('linova')
+          // Vue Edumove : tous les forms dont le nom contient "edumove".
+          const shouldForceEdumove = nameLower.includes('edumove')
+          const groups = shouldForceLinova
+            ? buildLinovaGroups()
+            : shouldForceEdumove
+              ? buildEdumoveGroups()
+              : rawGroups
 
           // Persiste la correction en base pour eviter tout drift futur.
           if (shouldForceLinova && !isLinovaGroups(rawGroups)) {
+            void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filter_groups: groups }),
+            }).catch(() => {})
+          }
+          if (shouldForceEdumove && !isEdumoveGroups(rawGroups)) {
             void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -1207,7 +1222,7 @@ export default function CRMPage() {
     // "Tous les leads" doit aussi se rafraîchir automatiquement pour afficher
     // les nouveaux formulaires sans action manuelle.
     const isAllLeadsView = activeViewId === 'all'
-    return isAllLeadsView || activeName.includes('linova') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
+    return isAllLeadsView || activeName.includes('linova') || activeName.includes('edumove') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
   }, [crmViews, activeViewId, source, customFilterParam])
 
   // Rafraichit la liste en continu pour refléter les leads Meta quasi en temps réel.

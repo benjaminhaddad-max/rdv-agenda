@@ -14,6 +14,7 @@
     { "path": "/api/cron/typesense-crm-sync", "schedule": "*/2 * * * *" },
     { "path": "/api/cron/campaigns-process-pending", "schedule": "* * * * *" },
     { "path": "/api/cron/workflow-engine",            "schedule": "* * * * *" },
-    { "path": "/api/cron/sms-campaigns-scheduled",    "schedule": "* * * * *" }
+    { "path": "/api/cron/sms-campaigns-scheduled",    "schedule": "* * * * *" },
+    { "path": "/api/cron/email-programs-process",     "schedule": "*/15 * * * *" }
   ]
 }

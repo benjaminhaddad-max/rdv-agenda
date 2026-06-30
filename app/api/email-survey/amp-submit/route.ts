@@ -98,7 +98,7 @@ export async function POST(req: Request) {
   const payload = token && token !== 'demo' ? verifyFormContactToken(token) : null
   const cid = payload?.cid || 'demo'
 
-  logger.info('email-survey-amp-submit', {
+  logger.info('email-survey-amp-submit', 'réponses AMP enregistrées', {
     faculte_visee: fac,
     strategie_prepa: strat,
     cid,

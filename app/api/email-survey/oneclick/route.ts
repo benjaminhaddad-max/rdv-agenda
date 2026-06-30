@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   }
 
   const cid = payload?.cid || 'demo'
-  logger.info('email-survey-oneclick', { cid, fac, strat })
+  logger.info('email-survey-oneclick', 'réponse 1-clic', { cid, fac, strat })
 
   if (payload?.cid && (fac || strat)) {
     const db = createServiceClient()
