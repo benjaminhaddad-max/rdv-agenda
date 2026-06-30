@@ -3,7 +3,7 @@ import { sendBrevoEmail, renderTemplate, htmlToText } from '@/lib/brevo'
 import { getEmailBrand, brandSender, brandToCharter, wrapBrandEmailHtml } from '@/lib/email-brands'
 import { resolveCampaignRecipients } from '@/lib/campaign-recipients'
 import { resolveMarketingRecipients } from '@/lib/marketing-audiences'
-import { buildFormContactUrl } from '@/lib/form-contact-link'
+import { resolveProgramFormLink } from '@/lib/marketing/brand-form-links'
 
 export interface EmailProgram {
   id: string
@@ -199,13 +199,17 @@ async function sendProgramStepToEnrollment(
   const formSlug = program.prefill_form_slug?.trim() || process.env.CAMPAIGN_PREFILL_FORM_SLUG?.trim() || ''
 
   const lienFormulaire =
-    formSlug && enrollment.contact_id && !enrollment.contact_id.startsWith('mkt:')
-      ? buildFormContactUrl(formSlug, {
-          hubspot_contact_id: enrollment.contact_id,
-          firstname: enrollment.first_name,
-          lastname: enrollment.last_name,
-          email: enrollment.email,
-        }) || ''
+    enrollment.contact_id && !enrollment.contact_id.startsWith('mkt:')
+      ? resolveProgramFormLink(
+          brand?.slug,
+          {
+            hubspot_contact_id: enrollment.contact_id,
+            firstname: enrollment.first_name,
+            lastname: enrollment.last_name,
+            email: enrollment.email,
+          },
+          formSlug,
+        )
       : ''
 
   const vars = {

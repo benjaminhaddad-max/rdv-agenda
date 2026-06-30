@@ -4,7 +4,7 @@
  * Endpoint PUBLIC utilisé par les formulaires AFEM externes
  * (hébergés sur afem-edu.fr, fonction serverless Vercel côté AFEM).
  *
- * URL prod : https://crm.diplomasante.com/api/webhooks/afem-form
+ * URL prod : https://hub.diploma-sante.fr/api/webhooks/afem-form
  *
  * Auth : Header "Authorization: Bearer <AFEM_WEBHOOK_TOKEN>"
  *        (alternative équivalente : "X-AFEM-Token: <AFEM_WEBHOOK_TOKEN>")
@@ -37,9 +37,17 @@
  *       "details": "Profil compatible PASS dans 4 vœux sur 6"
  *     },
  *
+ *     // ── Re-qualification Last Chance (page /form) ─────────────────────
+ *     "commence_pass_las":   "oui" | "non",
+ *     "prepa_prevue":        "oui" | "non" | null,
+ *     "prepa_choix":         "medisup" | "diploma" | "antemed" | "cpcm" | "autre" | null,
+ *     "prepa_choix_libre":   null,
+ *     "prepa_non_raison":    "financier" | "pas_le_temps" | "pas_utile" | "autre" | null,
+ *     "prepa_non_raison_libre": null,
+ *
  *     // ── Optionnel ─────────────────────────────────────────────────────
- *     "source_url": "https://afem-edu.fr/orientation-parcoursup",
- *     "meta": { "form_version": "v3", "questionnaire_id": "abc123" }
+ *     "source_url": "https://www.afem-edu.fr/form",
+ *     "meta": { "form_id": "requalification-prepa-idf", "hubspot_contact_id": "123456" }
  *   }
  *
  * Réponse :
@@ -168,6 +176,12 @@ export async function POST(req: NextRequest) {
 
   const voeux = Array.isArray(body.parcoursup_voeux) ? body.parcoursup_voeux : null
   const pronostic = body.pronostic ?? null
+  const commencePassLas = cleanString(body.commence_pass_las)
+  const prepaPrevue = cleanString(body.prepa_prevue)
+  const prepaChoix = cleanString(body.prepa_choix)
+  const prepaChoixLibre = cleanString(body.prepa_choix_libre)
+  const prepaNonRaison = cleanString(body.prepa_non_raison)
+  const prepaNonRaisonLibre = cleanString(body.prepa_non_raison_libre)
   const extraMeta =
     body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta)
       ? (body.meta as Record<string, unknown>)
@@ -218,6 +232,26 @@ export async function POST(req: NextRequest) {
   if (voeux) updatedRaw.afem_parcoursup_voeux = voeux
   if (pronostic !== null && pronostic !== undefined) updatedRaw.afem_pronostic = pronostic
   if (extraMeta) updatedRaw.afem_meta = extraMeta
+
+  if (commencePassLas) {
+    updatedRaw.afem_requal_commence_pass_las = commencePassLas
+    updatedRaw.commence_pass_las = commencePassLas
+  }
+  if (prepaPrevue) {
+    updatedRaw.afem_requal_prepa_prevue = prepaPrevue
+    updatedRaw.prepa_prevue = prepaPrevue
+  }
+  if (prepaChoix) {
+    updatedRaw.afem_requal_prepa_choix = prepaChoix
+    updatedRaw.prepa_choix = prepaChoix
+  }
+  if (prepaChoixLibre) updatedRaw.afem_requal_prepa_choix_libre = prepaChoixLibre
+  if (prepaNonRaison) {
+    updatedRaw.afem_requal_prepa_non_raison = prepaNonRaison
+    updatedRaw.prepa_non_raison = prepaNonRaison
+  }
+  if (prepaNonRaisonLibre) updatedRaw.afem_requal_prepa_non_raison_libre = prepaNonRaisonLibre
+  updatedRaw.afem_requal_at = nowIso
 
   // Un trigger Postgres synchronise les colonnes natives depuis hubspot_raw
   // (format plat : hubspot_raw.firstname, hubspot_raw.email, etc.). Si on
@@ -317,12 +351,33 @@ export async function POST(req: NextRequest) {
         ? String(pronostic)
         : 'n/a'
 
+  const requalSummary = commencePassLas
+    ? [
+        `Commence PASS/LAS : ${commencePassLas}`,
+        prepaPrevue ? `Prépa prévue : ${prepaPrevue}` : null,
+        prepaChoix ? `Prépa choix : ${prepaChoix}${prepaChoixLibre ? ` (${prepaChoixLibre})` : ''}` : null,
+        prepaNonRaison
+          ? `Sans prépa — raison : ${prepaNonRaison}${prepaNonRaisonLibre ? ` (${prepaNonRaisonLibre})` : ''}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : null
+
   try {
     await db.from('crm_activities').insert({
       activity_type: 'note',
       hubspot_contact_id: contactId,
       subject: `Lead reçu de AFEM (${action})`,
-      body: `Classe : ${classeMapped ?? 'n/a'}\nDépartement : ${departement ?? 'n/a'}\nPronostic : ${pronosticLabel}\nVœux Parcoursup :\n${voeuxSummary}`,
+      body: [
+        `Classe : ${classeMapped ?? 'n/a'}`,
+        `Département : ${departement ?? 'n/a'}`,
+        requalSummary,
+        `Pronostic : ${pronosticLabel}`,
+        `Vœux Parcoursup :\n${voeuxSummary}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
       metadata: { source: 'afem_webhook', payload: body },
       occurred_at: nowIso,
     })
