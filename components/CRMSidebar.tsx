@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -44,6 +44,9 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Marketing',
     items: [
       { key: 'campaigns', label: 'Campagnes',     href: '/admin/crm/campaigns',       icon: Mail },
+      { key: 'programs',  label: 'Programmes',    href: '/admin/crm/campaigns/programs', icon: Repeat2 },
+      { key: 'mkt-lists', label: 'Listes marketing', href: '/admin/crm/campaigns/marketing-lists', icon: List },
+      { key: 'brands',    label: 'Marques',       href: '/admin/crm/campaigns/brands', icon: Palette },
       { key: 'segments',  label: 'Segments',      href: '/admin/crm/campaigns/segments', icon: Users },
       { key: 'templates', label: 'Modèles email', href: '/admin/crm/email-templates', icon: FileText },
       { key: 'workflows', label: 'Workflows',     href: '/admin/crm/workflows',       icon: Workflow },

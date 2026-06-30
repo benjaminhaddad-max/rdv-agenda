@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Mail, Plus, Search, Send, Clock, Pause, Check, AlertTriangle, Archive,
-  Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3,
+  Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3, Repeat2, List, Palette,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -134,7 +134,16 @@ export default function CampaignsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <a href="/admin/crm/campaigns/templates" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+            <Repeat2 size={12} /> Programmes J1–Jn
+          </a>
+          <a href="/admin/crm/campaigns/marketing-lists" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <List size={12} /> Listes marketing
+          </a>
+          <a href="/admin/crm/campaigns/brands" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Palette size={12} /> Marques
+          </a>
+          <a href="/admin/crm/email-templates" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <FileText size={12} /> Templates
           </a>
           <a href="/admin/crm/campaigns/segments" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>

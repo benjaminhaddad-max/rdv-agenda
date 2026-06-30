@@ -10,7 +10,7 @@ const LINKS = [
   { href: '/admin/crm/campaigns/programs', label: 'Programmes' },
   { href: '/admin/crm/campaigns/brands', label: 'Marques' },
   { href: '/admin/crm/campaigns/marketing-lists', label: 'Listes marketing' },
-  { href: '/admin/crm/campaigns/templates', label: 'Templates' },
+  { href: '/admin/crm/email-templates', label: 'Templates' },
   { href: '/admin/crm/campaigns/segments', label: 'Segments CRM' },
 ]
 
