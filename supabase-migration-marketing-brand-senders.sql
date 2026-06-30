@@ -24,5 +24,5 @@ UPDATE email_brands SET
   sender_email = 'contact@numerusclub.fr',
   sender_name = 'Numerus Club',
   reply_to = 'contact@numerusclub.fr',
-  active = false
+  active = true
 WHERE slug = 'numerus';

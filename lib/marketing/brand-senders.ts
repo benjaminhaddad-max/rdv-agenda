@@ -53,7 +53,7 @@ export const BRAND_SENDER_CONFIGS: BrandSenderConfig[] = [
     reply_to: 'contact@numerusclub.fr',
     website_url: 'https://www.numerusclub.fr',
     charter_source_url: 'https://www.numerusclub.fr/devenir-coach.html',
-    active: false,
+    active: true,
   },
 ]
 
