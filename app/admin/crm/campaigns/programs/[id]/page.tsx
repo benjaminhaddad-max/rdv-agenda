@@ -8,7 +8,7 @@ import {
   resolveStepContent,
   type ProgramStepContent,
 } from '@/lib/marketing/step-content'
-import { Eye, Code, Play, Plus, Save, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Code, Eye, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react'
 
 interface Step {
   id: string
@@ -161,7 +161,7 @@ function StepEditor({
   saving: boolean
 }) {
   const [showHtml, setShowHtml] = useState(false)
-  const [showPreview, setShowPreview] = useState(true)
+  const [contentOpen, setContentOpen] = useState(false)
   const brand = step.email_brands
   const charter = brand?.slug ? getBrandCharter(brand.slug) : null
 
@@ -186,7 +186,7 @@ function StepEditor({
   return (
     <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
-        <div>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <strong style={{ fontSize: 16, color: PAGE_TEXT }}>{step.label}</strong>
           <span style={{ marginLeft: 8, fontSize: 12, color: PAGE_MUTED }}>J+{step.day_offset}</span>
           {brand && (
@@ -195,170 +195,177 @@ function StepEditor({
               {!brand.active && ' (inactif)'}
             </span>
           )}
+          <p style={{ margin: '8px 0 0', fontSize: 13, color: PAGE_MUTED, lineHeight: 1.4 }}>
+            <span style={{ fontWeight: 600, color: PAGE_TEXT }}>Objet :</span> {step.subject || '—'}
+          </p>
         </div>
-        <button type="button" onClick={() => onSave(step)} disabled={saving} style={btnPrimary}>
+        <button type="button" onClick={() => onSave(step)} disabled={saving} style={{ ...btnPrimary, flexShrink: 0 }}>
           <Save size={14} /> {saving ? '…' : 'Enregistrer'}
         </button>
       </div>
 
-      <div
-        style={{
-          background: '#eef4ff',
-          border: '1px solid #b8cce8',
-          borderRadius: 10,
-          padding: '12px 14px',
-          marginBottom: 16,
-          fontSize: 13,
-          lineHeight: 1.5,
-          color: PAGE_TEXT,
-        }}
-      >
-        <strong>Modifier le mail ici</strong> — éditez l&apos;objet et les paragraphes dans les champs ci-dessous.
-        L&apos;aperçu en bas est en <strong>lecture seule</strong> (il se met à jour en direct). Cliquez sur{' '}
-        <strong>Enregistrer</strong> pour sauvegarder.
+      {/* ── Aperçu en premier ── */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ ...labelStyle, marginBottom: 8 }}>
+          <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+          Aperçu du mail
+        </label>
+        <div
+          style={{
+            border: '1px solid #e5ddc8',
+            borderRadius: 10,
+            overflow: 'auto',
+            maxHeight: 'min(70vh, 720px)',
+            background: '#f7f4ee',
+          }}
+        >
+          <EmailPreviewFrame html={previewHtml} title={`Aperçu ${step.label}`} />
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* ── Zone d'édition ── */}
-        <div style={{ background: '#faf8f4', border: '2px solid #c5b89a', borderRadius: 12, padding: 18 }}>
-          <label style={labelStyle}>Objet</label>
-          <input
-            value={step.subject}
-            onChange={e => onChange({ ...step, subject: e.target.value })}
-            style={{ ...FIELD, marginBottom: 14, fontWeight: 500 }}
-          />
+      {/* ── Bloc édition repliable ── */}
+      <div style={{ border: '1px solid #e5ddc8', borderRadius: 10, overflow: 'hidden' }}>
+        <button
+          type="button"
+          onClick={() => setContentOpen(v => !v)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '14px 16px',
+            border: 'none',
+            background: contentOpen ? '#faf8f4' : '#fff',
+            color: PAGE_TEXT,
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Pencil size={15} />
+            Modifier le contenu, les liens et l&apos;objet
+          </span>
+          {contentOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
 
-          <label style={labelStyle}>Préheader (aperçu boîte mail)</label>
-          <input
-            value={step.preheader || ''}
-            onChange={e => onChange({ ...step, preheader: e.target.value })}
-            style={{ ...FIELD, marginBottom: 18, fontSize: 13 }}
-          />
+        {contentOpen && (
+          <div style={{ padding: '0 16px 16px', background: '#faf8f4', borderTop: '1px solid #e5ddc8' }}>
+            <p style={{ fontSize: 12, color: PAGE_MUTED, margin: '12px 0 16px', lineHeight: 1.5 }}>
+              Les changements se reflètent dans l&apos;aperçu ci-dessus. Pensez à cliquer sur{' '}
+              <strong>Enregistrer</strong>.
+            </p>
 
-          <label style={{ ...labelStyle, fontSize: 12, color: PAGE_TEXT }}>
-            Corps du mail — paragraphes (modifiables)
-          </label>
-          {content.paragraphs.map((p, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <textarea
-                value={p}
-                onChange={e => {
-                  const paragraphs = [...content.paragraphs]
-                  paragraphs[idx] = e.target.value
-                  patchContent({ paragraphs })
-                }}
-                rows={4}
-                placeholder={`Paragraphe ${idx + 1}…`}
-                style={{ ...FIELD, flex: 1, resize: 'vertical', minHeight: 88, fontSize: 15 }}
+            <label style={labelStyle}>Objet</label>
+            <input
+              value={step.subject}
+              onChange={e => onChange({ ...step, subject: e.target.value })}
+              style={{ ...FIELD, marginBottom: 14, fontWeight: 500 }}
+            />
+
+            <label style={labelStyle}>Préheader (aperçu boîte mail)</label>
+            <input
+              value={step.preheader || ''}
+              onChange={e => onChange({ ...step, preheader: e.target.value })}
+              style={{ ...FIELD, marginBottom: 18, fontSize: 13 }}
+            />
+
+            <label style={{ ...labelStyle, fontSize: 12, color: PAGE_TEXT }}>Corps du mail — paragraphes</label>
+            {content.paragraphs.map((p, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <textarea
+                  value={p}
+                  onChange={e => {
+                    const paragraphs = [...content.paragraphs]
+                    paragraphs[idx] = e.target.value
+                    patchContent({ paragraphs })
+                  }}
+                  rows={4}
+                  placeholder={`Paragraphe ${idx + 1}…`}
+                  style={{ ...FIELD, flex: 1, resize: 'vertical', minHeight: 88, fontSize: 15 }}
+                />
+                {content.paragraphs.length > 1 && (
+                  <button
+                    type="button"
+                    title="Supprimer"
+                    onClick={() => patchContent({ paragraphs: content.paragraphs.filter((_, i) => i !== idx) })}
+                    style={{ ...btnIcon, color: '#b91c1c', alignSelf: 'flex-start' }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => patchContent({ paragraphs: [...content.paragraphs, ''] })}
+              style={{ ...btn, marginBottom: 18, fontSize: 12 }}
+            >
+              <Plus size={12} /> Ajouter un paragraphe
+            </button>
+
+            <div style={{ background: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, border: '1px solid #e5ddc8' }}>
+              <label style={labelStyle}>Bouton principal (CTA)</label>
+              <label style={subLabel}>Texte du bouton</label>
+              <input
+                value={content.ctaLabel}
+                onChange={e => patchContent({ ctaLabel: e.target.value })}
+                style={{ ...FIELD, marginBottom: 10 }}
               />
-              {content.paragraphs.length > 1 && (
-                <button
-                  type="button"
-                  title="Supprimer"
-                  onClick={() => patchContent({ paragraphs: content.paragraphs.filter((_, i) => i !== idx) })}
-                  style={{ ...btnIcon, color: '#b91c1c', alignSelf: 'flex-start' }}
-                >
-                  <Trash2 size={14} />
-                </button>
+              <label style={subLabel}>Lien du bouton (URL)</label>
+              <input
+                type="url"
+                value={content.ctaHref}
+                onChange={e => patchContent({ ctaHref: e.target.value })}
+                placeholder="https://…"
+                style={{ ...FIELD, marginBottom: 0, fontFamily: 'ui-monospace, monospace', fontSize: 13 }}
+              />
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid #e5ddc8' }}>
+              <label style={{ ...labelStyle, marginBottom: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={content.showFormLink}
+                  onChange={e => patchContent({ showFormLink: e.target.checked })}
+                  style={{ marginRight: 8 }}
+                />
+                Lien formulaire pré-rempli CRM
+              </label>
+              {content.showFormLink && (
+                <>
+                  <label style={subLabel}>Texte du lien formulaire</label>
+                  <input
+                    value={content.formLinkLabel}
+                    onChange={e => patchContent({ formLinkLabel: e.target.value })}
+                    style={{ ...FIELD, marginBottom: 8 }}
+                  />
+                  <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
+                    URL auto : <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
+                  </p>
+                </>
               )}
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => patchContent({ paragraphs: [...content.paragraphs, ''] })}
-            style={{ ...btn, marginBottom: 18, fontSize: 12 }}
-          >
-            <Plus size={12} /> Ajouter un paragraphe
-          </button>
 
-          <div style={{ background: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, border: '1px solid #e5ddc8' }}>
-            <label style={labelStyle}>Bouton principal (CTA)</label>
-            <label style={subLabel}>Texte du bouton</label>
-            <input
-              value={content.ctaLabel}
-              onChange={e => patchContent({ ctaLabel: e.target.value })}
-              style={{ ...FIELD, marginBottom: 10 }}
-            />
-            <label style={subLabel}>Lien du bouton (URL)</label>
-            <input
-              type="url"
-              value={content.ctaHref}
-              onChange={e => patchContent({ ctaHref: e.target.value })}
-              placeholder="https://…"
-              style={{ ...FIELD, marginBottom: 0, fontFamily: 'ui-monospace, monospace', fontSize: 13 }}
-            />
-          </div>
-
-          <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid #e5ddc8' }}>
-            <label style={{ ...labelStyle, marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={content.showFormLink}
-                onChange={e => patchContent({ showFormLink: e.target.checked })}
-                style={{ marginRight: 8 }}
+            <button
+              type="button"
+              onClick={() => setShowHtml(v => !v)}
+              style={{ ...btn, marginTop: 14, fontSize: 12 }}
+            >
+              <Code size={12} /> {showHtml ? 'Masquer HTML' : 'HTML avancé'}
+            </button>
+            {showHtml && (
+              <textarea
+                value={step.html_body}
+                onChange={e => onChange({ ...step, html_body: e.target.value })}
+                rows={8}
+                style={{ ...FIELD, marginTop: 8, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
               />
-              Lien formulaire pré-rempli CRM
-            </label>
-            {content.showFormLink && (
-              <>
-                <label style={subLabel}>Texte du lien formulaire</label>
-                <input
-                  value={content.formLinkLabel}
-                  onChange={e => patchContent({ formLinkLabel: e.target.value })}
-                  style={{ ...FIELD, marginBottom: 8 }}
-                />
-                <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
-                  URL auto : <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
-                </p>
-              </>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowHtml(v => !v)}
-            style={{ ...btn, marginTop: 14, fontSize: 12 }}
-          >
-            <Code size={12} /> {showHtml ? 'Masquer HTML' : 'HTML avancé'}
-          </button>
-          {showHtml && (
-            <textarea
-              value={step.html_body}
-              onChange={e => onChange({ ...step, html_body: e.target.value })}
-              rows={8}
-              style={{ ...FIELD, marginTop: 8, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
-            />
-          )}
-        </div>
-
-        {/* ── Aperçu lecture seule ── */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <label style={{ ...labelStyle, marginBottom: 0 }}>
-              <Eye size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
-              Aperçu (lecture seule)
-            </label>
-            <button type="button" onClick={() => setShowPreview(v => !v)} style={{ ...btn, fontSize: 12, padding: '6px 10px' }}>
-              {showPreview ? 'Masquer' : 'Afficher'}
-            </button>
-          </div>
-          {showPreview && (
-            <div
-              style={{
-                border: '2px dashed #c5b89a',
-                borderRadius: 10,
-                overflow: 'auto',
-                maxHeight: 'min(80vh, 900px)',
-                background: '#f7f4ee',
-              }}
-            >
-              <p style={{ margin: 0, padding: '8px 12px', fontSize: 11, color: PAGE_MUTED, background: '#fff', borderBottom: '1px solid #e5ddc8' }}>
-                Faites défiler pour lire tout le mail — modifiez le texte dans les champs au-dessus
-              </p>
-              <EmailPreviewFrame html={previewHtml} title={`Aperçu ${step.label}`} />
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )
