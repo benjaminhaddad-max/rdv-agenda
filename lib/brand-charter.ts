@@ -155,80 +155,56 @@ export function brandCtaButton(
   return `<a href="${href}" style="display:inline-block;background:${charter.primary_color};color:#fff;padding:12px 24px;text-decoration:none;border-radius:${radius};font-weight:600;font-size:15px">${label}</a>`
 }
 
+/** Bloc logo en-tête email — centré, taille lisible */
+function centeredLogo(inner: string): string {
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="text-align:center">${inner}</td></tr></table>`
+}
+
 /** Bloc logo en-tête email — fidèle aux sites officiels */
-function buildEmailHeaderLogo(charter: BrandCharter): string {
+export function buildEmailHeaderLogo(charter: BrandCharter): string {
   const onDark = charter.header_style === 'dark'
 
   if (charter.slug === 'prepamedecine') {
     const img = charter.logo_header_url || charter.logo_url
-    return `<table cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="vertical-align:middle;padding-right:10px">${img ? `<img src="${img}" alt="PrépaMédecine" height="40" style="display:block;height:40px;width:auto" />` : ''}</td>
-<td style="vertical-align:middle;font-family:'Nunito',Inter,Arial,sans-serif;font-weight:900;font-size:21px;line-height:1.1;letter-spacing:-0.4px">
-<span style="color:#6ba3e8;font-style:normal">prepa</span><span style="color:#fff">medecine</span><span style="color:#6ba3e8;font-weight:900">.</span><span style="color:#cbd5e1;font-size:15px;font-weight:700">fr</span>
-</td></tr></table>`
+    return centeredLogo(`<table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto"><tr>
+<td style="vertical-align:middle;padding-right:10px">${img ? `<img src="${img}" alt="PrépaMédecine" height="52" style="display:block;height:52px;width:auto;margin:0 auto" />` : ''}</td>
+<td style="vertical-align:middle;font-family:'Nunito',Inter,Arial,sans-serif;font-weight:900;font-size:24px;line-height:1.1;letter-spacing:-0.4px;text-align:left">
+<span style="color:#6ba3e8;font-style:normal">prepa</span><span style="color:#fff">medecine</span><span style="color:#6ba3e8;font-weight:900">.</span><span style="color:#cbd5e1;font-size:16px;font-weight:700">fr</span>
+</td></tr></table>`)
   }
 
   if (charter.slug === 'numerus') {
     const img = charter.logo_header_url || charter.logo_url
-    return `<table cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="vertical-align:middle;padding-right:12px">${img ? `<img src="${img}" alt="Numerus Club" height="44" style="display:block;height:44px;width:auto" />` : ''}</td>
-<td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#fff;line-height:1.2">
+    return centeredLogo(`<table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto"><tr>
+<td style="vertical-align:middle;padding-right:12px">${img ? `<img src="${img}" alt="Numerus Club" height="52" style="display:block;height:52px;width:auto" />` : ''}</td>
+<td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#fff;line-height:1.2;text-align:left">
 Numerus <em style="font-style:italic;color:#F4ECE0">Club</em>
-</td></tr></table>`
+</td></tr></table>`)
   }
 
   if (charter.slug === 'hermione') {
     const img = charter.logo_header_url || charter.logo_url
     if (img) {
-      return `<img src="${img}" alt="Club Hermione" height="40" style="display:block;max-height:44px;width:auto" />`
+      return centeredLogo(`<img src="${img}" alt="Club Hermione" height="52" style="display:block;height:52px;max-height:56px;width:auto;margin:0 auto" />`)
     }
   }
 
   const img = onDark ? (charter.logo_header_url || charter.logo_url) : charter.logo_url
   if (img) {
-    return `<img src="${img}" alt="${charter.name}" height="40" style="display:block;max-height:44px;width:auto" />`
+    return centeredLogo(`<img src="${img}" alt="${charter.name}" height="48" style="display:block;height:48px;max-height:52px;width:auto;margin:0 auto" />`)
   }
 
-  return `<span style="font-size:20px;font-weight:700;letter-spacing:-0.02em">${charter.logo_text || charter.name}</span>`
+  return centeredLogo(`<span style="font-size:22px;font-weight:700;letter-spacing:-0.02em">${charter.logo_text || charter.name}</span>`)
 }
 
-/** Enveloppe HTML email avec charte complète */
+import { wrapBrandEmailHtml } from '@/lib/marketing/brand-email-shells'
+
+/** Enveloppe HTML email — shell distinct par marque (AFEM, Numerus, Hermione, PrépaMédecine) */
 export function wrapCharterEmailHtml(charter: BrandCharter, innerHtml: string): string {
-  const logoBlock = buildEmailHeaderLogo(charter)
-  const isLight = charter.header_style === 'light'
-  const headerBg = isLight ? '#ffffff' : charter.primary_color
-  const headerTextColor = isLight ? charter.text_color : '#ffffff'
-  const headerBorder = isLight ? `border-bottom:3px solid ${charter.primary_color};` : ''
-
-  return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-</head>
-<body style="margin:0;padding:0;background:${charter.background_color};font-family:${charter.font_family};color:${charter.text_color}">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr><td align="center" style="padding:24px 16px">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06)">
-        <tr><td style="background:${headerBg};padding:20px 24px;color:${headerTextColor};${headerBorder}">
-          ${logoBlock}
-        </td></tr>
-        <tr><td style="padding:28px 24px;line-height:1.65;font-size:15px;color:${charter.text_color}">
-          ${innerHtml}
-        </td></tr>
-        <tr><td style="padding:16px 24px;background:${charter.background_color};font-size:12px;color:${charter.muted_color};text-align:center;line-height:1.5">
-          <strong style="color:${charter.text_color}">${charter.name}</strong><br>
-          <a href="${charter.website_url}" style="color:${charter.primary_color}">${charter.website_url.replace(/^https?:\/\//, '')}</a><br>
-          <a href="{{unsubscribe}}" style="color:${charter.muted_color}">Se désabonner</a>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`
+  return wrapBrandEmailHtml(charter, innerHtml)
 }
 
-/** Corps par défaut pour une étape programme, avec ton de marque */
+/** @deprecated Corps par défaut legacy */
 export function defaultBrandStepBody(charter: BrandCharter, label: string): string {
   const cta = brandCtaButton(charter, 'En savoir plus →', charter.website_url)
   return `<p>Bonjour <strong>{{prenom}}</strong>,</p>

@@ -1,11 +1,16 @@
 import { buildFormContactUrl, signFormContactToken, type FormContactInput } from '@/lib/form-contact-link'
 
-/** Pages /form hébergées sur les sites marques (re-qualification Last Chance) */
-const DEFAULT_BRAND_FORM_BASE: Record<string, string> = {
+/** Pages /form — seules URLs autorisées pour les CTA programme Last Chance */
+export const BRAND_FORM_URLS: Record<string, string> = {
   afem: 'https://www.afem-edu.fr/form',
   prepamedecine: 'https://prepamedecine.fr/form',
-  hermione: 'https://hermione.co/form',
-  numerus: 'https://www.numerusclub.fr/form',
+  hermione: 'https://orientation.hermione.co/form',
+  numerus: 'https://numerusclub.fr/form',
+}
+
+export function getBrandFormUrl(brandSlug: string | null | undefined): string | null {
+  if (!brandSlug?.trim()) return null
+  return BRAND_FORM_URLS[brandSlug.trim().toLowerCase()] || null
 }
 
 function brandFormBaseUrl(brandSlug: string): string | null {
@@ -13,7 +18,7 @@ function brandFormBaseUrl(brandSlug: string): string | null {
   const envKey = `BRAND_FORM_URL_${slug.replace(/-/g, '_').toUpperCase()}`
   const fromEnv = process.env[envKey]?.trim()
   if (fromEnv) return fromEnv.replace(/\/+$/, '')
-  return DEFAULT_BRAND_FORM_BASE[slug] || null
+  return BRAND_FORM_URLS[slug] || null
 }
 
 /** Lien signé vers la page /form externe de la marque (ex. afem-edu.fr/form?t=…) */
@@ -57,5 +62,17 @@ export function resolveProgramFormLink(
   if (slug) {
     return buildFormContactUrl(slug, contact) || ''
   }
-  return ''
+
+  return getBrandFormUrl(brandSlug) || ''
+}
+
+/** CTA = même URL que le formulaire marque */
+export function resolveProgramCtaLink(
+  _landingUrl: string | null | undefined,
+  _stepLabel: string | null | undefined,
+  brandSlug: string | null | undefined,
+  contact: FormContactInput,
+  programFormSlug?: string | null,
+): string {
+  return resolveProgramFormLink(brandSlug, contact, programFormSlug)
 }

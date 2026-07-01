@@ -1,7 +1,7 @@
 import type { BrandCharter } from '@/lib/brand-charter'
 import { buildLastChanceStepBody } from '@/lib/marketing/last-chance-medecine-steps'
-import type { LastChanceStepDef } from '@/lib/marketing/last-chance-medecine-steps'
-import { LAST_CHANCE_MEDECINE_STEPS } from '@/lib/marketing/last-chance-medecine-steps'
+import type { LastChanceStepDef, LastChanceBrand } from '@/lib/marketing/last-chance-medecine-steps'
+import { LAST_CHANCE_MEDECINE_STEPS, BRAND_FORM_CTA_LABEL } from '@/lib/marketing/last-chance-medecine-steps'
 
 /** Contenu éditable d'une étape (stocké en base dans content_json) */
 export interface ProgramStepContent {
@@ -17,10 +17,10 @@ export function defaultStepContent(charter: BrandCharter): ProgramStepContent {
   return {
     version: 1,
     paragraphs: [''],
-    ctaLabel: 'En savoir plus →',
-    ctaHref: charter.website_url,
-    showFormLink: true,
-    formLinkLabel: 'Répondre en 2 clics (formulaire pré-rempli) →',
+    ctaLabel: BRAND_FORM_CTA_LABEL.afem,
+    ctaHref: '{{lien_formulaire}}',
+    showFormLink: false,
+    formLinkLabel: '',
   }
 }
 
@@ -28,16 +28,34 @@ export function contentFromStepDef(def: LastChanceStepDef): ProgramStepContent {
   return {
     version: 1,
     paragraphs: [...def.paragraphs],
-    ctaLabel: def.ctaLabel,
-    ctaHref: def.ctaHref || '',
-    showFormLink: !!def.showFormLink,
-    formLinkLabel: def.formLinkLabel || 'Répondre en 2 clics (formulaire pré-rempli) →',
+    ctaLabel: BRAND_FORM_CTA_LABEL[def.brand],
+    ctaHref: '{{lien_formulaire}}',
+    showFormLink: false,
+    formLinkLabel: '',
   }
 }
 
 export function contentFromLastChanceIndex(stepIndex: number): ProgramStepContent | null {
   const def = LAST_CHANCE_MEDECINE_STEPS[stepIndex]
   return def ? contentFromStepDef(def) : null
+}
+
+export function normalizeStepContent(
+  content: ProgramStepContent,
+  brandSlug?: string,
+): ProgramStepContent {
+  const brand = brandSlug as LastChanceBrand | undefined
+  return {
+    ...content,
+    version: 1,
+    ctaHref: '{{lien_formulaire}}',
+    showFormLink: false,
+    formLinkLabel: '',
+    ctaLabel:
+      brand && BRAND_FORM_CTA_LABEL[brand]
+        ? BRAND_FORM_CTA_LABEL[brand]
+        : content.ctaLabel,
+  }
 }
 
 export function buildHtmlFromContent(
@@ -52,9 +70,6 @@ export function buildHtmlFromContent(
     preheader: '',
     paragraphs: content.paragraphs.filter(p => p.trim()),
     ctaLabel: content.ctaLabel,
-    ctaHref: content.ctaHref || charter.website_url,
-    showFormLink: content.showFormLink,
-    formLinkLabel: content.formLinkLabel,
   }
   return buildLastChanceStepBody(def, charter)
 }
@@ -70,28 +85,35 @@ export function tryParseContentFromHtml(html: string): Partial<ProgramStepConten
     if (raw.includes('{{prenom}}')) continue
     if (raw.includes('text-align:center') || m[0].includes('text-align:center')) continue
     if (raw.includes('{{lien_formulaire}}')) continue
-    if (/À très vite/i.test(raw)) continue
+    if (/À très vite|À bientôt|On reste dispo|On te lit|Cordialement|Les conseillers|Comparateur indépendant/i.test(raw)) continue
+    if (/Association étudiante|Réponse personnalisée|Le club des/i.test(raw)) continue
     const text = raw.trim()
     if (!text || text === '<br>' || text === '<br/>') continue
     paragraphs.push(text)
   }
 
+  if (!paragraphs.length) {
+    const divRe = /<div[^>]*>([\s\S]*?)<\/div>/gi
+    let d: RegExpExecArray | null
+    while ((d = divRe.exec(html)) !== null) {
+      const text = d[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      if (text.length > 40) paragraphs.push(text)
+    }
+  }
+
   if (!paragraphs.length) return null
 
   const ctaMatch = html.match(
-    /<a[^>]+href="([^"]+)"[^>]*style="[^"]*display:inline-block[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
-  )
-  const formMatch = html.match(
-    /<a[^>]+href="\{\{lien_formulaire\}\}"[^>]*>([\s\S]*?)<\/a>/i,
+    /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i,
   )
 
   return {
     version: 1,
     paragraphs,
     ctaLabel: ctaMatch?.[2]?.replace(/<[^>]+>/g, '').trim() || 'En savoir plus →',
-    ctaHref: ctaMatch?.[1] || '',
-    showFormLink: !!formMatch,
-    formLinkLabel: formMatch?.[1]?.replace(/<[^>]+>/g, '').trim() || 'Répondre en 2 clics (formulaire pré-rempli) →',
+    ctaHref: '{{lien_formulaire}}',
+    showFormLink: false,
+    formLinkLabel: '',
   }
 }
 
@@ -102,21 +124,24 @@ export function resolveStepContent(
   htmlBody?: string | null,
 ): ProgramStepContent {
   if (contentJson?.version === 1 && Array.isArray(contentJson.paragraphs)) {
-    return contentJson
+    return normalizeStepContent(contentJson, brandSlug)
   }
 
   if (htmlBody) {
     const parsed = tryParseContentFromHtml(htmlBody)
     if (parsed?.paragraphs?.length) {
       const seed = contentFromLastChanceIndex(stepIndex)
-      return {
-        version: 1,
-        paragraphs: parsed.paragraphs,
-        ctaLabel: parsed.ctaLabel || seed?.ctaLabel || 'En savoir plus →',
-        ctaHref: parsed.ctaHref || seed?.ctaHref || '',
-        showFormLink: parsed.showFormLink ?? seed?.showFormLink ?? true,
-        formLinkLabel: parsed.formLinkLabel || seed?.formLinkLabel || 'Répondre en 2 clics (formulaire pré-rempli) →',
-      }
+      return normalizeStepContent(
+        {
+          version: 1,
+          paragraphs: parsed.paragraphs,
+          ctaLabel: parsed.ctaLabel || seed?.ctaLabel || BRAND_FORM_CTA_LABEL[(brandSlug as LastChanceBrand) || 'afem'],
+          ctaHref: '{{lien_formulaire}}',
+          showFormLink: false,
+          formLinkLabel: '',
+        },
+        brandSlug,
+      )
     }
   }
 

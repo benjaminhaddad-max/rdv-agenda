@@ -198,18 +198,16 @@ async function sendProgramStepToEnrollment(
 
   const formSlug = program.prefill_form_slug?.trim() || process.env.CAMPAIGN_PREFILL_FORM_SLUG?.trim() || ''
 
+  const contactInput = {
+    hubspot_contact_id: enrollment.contact_id,
+    firstname: enrollment.first_name,
+    lastname: enrollment.last_name,
+    email: enrollment.email,
+  }
+
   const lienFormulaire =
     enrollment.contact_id && !enrollment.contact_id.startsWith('mkt:')
-      ? resolveProgramFormLink(
-          brand?.slug,
-          {
-            hubspot_contact_id: enrollment.contact_id,
-            firstname: enrollment.first_name,
-            lastname: enrollment.last_name,
-            email: enrollment.email,
-          },
-          formSlug,
-        )
+      ? resolveProgramFormLink(brand?.slug, contactInput, formSlug)
       : ''
 
   const vars = {
@@ -217,6 +215,7 @@ async function sendProgramStepToEnrollment(
     nom: enrollment.last_name || '',
     email: enrollment.email,
     lien_formulaire: lienFormulaire,
+    lien_cta: lienFormulaire,
   }
 
   const subject = renderTemplate(step.subject, vars)

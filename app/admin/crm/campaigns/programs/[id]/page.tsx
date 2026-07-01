@@ -8,6 +8,8 @@ import {
   resolveStepContent,
   type ProgramStepContent,
 } from '@/lib/marketing/step-content'
+import { BRAND_FORM_CTA_LABEL } from '@/lib/marketing/last-chance-medecine-steps'
+import { getBrandFormUrl } from '@/lib/marketing/brand-form-links'
 import { ChevronDown, ChevronUp, Code, Eye, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react'
 
 interface Step {
@@ -171,17 +173,31 @@ function StepEditor({
   )
 
   const applyContent = (next: ProgramStepContent) => {
-    const html = charter ? buildHtmlFromContent(next, charter, step.label) : step.html_body
-    onChange({ ...step, content_json: next, html_body: html })
+    const normalized = {
+      ...next,
+      version: 1 as const,
+      ctaHref: '{{lien_formulaire}}',
+      showFormLink: false,
+      formLinkLabel: '',
+    }
+    const html = charter ? buildHtmlFromContent(normalized, charter, step.label) : step.html_body
+    onChange({ ...step, content_json: normalized, html_body: html })
   }
 
   const patchContent = (patch: Partial<ProgramStepContent>) => {
     applyContent({ ...content, ...patch, version: 1 })
   }
 
+  const formUrlPreview = brand?.slug ? getBrandFormUrl(brand.slug) : null
+
+  const previewInner = step.html_body
+    .replace(/\{\{prenom\}\}/g, 'Marie')
+    .replace(/\{\{lien_formulaire\}\}/g, formUrlPreview || '#')
+    .replace(/\{\{lien_cta\}\}/g, formUrlPreview || '#')
+
   const previewHtml = charter
-    ? wrapCharterEmailHtml(charter, step.html_body.replace(/\{\{prenom\}\}/g, 'Marie'))
-    : step.html_body.replace(/\{\{prenom\}\}/g, 'Marie')
+    ? wrapCharterEmailHtml(charter, previewInner)
+    : previewInner
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
@@ -314,39 +330,22 @@ function StepEditor({
                 onChange={e => patchContent({ ctaLabel: e.target.value })}
                 style={{ ...FIELD, marginBottom: 10 }}
               />
-              <label style={subLabel}>Lien du bouton (URL)</label>
-              <input
-                type="url"
-                value={content.ctaHref}
-                onChange={e => patchContent({ ctaHref: e.target.value })}
-                placeholder="https://…"
-                style={{ ...FIELD, marginBottom: 0, fontFamily: 'ui-monospace, monospace', fontSize: 13 }}
-              />
-            </div>
-
-            <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid #e5ddc8' }}>
-              <label style={{ ...labelStyle, marginBottom: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={content.showFormLink}
-                  onChange={e => patchContent({ showFormLink: e.target.checked })}
-                  style={{ marginRight: 8 }}
-                />
-                Lien formulaire pré-rempli CRM
-              </label>
-              {content.showFormLink && (
-                <>
-                  <label style={subLabel}>Texte du lien formulaire</label>
-                  <input
-                    value={content.formLinkLabel}
-                    onChange={e => patchContent({ formLinkLabel: e.target.value })}
-                    style={{ ...FIELD, marginBottom: 8 }}
-                  />
-                  <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
-                    URL auto : <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
-                  </p>
-                </>
-              )}
+              <p style={{ fontSize: 11, color: PAGE_MUTED, margin: 0 }}>
+                Destination fixe (CTA) :{' '}
+                <code style={{ background: '#f7f4ee', padding: '2px 6px', borderRadius: 4 }}>{'{{lien_formulaire}}'}</code>
+                {formUrlPreview ? (
+                  <>
+                    {' '}
+                    →{' '}
+                    <a href={formUrlPreview} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
+                      {formUrlPreview.replace(/^https:\/\//, '')}
+                    </a>
+                  </>
+                ) : null}
+              </p>
+              <p style={{ fontSize: 11, color: PAGE_MUTED, margin: '6px 0 0' }}>
+                Libellé par marque : {brand?.slug ? BRAND_FORM_CTA_LABEL[brand.slug as keyof typeof BRAND_FORM_CTA_LABEL] : content.ctaLabel}
+              </p>
             </div>
 
             <button
