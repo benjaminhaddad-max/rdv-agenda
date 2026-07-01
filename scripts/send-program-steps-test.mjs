@@ -5,6 +5,7 @@
  * Usage:
  *   bun run scripts/send-program-steps-test.mjs --email=benjamin.haddad@diploma-sante.fr --count=10
  *   bun run scripts/send-program-steps-test.mjs --email=benjamin.haddad@diploma-sante.fr --from=0 --count=10
+ *   bun run scripts/send-program-steps-test.mjs --email=... --contact-id=21036766151
  */
 
 import { readFileSync } from 'node:fs'
@@ -12,6 +13,83 @@ import { createClient } from '@supabase/supabase-js'
 import { sendBrevoEmail, renderTemplate, htmlToText } from '../lib/brevo.ts'
 import { getEmailBrand, brandSender, wrapBrandEmailHtml } from '../lib/email-brands.ts'
 import { resolveProgramFormLink, getBrandFormUrl } from '../lib/marketing/brand-form-links.ts'
+
+const CONTACT_SELECT = 'hubspot_contact_id, firstname, lastname, email'
+
+async function lookupHubSpotContact(email) {
+  const token =
+    process.env.HUBSPOT_ACCESS_TOKEN?.trim() ||
+    process.env.HUBSPOT_PRIVATE_APP_TOKEN?.trim()
+  if (!token) return null
+
+  const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      filterGroups: [{
+        filters: [{ propertyName: 'email', operator: 'EQ', value: email }],
+      }],
+      properties: ['firstname', 'lastname', 'email', 'phone'],
+      limit: 1,
+    }),
+  })
+  if (!res.ok) return null
+
+  const json = await res.json()
+  const hit = json.results?.[0]
+  if (!hit?.id) return null
+
+  return {
+    hubspot_contact_id: String(hit.id),
+    firstname: hit.properties?.firstname || null,
+    lastname: hit.properties?.lastname || null,
+    email: hit.properties?.email || email,
+  }
+}
+
+async function resolveTestContact(db, toEmail, contactIdArg) {
+  if (contactIdArg) {
+    const { data } = await db
+      .from('crm_contacts')
+      .select(CONTACT_SELECT)
+      .eq('hubspot_contact_id', contactIdArg)
+      .maybeSingle()
+
+    if (data?.hubspot_contact_id) {
+      return { source: 'crm-id', contact: data }
+    }
+
+    return {
+      source: 'contact-id',
+      contact: {
+        hubspot_contact_id: contactIdArg,
+        firstname: toEmail.split('@')[0],
+        lastname: '',
+        email: toEmail,
+      },
+    }
+  }
+
+  const { data: crmContact } = await db
+    .from('crm_contacts')
+    .select(CONTACT_SELECT)
+    .ilike('email', toEmail)
+    .maybeSingle()
+
+  if (crmContact?.hubspot_contact_id) {
+    return { source: 'crm', contact: crmContact }
+  }
+
+  const hsContact = await lookupHubSpotContact(toEmail)
+  if (hsContact?.hubspot_contact_id) {
+    return { source: 'hubspot', contact: hsContact }
+  }
+
+  return { source: 'none', contact: null }
+}
 
 function loadEnv() {
   try {
@@ -47,6 +125,7 @@ function sleep(ms) {
 loadEnv()
 
 const toEmail = (arg('email') || '').trim().toLowerCase()
+const contactIdArg = (arg('contact-id') || '').trim()
 const count = Math.max(1, Number(arg('count', '10')) || 10)
 const fromIndex = Math.max(0, Number(arg('from', '0')) || 0)
 const programSlug = (arg('program', 'last-chance-medecine') || 'last-chance-medecine').trim()
@@ -95,25 +174,25 @@ if (!steps?.length) {
   process.exit(1)
 }
 
-const { data: contact } = await db
-  .from('crm_contacts')
-  .select('hubspot_contact_id, firstname, lastname, email')
-  .ilike('email', toEmail)
-  .maybeSingle()
+const { source: contactSource, contact } = await resolveTestContact(db, toEmail, contactIdArg)
 
 const contactInput = {
   hubspot_contact_id: contact?.hubspot_contact_id || `test:${toEmail}`,
   firstname: contact?.firstname || toEmail.split('@')[0],
   lastname: contact?.lastname || '',
-  email: toEmail,
+  email: contact?.email || toEmail,
 }
+
+const hasSignedLink = Boolean(contact?.hubspot_contact_id)
 
 const formSlug =
   program.prefill_form_slug?.trim() || process.env.CAMPAIGN_PREFILL_FORM_SLUG?.trim() || ''
 
 console.log(`Programme: ${program.slug}`)
 console.log(`Destinataire: ${toEmail}`)
-console.log(`Contact CRM: ${contact?.hubspot_contact_id || '(aucun — liens formulaire limités)'}`)
+console.log(
+  `Contact: ${contact?.hubspot_contact_id || '(aucun)'} (${contactSource}${hasSignedLink ? ', lien signé' : ', sans token'})`,
+)
 console.log(`Étapes: ${steps.map(s => s.label).join(', ')}`)
 console.log('')
 
@@ -128,7 +207,7 @@ for (const step of steps) {
     continue
   }
 
-  const lienFormulaire = contact?.hubspot_contact_id
+  const lienFormulaire = hasSignedLink
     ? resolveProgramFormLink(brand?.slug, contactInput, formSlug)
     : getBrandFormUrl(brand?.slug) || ''
 
