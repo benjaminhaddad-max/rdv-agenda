@@ -2000,7 +2000,7 @@ export default function CRMPage() {
           )}
 
           {/* Action bar — visible à côté de la recherche */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
             <button
               onClick={() => setFilterPanelOpen(o => !o)}
               style={{
@@ -2073,7 +2073,7 @@ export default function CRMPage() {
                 borderRadius: 8, color: '#4cabdb',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-                whiteSpace: 'nowrap', flexShrink: 0,
+                whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 'auto',
               }}
             >
               <Download size={12} /> Exporter CSV
