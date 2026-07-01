@@ -1961,151 +1961,18 @@ export default function CRMPage() {
           </button>
         )}
 
-        {/* Separator */}
-        <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 6px', flexShrink: 0 }} />
-
-        {/* Filtres avancés button */}
-        <button
-          onClick={() => setFilterPanelOpen(o => !o)}
-          style={{
-            padding: '7px 12px',
-            background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
-            border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-            borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#3D5275',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, fontFamily: 'inherit', fontWeight: totalFilterRules > 0 ? 600 : 400,
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          <SlidersHorizontal size={12} />
-          Filtres avancés{totalFilterRules > 0 ? ` (${totalFilterRules})` : ''}
-        </button>
-
-        {/* Save view filters */}
-        {crmViewChanged && activeViewId !== 'all' && !activeCRMView?.isDefault && (
-          <button
-            onClick={() => updateCRMViewFilters(activeViewId)}
-            style={{
-              padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
-              border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
-              color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <Save size={10} /> Sauvegarder
-          </button>
-        )}
-
-        {/* Manage views button */}
-        {crmViews.filter(v => !v.isDefault).length > 0 && (
-          <button
-            onClick={() => setManageViewsOpen(true)}
-            style={{
-              padding: '7px 10px', background: 'none', border: '1px solid transparent',
-              borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
-          >
-            <SlidersHorizontal size={11} /> Gérer
-          </button>
-        )}
-
-        {/* Create new view (legacy entry — duplique le bouton "+ Vue" dans la barre d'onglets) */}
-        {creatingView ? null : (
-          <button
-            onClick={() => { setCreatingView(true); setNewViewName('') }}
-            style={{
-              padding: '8px 12px', background: 'none', border: 'none',
-              color: '#0F1F3D', cursor: 'pointer', display: 'flex',
-              alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
-          >
-            <Plus size={12} /> Enregistrer la vue
-          </button>
-        )}
-
-        {/* Export CSV button */}
-        <button
-          onClick={() => setExportModalOpen(true)}
-          style={{
-            padding: '7px 12px',
-            background: 'none',
-            border: '1px solid #e5ddc8',
-            borderRadius: 8, color: '#4cabdb',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          <Download size={12} /> Exporter CSV
-        </button>
-
-        {/* Nouveau contact */}
-        <button
-          onClick={() => setShowNewContact(true)}
-          style={{
-            padding: '7px 12px',
-            background: '#12314d',
-            border: '1px solid #12314d',
-            borderRadius: 8, color: '#ffffff',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          <Plus size={12} /> Nouveau contact
-        </button>
-
-        {/* Import CSV link */}
-        <a
-          href="/admin/crm/import"
-          style={{
-            padding: '7px 12px',
-            background: 'none',
-            border: '1px solid #e5ddc8',
-            borderRadius: 8, color: '#4cabdb',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-            whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
-          }}
-        >
-          <Upload size={12} /> Importer CSV
-        </a>
-
-        {/* Transactions link */}
-        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-          <a
-            href="/admin/crm/transactions"
-            style={{
-              background: 'rgba(204,172,113,0.10)',
-              border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
-              fontSize: 12, textDecoration: 'none', display: 'flex',
-              alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap',
-            }}
-          >
-            <GraduationCap size={13} /> Transactions 2026-2027
-          </a>
-        </div>
       </div>
 
-      {/* ── Search + quick dropdowns ──────────────────────────────────────── */}
+      {/* ── Search + actions + quick dropdowns ──────────────────────────────── */}
       <div style={{
         padding: '10px 20px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: '7px 12px', flex: '1 1 auto', maxWidth: 380,
+            padding: '7px 12px', flex: '0 1 240px', maxWidth: 240,
           }}>
             <Search size={13} style={{ color: '#0F1F3D', flexShrink: 0 }} />
             <input
@@ -2131,6 +1998,130 @@ export default function CRMPage() {
               <X size={11} /> Réinitialiser
             </button>
           )}
+
+          {/* Action bar — visible à côté de la recherche */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setFilterPanelOpen(o => !o)}
+              style={{
+                padding: '7px 12px',
+                background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
+                border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
+                borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#3D5275',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: totalFilterRules > 0 ? 600 : 400,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <SlidersHorizontal size={12} />
+              Filtres avancés{totalFilterRules > 0 ? ` (${totalFilterRules})` : ''}
+            </button>
+
+            {crmViewChanged && activeViewId !== 'all' && !activeCRMView?.isDefault && (
+              <button
+                onClick={() => updateCRMViewFilters(activeViewId)}
+                style={{
+                  padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
+                  border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
+                  color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                <Save size={10} /> Sauvegarder
+              </button>
+            )}
+
+            {crmViews.filter(v => !v.isDefault).length > 0 && (
+              <button
+                onClick={() => setManageViewsOpen(true)}
+                style={{
+                  padding: '7px 10px', background: 'none', border: '1px solid transparent',
+                  borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
+              >
+                <SlidersHorizontal size={11} /> Gérer
+              </button>
+            )}
+
+            {!creatingView && (
+              <button
+                onClick={() => { setCreatingView(true); setNewViewName('') }}
+                style={{
+                  padding: '8px 12px', background: 'none', border: 'none',
+                  color: '#0F1F3D', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
+              >
+                <Plus size={12} /> Enregistrer la vue
+              </button>
+            )}
+
+            <button
+              onClick={() => setExportModalOpen(true)}
+              style={{
+                padding: '7px 12px',
+                background: 'none',
+                border: '1px solid #e5ddc8',
+                borderRadius: 8, color: '#4cabdb',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <Download size={12} /> Exporter CSV
+            </button>
+
+            <button
+              onClick={() => setShowNewContact(true)}
+              style={{
+                padding: '7px 12px',
+                background: '#12314d',
+                border: '1px solid #12314d',
+                borderRadius: 8, color: '#ffffff',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <Plus size={12} /> Nouveau contact
+            </button>
+
+            <a
+              href="/admin/crm/import"
+              style={{
+                padding: '7px 12px',
+                background: 'none',
+                border: '1px solid #e5ddc8',
+                borderRadius: 8, color: '#4cabdb',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+                whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
+              }}
+            >
+              <Upload size={12} /> Importer CSV
+            </a>
+
+            <a
+              href="/admin/crm/transactions"
+              style={{
+                background: 'rgba(204,172,113,0.10)',
+                border: '1px solid rgba(204,172,113,0.3)',
+                borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
+                fontSize: 12, textDecoration: 'none', display: 'flex',
+                alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <GraduationCap size={13} /> Transactions 2026-2027
+            </a>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
