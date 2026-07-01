@@ -165,11 +165,11 @@ export function buildEmailHeaderLogo(charter: BrandCharter): string {
   const onDark = charter.header_style === 'dark'
 
   if (charter.slug === 'prepamedecine') {
-    const img = charter.logo_header_url || charter.logo_url
+    const img = charter.logo_url || charter.logo_header_url
     return centeredLogo(`<table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto"><tr>
 <td style="vertical-align:middle;padding-right:10px">${img ? `<img src="${img}" alt="PrépaMédecine" height="52" style="display:block;height:52px;width:auto;margin:0 auto" />` : ''}</td>
 <td style="vertical-align:middle;font-family:'Nunito',Inter,Arial,sans-serif;font-weight:900;font-size:24px;line-height:1.1;letter-spacing:-0.4px;text-align:left">
-<span style="color:#6ba3e8;font-style:normal">prepa</span><span style="color:#fff">medecine</span><span style="color:#6ba3e8;font-weight:900">.</span><span style="color:#cbd5e1;font-size:16px;font-weight:700">fr</span>
+<span style="color:#046bd2;font-style:normal">prepa</span><span style="color:#0f172a">medecine</span><span style="color:#046bd2;font-weight:900">.</span><span style="color:#64748b;font-size:16px;font-weight:700">fr</span>
 </td></tr></table>`)
   }
 
@@ -177,8 +177,8 @@ export function buildEmailHeaderLogo(charter: BrandCharter): string {
     const img = charter.logo_header_url || charter.logo_url
     return centeredLogo(`<table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto"><tr>
 <td style="vertical-align:middle;padding-right:12px">${img ? `<img src="${img}" alt="Numerus Club" height="52" style="display:block;height:52px;width:auto" />` : ''}</td>
-<td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#fff;line-height:1.2;text-align:left">
-Numerus <em style="font-style:italic;color:#F4ECE0">Club</em>
+<td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:24px;color:${charter.text_color};line-height:1.2;text-align:left">
+Numerus <em style="font-style:italic;color:${charter.primary_color}">Club</em>
 </td></tr></table>`)
   }
 
