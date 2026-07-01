@@ -1769,11 +1769,71 @@ export default function CRMPage() {
           )}
         </div>
 
-        {/* ── Outils ─────────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {/* ── Outils + actions principales ───────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
           <div style={{ width: 1, height: 20, background: '#D4C4A0', marginRight: 4 }} />
           <span style={{ fontSize: 10, fontWeight: 700, color: '#0F1F3D', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
           <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
+
+          <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 4px' }} />
+
+          <button
+            onClick={() => setExportModalOpen(true)}
+            style={{
+              padding: '7px 12px',
+              background: 'none',
+              border: '1px solid #e5ddc8',
+              borderRadius: 8, color: '#4cabdb',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <Download size={12} /> Exporter CSV
+          </button>
+
+          <button
+            onClick={() => setShowNewContact(true)}
+            style={{
+              padding: '7px 12px',
+              background: '#12314d',
+              border: '1px solid #12314d',
+              borderRadius: 8, color: '#ffffff',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <Plus size={12} /> Nouveau contact
+          </button>
+
+          <a
+            href="/admin/crm/import"
+            style={{
+              padding: '7px 12px',
+              background: 'none',
+              border: '1px solid #e5ddc8',
+              borderRadius: 8, color: '#4cabdb',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
+            }}
+          >
+            <Upload size={12} /> Importer CSV
+          </a>
+
+          <a
+            href="/admin/crm/transactions"
+            style={{
+              background: 'rgba(204,172,113,0.10)',
+              border: '1px solid rgba(204,172,113,0.3)',
+              borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
+              fontSize: 12, textDecoration: 'none', display: 'flex',
+              alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <GraduationCap size={13} /> Transactions 2026-2027
+          </a>
         </div>
 
       </div>
@@ -2063,64 +2123,6 @@ export default function CRMPage() {
                 <Plus size={12} /> Enregistrer la vue
               </button>
             )}
-
-            <button
-              onClick={() => setExportModalOpen(true)}
-              style={{
-                padding: '7px 12px',
-                background: 'none',
-                border: '1px solid #e5ddc8',
-                borderRadius: 8, color: '#4cabdb',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-                whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 'auto',
-              }}
-            >
-              <Download size={12} /> Exporter CSV
-            </button>
-
-            <button
-              onClick={() => setShowNewContact(true)}
-              style={{
-                padding: '7px 12px',
-                background: '#12314d',
-                border: '1px solid #12314d',
-                borderRadius: 8, color: '#ffffff',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              <Plus size={12} /> Nouveau contact
-            </button>
-
-            <a
-              href="/admin/crm/import"
-              style={{
-                padding: '7px 12px',
-                background: 'none',
-                border: '1px solid #e5ddc8',
-                borderRadius: 8, color: '#4cabdb',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-                whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
-              }}
-            >
-              <Upload size={12} /> Importer CSV
-            </a>
-
-            <a
-              href="/admin/crm/transactions"
-              style={{
-                background: 'rgba(204,172,113,0.10)',
-                border: '1px solid rgba(204,172,113,0.3)',
-                borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
-                fontSize: 12, textDecoration: 'none', display: 'flex',
-                alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              <GraduationCap size={13} /> Transactions 2026-2027
-            </a>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
