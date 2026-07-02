@@ -20,8 +20,6 @@ export async function middleware(request: NextRequest) {
   }
 
   // Fast-path public routes: avoid Supabase auth network call on every hit.
-  // Important for client polling APIs like /api/appointments to prevent
-  // perceived infinite loading when auth lookup is slow.
   const isPublicPath =
     pathname.startsWith('/book/') ||
     pathname.startsWith('/confirm/') ||
@@ -32,14 +30,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
     pathname.startsWith('/r/')
-  const isNomadImportApi = pathname.startsWith('/api/crm/contacts/nomad-import')
-  const isPublicApi = (
-    isNomadImportApi ||
-    (pathname.startsWith('/api/') &&
-      !pathname.startsWith('/api/admin/') &&
-      !pathname.startsWith('/api/crm/'))
-  )
-  if (isPublicPath || isPublicApi) {
+  if (isPublicPath || isPublicApiRequest(pathname, request.method)) {
     return NextResponse.next()
   }
 
@@ -81,10 +72,10 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  if (pathname.startsWith('/api/crm/')) {
-    if (pathname.startsWith('/api/crm/contacts/nomad-import')) {
-      return response
-    }
+  // Toute autre route /api/* est deny-by-default : session + compte rdv_users
+  // requis. Les routes réellement publiques doivent être listées explicitement
+  // dans isPublicApiRequest() ci-dessous.
+  if (pathname.startsWith('/api/')) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -159,6 +150,51 @@ export async function middleware(request: NextRequest) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Liste blanche des APIs publiques. Tout ce qui n'est pas listé ici exige une
+ * session Supabase + un compte rdv_users (deny-by-default).
+ *
+ * Chaque entrée est soit un flux réellement public (réservation, formulaires,
+ * liens emails), soit un endpoint pour un service externe qui porte sa propre
+ * authentification au niveau de la route (signature webhook, Bearer
+ * CRON_SECRET, x-nomad-key).
+ */
+function isPublicApiRequest(pathname: string, method: string): boolean {
+  // Webhooks partenaires — signature/token vérifiés dans chaque route
+  if (pathname.startsWith('/api/webhooks/')) return true
+  if (pathname === '/api/meta/webhook') return true
+  if (pathname === '/api/brevo/webhook') return true
+
+  // Crons Vercel — Bearer CRON_SECRET vérifié dans chaque route
+  if (pathname.startsWith('/api/cron/')) return true
+
+  // Imports partenaire Nomad — x-nomad-key vérifié dans chaque route
+  if (pathname.startsWith('/api/crm/contacts/nomad-import')) return true
+  if (pathname === '/api/nomad-import') return true
+  if (pathname === '/api/nomad-zone-backfill') return true
+
+  // Réservation publique (pages /book, /confirm, /reschedule)
+  if (pathname === '/api/appointments' && method === 'POST') return true
+  if (pathname === '/api/availability' || pathname.startsWith('/api/availability/')) return true
+  if (pathname.startsWith('/api/booking/')) return true // embed.js, widget.js
+  if (pathname.startsWith('/api/confirm/')) return true // accès par token
+  if (pathname.startsWith('/api/reschedule/')) return true // accès par token
+  if (pathname === '/api/visio/token') return true // accès par room name secret
+
+  // Formulaires publics (pages /forms, embeds externes, emails AMP)
+  if (/^\/api\/forms\/[^/]+\/(submit|public|embed\.js)$/.test(pathname)) return true
+  if (pathname === '/api/forms/prefill') return true
+  if (pathname === '/api/forms/amp-oneclick') return true
+  if (pathname === '/api/forms/amp-submit') return true
+
+  // Liens dans les emails (tracking, sondages one-click)
+  if (pathname === '/api/web/track') return true
+  if (pathname === '/api/email-survey/oneclick') return true
+  if (pathname === '/api/email-survey/amp-submit') return true
+
+  return false
+}
 
 async function getUserFromDb(authId: string) {
   const db = createClient(

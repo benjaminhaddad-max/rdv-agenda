@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { updateDealStage, STAGES } from '@/lib/hubspot'
 import { sendSms, buildReplanifierSms } from '@/lib/smsfactor'
@@ -23,11 +24,8 @@ import { sendSms, buildReplanifierSms } from '@/lib/smsfactor'
 const REPLANIF_URL = process.env.REPLANIF_URL || process.env.NEXT_PUBLIC_SITE_URL || ''
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
 
   const now = new Date()
   // Seuil : RDV commencé il y a plus de 30 min

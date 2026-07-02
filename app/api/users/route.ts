@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole, requireApiUser } from '@/lib/api-auth'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
 const ROLES = new Set(['admin', 'closer', 'manager', 'telepro'])
@@ -17,7 +18,11 @@ function normalizeBrand(value: unknown): string | null {
 }
 
 // GET /api/users — List users (optionnel: ?role=telepro ou ?roles=closer,admin)
+// Session requise (tous rôles : les pages closer/telepro listent les owners).
 export async function GET(req: NextRequest) {
+  const authz = await requireApiUser()
+  if (!authz.ok) return authz.response
+
   const url  = new URL(req.url)
   const role  = url.searchParams.get('role')
   const roles = url.searchParams.get('roles')  // ex: "closer,admin"
@@ -40,8 +45,11 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/users — Cree un utilisateur (envoie une invitation par email
-// pour qu'il choisisse son mot de passe)
+// pour qu'il choisisse son mot de passe). Admin uniquement.
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const body = await req.json()
   const { name, email, role, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro } = body as {
     name?: string
@@ -152,7 +160,11 @@ export async function POST(req: NextRequest) {
 }
 
 // PATCH /api/users — Update un utilisateur (name, role, email, hubspot_owner_id)
+// Admin uniquement.
 export async function PATCH(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const body = await req.json()
   const { id, name, role, email, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro } = body as {
     id?: string
@@ -224,7 +236,11 @@ export async function PATCH(req: NextRequest) {
 }
 
 // DELETE /api/users?id=... — Supprime un utilisateur (rdv_users + auth si lie)
+// Admin uniquement.
 export async function DELETE(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const url = new URL(req.url)
   const id  = url.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })

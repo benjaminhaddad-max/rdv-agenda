@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireCronSecret } from '@/lib/api-auth'
 import {
   sendBrevoEmail,
   renderTemplate,
@@ -19,7 +20,10 @@ import { buildFormContactUrl } from '@/lib/form-contact-link'
  */
 const MAX_PER_RUN = 200
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
+
   const db = createServiceClient()
 
   // 1. Récupère les campagnes en cours d'envoi

@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build48hSms } from '@/lib/smsfactor'
 import { send48hConfirmEmail } from '@/lib/email-reminders'
@@ -18,11 +19,8 @@ import { fr } from 'date-fns/locale'
 import { makeConfirmToken } from '@/lib/confirm-link'
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
 
   const now = new Date()
 

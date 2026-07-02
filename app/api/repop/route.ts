@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
 import { PIPELINE_2026_2027, STAGES } from '@/lib/hubspot'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -39,6 +40,14 @@ export async function GET(req: NextRequest) {
 
   const isAdmin = scope === 'admin'
   const ownerType = searchParams.has('telepro_id') ? 'telepro' : 'closer'
+
+  // La session est déjà exigée par le middleware (deny-by-default sur /api/*).
+  // On vérifie en plus que le mode "tous les deals" (scope=admin ou paramètres
+  // owner incomplets) est réservé aux admins.
+  if (isAdmin || !hubspotOwnerId) {
+    const authz = await requireApiRole(['admin'])
+    if (!authz.ok) return authz.response
+  }
 
   // Pour le télépro : on ne retourne PAS les deals filtrés par stage.
   // Le journal des repop télépro affiche TOUS les leads avec form submission

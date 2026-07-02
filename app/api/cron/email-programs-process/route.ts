@@ -1,19 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { processDueProgramSends } from '@/lib/email-programs'
+import { requireCronSecret } from '@/lib/api-auth'
 
 /**
  * GET /api/cron/email-programs-process
  * Envoie les mails de programme dus (J1, J3, J5…).
  */
-export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET?.trim()
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') || ''
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+export async function GET(req: NextRequest) {
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
 
   const db = createServiceClient()
   try {

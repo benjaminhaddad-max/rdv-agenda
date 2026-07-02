@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
 import { hubspotFetch } from '@/lib/hubspot'
 import { isDeletableStage } from '@/lib/dealstage-rules'
 
@@ -21,6 +22,9 @@ import { isDeletableStage } from '@/lib/dealstage-rules'
 //     des miroirs plateforme et n'existent pas dans HubSpot).
 //   - Supprime cote Supabase (crm_deals).
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   const { deal_ids }: { deal_ids: string[] } = await req.json()
 

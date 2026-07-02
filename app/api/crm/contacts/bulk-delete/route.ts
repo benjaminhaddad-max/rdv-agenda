@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
 import { hubspotFetch } from '@/lib/hubspot'
 
 // Suppression en masse de contacts CRM.
@@ -11,6 +12,9 @@ import { hubspotFetch } from '@/lib/hubspot'
 // - Force enfin un refresh de la vue matérialisée rapide pour que l'UI reflète
 //   immédiatement la suppression.
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   const { contact_ids }: { contact_ids: string[] } = await req.json()
 

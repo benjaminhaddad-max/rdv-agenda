@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { processExecution } from '@/lib/workflow-engine'
+import { requireCronSecret } from '@/lib/api-auth'
 
 /**
  * GET /api/cron/workflow-engine
@@ -14,7 +15,10 @@ import { processExecution } from '@/lib/workflow-engine'
  */
 const MAX_STEPS_PER_RUN = 200
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const cronAuth = requireCronSecret(req)
+  if (!cronAuth.ok) return cronAuth.response
+
   const db = createServiceClient()
   const t0 = Date.now()
 

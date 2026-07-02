@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { requireApiRole } from '@/lib/api-auth'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -54,6 +55,14 @@ export async function GET(req: NextRequest) {
   const hubspotOwnerId = searchParams.get('hubspot_owner_id')
   const isCloserScope  = scope === 'closer'  && hubspotOwnerId
   const isTeleproScope = scope === 'telepro' && hubspotOwnerId
+
+  // La session est déjà exigée par le middleware (deny-by-default sur /api/*).
+  // Le mode non scopé (feed complet, historiquement réservé à l'admin) exige
+  // en plus le rôle admin.
+  if (!isCloserScope && !isTeleproScope) {
+    const authz = await requireApiRole(['admin'])
+    if (!authz.ok) return authz.response
+  }
 
   // Pour le télépro, on retire les restrictions temporelles : on veut TOUS
   // ses leads ayant resoumis un formulaire, peu importe la date.
