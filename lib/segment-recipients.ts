@@ -90,7 +90,24 @@ function mapApiRow(row: Record<string, unknown>): ContactDbRow {
 }
 
 const CRM_CONTACTS_API_PAGE = 200
-const CRM_CONTACTS_EXPORT_PAGE = 10_000
+
+function mergeFilterGroupsAsAnd(groups: CRMFilterGroup[]): CRMFilterGroup {
+  return {
+    id: 'segment_intersection',
+    rules: groups.flatMap(g => g.rules ?? []),
+  }
+}
+
+function appendSegmentQueryFlags(params: URLSearchParams, limit: number) {
+  params.set('exact_count', '1')
+  params.set('force_sql', '1')
+  params.set('no_cache', '1')
+  if (limit === 0) {
+    params.set('limit', '0')
+  } else {
+    params.set('limit', String(Math.min(limit, CRM_CONTACTS_API_PAGE)))
+  }
+}
 
 async function fetchCrmContactsPage(
   baseUrl: string,
@@ -101,15 +118,8 @@ async function fetchCrmContactsPage(
   limit: number,
 ): Promise<{ data: ContactDbRow[]; total: number }> {
   const params = viewToParams(filterGroupView(filterGroup, presetFlags))
-  params.set('exact_count', '1')
+  appendSegmentQueryFlags(params, limit)
   params.set('page', String(page))
-  if (limit === 0) {
-    params.set('limit', '0')
-  } else {
-    const pageSize = Math.min(limit, CRM_CONTACTS_EXPORT_PAGE)
-    if (pageSize > CRM_CONTACTS_API_PAGE) params.set('export', '1')
-    params.set('limit', String(pageSize))
-  }
   const url = `${baseUrl.replace(/\/$/, '')}/api/crm/contacts?${params.toString()}`
   let res: Response
   try {
@@ -133,6 +143,69 @@ async function fetchCrmContactsPage(
   }
 }
 
+async function fetchCrmContactsCount(
+  baseUrl: string,
+  cookies: string,
+  filterGroup: CRMFilterGroup,
+  presetFlags: Record<string, unknown> | null,
+): Promise<number> {
+  const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, 0)
+  return total
+}
+
+/** |A ∪ B ∪ …| via inclusion-exclusion — counts SQL exacts, stables. */
+async function countOrUnionFromFilterGroups(
+  baseUrl: string,
+  cookies: string,
+  groups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+): Promise<number> {
+  const n = groups.length
+  if (n === 0) return 0
+  if (n === 1) return fetchCrmContactsCount(baseUrl, cookies, groups[0], presetFlags)
+
+  let total = 0
+  for (let mask = 1; mask < (1 << n); mask++) {
+    const subset = groups.filter((_, i) => mask & (1 << i))
+    const k = subset.length
+    const count = await fetchCrmContactsCount(
+      baseUrl,
+      cookies,
+      mergeFilterGroupsAsAnd(subset),
+      presetFlags,
+    )
+    total += (k % 2 === 1 ? count : -count)
+  }
+  return total
+}
+
+async function fetchSampleFromFilterGroups(
+  baseUrl: string,
+  cookies: string,
+  groups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+  channel: SegmentChannel,
+  sampleSize: number,
+): Promise<ResolvedSegmentContact[]> {
+  const sample: ResolvedSegmentContact[] = []
+  const seen = new Set<string>()
+  for (const group of groups) {
+    const { data } = await fetchCrmContactsPage(
+      baseUrl, cookies, group, presetFlags, 0, Math.max(sampleSize, 10),
+    )
+    for (const row of data) {
+      const c = toResolved(row)
+      if (!passesChannel(c, channel)) continue
+      const key = dedupeKey(c, channel)
+      if (seen.has(key)) continue
+      seen.add(key)
+      sample.push(c)
+      if (sample.length >= sampleSize) return sample
+    }
+  }
+  return sample
+}
+
 async function resolveContactsFromOneFilterGroup(
   baseUrl: string,
   cookies: string,
@@ -140,15 +213,16 @@ async function resolveContactsFromOneFilterGroup(
   presetFlags: Record<string, unknown> | null,
 ): Promise<ContactDbRow[]> {
   const all: ContactDbRow[] = []
-  const PAGE = CRM_CONTACTS_EXPORT_PAGE
   let page = 0
   while (true) {
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, page, PAGE)
+    const { data } = await fetchCrmContactsPage(
+      baseUrl, cookies, filterGroup, presetFlags, page, CRM_CONTACTS_API_PAGE,
+    )
     if (data.length === 0) break
     all.push(...data)
-    if (data.length < PAGE) break
+    if (data.length < CRM_CONTACTS_API_PAGE) break
     page++
-    if (page > 200) break
+    if (page > 500) break
   }
   return all
 }
@@ -163,21 +237,23 @@ async function previewContactsFromOneFilterGroup(
   sampleSize: number,
 ): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
   if (channel === 'any') {
-    const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, 0)
-    const fetchLimit = Math.max(sampleSize, 10)
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, fetchLimit)
+    const total = await fetchCrmContactsCount(baseUrl, cookies, filterGroup, presetFlags)
+    const { data } = await fetchCrmContactsPage(
+      baseUrl, cookies, filterGroup, presetFlags, 0, Math.max(sampleSize, 10),
+    )
     const sample = data.slice(0, sampleSize).map(toResolved)
     return { total, sample }
   }
 
-  const PAGE = CRM_CONTACTS_EXPORT_PAGE
   let page = 0
   let total = 0
   const sample: ResolvedSegmentContact[] = []
   const seen = new Set<string>()
 
   while (true) {
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, page, PAGE)
+    const { data } = await fetchCrmContactsPage(
+      baseUrl, cookies, filterGroup, presetFlags, page, CRM_CONTACTS_API_PAGE,
+    )
     if (data.length === 0) break
     for (const row of data) {
       const c = toResolved(row)
@@ -188,9 +264,9 @@ async function previewContactsFromOneFilterGroup(
       total++
       if (sample.length < sampleSize) sample.push(c)
     }
-    if (data.length < PAGE) break
+    if (data.length < CRM_CONTACTS_API_PAGE) break
     page++
-    if (page > 200) break
+    if (page > 500) break
   }
 
   return { total, sample }
@@ -225,6 +301,14 @@ async function previewContactsFromFilterGroups(
   if (groups.length === 0) return { total: 0, sample: [] }
   if (groups.length === 1) {
     return previewContactsFromOneFilterGroup(baseUrl, cookies, groups[0], presetFlags, channel, sampleSize)
+  }
+
+  if (channel === 'any') {
+    const [total, sample] = await Promise.all([
+      countOrUnionFromFilterGroups(baseUrl, cookies, groups, presetFlags),
+      fetchSampleFromFilterGroups(baseUrl, cookies, groups, presetFlags, channel, sampleSize),
+    ])
+    return { total, sample }
   }
 
   const byContactId = new Map<string, ContactDbRow>()
