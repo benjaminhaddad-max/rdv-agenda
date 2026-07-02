@@ -91,11 +91,71 @@ function mapApiRow(row: Record<string, unknown>): ContactDbRow {
 
 const CRM_CONTACTS_API_PAGE = 200
 
+function splitCsv(raw: string): string[] {
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
+}
+
 function mergeFilterGroupsAsAnd(groups: CRMFilterGroup[]): CRMFilterGroup {
   return {
     id: 'segment_intersection',
     rules: groups.flatMap(g => g.rules ?? []),
   }
+}
+
+/** « n'est aucun de » sur hs_lead_status — inclut les NULL. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyLeadStatusNotDirect(q: any, raw: string) {
+  const vals = splitCsv(raw)
+  if (vals.length === 0) return q
+  const inList = vals.map(v => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')
+  return q.or(`hs_lead_status.is.null,hs_lead_status.not.in.(${inList})`)
+}
+
+/** Count SQL direct (sans self-call API) — fiable pour l'aperçu segments. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyFilterGroupToCountQuery(q: any, filterGroup: CRMFilterGroup) {
+  for (const rule of filterGroup.rules ?? []) {
+    if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
+    const field = String(rule.field)
+    const vals = splitCsv(rule.value)
+
+    if (field === 'classe' && (rule.operator === 'is' || rule.operator === 'is_any')) {
+      q = vals.length > 1 ? q.in('classe_actuelle', vals) : q.eq('classe_actuelle', rule.value)
+    }
+    if (field === 'zone' && (rule.operator === 'is' || rule.operator === 'is_any')) {
+      q = vals.length > 1 ? q.in('zone_localite', vals) : q.eq('zone_localite', rule.value)
+    }
+    if (field === 'departement' && (rule.operator === 'is' || rule.operator === 'is_any')) {
+      q = vals.length > 1 ? q.in('departement', vals) : q.eq('departement', rule.value)
+    }
+    if (field === 'lead_status') {
+      if (rule.operator === 'is_any' || rule.operator === 'is') {
+        q = vals.length > 1 ? q.in('hs_lead_status', vals) : q.eq('hs_lead_status', rule.value)
+      } else if (rule.operator === 'is_none' || rule.operator === 'is_not') {
+        q = applyLeadStatusNotDirect(q, rule.value)
+      }
+    }
+    if (field === 'telepro' && (rule.operator === 'is_any' || rule.operator === 'is')) {
+      const numeric = vals.filter(v => /^\d+$/.test(v))
+      if (numeric.length > 1) q = q.in('telepro_user_id', numeric)
+      else if (numeric.length === 1) q = q.eq('telepro_user_id', numeric[0])
+    }
+    if (field === 'contact_owner' && (rule.operator === 'is' || rule.operator === 'is_any')) {
+      q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', rule.value)
+    }
+  }
+  return q
+}
+
+async function countFilterGroupDirect(
+  db: SupabaseClient,
+  filterGroup: CRMFilterGroup,
+): Promise<number> {
+  let q = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
+  q = applyFilterGroupToCountQuery(q, filterGroup)
+  const { count, error } = await q
+  if (error) throw new Error(`countFilterGroupDirect: ${error.message}`)
+  return count ?? 0
 }
 
 function appendSegmentQueryFlags(params: URLSearchParams, limit: number) {
@@ -143,37 +203,20 @@ async function fetchCrmContactsPage(
   }
 }
 
-async function fetchCrmContactsCount(
-  baseUrl: string,
-  cookies: string,
-  filterGroup: CRMFilterGroup,
-  presetFlags: Record<string, unknown> | null,
-): Promise<number> {
-  const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, 0)
-  return total
-}
-
 /** |A ∪ B ∪ …| via inclusion-exclusion — counts SQL exacts, stables. */
 async function countOrUnionFromFilterGroups(
-  baseUrl: string,
-  cookies: string,
+  db: SupabaseClient,
   groups: CRMFilterGroup[],
-  presetFlags: Record<string, unknown> | null,
 ): Promise<number> {
   const n = groups.length
   if (n === 0) return 0
-  if (n === 1) return fetchCrmContactsCount(baseUrl, cookies, groups[0], presetFlags)
+  if (n === 1) return countFilterGroupDirect(db, groups[0])
 
   let total = 0
   for (let mask = 1; mask < (1 << n); mask++) {
     const subset = groups.filter((_, i) => mask & (1 << i))
     const k = subset.length
-    const count = await fetchCrmContactsCount(
-      baseUrl,
-      cookies,
-      mergeFilterGroupsAsAnd(subset),
-      presetFlags,
-    )
+    const count = await countFilterGroupDirect(db, mergeFilterGroupsAsAnd(subset))
     total += (k % 2 === 1 ? count : -count)
   }
   return total
@@ -229,6 +272,7 @@ async function resolveContactsFromOneFilterGroup(
 
 /** Aperçu d'un seul groupe (AND interne). */
 async function previewContactsFromOneFilterGroup(
+  db: SupabaseClient,
   baseUrl: string,
   cookies: string,
   filterGroup: CRMFilterGroup,
@@ -237,7 +281,7 @@ async function previewContactsFromOneFilterGroup(
   sampleSize: number,
 ): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
   if (channel === 'any') {
-    const total = await fetchCrmContactsCount(baseUrl, cookies, filterGroup, presetFlags)
+    const total = await countFilterGroupDirect(db, filterGroup)
     const { data } = await fetchCrmContactsPage(
       baseUrl, cookies, filterGroup, presetFlags, 0, Math.max(sampleSize, 10),
     )
@@ -290,6 +334,7 @@ function unionResolvedContacts(
 
 /** Aperçu : count SQL exact + échantillon. Plusieurs groupes = union OR (comme l'UI). */
 async function previewContactsFromFilterGroups(
+  db: SupabaseClient,
   baseUrl: string,
   cookies: string,
   filterGroups: CRMFilterGroup[],
@@ -300,12 +345,12 @@ async function previewContactsFromFilterGroups(
   const groups = activeFilterGroups(filterGroups)
   if (groups.length === 0) return { total: 0, sample: [] }
   if (groups.length === 1) {
-    return previewContactsFromOneFilterGroup(baseUrl, cookies, groups[0], presetFlags, channel, sampleSize)
+    return previewContactsFromOneFilterGroup(db, baseUrl, cookies, groups[0], presetFlags, channel, sampleSize)
   }
 
   if (channel === 'any') {
     const [total, sample] = await Promise.all([
-      countOrUnionFromFilterGroups(baseUrl, cookies, groups, presetFlags),
+      countOrUnionFromFilterGroups(db, groups),
       fetchSampleFromFilterGroups(baseUrl, cookies, groups, presetFlags, channel, sampleSize),
     ])
     return { total, sample }
@@ -525,7 +570,7 @@ export async function previewSegments(
     }
     if (hasAdvanced) {
       return previewContactsFromFilterGroups(
-        baseUrl, cookies, filterGroups, segment.preset_flags ?? null, channel, sampleSize,
+        db, baseUrl, cookies, filterGroups, segment.preset_flags ?? null, channel, sampleSize,
       )
     }
     if (segment.filters && Object.keys(segment.filters).length > 0) {

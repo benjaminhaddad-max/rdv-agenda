@@ -166,10 +166,7 @@ export async function GET(req: NextRequest) {
   const applyLeadStatusNotFilter = (q: any, raw: string) => {
     const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
     if (vals.length === 0) return q
-    if (vals.length > 1) {
-      return q.or(`hs_lead_status.is.null,hs_lead_status.not.in.${toPostgrestInList(vals)}`)
-    }
-    return q.or(`hs_lead_status.is.null,hs_lead_status.neq.${vals[0]}`)
+    return q.or(`hs_lead_status.is.null,hs_lead_status.not.in.${toPostgrestInList(vals)}`)
   }
 
   // "jean jean" => tokenized search across firstname/lastname/email/phone.
@@ -716,6 +713,7 @@ export async function GET(req: NextRequest) {
     !ownerExclude &&
     !contactOwnerNot &&
     !teleproNot &&
+    !leadStatusNot &&
     !hasDealHeavyFilter &&
     !hasFormHeavyFilter
 
