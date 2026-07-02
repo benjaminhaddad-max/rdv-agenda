@@ -23,6 +23,7 @@ import {
   CRM_FILTER_FIELDS, STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CURRENT_PIPELINE_ID, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
+  defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator, normalizeFilterFieldKey,
   type CRMFilterField, type CRMFilterOp, type CRMFilterGroup,
   type SelectOption,
 } from '@/lib/crm-constants'
@@ -233,28 +234,34 @@ export default function CRMFilterBuilder({
             </div>
 
             {group.rules.map((rule, ri) => {
-              const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === rule.field)
+              const canonicalField = normalizeFilterFieldKey(rule.field)
+              const fieldDef = CRM_FILTER_FIELDS.find(f => f.key === canonicalField)
               const customName = isCustomField(rule.field)
               const customProp = customName ? allCrmProps.find(p => p.name === customName) : null
 
               // Détermine le kind de la propriété (date, number, enum, bool, text)
               let kind: ReturnType<typeof propertyKindOf> = 'text'
-              if (customProp) {
+              if (customProp && !fieldDef) {
                 kind = propertyKindOf(customProp.type, customProp.field_type)
               } else if (fieldDef?.type === 'select') {
                 kind = 'enum'
               }
 
-              // Opérateurs disponibles selon le kind
-              const ops = customProp ? opsForKind(kind) : opsForField(rule.field)
+              // Opérateurs : filtre natif prioritaire sur la prop HubSpot brute
+              const ops = fieldDef
+                ? opsForField(canonicalField)
+                : customProp
+                  ? opsForKind(kind)
+                  : opsForField(rule.field)
+
               const showVal = opNeedsValue(rule.operator)
 
               // Options pour les enums (hardcodés ou venant des propriétés HubSpot)
               let valueOptions: SelectOption[] = []
-              if (customProp && customProp.options && customProp.options.length > 0) {
+              if (customProp && customProp.options && customProp.options.length > 0 && !fieldDef) {
                 valueOptions = customProp.options.map(o => ({ id: o.value, label: o.label }))
               } else {
-                switch (rule.field) {
+                switch (canonicalField) {
                   case 'stage':       valueOptions = allStageOptions; break
                   case 'formation':   valueOptions = FORMATION_OPTIONS.filter(o => o.id); break
                   case 'classe':      valueOptions = CLASSE_OPTIONS.filter(o => o.id); break
@@ -321,12 +328,16 @@ export default function CRMFilterBuilder({
                 // les autres select) basculent en input "Valeur…" pendant le
                 // fetch des options.
                 if (kind === 'enum' || fieldDef?.type === 'select') {
-                  if (opIsMulti(rule.operator)) {
+                  if (shouldRenderMultiSelect(canonicalField, rule.operator)) {
                     return (
                       <MultiSelectDropdown
                         options={valueOptions}
                         value={rule.value}
-                        onChange={v => updateRule(group.id, rule.id, { value: v })}
+                        onChange={v => updateRule(group.id, rule.id, {
+                          field: (fieldDef ? canonicalField : rule.field) as CRMFilterField,
+                          value: v,
+                          operator: coerceMultiSelectOperator(canonicalField, rule.operator),
+                        })}
                       />
                     )
                   }
@@ -356,19 +367,24 @@ export default function CRMFilterBuilder({
                     <CRMFieldPicker
                       value={rule.field}
                       onChange={(field) => {
-                        // Reset operator to a sensible default depending on the new property's kind
                         const next = allCrmProps.find(p => 'custom:' + p.name === field)
-                        const k = next ? propertyKindOf(next.type, next.field_type) : 'text'
-                        let defaultOp: CRMFilterOp = 'is'
-                        if (k === 'date' || k === 'datetime') defaultOp = 'eq'
-                        else if (k === 'number') defaultOp = 'eq'
-                        else if (k === 'text' && !next) defaultOp = 'is'
-                        else if (k === 'text') defaultOp = 'contains'
-                        updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: defaultOp, value: '' })
+                        const canonical = normalizeFilterFieldKey(field)
+                        const mappedField = CRM_FILTER_FIELDS.some(f => f.key === canonical)
+                          ? canonical
+                          : field
+                        updateRule(group.id, rule.id, {
+                          field: mappedField as CRMFilterField,
+                          operator: defaultOpForField(mappedField, next),
+                          value: '',
+                        })
                       }}
                       crmProps={allCrmProps}
                     />
-                    <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={selectStyle}>
+                    <select
+                      value={coerceMultiSelectOperator(canonicalField, rule.operator)}
+                      onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })}
+                      style={selectStyle}
+                    >
                       {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                     </select>
                     {renderValueInput()}

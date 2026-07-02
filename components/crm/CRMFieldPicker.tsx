@@ -9,7 +9,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
-import { CRM_FILTER_FIELDS, type CRMFilterField } from '@/lib/crm-constants'
+import { CRM_FILTER_FIELDS, HUBSPOT_PROP_TO_FILTER_KEY, type CRMFilterField } from '@/lib/crm-constants'
 
 export type CrmPropertyMeta = {
   name: string
@@ -27,16 +27,7 @@ export type CrmPropertyMeta = {
  * bonne colonne et est totalement supporté côté API).
  */
 const HUBSPOT_NAME_TO_FILTER_KEY: Record<string, string> = {
-  teleprospecteur:     'telepro',
-  classe_actuelle:     'classe',
-  formation_souhaitee: 'formation',
-  hs_lead_status:      'lead_status',
-  origine:             'source',
-  zone_localite:       'zone',
-  hubspot_owner_id:    'contact_owner',
-  closer_hs_id:        'closer_contact',
-  contact_owner_hs_id: 'contact_owner',
-  // pipeline, departement → noms identiques aux clés hardcodées
+  ...HUBSPOT_PROP_TO_FILTER_KEY,
 }
 
 export function CRMFieldPicker({
@@ -206,7 +197,11 @@ export function CRMFieldPicker({
                 return (
                   <button
                     key={p.name}
-                    onClick={() => { onChange(customKey); setOpen(false) }}
+                    onClick={() => {
+                      const mapped = HUBSPOT_NAME_TO_FILTER_KEY[p.name]
+                      onChange(mapped ?? customKey)
+                      setOpen(false)
+                    }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 10px', background: isActive ? 'rgba(204,172,113,0.12)' : 'transparent',

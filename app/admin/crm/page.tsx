@@ -18,6 +18,7 @@ import {
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
+  defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type SelectOption,
   type CRMFilterField, type CRMFilterOp, type CRMFilterRule, type CRMFilterGroup,
 } from '@/lib/crm-constants'
@@ -66,30 +67,6 @@ function normalizeLegacyFieldName(field: string): string {
   // Backward-compat: anciennes vues sauvegardées avec "origine".
   if (field === 'origine') return 'source'
   return field
-}
-
-// Champs natifs (type select) qui supportent la multi-sélection côté API
-// (.in / liste séparée par des virgules). Quand on choisit l'un de ces champs
-// dans le filtre avancé, on bascule par défaut sur l'opérateur "est parmi"
-// pour permettre de sélectionner plusieurs valeurs directement.
-const MULTI_SELECT_FIELDS = new Set<string>([
-  'stage', 'formation', 'closer', 'closer_contact', 'contact_owner', 'telepro',
-  'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
-  'parcoursup_verdict',
-])
-
-function defaultOperatorForField(field: string, prop?: CrmPropertyMeta): CRMFilterOp {
-  if (prop) {
-    const k = propertyKindOf(prop.type, prop.field_type)
-    if (k === 'date' || k === 'datetime') return 'eq'
-    if (k === 'number') return 'eq'
-    if (k === 'enum') return 'is_any'
-    if (k === 'text') return 'contains'
-    return 'is'
-  }
-  const normalized = normalizeLegacyFieldName(field)
-  if (MULTI_SELECT_FIELDS.has(normalized)) return 'is_any'
-  return 'is'
 }
 
 // Flags de rollout perf (safe by default):
@@ -2602,12 +2579,15 @@ export default function CRMPage() {
                       // chargée. Évite que "Statut du lead" et autres select
                       // basculent en input texte pendant le fetch des options.
                       if (kind === 'enum' || fieldDef?.type === 'select') {
-                        if (opIsMulti(rule.operator)) {
+                        if (shouldRenderMultiSelect(normalizedField, rule.operator)) {
                           return (
                             <MultiSelectDropdown
                               options={valueOptions}
                               value={rule.value}
-                              onChange={v => updateRule(group.id, rule.id, { value: v })}
+                              onChange={v => updateRule(group.id, rule.id, {
+                                value: v,
+                                operator: coerceMultiSelectOperator(normalizedField, rule.operator),
+                              })}
                             />
                           )
                         }
@@ -2651,7 +2631,7 @@ export default function CRMPage() {
                               // basculent sur "est parmi" pour permettre la
                               // sélection de plusieurs valeurs directement.
                               const next = allCrmProps.find(p => 'custom:' + p.name === field)
-                              const defaultOp = defaultOperatorForField(field, next)
+                              const defaultOp = defaultOpForField(field, next)
                               updateRule(group.id, rule.id, { field: field as CRMFilterField, operator: defaultOp, value: '' })
                             }}
                             crmProps={allCrmProps}

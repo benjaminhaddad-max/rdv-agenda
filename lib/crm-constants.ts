@@ -226,9 +226,100 @@ export function opsForKind(kind: PropertyKind) {
   }
 }
 
-export function opsForField(field: CRMFilterField) {
-  if (field === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
+/** Propriétés HubSpot (custom:xxx) → clé filtre natif CRM. */
+export const HUBSPOT_PROP_TO_FILTER_KEY: Record<string, CRMFilterField> = {
+  hs_lead_status: 'lead_status',
+  origine: 'source',
+  zone_localite: 'zone',
+  classe_actuelle: 'classe',
+  formation_souhaitee: 'formation',
+  teleprospecteur: 'telepro',
+  hubspot_owner_id: 'contact_owner',
+  closer_hs_id: 'closer_contact',
+  contact_owner_hs_id: 'contact_owner',
+}
+
+export function normalizeFilterFieldKey(field: string): string {
+  if (field.startsWith('custom:')) {
+    const name = field.slice(7)
+    return HUBSPOT_PROP_TO_FILTER_KEY[name] ?? field
+  }
+  if (field === 'origine') return 'source'
+  return field
+}
+
+/** Champs filtre CRM affichés en multi-sélection (valeurs séparées par des virgules). */
+export const MULTI_SELECT_FILTER_FIELDS = new Set<CRMFilterField>([
+  'stage', 'formation', 'closer_contact', 'contact_owner', 'telepro',
+  'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
+  'parcoursup_verdict',
+])
+
+export const LEAD_STATUS_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'is_any',       label: 'est parmi' },
+  { key: 'is_none',      label: "n'est aucun de" },
+  { key: 'is_empty',     label: 'est vide' },
+  { key: 'is_not_empty', label: "n'est pas vide" },
+]
+
+export function fieldUsesMultiSelect(field: CRMFilterField | string): boolean {
+  const key = normalizeFilterFieldKey(field)
+  return MULTI_SELECT_FILTER_FIELDS.has(key as CRMFilterField)
+}
+
+export function defaultOpForField(
+  field: CRMFilterField | string,
+  prop?: { type?: string; field_type?: string },
+): CRMFilterOp {
+  if (prop) {
+    const k = propertyKindOf(prop.type, prop.field_type)
+    if (k === 'date' || k === 'datetime') return 'eq'
+    if (k === 'number') return 'eq'
+    if (k === 'enum') return 'is_any'
+    if (k === 'text') return 'contains'
+    return 'is'
+  }
+  if (fieldUsesMultiSelect(field)) return 'is_any'
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === field)
+  return f?.type === 'select' ? 'is' : 'contains'
+}
+
+/** Opérateur compatible multi-sélection (règles legacy « est » → « est parmi »). */
+export function coerceMultiSelectOperator(field: CRMFilterField | string, operator: CRMFilterOp): CRMFilterOp {
+  if (!fieldUsesMultiSelect(field)) return operator
+  if (operator === 'is') return 'is_any'
+  if (operator === 'is_not') return 'is_none'
+  return operator
+}
+
+export function shouldRenderMultiSelect(field: CRMFilterField | string, operator: CRMFilterOp): boolean {
+  if (!opNeedsValue(operator)) return false
+  return opIsMulti(operator) || fieldUsesMultiSelect(field)
+}
+
+export function normalizeFilterRule(rule: CRMFilterRule): CRMFilterRule {
+  const rawField = String(rule.field)
+  const canonical = normalizeFilterFieldKey(rawField)
+  const field = (canonical.startsWith('custom:') ? rawField : canonical) as CRMFilterField
+  return {
+    ...rule,
+    field,
+    operator: coerceMultiSelectOperator(field, rule.operator),
+  }
+}
+
+export function normalizeFilterGroups(groups: CRMFilterGroup[]): CRMFilterGroup[] {
+  return groups.map(g => ({
+    ...g,
+    rules: g.rules.map(normalizeFilterRule),
+  }))
+}
+
+export function opsForField(field: CRMFilterField | string) {
+  const key = normalizeFilterFieldKey(field)
+  if (key === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
+  if (key === 'lead_status') return LEAD_STATUS_OPS
+  const f = CRM_FILTER_FIELDS.find(ff => ff.key === key)
   return f?.type === 'select' ? SELECT_OPS : TEXT_OPS
 }
 

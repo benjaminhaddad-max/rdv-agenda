@@ -5,6 +5,7 @@ import { Save, RefreshCw, Users, Filter, List, Mail, MessageSquare } from 'lucid
 import LogoutButton from '@/components/LogoutButton'
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
+import { normalizeFilterGroups } from '@/lib/crm-constants'
 
 interface Segment {
   id: string
@@ -46,7 +47,8 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
       setSegment({
         ...data,
         segment_type: data.segment_type ?? 'dynamic',
-        filter_groups: data.filter_groups ?? [],
+        filter_groups: normalizeFilterGroups(data.filter_groups ?? []),
+        preset_flags: data.preset_flags ?? null,
         manual_contact_ids: data.manual_contact_ids ?? [],
         filters: data.filters ?? {},
       })
@@ -79,7 +81,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           name: segment.name,
           description: segment.description,
           segment_type: segment.segment_type,
-          filter_groups: segment.filter_groups,
+          filter_groups: normalizeFilterGroups(segment.filter_groups),
           preset_flags: segment.preset_flags,
           manual_contact_ids: manualIds,
           filters: segment.filters,
@@ -109,7 +111,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           segment_type: segment.segment_type,
-          filter_groups: segment.filter_groups,
+          filter_groups: normalizeFilterGroups(segment.filter_groups),
           preset_flags: segment.preset_flags,
           manual_contact_ids: manualIds,
           filters: segment.filters,

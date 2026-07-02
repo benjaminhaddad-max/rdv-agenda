@@ -10,6 +10,7 @@ import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelec
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import {
   CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
+  defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type CRMFilterField, type CRMFilterOp, type SelectOption,
 } from '@/lib/crm-constants'
 
@@ -393,8 +394,17 @@ function AdvancedFilterRow({
       )
     }
     if (kind === 'enum' || fieldDef?.type === 'select') {
-      if (opIsMulti(rule.operator)) {
-        return <MultiSelectDropdown options={valueOptions} value={rule.value} onChange={v => onChange({ value: v })} />
+      if (shouldRenderMultiSelect(rule.field, rule.operator)) {
+        return (
+          <MultiSelectDropdown
+            options={valueOptions}
+            value={rule.value}
+            onChange={v => onChange({
+              value: v,
+              operator: coerceMultiSelectOperator(rule.field, rule.operator),
+            })}
+          />
+        )
       }
       if (valueOptions.length > 20) {
         return <SearchableSelect options={valueOptions} value={rule.value} onChange={v => onChange({ value: v })} />
@@ -421,9 +431,7 @@ function AdvancedFilterRow({
         value={rule.field}
         onChange={(field) => {
           const next = crmProps.find(p => 'custom:' + p.name === field)
-          const k = next ? propertyKindOf(next.type, next.field_type) : 'text'
-          const defaultOp = (opsForKind(k)[0]?.key ?? 'is') as CRMFilterOp
-          onChange({ field, operator: defaultOp, value: '' })
+          onChange({ field, operator: defaultOpForField(field, next), value: '' })
         }}
         crmProps={crmProps}
       />
