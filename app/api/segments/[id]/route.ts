@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { refreshSegmentContactCount } from '@/lib/segment-recipients'
 import { deriveSiteUrl } from '@/lib/site-url'
+import { filterGroupsToLegacyFilters, hasActiveFilterGroups } from '@/lib/crm-constants'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -38,8 +39,13 @@ export async function PATCH(req: Request, { params }: Params) {
   if ('name' in body) patch.name = body.name
   if ('description' in body) patch.description = body.description
   if ('segment_type' in body) patch.segment_type = body.segment_type === 'static' ? 'static' : 'dynamic'
-  if ('filters' in body) patch.filters = body.filters
-  if ('filter_groups' in body) patch.filter_groups = body.filter_groups
+  if ('filter_groups' in body) {
+    patch.filter_groups = body.filter_groups
+    if (Array.isArray(body.filter_groups) && hasActiveFilterGroups(body.filter_groups)) {
+      patch.filters = filterGroupsToLegacyFilters(body.filter_groups)
+    }
+  }
+  if ('filters' in body && !('filter_groups' in body)) patch.filters = body.filters
   if ('preset_flags' in body) patch.preset_flags = body.preset_flags
   if ('manual_contact_ids' in body) patch.manual_contact_ids = body.manual_contact_ids
   if ('contact_count' in body) patch.contact_count = body.contact_count
@@ -53,6 +59,12 @@ export async function PATCH(req: Request, { params }: Params) {
   let { data, error } = await db.from('email_segments').update(patch).eq('id', id).select(fullSelect).single()
 
   if (error && isMissingColumnError(error.message)) {
+    const needsAdvanced = 'filter_groups' in patch || 'segment_type' in patch || 'manual_contact_ids' in patch || 'preset_flags' in patch
+    if (needsAdvanced) {
+      return NextResponse.json({
+        error: 'Colonnes segments avancées manquantes — exécutez supabase-migration-crm-v41-crm-segments.sql',
+      }, { status: 503 })
+    }
     const legacyPatch: Record<string, unknown> = {}
     if ('name' in patch) legacyPatch.name = patch.name
     if ('description' in patch) legacyPatch.description = patch.description

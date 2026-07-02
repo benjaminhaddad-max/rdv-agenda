@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { refreshSegmentContactCount } from '@/lib/segment-recipients'
 import { deriveSiteUrl } from '@/lib/site-url'
+import { filterGroupsToLegacyFilters, hasActiveFilterGroups } from '@/lib/crm-constants'
 
 function isMissingColumnError(msg: string): boolean {
   const m = msg.toLowerCase()
@@ -37,7 +38,9 @@ export async function POST(req: Request) {
     name: body.name,
     description: body.description || null,
     segment_type: segmentType,
-    filters: body.filters || {},
+    filters: hasActiveFilterGroups(body.filter_groups)
+      ? filterGroupsToLegacyFilters(body.filter_groups)
+      : (body.filters || {}),
     filter_groups: body.filter_groups ?? [],
     preset_flags: body.preset_flags ?? null,
     manual_contact_ids: body.manual_contact_ids ?? [],
@@ -48,6 +51,11 @@ export async function POST(req: Request) {
   let { data, error } = await db.from('email_segments').insert(insertPayload).select().single()
 
   if (error && isMissingColumnError(error.message)) {
+    if (hasActiveFilterGroups(body.filter_groups) || body.segment_type === 'static') {
+      return NextResponse.json({
+        error: 'Colonnes segments avancées manquantes — exécutez supabase-migration-crm-v41-crm-segments.sql',
+      }, { status: 503 })
+    }
     const legacy = await db.from('email_segments').insert({
       name: body.name,
       description: body.description || null,

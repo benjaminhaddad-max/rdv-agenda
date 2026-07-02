@@ -33,6 +33,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
   const [previewChannel, setPreviewChannel] = useState<'any' | 'email' | 'sms'>('any')
   const [preview, setPreview] = useState<{ total: number; sample: PreviewContact[] } | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -69,6 +70,8 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
   const save = async () => {
     if (!segment) return
     setSaving(true)
+    setSaveMsg('')
+    const normalizedGroups = normalizeFilterGroups(segment.filter_groups)
     try {
       const manualIds = segment.segment_type === 'static'
         ? contactIdsText.split(/[\s,;\n\r]+/).map(s => s.trim()).filter(Boolean)
@@ -81,16 +84,17 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           name: segment.name,
           description: segment.description,
           segment_type: segment.segment_type,
-          filter_groups: normalizeFilterGroups(segment.filter_groups),
+          filter_groups: normalizedGroups,
           preset_flags: segment.preset_flags,
           manual_contact_ids: manualIds,
-          filters: segment.filters,
         }),
       })
-      if (!res.ok) throw new Error((await res.json()).error)
-      const updated = await res.json()
-      setSegment(prev => prev ? { ...prev, ...updated, filter_groups: updated.filter_groups ?? prev.filter_groups } : prev)
-      setDirty(false)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erreur sauvegarde')
+
+      await load()
+      setSaveMsg('Enregistré')
+      setTimeout(() => setSaveMsg(''), 3000)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erreur sauvegarde')
     } finally {
@@ -146,6 +150,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>{segment.name}</span>
           {dirty && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600 }}>non sauvegardé</span>}
+          {saveMsg && <span style={{ fontSize: 10, color: '#166534', fontWeight: 600 }}>{saveMsg}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button

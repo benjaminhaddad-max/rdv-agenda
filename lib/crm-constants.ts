@@ -315,6 +315,41 @@ export function normalizeFilterGroups(groups: CRMFilterGroup[]): CRMFilterGroup[
   }))
 }
 
+/** Convertit le 1er groupe de filtres avancés en `filters` plat (backup / legacy). */
+export function filterGroupsToLegacyFilters(groups: CRMFilterGroup[]): Record<string, unknown> {
+  const filters: Record<string, unknown> = {}
+  const firstGroup = groups[0]
+  if (!firstGroup) return filters
+
+  const pushMulti = (key: string, raw: string) => {
+    const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
+    if (vals.length === 0) return
+    filters[key] = vals.length > 1 ? vals : vals[0]
+  }
+
+  for (const rule of firstGroup.rules) {
+    if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
+    const field = normalizeFilterFieldKey(rule.field)
+    if (rule.operator === 'is_any' || rule.operator === 'is') {
+      switch (field) {
+        case 'classe': pushMulti('classe', rule.value); break
+        case 'zone': pushMulti('zone', rule.value); break
+        case 'departement': pushMulti('departement', rule.value); break
+        case 'formation': pushMulti('formation', rule.value); break
+        case 'lead_status': pushMulti('lead_status', rule.value); break
+        case 'source': pushMulti('origine', rule.value); break
+        case 'contact_owner': pushMulti('contact_owner', rule.value); break
+        default: break
+      }
+    }
+  }
+  return filters
+}
+
+export function hasActiveFilterGroups(groups: CRMFilterGroup[] | null | undefined): boolean {
+  return Array.isArray(groups) && groups.some(g => (g.rules?.length ?? 0) > 0)
+}
+
 export function opsForField(field: CRMFilterField | string) {
   const key = normalizeFilterFieldKey(field)
   if (key === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
