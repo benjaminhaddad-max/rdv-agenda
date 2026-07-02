@@ -35,9 +35,10 @@ async function fetchAllDistinctValues(column: string): Promise<string[]> {
 async function fetchDistinctFormEvents(): Promise<string[]> {
   const db = createServiceClient()
   const out = new Set<string>()
-  const [metaRes, crmFormsRes] = await Promise.all([
+  const [metaRes, crmFormsRes, contactEvents] = await Promise.all([
     db.from('meta_lead_forms').select('name').not('name', 'is', null).limit(5000),
     db.from('forms').select('name').not('name', 'is', null).limit(5000),
+    fetchAllDistinctValues('recent_conversion_event'),
   ])
 
   for (const r of (metaRes.data ?? [])) {
@@ -46,6 +47,9 @@ async function fetchDistinctFormEvents(): Promise<string[]> {
   }
   for (const r of (crmFormsRes.data ?? [])) {
     const n = (r as { name: string | null }).name
+    if (n && n.trim() !== '') out.add(n.trim())
+  }
+  for (const n of contactEvents) {
     if (n && n.trim() !== '') out.add(n.trim())
   }
 
@@ -102,8 +106,8 @@ export async function GET() {
   }
 
   return NextResponse.json(payload, {
-    // Hyper-important métier: les nouveaux formulaires (CRM + Meta) doivent
-    // apparaître immédiatement dans "Soumission de formulaire".
+    // Hyper-important métier: les nouveaux formulaires (CRM + Meta + HubSpot
+    // recent_conversion_event) doivent apparaître dans "Soumission de formulaire".
     headers: { 'Cache-Control': 'no-store' },
   })
 }

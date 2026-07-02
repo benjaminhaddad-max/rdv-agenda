@@ -15,10 +15,11 @@ import type { SelectOption } from '@/lib/crm-constants'
 
 // ── Multi-select dropdown for filters ─────────────────────────────────────
 
-export function MultiSelectDropdown({ options, value, onChange }: {
+export function MultiSelectDropdown({ options, value, onChange, allowCustomValue = false }: {
   options: SelectOption[]
   value: string          // comma-separated
   onChange: (v: string) => void
+  allowCustomValue?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -90,8 +91,21 @@ export function MultiSelectDropdown({ options, value, onChange }: {
             />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !(allowCustomValue && q) && (
               <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>Aucun résultat</div>
+            )}
+            {allowCustomValue && q && filtered.length === 0 && (
+              <div
+                onClick={() => { toggle(query.trim()); setQuery('') }}
+                style={{
+                  padding: '8px 10px', cursor: 'pointer', fontSize: 12, color: '#C9A84C',
+                  fontWeight: 600, borderBottom: '1px solid #e5ddc8',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Utiliser « {query.trim()} »
+              </div>
             )}
             {filtered.map(opt => (
               <label
@@ -125,10 +139,11 @@ export function MultiSelectDropdown({ options, value, onChange }: {
 
 // ── Single-select dropdown with search (pour listes > 20 entries) ─────────
 
-export function SearchableSelect({ options, value, onChange }: {
+export function SearchableSelect({ options, value, onChange, allowCustomValue = false }: {
   options: SelectOption[]
   value: string
   onChange: (v: string) => void
+  allowCustomValue?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -187,8 +202,21 @@ export function SearchableSelect({ options, value, onChange }: {
             />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !(allowCustomValue && q) && (
               <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>Aucun résultat</div>
+            )}
+            {allowCustomValue && q && filtered.length === 0 && (
+              <div
+                onClick={() => { onChange(query.trim()); setOpen(false); setQuery('') }}
+                style={{
+                  padding: '8px 10px', cursor: 'pointer', fontSize: 12, color: '#C9A84C',
+                  fontWeight: 600, borderBottom: '1px solid #e5ddc8',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Utiliser « {query.trim()} »
+              </div>
             )}
             {filtered.map(opt => (
               <div

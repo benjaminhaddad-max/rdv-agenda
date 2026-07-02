@@ -2548,6 +2548,7 @@ export default function CRMPage() {
                               options={evOpts}
                               value={rule.value}
                               onChange={v => updateRule(group.id, rule.id, { value: v })}
+                              allowCustomValue
                             />
                           )
                         }
@@ -2556,6 +2557,7 @@ export default function CRMPage() {
                             options={evOpts}
                             value={rule.value}
                             onChange={v => updateRule(group.id, rule.id, { value: v })}
+                            allowCustomValue
                           />
                         )
                       }
