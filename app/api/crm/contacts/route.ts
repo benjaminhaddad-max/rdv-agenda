@@ -161,6 +161,17 @@ export async function GET(req: NextRequest) {
     return `(${escaped.join(',')})`
   }
 
+  /** « n'est aucun de » : inclut les statuts NULL (pas encore renseignés). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyLeadStatusNotFilter = (q: any, raw: string) => {
+    const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
+    if (vals.length === 0) return q
+    if (vals.length > 1) {
+      return q.or(`hs_lead_status.is.null,hs_lead_status.not.in.${toPostgrestInList(vals)}`)
+    }
+    return q.or(`hs_lead_status.is.null,hs_lead_status.neq.${vals[0]}`)
+  }
+
   // "jean jean" => tokenized search across firstname/lastname/email/phone.
   const applySearchFilter = (q: any, rawSearch: string) => {
     const safeSearch = sanitizeSearch(rawSearch)
@@ -741,6 +752,7 @@ export async function GET(req: NextRequest) {
       const vals = fastSplit(leadStatus)
       fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
     }
+    if (leadStatusNot) fastQ = applyLeadStatusNotFilter(fastQ, leadStatusNot)
     if (source) {
       const vals = expandOrigineFilterValues(fastSplit(source))
       fastQ = vals.length > 1 ? fastQ.in('origine', vals) : fastQ.eq('origine', vals[0])
@@ -1866,8 +1878,7 @@ export async function GET(req: NextRequest) {
     query = vals.length > 1 ? query.in('hs_lead_status', vals) : query.eq('hs_lead_status', leadStatus)
   }
   if (leadStatusNot) {
-    const vals = splitMulti(leadStatusNot)
-    query = query.not('hs_lead_status', 'in', toPostgrestInList(vals))
+    query = applyLeadStatusNotFilter(query, leadStatusNot)
   }
 
   // Origine (multi-value support + expansion des variantes brutes vers la
