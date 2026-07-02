@@ -62,17 +62,21 @@ function dedupeKey(c: ResolvedSegmentContact, channel: SegmentChannel): string {
 }
 
 function filterGroupView(
-  filterGroups: CRMFilterGroup[],
+  filterGroup: CRMFilterGroup,
   presetFlags: Record<string, unknown> | null,
 ) {
   return {
     id: 'segment',
     name: '',
-    groups: filterGroups,
+    groups: [filterGroup],
     presetFlags: (presetFlags ?? undefined) as
       | { noTelepro?: boolean; recentFormMonths?: number; recentFormDays?: number; createdBeforeDays?: number }
       | undefined,
   }
+}
+
+function activeFilterGroups(filterGroups: CRMFilterGroup[]): CRMFilterGroup[] {
+  return filterGroups.filter(g => (g.rules?.length ?? 0) > 0)
 }
 
 function mapApiRow(row: Record<string, unknown>): ContactDbRow {
@@ -88,12 +92,12 @@ function mapApiRow(row: Record<string, unknown>): ContactDbRow {
 async function fetchCrmContactsPage(
   baseUrl: string,
   cookies: string,
-  filterGroups: CRMFilterGroup[],
+  filterGroup: CRMFilterGroup,
   presetFlags: Record<string, unknown> | null,
   page: number,
   limit: number,
 ): Promise<{ data: ContactDbRow[]; total: number }> {
-  const params = viewToParams(filterGroupView(filterGroups, presetFlags))
+  const params = viewToParams(filterGroupView(filterGroup, presetFlags))
   params.set('exact_count', '1')
   params.set('page', String(page))
   params.set('limit', String(limit))
@@ -120,24 +124,43 @@ async function fetchCrmContactsPage(
   }
 }
 
-/** Aperçu : count SQL exact + échantillon (sans plafond artificiel à 1000). */
-async function previewContactsFromFilterGroups(
+async function resolveContactsFromOneFilterGroup(
   baseUrl: string,
   cookies: string,
-  filterGroups: CRMFilterGroup[],
+  filterGroup: CRMFilterGroup,
+  presetFlags: Record<string, unknown> | null,
+): Promise<ContactDbRow[]> {
+  const all: ContactDbRow[] = []
+  const PAGE = 1000
+  let page = 0
+  while (true) {
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, page, PAGE)
+    if (data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    page++
+    if (page > 1000) break
+  }
+  return all
+}
+
+/** Aperçu d'un seul groupe (AND interne). */
+async function previewContactsFromOneFilterGroup(
+  baseUrl: string,
+  cookies: string,
+  filterGroup: CRMFilterGroup,
   presetFlags: Record<string, unknown> | null,
   channel: SegmentChannel,
   sampleSize: number,
 ): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
   if (channel === 'any') {
-    const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, 0, 0)
+    const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, 0)
     const fetchLimit = Math.max(sampleSize, 10)
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, 0, fetchLimit)
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, 0, fetchLimit)
     const sample = data.slice(0, sampleSize).map(toResolved)
     return { total, sample }
   }
 
-  // Email / SMS : parcourir toutes les pages pour un décompte exact canal
   const PAGE = 500
   let page = 0
   let total = 0
@@ -145,7 +168,7 @@ async function previewContactsFromFilterGroups(
   const seen = new Set<string>()
 
   while (true) {
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, page, PAGE)
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, page, PAGE)
     if (data.length === 0) break
     for (const row of data) {
       const c = toResolved(row)
@@ -164,6 +187,45 @@ async function previewContactsFromFilterGroups(
   return { total, sample }
 }
 
+function unionResolvedContacts(
+  rows: ContactDbRow[],
+  channel: SegmentChannel,
+  sampleSize: number,
+): { total: number; sample: ResolvedSegmentContact[] } {
+  const seen = new Map<string, ResolvedSegmentContact>()
+  for (const row of rows) {
+    const c = toResolved(row)
+    if (!passesChannel(c, channel)) continue
+    const key = dedupeKey(c, channel)
+    if (!seen.has(key)) seen.set(key, c)
+  }
+  const all = Array.from(seen.values())
+  return { total: all.length, sample: all.slice(0, sampleSize) }
+}
+
+/** Aperçu : count SQL exact + échantillon. Plusieurs groupes = union OR (comme l'UI). */
+async function previewContactsFromFilterGroups(
+  baseUrl: string,
+  cookies: string,
+  filterGroups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+  channel: SegmentChannel,
+  sampleSize: number,
+): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
+  const groups = activeFilterGroups(filterGroups)
+  if (groups.length === 0) return { total: 0, sample: [] }
+  if (groups.length === 1) {
+    return previewContactsFromOneFilterGroup(baseUrl, cookies, groups[0], presetFlags, channel, sampleSize)
+  }
+
+  const byContactId = new Map<string, ContactDbRow>()
+  for (const group of groups) {
+    const rows = await resolveContactsFromOneFilterGroup(baseUrl, cookies, group, presetFlags)
+    for (const row of rows) byContactId.set(row.hubspot_contact_id, row)
+  }
+  return unionResolvedContacts(Array.from(byContactId.values()), channel, sampleSize)
+}
+
 /** Résout des contacts via les filtres CRM avancés (même moteur que la page Contacts). */
 export async function resolveContactsFromFilterGroups(
   baseUrl: string,
@@ -171,18 +233,18 @@ export async function resolveContactsFromFilterGroups(
   filterGroups: CRMFilterGroup[],
   presetFlags: Record<string, unknown> | null,
 ): Promise<ContactDbRow[]> {
-  const all: ContactDbRow[] = []
-  const PAGE = 1000
-  let page = 0
-  while (true) {
-    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, page, PAGE)
-    if (data.length === 0) break
-    all.push(...data)
-    if (data.length < PAGE) break
-    page++
-    if (page > 1000) break
+  const groups = activeFilterGroups(filterGroups)
+  if (groups.length === 0) return []
+  if (groups.length === 1) {
+    return resolveContactsFromOneFilterGroup(baseUrl, cookies, groups[0], presetFlags)
   }
-  return all
+
+  const byContactId = new Map<string, ContactDbRow>()
+  for (const group of groups) {
+    const rows = await resolveContactsFromOneFilterGroup(baseUrl, cookies, group, presetFlags)
+    for (const row of rows) byContactId.set(row.hubspot_contact_id, row)
+  }
+  return Array.from(byContactId.values())
 }
 
 async function fetchAllWithFlatFilters(
