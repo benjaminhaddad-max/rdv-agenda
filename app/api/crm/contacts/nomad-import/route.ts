@@ -7,6 +7,9 @@ import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 const ORIGINE_NOMAD = 'Nomad Education (Partenaire)'
 const MAX_ROWS = 5000
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Clé utilisée par le script Apps Script partagé avec Nomad. À retirer le jour
+// où leur script passera sur NOMAD_IMPORT_KEY (prévoir la rotation avec eux).
+const LEGACY_NOMAD_IMPORT_KEY = 'nomad_import_2026_05_30_9Kq7mP2Z'
 function normalizeDepartement(value: string): string {
   const compact = String(value || '').trim().toUpperCase().replace(/\s+/g, '')
   if (!compact) return ''
@@ -68,8 +71,10 @@ function verifyNomadKey(req: NextRequest): boolean {
     req.headers.get('x-nomad-key') ||
     (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const value = provided || ''
-  if (!value || !expected) return false
-  return timingSafeEqual(value, expected)
+  if (!value) return false
+  if (expected && timingSafeEqual(value, expected)) return true
+  // Compat pour le script Apps Script déjà partagé avec Nomad.
+  return timingSafeEqual(value, LEGACY_NOMAD_IMPORT_KEY)
 }
 
 function asTrimmedString(v: unknown): string {

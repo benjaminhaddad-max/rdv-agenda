@@ -4,6 +4,8 @@ import { createServiceClient } from '@/lib/supabase'
 export const maxDuration = 300
 
 const ORIGINE_NOMAD = 'Nomad Education (Partenaire)'
+// Clé utilisée par le script Apps Script partagé avec Nomad (cf. nomad-import).
+const LEGACY_NOMAD_IMPORT_KEY = 'nomad_import_2026_05_30_9Kq7mP2Z'
 function timingSafeEqual(a: string, b: string): boolean {
   if (!a || !b || a.length !== b.length) return false
   let diff = 0
@@ -17,8 +19,9 @@ function verifyNomadKey(req: NextRequest): boolean {
     req.headers.get('x-nomad-key') ||
     (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const value = provided || ''
-  if (!value || !expected) return false
-  return timingSafeEqual(value, expected)
+  if (!value) return false
+  if (expected && timingSafeEqual(value, expected)) return true
+  return timingSafeEqual(value, LEGACY_NOMAD_IMPORT_KEY)
 }
 
 export async function POST(req: NextRequest) {

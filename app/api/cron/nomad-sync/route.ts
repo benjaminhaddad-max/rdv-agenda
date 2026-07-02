@@ -6,6 +6,8 @@ export const maxDuration = 300
 
 const DEFAULT_NOMAD_SHEET_ID = '1m_aBEpfPx42-i4jz1GLHZm_v8bTSzmhrGgZcVdjLkiI'
 const DEFAULT_NOMAD_GID = '0'
+// Clé utilisée par le script Apps Script partagé avec Nomad (cf. nomad-import).
+const LEGACY_NOMAD_IMPORT_KEY = 'nomad_import_2026_05_30_9Kq7mP2Z'
 type CsvRow = Record<string, string>
 
 function detectDelimiter(headerLine: string): ',' | ';' {
@@ -109,8 +111,9 @@ function verifyNomadKey(req: NextRequest): boolean {
     req.headers.get('x-nomad-key') ||
     (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const value = provided || ''
-  if (!value || !expected) return false
-  return timingSafeEqual(value, expected)
+  if (!value) return false
+  if (expected && timingSafeEqual(value, expected)) return true
+  return timingSafeEqual(value, LEGACY_NOMAD_IMPORT_KEY)
 }
 
 async function runSync(req: NextRequest, dryRun: boolean) {
