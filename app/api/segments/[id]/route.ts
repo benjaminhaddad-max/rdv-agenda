@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { refreshSegmentContactCount } from '@/lib/segment-recipients'
+import { deriveSiteUrl } from '@/lib/site-url'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -66,7 +67,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (data && ('filters' in patch || 'filter_groups' in patch || 'manual_contact_ids' in patch || 'segment_type' in patch)) {
     const cookies = req.headers.get('cookie') ?? ''
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const baseUrl = deriveSiteUrl(req)
     refreshSegmentContactCount(db, id, { baseUrl, cookies }).catch(() => {})
   }
 

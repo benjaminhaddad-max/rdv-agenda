@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { viewToParams } from '@/lib/crm-views'
 import { applyFilters, type FilterShape } from '@/lib/campaign-recipients'
+import { deriveSiteUrl } from '@/lib/site-url'
 
 export type SegmentChannel = 'email' | 'sms' | 'any'
 
@@ -78,7 +79,16 @@ export async function resolveContactsFromFilterGroups(
   const params = viewToParams(view)
   params.set('export', '1')
   const url = `${baseUrl.replace(/\/$/, '')}/api/crm/contacts?${params.toString()}`
-  const res = await fetch(url, { headers: { cookie: cookies } })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      headers: { cookie: cookies },
+      signal: AbortSignal.timeout(90_000),
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'fetch failed'
+    throw new Error(`Impossible de joindre ${url} (${msg})`)
+  }
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
     throw new Error(`/api/crm/contacts a renvoyé ${res.status}: ${txt.slice(0, 200)}`)
@@ -176,7 +186,7 @@ export async function resolveSegment(
   } = {},
 ): Promise<ResolvedSegmentContact[]> {
   const channel = opts.channel ?? 'any'
-  const baseUrl = opts.baseUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const baseUrl = opts.baseUrl ?? deriveSiteUrl()
   const cookies = opts.cookies ?? ''
 
   let rows: ContactDbRow[] = []

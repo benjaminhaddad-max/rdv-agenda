@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { previewSegments } from '@/lib/segment-recipients'
 import type { SegmentChannel } from '@/lib/segment-recipients'
+import { deriveSiteUrl } from '@/lib/site-url'
+
+export const maxDuration = 120
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -18,7 +21,7 @@ export async function POST(req: Request, { params }: Params) {
   const db = createServiceClient()
   const body = await req.json().catch(() => ({}))
   const cookies = req.headers.get('cookie') ?? ''
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const baseUrl = deriveSiteUrl(req)
   const channel = (['email', 'sms', 'any'].includes(body.channel) ? body.channel : 'any') as SegmentChannel
   const sampleSize = typeof body.sample_size === 'number' ? body.sample_size : 10
 

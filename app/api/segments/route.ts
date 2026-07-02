@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { refreshSegmentContactCount } from '@/lib/segment-recipients'
+import { deriveSiteUrl } from '@/lib/site-url'
 
 function isMissingColumnError(msg: string): boolean {
   const m = msg.toLowerCase()
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
   // Calcule le contact_count en arrière-plan (best-effort)
   if (data?.id) {
     const cookies = req.headers.get('cookie') ?? ''
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const baseUrl = deriveSiteUrl(req)
     refreshSegmentContactCount(db, data.id, { baseUrl, cookies }).catch(() => {})
   }
 
