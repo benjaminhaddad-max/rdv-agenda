@@ -89,6 +89,9 @@ function mapApiRow(row: Record<string, unknown>): ContactDbRow {
   }
 }
 
+const CRM_CONTACTS_API_PAGE = 200
+const CRM_CONTACTS_EXPORT_PAGE = 10_000
+
 async function fetchCrmContactsPage(
   baseUrl: string,
   cookies: string,
@@ -100,7 +103,13 @@ async function fetchCrmContactsPage(
   const params = viewToParams(filterGroupView(filterGroup, presetFlags))
   params.set('exact_count', '1')
   params.set('page', String(page))
-  params.set('limit', String(limit))
+  if (limit === 0) {
+    params.set('limit', '0')
+  } else {
+    const pageSize = Math.min(limit, CRM_CONTACTS_EXPORT_PAGE)
+    if (pageSize > CRM_CONTACTS_API_PAGE) params.set('export', '1')
+    params.set('limit', String(pageSize))
+  }
   const url = `${baseUrl.replace(/\/$/, '')}/api/crm/contacts?${params.toString()}`
   let res: Response
   try {
@@ -131,7 +140,7 @@ async function resolveContactsFromOneFilterGroup(
   presetFlags: Record<string, unknown> | null,
 ): Promise<ContactDbRow[]> {
   const all: ContactDbRow[] = []
-  const PAGE = 1000
+  const PAGE = CRM_CONTACTS_EXPORT_PAGE
   let page = 0
   while (true) {
     const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroup, presetFlags, page, PAGE)
@@ -139,7 +148,7 @@ async function resolveContactsFromOneFilterGroup(
     all.push(...data)
     if (data.length < PAGE) break
     page++
-    if (page > 1000) break
+    if (page > 200) break
   }
   return all
 }
@@ -161,7 +170,7 @@ async function previewContactsFromOneFilterGroup(
     return { total, sample }
   }
 
-  const PAGE = 500
+  const PAGE = CRM_CONTACTS_EXPORT_PAGE
   let page = 0
   let total = 0
   const sample: ResolvedSegmentContact[] = []
@@ -181,7 +190,7 @@ async function previewContactsFromOneFilterGroup(
     }
     if (data.length < PAGE) break
     page++
-    if (page > 500) break
+    if (page > 200) break
   }
 
   return { total, sample }
