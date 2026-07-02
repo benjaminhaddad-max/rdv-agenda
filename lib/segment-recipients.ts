@@ -61,14 +61,11 @@ function dedupeKey(c: ResolvedSegmentContact, channel: SegmentChannel): string {
   return `id:${c.contact_id}`
 }
 
-/** Résout des contacts via les filtres CRM avancés (même moteur que la page Contacts). */
-export async function resolveContactsFromFilterGroups(
-  baseUrl: string,
-  cookies: string,
+function filterGroupView(
   filterGroups: CRMFilterGroup[],
   presetFlags: Record<string, unknown> | null,
-): Promise<ContactDbRow[]> {
-  const view = {
+) {
+  return {
     id: 'segment',
     name: '',
     groups: filterGroups,
@@ -76,8 +73,30 @@ export async function resolveContactsFromFilterGroups(
       | { noTelepro?: boolean; recentFormMonths?: number; recentFormDays?: number; createdBeforeDays?: number }
       | undefined,
   }
-  const params = viewToParams(view)
-  params.set('export', '1')
+}
+
+function mapApiRow(row: Record<string, unknown>): ContactDbRow {
+  return {
+    hubspot_contact_id: String(row.hubspot_contact_id ?? ''),
+    email: (row.email as string | null) ?? null,
+    phone: (row.phone as string | null) ?? null,
+    firstname: (row.firstname as string | null) ?? null,
+    lastname: (row.lastname as string | null) ?? null,
+  }
+}
+
+async function fetchCrmContactsPage(
+  baseUrl: string,
+  cookies: string,
+  filterGroups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+  page: number,
+  limit: number,
+): Promise<{ data: ContactDbRow[]; total: number }> {
+  const params = viewToParams(filterGroupView(filterGroups, presetFlags))
+  params.set('exact_count', '1')
+  params.set('page', String(page))
+  params.set('limit', String(limit))
   const url = `${baseUrl.replace(/\/$/, '')}/api/crm/contacts?${params.toString()}`
   let res: Response
   try {
@@ -94,8 +113,76 @@ export async function resolveContactsFromFilterGroups(
     throw new Error(`/api/crm/contacts a renvoyé ${res.status}: ${txt.slice(0, 200)}`)
   }
   const json = await res.json()
-  const data = (json.data ?? []) as ContactDbRow[]
-  return data
+  const raw = Array.isArray(json.data) ? json.data as Record<string, unknown>[] : []
+  return {
+    data: raw.map(mapApiRow).filter(r => r.hubspot_contact_id),
+    total: typeof json.total === 'number' ? json.total : raw.length,
+  }
+}
+
+/** Aperçu : count SQL exact + échantillon (sans plafond artificiel à 1000). */
+async function previewContactsFromFilterGroups(
+  baseUrl: string,
+  cookies: string,
+  filterGroups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+  channel: SegmentChannel,
+  sampleSize: number,
+): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
+  if (channel === 'any') {
+    const { total } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, 0, 0)
+    const fetchLimit = Math.max(sampleSize, 10)
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, 0, fetchLimit)
+    const sample = data.slice(0, sampleSize).map(toResolved)
+    return { total, sample }
+  }
+
+  // Email / SMS : parcourir toutes les pages pour un décompte exact canal
+  const PAGE = 500
+  let page = 0
+  let total = 0
+  const sample: ResolvedSegmentContact[] = []
+  const seen = new Set<string>()
+
+  while (true) {
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, page, PAGE)
+    if (data.length === 0) break
+    for (const row of data) {
+      const c = toResolved(row)
+      if (!passesChannel(c, channel)) continue
+      const key = dedupeKey(c, channel)
+      if (seen.has(key)) continue
+      seen.add(key)
+      total++
+      if (sample.length < sampleSize) sample.push(c)
+    }
+    if (data.length < PAGE) break
+    page++
+    if (page > 500) break
+  }
+
+  return { total, sample }
+}
+
+/** Résout des contacts via les filtres CRM avancés (même moteur que la page Contacts). */
+export async function resolveContactsFromFilterGroups(
+  baseUrl: string,
+  cookies: string,
+  filterGroups: CRMFilterGroup[],
+  presetFlags: Record<string, unknown> | null,
+): Promise<ContactDbRow[]> {
+  const all: ContactDbRow[] = []
+  const PAGE = 1000
+  let page = 0
+  while (true) {
+    const { data } = await fetchCrmContactsPage(baseUrl, cookies, filterGroups, presetFlags, page, PAGE)
+    if (data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    page++
+    if (page > 1000) break
+  }
+  return all
 }
 
 async function fetchAllWithFlatFilters(
@@ -261,24 +348,85 @@ export async function previewSegments(
   } = {},
 ): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
   const sampleSize = Math.max(1, Math.min(50, opts.sampleSize ?? 10))
-  let all: ResolvedSegmentContact[] = []
+  const channel = opts.channel ?? 'any'
+  const baseUrl = opts.baseUrl ?? deriveSiteUrl()
+  const cookies = opts.cookies ?? ''
+
+  const previewOneSegment = async (segment: SegmentRow): Promise<{ total: number; sample: ResolvedSegmentContact[] }> => {
+    const filterGroups = Array.isArray(segment.filter_groups) ? segment.filter_groups : []
+    const hasAdvanced = filterGroups.some(g => (g.rules?.length ?? 0) > 0)
+    const legacyContactIds = Array.isArray((segment.filters as { contact_ids?: unknown } | null)?.contact_ids)
+      ? ((segment.filters as { contact_ids: string[] }).contact_ids).filter(Boolean)
+      : []
+
+    if (segment.segment_type === 'static') {
+      const ids = (segment.manual_contact_ids ?? []).filter(Boolean)
+      const rows = ids.length > 0 ? await fetchByContactIds(db, ids) : []
+      return finalizePreview(rows, channel, sampleSize)
+    }
+    if (legacyContactIds.length > 0) {
+      const rows = await fetchByContactIds(db, legacyContactIds)
+      return finalizePreview(rows, channel, sampleSize)
+    }
+    if (hasAdvanced) {
+      return previewContactsFromFilterGroups(
+        baseUrl, cookies, filterGroups, segment.preset_flags ?? null, channel, sampleSize,
+      )
+    }
+    if (segment.filters && Object.keys(segment.filters).length > 0) {
+      const rows = await fetchAllWithFlatFilters(db, segment.filters)
+      return finalizePreview(rows, channel, sampleSize)
+    }
+    return { total: 0, sample: [] }
+  }
 
   if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'string') {
-    all = await resolveSegmentIds(db, input as string[], opts)
-  } else if (Array.isArray(input)) {
+    const segments = await loadSegmentRows(db, input as string[])
     const seen = new Map<string, ResolvedSegmentContact>()
-    for (const seg of input as SegmentRow[]) {
-      const contacts = await resolveSegment(db, seg, opts)
-      for (const c of contacts) {
-        const key = dedupeKey(c, opts.channel ?? 'any')
+    let total = 0
+    for (const seg of segments) {
+      const { total: segTotal, sample } = await previewOneSegment(seg)
+      total += segTotal
+      for (const c of sample) {
+        const key = dedupeKey(c, channel)
         if (!seen.has(key)) seen.set(key, c)
       }
     }
-    all = Array.from(seen.values())
-  } else {
-    all = await resolveSegment(db, input as SegmentRow, opts)
+    return { total, sample: Array.from(seen.values()).slice(0, sampleSize) }
   }
 
+  if (Array.isArray(input)) {
+    const seen = new Map<string, ResolvedSegmentContact>()
+    let total = 0
+    for (const seg of input as SegmentRow[]) {
+      const { total: segTotal, sample } = await previewOneSegment(seg)
+      total += segTotal
+      for (const c of sample) {
+        const key = dedupeKey(c, channel)
+        if (!seen.has(key)) seen.set(key, c)
+      }
+    }
+    return { total, sample: Array.from(seen.values()).slice(0, sampleSize) }
+  }
+
+  return previewOneSegment(input as SegmentRow)
+}
+
+function finalizePreview(
+  rows: ContactDbRow[],
+  channel: SegmentChannel,
+  sampleSize: number,
+): { total: number; sample: ResolvedSegmentContact[] } {
+  const seen = new Set<string>()
+  const all: ResolvedSegmentContact[] = []
+  for (const row of rows) {
+    const c = toResolved(row)
+    if (!passesChannel(c, channel)) continue
+    const key = dedupeKey(c, channel)
+    if (seen.has(key)) continue
+    seen.add(key)
+    all.push(c)
+  }
   return { total: all.length, sample: all.slice(0, sampleSize) }
 }
 
