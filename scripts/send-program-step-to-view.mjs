@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /**
- * Envoie une étape d'un programme email à l'audience d'une vue CRM.
- * Liens formulaire signés (?t=…) par contact HubSpot.
+ * Envoie une étape programme à une vue CRM ou un segment email.
+ * Chaque destinataire reçoit un lien /form?t=… unique (hubspot_contact_id).
  *
  * Usage:
- *   bun run scripts/send-program-step-to-view.mjs --view-name="Term IDF sans telepro" --step=0
- *   bun run scripts/send-program-step-to-view.mjs --view-id=v_1783072603601 --step=0 --dry-run
- *   bun run scripts/send-program-step-to-view.mjs --view-id=... --step=0 --execute
+ *   bun run scripts/send-program-step-to-view.mjs --segment-name="Terminale IDF" --step=0
+ *   bun run scripts/send-program-step-to-view.mjs --segment-id=a3f2d4d0-e452-48d0-a13e-3528a8658797 --step=0 --execute
+ *   bun run scripts/send-program-step-to-view.mjs --view-id=v_1783072603601 --step=0 --execute
  */
 
 import { readFileSync } from 'node:fs'
@@ -14,7 +14,16 @@ import { createClient } from '@supabase/supabase-js'
 import { sendBrevoEmail, renderTemplate, htmlToText } from '../lib/brevo.ts'
 import { getEmailBrand, brandSender, wrapBrandEmailHtml } from '../lib/email-brands.ts'
 import { resolveProgramFormLink } from '../lib/marketing/brand-form-links.ts'
-import { loadSavedView, resolveSavedViewAudience } from '../lib/saved-view-audience.ts'
+import { verifyFormContactToken } from '../lib/form-contact-link.ts'
+import {
+  loadSavedView,
+  loadEmailSegment,
+  resolveSavedViewAudience,
+  resolveSegmentAudience,
+} from '../lib/saved-view-audience.ts'
+
+const TERMINALE_IDF_SEGMENT_ID = 'a3f2d4d0-e452-48d0-a13e-3528a8658797'
+const AARON_HUBSPOT_ID = '761592608998'
 
 function loadEnv() {
   try {
@@ -47,14 +56,34 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
+function extractToken(url) {
+  try {
+    return new URL(url).searchParams.get('t') || ''
+  } catch {
+    return ''
+  }
+}
+
+function buildSignedLink(brandSlug, contact, formSlug) {
+  const link = resolveProgramFormLink(brandSlug, contact, formSlug)
+  if (!link?.includes('?t=')) return null
+  const token = extractToken(link)
+  const payload = verifyFormContactToken(token)
+  if (!payload || payload.cid !== contact.hubspot_contact_id.trim()) return null
+  return link
+}
+
 loadEnv()
 
 const viewId = (arg('view-id') || '').trim()
-const viewName = (arg('view-name') || 'Term IDF sans telepro').trim()
+const viewName = (arg('view-name') || '').trim()
+const segmentId = (arg('segment-id') || '').trim()
+const segmentName = (arg('segment-name') || '').trim()
 const stepIndex = Math.max(0, Number(arg('step', '0')) || 0)
 const programSlug = (arg('program', 'last-chance-medecine') || 'last-chance-medecine').trim()
 const dryRun = !process.argv.includes('--execute')
-const delayMs = Math.max(200, Number(arg('delay-ms', '800')) || 800)
+const delayMs = Math.max(200, Number(arg('delay-ms', '400')) || 400)
+const skipSent = process.argv.includes('--skip-already-sent')
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -68,13 +97,61 @@ if (!brevoKey && !dryRun) {
   console.error('Manque BREVO_API_KEY')
   process.exit(1)
 }
+if (!process.env.FORM_CONTACT_LINK_SECRET?.trim() && !process.env.HERMIONE_LINK_SECRET?.trim()) {
+  console.error('Manque FORM_CONTACT_LINK_SECRET — liens non signables')
+  process.exit(1)
+}
 
 const db = createClient(supabaseUrl, supabaseKey)
 
-const view = await loadSavedView(db, { viewId: viewId || undefined, viewName: viewId ? undefined : viewName })
-if (!view) {
-  console.error(`Vue introuvable: ${viewId || viewName}`)
-  process.exit(1)
+// Aaron : contact CRM + inclusion segment Terminale IDF
+const nowIso = new Date().toISOString()
+await db.from('crm_contacts').upsert({
+  hubspot_contact_id: AARON_HUBSPOT_ID,
+  firstname: 'Aaron',
+  lastname: 'SARFATI',
+  email: 'aaron@diploma-sante.fr',
+  classe_actuelle: 'Terminale',
+  zone_localite: 'IDF',
+  hs_lead_status: 'A replanifier',
+  contact_createdate: nowIso,
+  synced_at: nowIso,
+}, { onConflict: 'hubspot_contact_id' })
+
+const { data: termSegment } = await db
+  .from('email_segments')
+  .select('manual_contact_ids')
+  .eq('id', TERMINALE_IDF_SEGMENT_ID)
+  .maybeSingle()
+
+const manualIds = [...new Set([...(termSegment?.manual_contact_ids ?? []), AARON_HUBSPOT_ID])]
+await db.from('email_segments').update({ manual_contact_ids: manualIds }).eq('id', TERMINALE_IDF_SEGMENT_ID)
+
+let audienceSource = ''
+let audience = []
+
+if (segmentId || segmentName) {
+  const segment = await loadEmailSegment(db, {
+    segmentId: segmentId || undefined,
+    segmentName: segmentId ? undefined : (segmentName || 'Terminale IDF'),
+  })
+  if (!segment) {
+    console.error(`Segment introuvable: ${segmentId || segmentName || 'Terminale IDF'}`)
+    process.exit(1)
+  }
+  audience = await resolveSegmentAudience(db, segment)
+  audienceSource = `Segment: ${segment.name} (${segment.id})`
+} else {
+  const view = await loadSavedView(db, {
+    viewId: viewId || undefined,
+    viewName: viewId ? undefined : (viewName || 'Term IDF sans telepro'),
+  })
+  if (!view) {
+    console.error(`Vue introuvable: ${viewId || viewName || 'Term IDF sans telepro'}`)
+    process.exit(1)
+  }
+  audience = await resolveSavedViewAudience(db, view)
+  audienceSource = `Vue: ${view.name} (${view.id})`
 }
 
 const { data: program } = await db
@@ -106,60 +183,95 @@ if (brand && !brand.active) {
   process.exit(1)
 }
 
-const audience = await resolveSavedViewAudience(db, view)
-const withCid = audience.filter(r => r.contact_id && !r.contact_id.startsWith('mkt:'))
-const skippedNoCid = audience.length - withCid.length
+const formSlug = program.prefill_form_slug?.trim() || process.env.CAMPAIGN_PREFILL_FORM_SLUG?.trim() || ''
 
-console.log(`Vue: ${view.name} (${view.id})`)
+let alreadySent = new Set()
+if (skipSent) {
+  const { data: prev } = await db
+    .from('email_program_sends')
+    .select('email')
+    .eq('program_id', program.id)
+    .eq('step_index', stepIndex)
+    .eq('status', 'sent')
+  for (const row of prev ?? []) {
+    if (row.email) alreadySent.add(String(row.email).toLowerCase())
+  }
+}
+
+const recipients = []
+let skippedNoCid = 0
+let skippedNoToken = 0
+let skippedDuplicate = 0
+const tokenSeen = new Set()
+
+for (const r of audience) {
+  if (!r.contact_id || r.contact_id.startsWith('mkt:')) {
+    skippedNoCid++
+    continue
+  }
+  if (skipSent && alreadySent.has(r.email.toLowerCase())) {
+    skippedDuplicate++
+    continue
+  }
+
+  const contactInput = {
+    hubspot_contact_id: r.contact_id,
+    firstname: r.first_name,
+    lastname: r.last_name,
+    email: r.email,
+  }
+  const link = buildSignedLink(brand?.slug, contactInput, formSlug)
+  if (!link) {
+    skippedNoToken++
+    continue
+  }
+
+  const token = extractToken(link)
+  if (tokenSeen.has(token)) {
+    console.error(`Token dupliqué pour ${r.email} — abandon`)
+    process.exit(1)
+  }
+  tokenSeen.add(token)
+
+  recipients.push({ ...r, link, contactInput })
+}
+
+console.log(audienceSource)
 console.log(`Programme: ${program.slug} — ${step.label} (${brand?.slug || 'sans marque'})`)
-console.log(`Audience: ${withCid.length} contact(s) avec lien signé (${skippedNoCid} sans hubspot id ignorés)`)
+console.log(
+  `Audience: ${recipients.length} prêts | ${skippedNoCid} sans id | ${skippedNoToken} sans token | ${skippedDuplicate} déjà envoyés`,
+)
 console.log(dryRun ? 'Mode: DRY-RUN (ajouter --execute pour envoyer)' : 'Mode: ENVOI RÉEL')
 console.log('')
 
-if (withCid.length === 0) {
-  console.error('Aucun destinataire')
+if (recipients.length === 0) {
+  console.error('Aucun destinataire avec lien personnalisé')
   process.exit(1)
 }
 
 if (dryRun) {
-  console.log('Échantillon (5 premiers):')
-  for (const r of withCid.slice(0, 5)) {
-    const lien = resolveProgramFormLink(brand?.slug, {
-      hubspot_contact_id: r.contact_id,
-      firstname: r.first_name,
-      lastname: r.last_name,
-      email: r.email,
-    }, program.prefill_form_slug)
-    console.log(`  ${r.email} — ${lien?.includes('?t=') ? 'lien signé ✓' : 'PAS DE TOKEN'}`)
+  console.log('Vérification liens personnalisés (échantillon 5):')
+  for (const r of recipients.slice(0, 5)) {
+    const payload = verifyFormContactToken(extractToken(r.link))
+    console.log(
+      `  ${r.email} — cid=${payload?.cid} — token unique ✓`,
+    )
   }
+  const aaron = recipients.find(r => r.email.toLowerCase() === 'aaron@diploma-sante.fr')
+  console.log(aaron ? `  Aaron inclus ✓ (${aaron.contact_id})` : '  Aaron NON inclus ✗')
   process.exit(0)
 }
 
-const formSlug = program.prefill_form_slug?.trim() || process.env.CAMPAIGN_PREFILL_FORM_SLUG?.trim() || ''
 let sent = 0
 let failed = 0
 
-for (const recipient of withCid) {
-  const contactInput = {
-    hubspot_contact_id: recipient.contact_id,
-    firstname: recipient.first_name,
-    lastname: recipient.last_name,
-    email: recipient.email,
-  }
-
-  const lienFormulaire = resolveProgramFormLink(brand?.slug, contactInput, formSlug)
-  if (!lienFormulaire.includes('?t=')) {
-    console.warn(`⚠ ${recipient.email} — pas de token, ignoré`)
-    failed++
-    continue
-  }
-
+for (const recipient of recipients) {
   const vars = {
     prenom: recipient.first_name || '',
     nom: recipient.last_name || '',
     email: recipient.email,
-    lien_formulaire: lienFormulaire,
-    lien_cta: lienFormulaire,
+    lien_formulaire: recipient.link,
+    lien_cta: recipient.link,
   }
 
   const subject = renderTemplate(step.subject, vars)
@@ -169,6 +281,12 @@ for (const recipient of withCid) {
     inner = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preheader}</div>${inner}`
   }
   const html = brand ? wrapBrandEmailHtml(brand, inner) : inner
+
+  if (!html.includes(recipient.link)) {
+    console.warn(`⚠ ${recipient.email} — lien absent du HTML rendu, ignoré`)
+    failed++
+    continue
+  }
 
   try {
     const result = await sendBrevoEmail({
@@ -181,7 +299,7 @@ for (const recipient of withCid) {
       }],
       sender: brand ? brandSender(brand) : undefined,
       replyTo: brand?.reply_to ? { email: brand.reply_to } : undefined,
-      tags: [`program:${program.slug}`, `step:${step.step_index}`, `view:${view.id}`, 'recalif-2026'],
+      tags: [`program:${program.slug}`, `step:${step.step_index}`, 'recalif-2026'],
     })
 
     const { data: enrollment } = await db
@@ -212,8 +330,10 @@ for (const recipient of withCid) {
       brevo_message_id: result.messageId || null,
     })
 
-    console.log(`✓ ${recipient.email} — ${result.messageId || 'ok'}`)
     sent++
+    if (sent % 50 === 0 || sent === recipients.length) {
+      console.log(`… ${sent}/${recipients.length} — dernier: ${recipient.email}`)
+    }
   } catch (e) {
     console.error(`✗ ${recipient.email} —`, e instanceof Error ? e.message : e)
     failed++
@@ -223,4 +343,4 @@ for (const recipient of withCid) {
 }
 
 console.log('')
-console.log(`Terminé: ${sent} envoyés, ${failed} échecs`)
+console.log(`Terminé: ${sent} envoyés, ${failed} échecs (liens personnalisés ?t= pour chaque contact)`)
