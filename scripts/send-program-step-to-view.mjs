@@ -302,20 +302,31 @@ for (const recipient of recipients) {
       tags: [`program:${program.slug}`, `step:${step.step_index}`, 'recalif-2026'],
     })
 
+    const nextIndex = stepIndex + 1
+    const { data: nextStep } = await db
+      .from('email_program_steps')
+      .select('step_index')
+      .eq('program_id', program.id)
+      .eq('step_index', nextIndex)
+      .maybeSingle()
+
+    const enrollmentPatch = {
+      program_id: program.id,
+      recipient_source: 'crm',
+      contact_id: recipient.contact_id,
+      email: recipient.email,
+      first_name: recipient.first_name,
+      last_name: recipient.last_name,
+      current_step_index: nextIndex,
+      last_sent_at: new Date().toISOString(),
+      ...(nextStep
+        ? { status: 'paused', next_send_at: null }
+        : { status: 'completed', next_send_at: null, completed_at: new Date().toISOString() }),
+    }
+
     const { data: enrollment } = await db
       .from('email_program_enrollments')
-      .upsert({
-        program_id: program.id,
-        recipient_source: 'crm',
-        contact_id: recipient.contact_id,
-        email: recipient.email,
-        first_name: recipient.first_name,
-        last_name: recipient.last_name,
-        current_step_index: stepIndex + 1,
-        status: 'active',
-        last_sent_at: new Date().toISOString(),
-        next_send_at: null,
-      }, { onConflict: 'program_id,email' })
+      .upsert(enrollmentPatch, { onConflict: 'program_id,email' })
       .select('id')
       .maybeSingle()
 

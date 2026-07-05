@@ -113,13 +113,19 @@ export async function enrollProgramAudience(
     const chunk = rows.slice(i, i + CHUNK)
     const { error: insErr } = await db
       .from('email_program_enrollments')
-      .upsert(chunk, { onConflict: 'program_id,email', ignoreDuplicates: false })
+      // Ne pas réinitialiser les inscriptions existantes (évite renvoi J1 en boucle).
+      .upsert(chunk, { onConflict: 'program_id,email', ignoreDuplicates: true })
     if (!insErr) enrolled += chunk.length
   }
 
+  const { count: totalEnrolled } = await db
+    .from('email_program_enrollments')
+    .select('id', { count: 'exact', head: true })
+    .eq('program_id', programId)
+
   await db
     .from('email_programs')
-    .update({ total_enrolled: enrolled, status: 'active', start_at: startAt.toISOString() })
+    .update({ total_enrolled: totalEnrolled ?? enrolled, start_at: startAt.toISOString() })
     .eq('id', programId)
 
   return { enrolled }
@@ -181,6 +187,41 @@ async function sendProgramStepToEnrollment(
       .from('email_program_enrollments')
       .update({ status: 'completed', completed_at: new Date().toISOString(), next_send_at: null })
       .eq('id', enrollment.id)
+    return true
+  }
+
+  const { data: alreadySent } = await db
+    .from('email_program_sends')
+    .select('id')
+    .eq('enrollment_id', enrollment.id)
+    .eq('step_index', step.step_index)
+    .eq('status', 'sent')
+    .maybeSingle()
+
+  if (alreadySent) {
+    const nextIndex = enrollment.current_step_index + 1
+    const { data: nextStep } = await db
+      .from('email_program_steps')
+      .select('step_index')
+      .eq('program_id', enrollment.program_id)
+      .eq('step_index', nextIndex)
+      .maybeSingle()
+
+    if (nextStep) {
+      const nextAt = new Date()
+      nextAt.setDate(nextAt.getDate() + (program.interval_days || 2))
+      await db.from('email_program_enrollments').update({
+        current_step_index: nextIndex,
+        next_send_at: nextAt.toISOString(),
+      }).eq('id', enrollment.id)
+    } else {
+      await db.from('email_program_enrollments').update({
+        current_step_index: nextIndex,
+        status: 'completed',
+        next_send_at: null,
+        completed_at: new Date().toISOString(),
+      }).eq('id', enrollment.id)
+    }
     return true
   }
 
