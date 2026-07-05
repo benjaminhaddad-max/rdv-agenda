@@ -67,6 +67,7 @@ const CLASSE_OPTIONS = [
   { value: 'LSPS 2', label: 'LSPS 2' }, { value: 'LSPS 3', label: 'LSPS 3' },
   { value: 'LAS 1', label: 'LAS 1' }, { value: 'LAS 2', label: 'LAS 2' },
   { value: 'LAS 3', label: 'LAS 3' }, { value: 'Etudes médicales', label: 'Études médicales' },
+  { value: 'Etudes Sup.', label: 'Études Sup.' }, { value: 'Autres', label: 'Autres' },
 ]
 
 const STAGE_OPTIONS = Object.entries(STAGE_MAP).map(([id, s]) => ({

@@ -48,6 +48,8 @@ export const CLASSE_OPTIONS: SelectOption[] = [
   { id: 'LAS 2',             label: 'LAS 2' },
   { id: 'LAS 3',             label: 'LAS 3' },
   { id: 'Etudes médicales',  label: 'Études médicales' },
+  { id: 'Etudes Sup.',       label: 'Études Sup.' },
+  { id: 'Autres',            label: 'Autres' },
 ]
 
 export const PERIOD_OPTIONS: SelectOption[] = [

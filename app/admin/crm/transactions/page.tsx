@@ -68,6 +68,7 @@ const FORMATION_OPTIONS = [
 const CLASSE_OPTIONS = [
   '', 'Terminale', 'Première', 'Seconde', 'Troisième', 'PASS',
   'LSPS 1', 'LSPS 2', 'LSPS 3', 'LAS 1', 'LAS 2', 'LAS 3', 'Etudes médicales',
+  'Etudes Sup.', 'Autres',
 ]
 
 type SortCol = 'dealname' | 'formation' | 'classe' | 'zone' | 'stage' | 'created'
