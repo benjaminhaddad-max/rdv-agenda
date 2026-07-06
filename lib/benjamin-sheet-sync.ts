@@ -73,11 +73,31 @@ export function isTeleproProperty(property: string): boolean {
   return property === 'telepro_user_id' || property === 'teleprospecteur'
 }
 
+export const BENJAMIN_EXPORT_CLASSES = ['Terminale', 'Première'] as const
+export type BenjaminExportClasse = (typeof BENJAMIN_EXPORT_CLASSES)[number]
+
 /** Terminale + télépro Benjamin → éligible pour EXPORT 29/04/2026 (IDF et hors IDF). */
 export function isBenjaminTerminaleExportEligible(
   contact: Pick<BenjaminSheetContact, 'telepro_user_id' | 'classe_actuelle'>,
 ): boolean {
   return isBenjaminTeleproId(contact.telepro_user_id) && contact.classe_actuelle === 'Terminale'
+}
+
+/** Terminale ou Première + télépro Benjamin → éligible pour EXPORT 29/04/2026. */
+export function isBenjaminSheetExportEligible(
+  contact: Pick<BenjaminSheetContact, 'telepro_user_id' | 'classe_actuelle'>,
+): boolean {
+  return (
+    isBenjaminTeleproId(contact.telepro_user_id) &&
+    BENJAMIN_EXPORT_CLASSES.includes(contact.classe_actuelle as BenjaminExportClasse)
+  )
+}
+
+export function isBenjaminClassExportEligible(
+  contact: Pick<BenjaminSheetContact, 'telepro_user_id' | 'classe_actuelle'>,
+  classe: BenjaminExportClasse,
+): boolean {
+  return isBenjaminTeleproId(contact.telepro_user_id) && contact.classe_actuelle === classe
 }
 
 export function contactToBenjaminSheetRow(contact: BenjaminSheetContact): string[] {
@@ -98,7 +118,7 @@ export function contactToBenjaminSheetRow(contact: BenjaminSheetContact): string
 }
 
 async function appendNewContactsToExportSheet(contacts: BenjaminSheetContact[]): Promise<number> {
-  const eligible = contacts.filter(isBenjaminTerminaleExportEligible)
+  const eligible = contacts.filter(isBenjaminSheetExportEligible)
   if (eligible.length === 0) return 0
 
   await ensureGoogleSheetsApiEnabled()
@@ -129,14 +149,17 @@ export async function syncBenjaminLeadsToSheet(contacts: BenjaminSheetContact[])
   }
 }
 
-export async function fetchAllBenjaminTerminaleContacts(db: ServiceDb): Promise<BenjaminSheetContact[]> {
+export async function fetchAllBenjaminContactsByClasse(
+  db: ServiceDb,
+  classe: BenjaminExportClasse,
+): Promise<BenjaminSheetContact[]> {
   const contacts: BenjaminSheetContact[] = []
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from('crm_contacts')
       .select(CONTACT_SELECT)
       .eq('telepro_user_id', BENJAMIN_TELEPRO_ID)
-      .eq('classe_actuelle', 'Terminale')
+      .eq('classe_actuelle', classe)
       .order('hubspot_contact_id', { ascending: true })
       .range(from, from + 999)
     if (error) throw new Error(error.message)
@@ -147,14 +170,20 @@ export async function fetchAllBenjaminTerminaleContacts(db: ServiceDb): Promise<
   return contacts
 }
 
-/** Rattrapage : tous les Terminale Benjamin absents du Sheet. */
-export async function backfillBenjaminExportSheet(db: ServiceDb): Promise<{
+export async function fetchAllBenjaminTerminaleContacts(db: ServiceDb): Promise<BenjaminSheetContact[]> {
+  return fetchAllBenjaminContactsByClasse(db, 'Terminale')
+}
+
+async function backfillBenjaminExportSheetByClasse(
+  db: ServiceDb,
+  classe: BenjaminExportClasse,
+): Promise<{
   crmTotal: number
   added: number
   skippedNoEmail: number
   alreadyInSheet: number
 }> {
-  const contacts = await fetchAllBenjaminTerminaleContacts(db)
+  const contacts = await fetchAllBenjaminContactsByClasse(db, classe)
   const withEmail = contacts.filter(c => normEmail(c.email))
   const skippedNoEmail = contacts.length - withEmail.length
 
@@ -164,7 +193,9 @@ export async function backfillBenjaminExportSheet(db: ServiceDb): Promise<{
 
   await ensureGoogleSheetsApiEnabled()
   const existingEmails = await readSheetEmails(BENJAMIN_SHEET_ID, BENJAMIN_EXPORT_SHEET)
-  const toAdd = withEmail.filter(c => !existingEmails.has(normEmail(c.email)))
+  const toAdd = withEmail.filter(
+    c => !existingEmails.has(normEmail(c.email)) && isBenjaminClassExportEligible(c, classe),
+  )
   const added = await syncBenjaminLeadsToSheet(toAdd)
 
   return {
@@ -173,6 +204,26 @@ export async function backfillBenjaminExportSheet(db: ServiceDb): Promise<{
     skippedNoEmail,
     alreadyInSheet: withEmail.length - toAdd.length,
   }
+}
+
+/** Rattrapage : tous les Terminale Benjamin absents du Sheet. */
+export async function backfillBenjaminExportSheet(db: ServiceDb): Promise<{
+  crmTotal: number
+  added: number
+  skippedNoEmail: number
+  alreadyInSheet: number
+}> {
+  return backfillBenjaminExportSheetByClasse(db, 'Terminale')
+}
+
+/** Rattrapage : tous les Première Benjamin absents du Sheet. */
+export async function backfillBenjaminPremiereExportSheet(db: ServiceDb): Promise<{
+  crmTotal: number
+  added: number
+  skippedNoEmail: number
+  alreadyInSheet: number
+}> {
+  return backfillBenjaminExportSheetByClasse(db, 'Première')
 }
 
 export async function triggerBenjaminSheetSyncForContact(
