@@ -157,12 +157,11 @@ export async function POST(req: Request, { params }: Params) {
   })
   if (!guard.ok) {
     if (guard.logAsSpam) {
-      logger.warn('forms-submit-blocked', {
+      logger.warn('forms-submit-blocked', guard.reason, {
         slug,
         ip: clientIp,
         user_agent: req.headers.get('user-agent'),
         origin: req.headers.get('origin'),
-        reason: guard.reason,
       })
     }
     return NextResponse.json(
@@ -174,7 +173,7 @@ export async function POST(req: Request, { params }: Params) {
   const identityCheck = validateFormContactIdentity(data)
   if (!identityCheck.ok) {
     if (identityCheck.logAsSpam) {
-      logger.warn('forms-submit-blocked-identity', {
+      logger.warn('forms-submit-blocked-identity', identityCheck.reason, {
         slug,
         ip: clientIp,
         email: data.email,
