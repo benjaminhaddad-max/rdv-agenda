@@ -170,7 +170,10 @@ export async function POST(req: Request, { params }: Params) {
     )
   }
 
-  const identityCheck = validateFormContactIdentity(data)
+  const identityCheck = validateFormContactIdentity(data, {
+    utmSource: typeof body.utm_source === 'string' ? body.utm_source : null,
+    sourceUrl: typeof body.source_url === 'string' ? body.source_url : null,
+  })
   if (!identityCheck.ok) {
     if (identityCheck.logAsSpam) {
       logger.warn('forms-submit-blocked-identity', identityCheck.reason, {
