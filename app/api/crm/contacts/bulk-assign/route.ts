@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { hubspotFetch } from '@/lib/hubspot'
+import { BENJAMIN_TELEPRO_ID, triggerBenjaminSheetSyncForContacts } from '@/lib/benjamin-sheet-sync'
 
 export async function POST(req: NextRequest) {
   const db = createServiceClient()
@@ -99,6 +100,10 @@ export async function POST(req: NextRequest) {
   const { error: refreshError } = await db.rpc('crm_refresh_contacts_fast_mv')
   if (refreshError) {
     errors.push(`fast_mv_refresh: ${refreshError.message}`)
+  }
+
+  if (teleproUserId === BENJAMIN_TELEPRO_ID) {
+    await triggerBenjaminSheetSyncForContacts(db, contact_ids)
   }
 
   return NextResponse.json({ ok: true, done, errors: errors.length > 0 ? errors : undefined })

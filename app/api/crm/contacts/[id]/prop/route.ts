@@ -7,6 +7,7 @@ import {
   normalizePropertyValueForHubSpot,
 } from '@/lib/crm-property-normalization'
 import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
+import { isBenjaminTeleproId, isTeleproProperty, triggerBenjaminSheetSyncForContact } from '@/lib/benjamin-sheet-sync'
 
 /**
  * PATCH /api/crm/contacts/[id]/prop
@@ -135,6 +136,10 @@ export async function PATCH(
     }
   } catch (e) {
     console.warn('[crm/contacts/[id]/prop] workflow trigger failed:', e)
+  }
+
+  if (isTeleproProperty(property) && isBenjaminTeleproId(String(normalizedValue ?? ''))) {
+    await triggerBenjaminSheetSyncForContact(db, contactId)
   }
 
   return NextResponse.json({ ok: true, hubspot_mirrored: false, hubspot_error: null })

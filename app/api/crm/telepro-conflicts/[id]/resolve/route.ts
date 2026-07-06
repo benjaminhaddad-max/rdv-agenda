@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isBenjaminTeleproId, triggerBenjaminSheetSyncForContact } from '@/lib/benjamin-sheet-sync'
 
 /**
  * POST /api/crm/telepro-conflicts/[id]/resolve
@@ -55,6 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
   if (updateConflictErr) {
     return NextResponse.json({ error: updateConflictErr.message }, { status: 500 })
+  }
+
+  if (isBenjaminTeleproId(telepro_id)) {
+    await triggerBenjaminSheetSyncForContact(db, conflict.hubspot_contact_id)
   }
 
   return NextResponse.json({ ok: true, telepro_id })

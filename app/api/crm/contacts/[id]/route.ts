@@ -9,6 +9,7 @@ import {
   logContactPropertyHistory,
   mergeSafeHubspotRaw,
 } from '@/lib/crm-contact-write'
+import { isBenjaminTeleproId, triggerBenjaminSheetSyncForContact } from '@/lib/benjamin-sheet-sync'
 
 // HubSpot est déconnecté de la mise à jour des propriétés : Supabase est la
 // seule source de vérité. On ne pousse plus rien vers HubSpot ici.
@@ -128,6 +129,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .update(dealUpdate)
         .eq('hubspot_deal_id', deal.hubspot_deal_id)
     }
+  }
+
+  if (telepro_user_id !== undefined && isBenjaminTeleproId(supabaseUpdates.telepro_user_id)) {
+    await triggerBenjaminSheetSyncForContact(db, contactId)
   }
 
   return NextResponse.json({

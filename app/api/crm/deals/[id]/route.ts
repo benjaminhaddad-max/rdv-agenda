@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { isBenjaminTeleproId, triggerBenjaminSheetSyncForContact } from '@/lib/benjamin-sheet-sync'
 
 // PATCH /api/crm/deals/[id]
 // Met à jour un deal depuis le CRM interne. HubSpot est déconnecté de la mise à
@@ -52,6 +53,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from('crm_contacts')
       .update(contactUpdate)
       .eq('hubspot_contact_id', deal.hubspot_contact_id)
+    if (teleprospecteur !== undefined && isBenjaminTeleproId(teleprospecteur)) {
+      await triggerBenjaminSheetSyncForContact(db, deal.hubspot_contact_id)
+    }
   }
 
   // Si le changement de closer est lié à un rdv_appointment → mettre aussi à
