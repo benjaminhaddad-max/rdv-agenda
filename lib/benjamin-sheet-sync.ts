@@ -1,10 +1,9 @@
 /**
- * Sync automatique des leads Benjamin Delacour → Google Sheets.
+ * Sync Benjamin Delacour — Terminale → onglet EXPORT 29/04/2026.
  *
- * - Terminale + IDF      → onglet LEADS
- * - Terminale + hors IDF → onglet LEADS HORS IDF
- *
- * Best-effort : ne bloque jamais le CRM si Google Sheets échoue.
+ * Déclenché uniquement à l'attribution télépro = Benjamin.
+ * Anti-doublon par email dans l'onglet cible.
+ * Best-effort : ne bloque jamais le CRM.
  */
 
 import type { createServiceClient } from '@/lib/supabase'
@@ -19,8 +18,7 @@ type ServiceDb = ReturnType<typeof createServiceClient>
 
 export const BENJAMIN_TELEPRO_ID = '1754457656'
 export const BENJAMIN_SHEET_ID = '1HWKXBn3zH2FZNlywpxcTPvrhwqWMXtqCWhU8JDaND2w'
-export const SHEET_LEADS_IDF = 'LEADS'
-export const SHEET_LEADS_HORS_IDF = 'LEADS HORS IDF'
+export const BENJAMIN_EXPORT_SHEET = 'EXPORT 29/04/2026'
 
 const CONTACT_SELECT = [
   'hubspot_contact_id',
@@ -31,7 +29,10 @@ const CONTACT_SELECT = [
   'classe_actuelle',
   'zone_localite',
   'origine',
+  'first_conversion_event_name',
+  'first_conversion_date',
   'recent_conversion_event',
+  'recent_conversion_date',
   'contact_createdate',
   'telepro_user_id',
 ].join(',')
@@ -45,7 +46,10 @@ export type BenjaminSheetContact = {
   classe_actuelle?: string | null
   zone_localite?: string | null
   origine?: string | null
+  first_conversion_event_name?: string | null
+  first_conversion_date?: string | null
   recent_conversion_event?: string | null
+  recent_conversion_date?: string | null
   contact_createdate?: string | null
   telepro_user_id?: string | null
 }
@@ -69,13 +73,11 @@ export function isTeleproProperty(property: string): boolean {
   return property === 'telepro_user_id' || property === 'teleprospecteur'
 }
 
-export function getBenjaminSheetName(
-  contact: Pick<BenjaminSheetContact, 'telepro_user_id' | 'classe_actuelle' | 'zone_localite'>,
-): string | null {
-  if (String(contact.telepro_user_id ?? '') !== BENJAMIN_TELEPRO_ID) return null
-  if (contact.classe_actuelle !== 'Terminale') return null
-  if (contact.zone_localite === 'IDF') return SHEET_LEADS_IDF
-  return SHEET_LEADS_HORS_IDF
+/** Terminale + télépro Benjamin → éligible pour EXPORT 29/04/2026 (IDF et hors IDF). */
+export function isBenjaminTerminaleExportEligible(
+  contact: Pick<BenjaminSheetContact, 'telepro_user_id' | 'classe_actuelle'>,
+): boolean {
+  return isBenjaminTeleproId(contact.telepro_user_id) && contact.classe_actuelle === 'Terminale'
 }
 
 export function contactToBenjaminSheetRow(contact: BenjaminSheetContact): string[] {
@@ -87,58 +89,90 @@ export function contactToBenjaminSheetRow(contact: BenjaminSheetContact): string
     contact.classe_actuelle || '',
     contact.zone_localite || '',
     contact.origine || '',
+    contact.first_conversion_event_name || '',
+    fmtDate(contact.first_conversion_date),
     contact.recent_conversion_event || '',
+    fmtDate(contact.recent_conversion_date),
     fmtDate(contact.contact_createdate),
   ]
 }
 
-async function appendNewContactsToSheet(
-  sheetName: string,
-  contacts: BenjaminSheetContact[],
-): Promise<number> {
-  if (contacts.length === 0) return 0
+async function appendNewContactsToExportSheet(contacts: BenjaminSheetContact[]): Promise<number> {
+  const eligible = contacts.filter(isBenjaminTerminaleExportEligible)
+  if (eligible.length === 0) return 0
 
   await ensureGoogleSheetsApiEnabled()
-  const existingEmails = await readSheetEmails(BENJAMIN_SHEET_ID, sheetName)
+  const existingEmails = await readSheetEmails(BENJAMIN_SHEET_ID, BENJAMIN_EXPORT_SHEET)
   const seen = new Set(existingEmails)
   const rows: string[][] = []
 
-  for (const contact of contacts) {
+  for (const contact of eligible) {
     const email = normEmail(contact.email)
-    if (email) {
-      if (seen.has(email)) continue
-      seen.add(email)
-    }
+    if (!email) continue
+    if (seen.has(email)) continue
+    seen.add(email)
     rows.push(contactToBenjaminSheetRow(contact))
   }
 
   if (rows.length === 0) return 0
-  return appendSheetRows(BENJAMIN_SHEET_ID, sheetName, rows)
+  return appendSheetRows(BENJAMIN_SHEET_ID, BENJAMIN_EXPORT_SHEET, rows)
 }
 
-/** Ajoute les contacts éligibles dans le bon onglet (sans doublon email). */
-export async function syncBenjaminLeadsToSheet(
-  contacts: BenjaminSheetContact[],
-): Promise<{ idf: number; horsIdf: number }> {
-  if (!isGoogleSheetsConfigured() || contacts.length === 0) {
-    return { idf: 0, horsIdf: 0 }
+/** Ajoute les contacts éligibles dans EXPORT 29/04/2026 (sans doublon email). */
+export async function syncBenjaminLeadsToSheet(contacts: BenjaminSheetContact[]): Promise<number> {
+  if (!isGoogleSheetsConfigured() || contacts.length === 0) return 0
+  try {
+    return await appendNewContactsToExportSheet(contacts)
+  } catch (err) {
+    console.warn('[benjamin-sheet-sync] append failed:', err)
+    return 0
+  }
+}
+
+export async function fetchAllBenjaminTerminaleContacts(db: ServiceDb): Promise<BenjaminSheetContact[]> {
+  const contacts: BenjaminSheetContact[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('crm_contacts')
+      .select(CONTACT_SELECT)
+      .eq('telepro_user_id', BENJAMIN_TELEPRO_ID)
+      .eq('classe_actuelle', 'Terminale')
+      .order('hubspot_contact_id', { ascending: true })
+      .range(from, from + 999)
+    if (error) throw new Error(error.message)
+    if (!data?.length) break
+    contacts.push(...((data ?? []) as unknown as BenjaminSheetContact[]))
+    if (data.length < 1000) break
+  }
+  return contacts
+}
+
+/** Rattrapage : tous les Terminale Benjamin absents du Sheet. */
+export async function backfillBenjaminExportSheet(db: ServiceDb): Promise<{
+  crmTotal: number
+  added: number
+  skippedNoEmail: number
+  alreadyInSheet: number
+}> {
+  const contacts = await fetchAllBenjaminTerminaleContacts(db)
+  const withEmail = contacts.filter(c => normEmail(c.email))
+  const skippedNoEmail = contacts.length - withEmail.length
+
+  if (!isGoogleSheetsConfigured()) {
+    return { crmTotal: contacts.length, added: 0, skippedNoEmail, alreadyInSheet: 0 }
   }
 
-  const idf: BenjaminSheetContact[] = []
-  const horsIdf: BenjaminSheetContact[] = []
+  await ensureGoogleSheetsApiEnabled()
+  const existingEmails = await readSheetEmails(BENJAMIN_SHEET_ID, BENJAMIN_EXPORT_SHEET)
+  const toAdd = withEmail.filter(c => !existingEmails.has(normEmail(c.email)))
+  const added = await syncBenjaminLeadsToSheet(toAdd)
 
-  for (const contact of contacts) {
-    const sheet = getBenjaminSheetName(contact)
-    if (sheet === SHEET_LEADS_IDF) idf.push(contact)
-    else if (sheet === SHEET_LEADS_HORS_IDF) horsIdf.push(contact)
+  return {
+    crmTotal: contacts.length,
+    added,
+    skippedNoEmail,
+    alreadyInSheet: withEmail.length - toAdd.length,
   }
-
-  const [idfAdded, horsIdfAdded] = await Promise.all([
-    appendNewContactsToSheet(SHEET_LEADS_IDF, idf),
-    appendNewContactsToSheet(SHEET_LEADS_HORS_IDF, horsIdf),
-  ])
-
-  return { idf: idfAdded, horsIdf: horsIdfAdded }
 }
 
 export async function triggerBenjaminSheetSyncForContact(
