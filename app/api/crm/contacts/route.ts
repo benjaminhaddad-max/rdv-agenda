@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
 import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
-import { getApiUserContext } from '@/lib/api-auth'
+import { getApiUserContext, requireApiRole } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
@@ -2223,6 +2223,9 @@ export async function GET(req: NextRequest) {
 // contact existant le cas échéant pour éviter la duplication.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const authz = await requireApiRole(['admin', 'telepro', 'closer'])
+  if (!authz.ok) return authz.response
+
   const db = createServiceClient()
   try {
     const body = await req.json()

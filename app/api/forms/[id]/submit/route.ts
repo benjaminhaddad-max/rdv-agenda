@@ -5,6 +5,10 @@ import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
 import { notifyFormSubmissionRecipients, parseNotifyEmails } from '@/lib/form-submission-notify'
 import { valuesFromTokenPayload, verifyFormContactToken } from '@/lib/form-contact-link'
+import {
+  checkFormSubmitGuard,
+  validateFormContactIdentity,
+} from '@/lib/form-submit-guard'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -113,6 +117,7 @@ export async function POST(req: Request, { params }: Params) {
   // Le paramètre est nommé "id" pour conformité Next.js mais contient le slug
   const { id: slug } = await params
   const db = createServiceClient()
+  const clientIp = getClientIp(req)
 
   const body = await req.json().catch(() => ({}))
   const data = (body.data || {}) as Record<string, unknown>
@@ -142,6 +147,44 @@ export async function POST(req: Request, { params }: Params) {
     if (tokenValues.lastname && !data.lastname) data.lastname = tokenValues.lastname
     if (tokenValues.email && !data.email) data.email = tokenValues.email
     if (tokenValues.phone && !data.phone) data.phone = tokenValues.phone
+  }
+
+  const guard = checkFormSubmitGuard({
+    req,
+    hasContactToken: Boolean(forcedContactId),
+    clientIp,
+    slug,
+  })
+  if (!guard.ok) {
+    if (guard.logAsSpam) {
+      logger.warn('forms-submit-blocked', {
+        slug,
+        ip: clientIp,
+        user_agent: req.headers.get('user-agent'),
+        origin: req.headers.get('origin'),
+        reason: guard.reason,
+      })
+    }
+    return NextResponse.json(
+      { error: guard.reason },
+      { status: guard.status, headers: CORS_HEADERS },
+    )
+  }
+
+  const identityCheck = validateFormContactIdentity(data)
+  if (!identityCheck.ok) {
+    if (identityCheck.logAsSpam) {
+      logger.warn('forms-submit-blocked-identity', {
+        slug,
+        ip: clientIp,
+        email: data.email,
+        phone: data.phone,
+      })
+    }
+    return NextResponse.json(
+      { error: identityCheck.reason },
+      { status: identityCheck.status, headers: CORS_HEADERS },
+    )
   }
 
   // ── Attribution publicitaire ─────────────────────────────────────────────
@@ -226,7 +269,7 @@ export async function POST(req: Request, { params }: Params) {
       data,
       source_url: body.source_url || null,
       status: 'spam',
-      ip_address: getClientIp(req),
+      ip_address: clientIp,
       user_agent: req.headers.get('user-agent') || null,
     })
     return NextResponse.json({ ok: true }, { status: 200, headers: CORS_HEADERS })
@@ -505,7 +548,7 @@ export async function POST(req: Request, { params }: Params) {
     utm_campaign: body.utm_campaign || null,
     utm_term:     body.utm_term     || null,
     utm_content:  body.utm_content  || null,
-    ip_address:   getClientIp(req),
+    ip_address:   clientIp,
     user_agent:   req.headers.get('user-agent') || null,
     status: 'new',
   }
