@@ -44,6 +44,8 @@ interface UserSavedView {
   name: string
   snapshot: UserViewSnapshot
   isDefault?: boolean
+  /** Vue globale admin (ex. Recalif 2026) — lecture seule, filtres via view_id. */
+  isShared?: boolean
 }
 
 const DEFAULT_USER_VIEW: UserSavedView = { id: 'all', name: 'Tous mes contacts', snapshot: {}, isDefault: true }
@@ -486,6 +488,11 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
 
+  const activeSharedViewId = useMemo(() => {
+    const v = views.find(x => x.id === activeViewId)
+    return v?.isShared ? activeViewId : ''
+  }, [views, activeViewId])
+
   // Sérialise les filtres avancés (propriétés arbitraires) vers le param `cf`.
   // On ignore les règles sans valeur (sauf is_empty / is_not_empty) et celles
   // dont le champ ne correspond pas à une colonne contact.
@@ -664,6 +671,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (cfJson)             params.set('cf',          cfJson)
       if (extraColumns.length > 0) params.set('props', extraColumns.join(','))
       if (assignedScopeOnly) params.set('assigned_scope', '1')
+      if (activeSharedViewId) params.set('view_id', activeSharedViewId)
 
       const res = await fetch(`/api/crm/contacts?${params}`, { signal: requestAbort.signal })
       if (res.ok) {
@@ -680,7 +688,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     } finally {
       setLoading(false)
     }
-  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, cfJson, isContactsView, onTotalChange, extraColumns, assignedScopeOnly])
+  }, [ownerParam, ownerId, limit, page, sortBy, sortDir, debouncedSearch, filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict, cfJson, isContactsView, onTotalChange, extraColumns, assignedScopeOnly, activeSharedViewId])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
   useEffect(() => () => contactsAbortRef.current?.abort(), [])
@@ -710,6 +718,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       if (filterParcoursupVerdict) params.set('parcoursup_verdict', filterParcoursupVerdict)
       if (cfJson) params.set('cf', cfJson)
       if (assignedScopeOnly) params.set('assigned_scope', '1')
+      if (activeSharedViewId) params.set('view_id', activeSharedViewId)
 
       const res = await fetch(`/api/crm/contacts?${params}`)
       if (!res.ok) return
@@ -737,6 +746,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     cfJson,
     onTotalChange,
     assignedScopeOnly,
+    activeSharedViewId,
   ])
 
   const handleContactPatched = useCallback((contactId: string, patch: ContactInlinePatch) => {
@@ -848,29 +858,75 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   const activeView = views.find(v => v.id === activeViewId)
   const viewChanged = useMemo(() => {
-    if (!activeView) return false
+    if (!activeView || activeView.isShared) return false
     return JSON.stringify(currentSnapshot) !== JSON.stringify(activeView.snapshot ?? {})
   }, [currentSnapshot, activeView])
 
-  // Charge les vues privées de l'utilisateur (owner=me → invisibles des autres).
+  // Charge les vues privées + vues globales partagées (télépro).
   useEffect(() => {
-    fetch('/api/crm/views?scope=contacts&owner=me')
-      .then(r => (r.ok ? r.json() : []))
-      .then((rows: Array<{ id: string; name: string; filter_groups: unknown }>) => {
-        if (!Array.isArray(rows)) return
-        const loaded: UserSavedView[] = rows.map(r => ({
-          id: r.id,
-          name: r.name,
-          snapshot: (r.filter_groups as UserViewSnapshot) ?? {},
-        }))
-        setViews([DEFAULT_USER_VIEW, ...loaded])
-      })
-      .catch(() => {})
-  }, [])
+    let cancelled = false
+    const loadViews = async () => {
+      try {
+        const requests: Promise<Response>[] = [
+          fetch('/api/crm/views?scope=contacts&owner=me'),
+        ]
+        if (mode === 'telepro') {
+          requests.push(fetch('/api/crm/views?scope=contacts&shared=telepro'))
+        }
+        const responses = await Promise.all(requests)
+        if (cancelled) return
+
+        const privateRows = responses[0]?.ok
+          ? await responses[0].json() as Array<{ id: string; name: string; filter_groups: unknown }>
+          : []
+        const sharedRows = mode === 'telepro' && responses[1]?.ok
+          ? await responses[1].json() as Array<{ id: string; name: string }>
+          : []
+
+        const privateViews: UserSavedView[] = Array.isArray(privateRows)
+          ? privateRows.map(r => ({
+              id: r.id,
+              name: r.name,
+              snapshot: (r.filter_groups as UserViewSnapshot) ?? {},
+            }))
+          : []
+        const sharedViews: UserSavedView[] = Array.isArray(sharedRows)
+          ? sharedRows.map(r => ({
+              id: r.id,
+              name: r.name,
+              snapshot: {},
+              isShared: true,
+            }))
+          : []
+
+        setViews([DEFAULT_USER_VIEW, ...sharedViews, ...privateViews])
+      } catch {
+        // ignore
+      }
+    }
+    void loadViews()
+    return () => { cancelled = true }
+  }, [mode])
 
   function applyView(view: UserSavedView) {
-    const s = view.snapshot ?? {}
     setActiveViewId(view.id)
+    if (view.isShared) {
+      setSearch('')
+      setDebouncedSearch('')
+      setFilterStage('')
+      setFilterLeadStatus('')
+      setFilterFormation('')
+      setFilterSource('')
+      setFilterClasse('')
+      setFilterPeriod('')
+      setFilterZone('')
+      setFilterFormEvent('')
+      setFilterParcoursupVerdict('')
+      setAdvancedRules([])
+      setPage(0)
+      return
+    }
+    const s = view.snapshot ?? {}
     setSearch(s.search ?? '')
     setDebouncedSearch(s.search ?? '')
     setFilterStage(s.stage ?? '')
@@ -1147,7 +1203,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                 key={view.id}
                 onClick={() => { if (!isRenaming) applyView(view) }}
                 onDoubleClick={() => {
-                  if (!view.isDefault) { setRenamingViewId(view.id); setRenameValue(view.name) }
+                  if (!view.isDefault && !view.isShared) { setRenamingViewId(view.id); setRenameValue(view.name) }
                 }}
                 style={{
                   padding: '9px 14px',
@@ -1182,7 +1238,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                     {view.name}
                   </span>
                 )}
-                {!view.isDefault && isActive && !isRenaming && (
+                {!view.isDefault && !view.isShared && isActive && !isRenaming && (
                   <button
                     onClick={e => { e.stopPropagation(); deleteView(view.id) }}
                     title="Supprimer la vue"

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
+import { TELEPRO_SHARED_VIEW_IDS } from '@/lib/crm-views'
 
 // GET /api/crm/views
 //
 //   ?scope=contacts|transactions  (défaut: contacts)
 //   ?owner=me                     → vues PRIVÉES de l'utilisateur courant
+//   ?shared=telepro               → vues globales partagées avec les télépros
 //   (sans owner)                  → vues GLOBALES admin (owner_id IS NULL)
 //
 // La page admin appelle /api/crm/views sans paramètre → elle continue de ne
@@ -15,6 +17,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const scope = req.nextUrl.searchParams.get('scope') || 'contacts'
   const owner = req.nextUrl.searchParams.get('owner')
+  const shared = req.nextUrl.searchParams.get('shared')
 
   let query = db
     .from('crm_saved_views')
@@ -22,7 +25,11 @@ export async function GET(req: NextRequest) {
     .eq('scope', scope)
     .order('position')
 
-  if (owner === 'me') {
+  if (shared === 'telepro') {
+    const ctx = await getApiUserContext()
+    if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    query = query.is('owner_id', null).in('id', [...TELEPRO_SHARED_VIEW_IDS])
+  } else if (owner === 'me') {
     const ctx = await getApiUserContext()
     if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     query = query.eq('owner_id', ctx.appUserId)

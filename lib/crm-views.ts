@@ -24,6 +24,9 @@ export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
   { id: 'all', name: 'Tous les leads', groups: [], isDefault: true },
 ]
 
+/** Vues globales admin exposées aux télépros (filtres serveur via view_id). */
+export const TELEPRO_SHARED_VIEW_IDS = ['v_recalif_2026'] as const
+
 export function loadCRMViews(): CRMSavedView[] {
   return CRM_DEFAULT_VIEWS
 }
