@@ -369,11 +369,11 @@ async function processRedisRetries(
 
   let submissionIds: string[] = []
   try {
-    submissionIds = await redis.zrangebyscore(
+    submissionIds = await redis.zrange(
       REDIS_QUEUE_KEY,
       0,
       Date.now(),
-      { offset: 0, count: limit },
+      { byScore: true, offset: 0, count: limit },
     )
   } catch {
     return stats
