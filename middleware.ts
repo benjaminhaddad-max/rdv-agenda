@@ -174,6 +174,9 @@ function isPublicApiRequest(pathname: string, method: string): boolean {
   if (pathname === '/api/nomad-import') return true
   if (pathname === '/api/nomad-zone-backfill') return true
 
+  // API externe plateforme événements — clé API vérifiée dans chaque route
+  if (pathname.startsWith('/api/external/')) return true
+
   // Réservation publique (pages /book, /confirm, /reschedule)
   if (pathname === '/api/appointments' && method === 'POST') return true
   if (pathname === '/api/availability' || pathname.startsWith('/api/availability/')) return true

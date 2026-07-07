@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import { CONTACT_IDENTITY_COLUMNS, mergeSafeHubspotRaw } from '@/lib/crm-contact-write'
 import { notifyFormSubmissionRecipients, parseNotifyEmails } from '@/lib/form-submission-notify'
+import { enqueueAndDeliverFormWebhook } from '@/lib/form-webhook'
 import { valuesFromTokenPayload, verifyFormContactToken } from '@/lib/form-contact-link'
 import {
   checkFormSubmitGuard,
@@ -626,6 +627,22 @@ export async function POST(req: Request, { params }: Params) {
         notify_emails: notifyRecipients,
       })
     }
+  }
+
+  // 10. Webhook sortant vers la plateforme événements (await : serverless).
+  try {
+    await enqueueAndDeliverFormWebhook(db, {
+      form: { id: form.id, slug: form.slug, name: form.name },
+      submission: { id: submission.id, submitted_at: submission.submitted_at },
+      contactId,
+      contactData: contactData as Record<string, unknown>,
+    })
+  } catch (e) {
+    logger.error('forms-submit-event-webhook', e, {
+      form_id: form.id,
+      submission_id: submission.id,
+      contact_id: contactId,
+    })
   }
 
   return NextResponse.json(

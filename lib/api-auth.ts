@@ -74,6 +74,22 @@ export async function requireApiRole(roles: ApiRole[]) {
   return user
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+export function verifyEventPlatformApiKey(req: NextRequest): boolean {
+  const expected = process.env.EVENT_PLATFORM_API_KEY?.trim() || ''
+  if (!expected) return false
+  const provided =
+    req.headers.get('x-api-key') ||
+    (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+  return timingSafeEqual(provided, expected)
+}
+
 export function requireCronSecret(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret) {
