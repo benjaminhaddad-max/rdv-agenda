@@ -1,4 +1,5 @@
 import type { createServiceClient } from '@/lib/supabase'
+import { getRedisClient } from '@/lib/cache'
 
 type SupabaseClient = ReturnType<typeof createServiceClient>
 
@@ -29,6 +30,17 @@ export type FormWebhookDeliveryResult = {
 }
 
 const RETRY_DELAYS_MS = [60_000, 300_000] as const
+const MAX_ATTEMPTS = 3
+const REDIS_QUEUE_KEY = 'form-webhook:queue'
+const REDIS_DELIVERED_KEY = 'form-webhook:delivered'
+const redisJobKey = (submissionId: string) => `form-webhook:job:${submissionId}`
+
+type RedisRetryJob = {
+  form_id: string
+  payload: FormWebhookPayload
+  attempts: number
+  max_attempts: number
+}
 
 function stringOrNull(value: unknown): string | null {
   if (value === undefined || value === null) return null
@@ -119,54 +131,151 @@ export async function deliverFormWebhook(payload: FormWebhookPayload): Promise<F
   }
 }
 
-type DeliveryRow = {
-  id: string
-  submission_id: string
-  attempts: number
-  max_attempts: number
-  payload: FormWebhookPayload
+async function isDeliveredInRedis(submissionId: string): Promise<boolean> {
+  const redis = getRedisClient()
+  if (!redis) return false
+  try {
+    const hit = await redis.sismember(REDIS_DELIVERED_KEY, submissionId)
+    return hit === 1
+  } catch {
+    return false
+  }
 }
 
-async function updateDeliveryRow(
-  db: SupabaseClient,
-  id: string,
-  result: FormWebhookDeliveryResult,
+async function markDeliveredInRedis(submissionId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) return
+  try {
+    await redis.sadd(REDIS_DELIVERED_KEY, submissionId)
+    await redis.zrem(REDIS_QUEUE_KEY, submissionId)
+    await redis.del(redisJobKey(submissionId))
+  } catch {
+    // best-effort
+  }
+}
+
+async function scheduleRetryInRedis(
+  formId: string,
+  payload: FormWebhookPayload,
   attempts: number,
-  maxAttempts: number,
+  delayMs: number | null,
 ): Promise<void> {
-  const now = new Date()
-  if (result.ok) {
-    await db.from('form_webhook_deliveries').update({
-      status: 'delivered',
+  const redis = getRedisClient()
+  if (!redis || !delayMs) return
+  try {
+    const job: RedisRetryJob = {
+      form_id: formId,
+      payload,
       attempts,
-      last_status_code: result.statusCode ?? 200,
-      last_error: null,
-      next_retry_at: null,
-      delivered_at: now.toISOString(),
-    }).eq('id', id)
+      max_attempts: MAX_ATTEMPTS,
+    }
+    await redis.set(redisJobKey(payload.submission_id), job)
+    await redis.zadd(REDIS_QUEUE_KEY, {
+      score: Date.now() + delayMs,
+      member: payload.submission_id,
+    })
+  } catch {
+    // best-effort
+  }
+}
+
+async function clearRetryInRedis(submissionId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) return
+  try {
+    await redis.zrem(REDIS_QUEUE_KEY, submissionId)
+    await redis.del(redisJobKey(submissionId))
+  } catch {
+    // best-effort
+  }
+}
+
+async function persistDeliveryState(
+  db: SupabaseClient,
+  params: {
+    submissionId: string
+    formId: string
+    payload: FormWebhookPayload
+    result: FormWebhookDeliveryResult
+    attempts: number
+  },
+): Promise<void> {
+  const { submissionId, formId, payload, result, attempts } = params
+  const now = new Date().toISOString()
+
+  if (result.ok) {
+    await markDeliveredInRedis(submissionId)
+    try {
+      await db.from('form_webhook_deliveries').upsert({
+        submission_id: submissionId,
+        form_id: formId,
+        payload,
+        status: 'delivered',
+        attempts,
+        last_status_code: result.statusCode ?? 200,
+        last_error: null,
+        next_retry_at: null,
+        delivered_at: now,
+      }, { onConflict: 'submission_id' })
+    } catch {
+      // table optionnelle tant que la migration SQL n'est pas appliquée
+    }
     return
   }
 
   const retryable = result.retryable ?? isFormWebhookRetryable(result.statusCode ?? null)
-  if (!retryable || attempts >= maxAttempts) {
-    await db.from('form_webhook_deliveries').update({
-      status: 'failed',
-      attempts,
-      last_status_code: result.statusCode ?? null,
-      last_error: result.error ?? 'delivery_failed',
-      next_retry_at: null,
-    }).eq('id', id)
+  if (!retryable || attempts >= MAX_ATTEMPTS) {
+    await clearRetryInRedis(submissionId)
+    try {
+      await db.from('form_webhook_deliveries').upsert({
+        submission_id: submissionId,
+        form_id: formId,
+        payload,
+        status: 'failed',
+        attempts,
+        last_status_code: result.statusCode ?? null,
+        last_error: result.error ?? 'delivery_failed',
+        next_retry_at: null,
+      }, { onConflict: 'submission_id' })
+    } catch {
+      // ignore
+    }
     return
   }
 
   const delayMs = formWebhookRetryDelayMs(attempts)
-  await db.from('form_webhook_deliveries').update({
-    status: 'pending',
-    attempts,
-    last_status_code: result.statusCode ?? null,
-    last_error: result.error ?? 'delivery_failed',
-    next_retry_at: delayMs ? new Date(now.getTime() + delayMs).toISOString() : null,
-  }).eq('id', id)
+  await scheduleRetryInRedis(formId, payload, attempts, delayMs)
+  try {
+    await db.from('form_webhook_deliveries').upsert({
+      submission_id: submissionId,
+      form_id: formId,
+      payload,
+      status: 'pending',
+      attempts,
+      last_status_code: result.statusCode ?? null,
+      last_error: result.error ?? 'delivery_failed',
+      next_retry_at: delayMs ? new Date(Date.now() + delayMs).toISOString() : null,
+    }, { onConflict: 'submission_id' })
+  } catch {
+    // ignore
+  }
+}
+
+async function wasAlreadyDelivered(
+  db: SupabaseClient,
+  submissionId: string,
+): Promise<boolean> {
+  if (await isDeliveredInRedis(submissionId)) return true
+  try {
+    const { data } = await db
+      .from('form_webhook_deliveries')
+      .select('status')
+      .eq('submission_id', submissionId)
+      .maybeSingle()
+    return data?.status === 'delivered'
+  } catch {
+    return false
+  }
 }
 
 export async function enqueueAndDeliverFormWebhook(
@@ -183,61 +292,119 @@ export async function enqueueAndDeliverFormWebhook(
   }
 
   const payload = buildFormWebhookPayload(params)
-  const { data: existing } = await db
-    .from('form_webhook_deliveries')
-    .select('id, status')
-    .eq('submission_id', params.submission.id)
-    .maybeSingle()
-
-  if (existing?.status === 'delivered') {
+  if (await wasAlreadyDelivered(db, payload.submission_id)) {
     return { ok: true, skipped: true }
   }
 
   const result = await deliverFormWebhook(payload)
-
-  if (result.ok) {
-    await db.from('form_webhook_deliveries').upsert({
-      submission_id: params.submission.id,
-      form_id: params.form.id,
-      payload,
-      status: 'delivered',
-      attempts: 1,
-      last_status_code: result.statusCode ?? 200,
-      last_error: null,
-      next_retry_at: null,
-      delivered_at: new Date().toISOString(),
-    }, { onConflict: 'submission_id' })
-    return result
-  }
-
-  const retryable = result.retryable ?? isFormWebhookRetryable(result.statusCode ?? null)
-  if (!retryable) {
-    await db.from('form_webhook_deliveries').upsert({
-      submission_id: params.submission.id,
-      form_id: params.form.id,
-      payload,
-      status: 'failed',
-      attempts: 1,
-      last_status_code: result.statusCode ?? null,
-      last_error: result.error ?? 'delivery_failed',
-      next_retry_at: null,
-    }, { onConflict: 'submission_id' })
-    return result
-  }
-
-  const delayMs = formWebhookRetryDelayMs(1)
-  await db.from('form_webhook_deliveries').upsert({
-    submission_id: params.submission.id,
-    form_id: params.form.id,
+  await persistDeliveryState(db, {
+    submissionId: payload.submission_id,
+    formId: params.form.id,
     payload,
-    status: 'pending',
+    result,
     attempts: 1,
-    last_status_code: result.statusCode ?? null,
-    last_error: result.error ?? 'delivery_failed',
-    next_retry_at: delayMs ? new Date(Date.now() + delayMs).toISOString() : null,
-  }, { onConflict: 'submission_id' })
-
+  })
   return result
+}
+
+type DeliveryRow = {
+  id: string
+  submission_id: string
+  attempts: number
+  max_attempts: number
+  payload: FormWebhookPayload
+}
+
+async function processPostgresRetries(
+  db: SupabaseClient,
+  limit: number,
+): Promise<{ processed: number; delivered: number; failed: number; retried: number }> {
+  const stats = { processed: 0, delivered: 0, failed: 0, retried: 0 }
+  const nowIso = new Date().toISOString()
+
+  let rows: DeliveryRow[] = []
+  try {
+    const { data } = await db
+      .from('form_webhook_deliveries')
+      .select('id, submission_id, attempts, max_attempts, payload')
+      .eq('status', 'pending')
+      .gt('attempts', 0)
+      .lt('attempts', MAX_ATTEMPTS)
+      .lte('next_retry_at', nowIso)
+      .order('next_retry_at', { ascending: true })
+      .limit(limit)
+    rows = (data ?? []) as DeliveryRow[]
+  } catch {
+    return stats
+  }
+
+  for (const row of rows) {
+    stats.processed += 1
+    const payload = row.payload as FormWebhookPayload
+    const nextAttempt = row.attempts + 1
+    const result = await deliverFormWebhook(payload)
+    await persistDeliveryState(db, {
+      submissionId: payload.submission_id,
+      formId: payload.form_id,
+      payload,
+      result,
+      attempts: nextAttempt,
+    })
+
+    if (result.ok) stats.delivered += 1
+    else if (!result.retryable || nextAttempt >= (row.max_attempts || MAX_ATTEMPTS)) stats.failed += 1
+    else stats.retried += 1
+  }
+
+  return stats
+}
+
+async function processRedisRetries(
+  db: SupabaseClient,
+  limit: number,
+): Promise<{ processed: number; delivered: number; failed: number; retried: number }> {
+  const stats = { processed: 0, delivered: 0, failed: 0, retried: 0 }
+  const redis = getRedisClient()
+  if (!redis) return stats
+
+  let submissionIds: string[] = []
+  try {
+    submissionIds = await redis.zrangebyscore(
+      REDIS_QUEUE_KEY,
+      0,
+      Date.now(),
+      { offset: 0, count: limit },
+    )
+  } catch {
+    return stats
+  }
+
+  for (const submissionId of submissionIds) {
+    let job: RedisRetryJob | null = null
+    try {
+      job = await redis.get<RedisRetryJob>(redisJobKey(submissionId))
+    } catch {
+      continue
+    }
+    if (!job?.payload) continue
+
+    stats.processed += 1
+    const nextAttempt = (job.attempts || 0) + 1
+    const result = await deliverFormWebhook(job.payload)
+    await persistDeliveryState(db, {
+      submissionId,
+      formId: job.form_id,
+      payload: job.payload,
+      result,
+      attempts: nextAttempt,
+    })
+
+    if (result.ok) stats.delivered += 1
+    else if (!result.retryable || nextAttempt >= (job.max_attempts || MAX_ATTEMPTS)) stats.failed += 1
+    else stats.retried += 1
+  }
+
+  return stats
 }
 
 export async function processPendingFormWebhookDeliveries(
@@ -248,36 +415,13 @@ export async function processPendingFormWebhookDeliveries(
     return { processed: 0, delivered: 0, failed: 0, retried: 0 }
   }
 
-  const nowIso = new Date().toISOString()
-  const { data: rows } = await db
-    .from('form_webhook_deliveries')
-    .select('id, submission_id, attempts, max_attempts, payload')
-    .eq('status', 'pending')
-    .gt('attempts', 0)
-    .lt('attempts', 3)
-    .lte('next_retry_at', nowIso)
-    .order('next_retry_at', { ascending: true })
-    .limit(limit)
-
-  let delivered = 0
-  let failed = 0
-  let retried = 0
-
-  for (const row of (rows ?? []) as DeliveryRow[]) {
-    const payload = row.payload as FormWebhookPayload
-    const nextAttempt = row.attempts + 1
-    const result = await deliverFormWebhook(payload)
-    await updateDeliveryRow(db, row.id, result, nextAttempt, row.max_attempts || 3)
-
-    if (result.ok) delivered += 1
-    else if (!result.retryable || nextAttempt >= (row.max_attempts || 3)) failed += 1
-    else retried += 1
-  }
+  const postgres = await processPostgresRetries(db, limit)
+  const redis = await processRedisRetries(db, Math.max(0, limit - postgres.processed))
 
   return {
-    processed: rows?.length ?? 0,
-    delivered,
-    failed,
-    retried,
+    processed: postgres.processed + redis.processed,
+    delivered: postgres.delivered + redis.delivered,
+    failed: postgres.failed + redis.failed,
+    retried: postgres.retried + redis.retried,
   }
 }
