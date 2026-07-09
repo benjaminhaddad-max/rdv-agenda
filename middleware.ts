@@ -26,6 +26,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/c/') ||
     pathname.startsWith('/reschedule/') ||
     pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/alternance/dossier/') || // formulaire public dossier apprenti
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
@@ -195,6 +196,9 @@ function isPublicApiRequest(pathname: string, method: string): boolean {
   if (pathname === '/api/web/track') return true
   if (pathname === '/api/email-survey/oneclick') return true
   if (pathname === '/api/email-survey/amp-submit') return true
+
+  // Dossier alternance public (lien sécurisé étudiant)
+  if (/^\/api\/alternance\/dossier\/[^/]+$/.test(pathname)) return true
 
   return false
 }
