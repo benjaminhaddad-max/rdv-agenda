@@ -183,10 +183,10 @@ Numerus <em style="font-style:italic;color:${charter.primary_color}">Club</em>
   }
 
   if (charter.slug === 'hermione') {
-    const img = charter.logo_header_url || charter.logo_url
-    if (img) {
-      return centeredLogo(`<img src="${img}" alt="Club Hermione" height="52" style="display:block;height:52px;max-height:56px;width:auto;margin:0 auto" />`)
-    }
+    // Pas d'image : le WebP WP (fond blanc, faible résolution) pixelise sur fond violet.
+    // Wordmark texte = rendu net dans tous les clients mail.
+    return centeredLogo(`<p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:34px;font-weight:700;color:#fff;letter-spacing:0.06em;line-height:1.1">HERMIONE</p>
+<p style="margin:10px 0 0;font-size:12px;color:${charter.accent_color};letter-spacing:0.05em;font-weight:600;opacity:0.95">La méthode pour réussir en PASS/LAS</p>`)
   }
 
   const img = onDark ? (charter.logo_header_url || charter.logo_url) : charter.logo_url

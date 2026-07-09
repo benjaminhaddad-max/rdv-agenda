@@ -30,8 +30,8 @@ loadEnv()
 
 const STEPS = [
   { brand: 'afem', label: 'J1', subject: 'Tu vises la médecine à Paris en 2026 : la meilleure prépa PASS/LAS est…' },
-  { brand: 'numerus', label: 'J2', subject: 'Futur PASS/LAS : quelle prépa choisir pour ta fac avant septembre ?' },
-  { brand: 'hermione', label: 'J3', subject: 'Tu vises la médecine en 2026 ? Installe ta méthode avant le PASS/LAS' },
+  { brand: 'numerus', label: 'J2', subject: 'PASS / LAS : Tutorat ou prépa ?' },
+  { brand: 'hermione', label: 'J3', subject: 'Installe ta méthode avant le PASS / LAS' },
   { brand: 'prepamedecine', label: 'J4', subject: 'Futur PASS/LAS : ton comparatif prépa personnalisé en 24 h (gratuit)' },
   { brand: 'afem', label: 'J5', subject: 'PASS, LAS ou LSPS : prépa, tutorat ou les deux avant septembre ?' },
   { brand: 'numerus', label: 'J6', subject: "Futur étudiant en médecine : ce que le premier concours blanc t'apprendra" },
