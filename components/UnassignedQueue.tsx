@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Phone, Mail, Tag, Clock, Zap, RefreshCw } from 'lucide-react'
 import AssignModal from './AssignModal'
+import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
 
 type Appointment = {
   id: string
@@ -21,9 +22,19 @@ type Appointment = {
 }
 
 const SOURCE_LABEL: Record<string, { label: string; color: string }> = {
-  telepro:  { label: 'Télépro', color: '#C9A84C' },
   prospect: { label: 'En ligne', color: '#22c55e' },
   admin:    { label: 'Admin',    color: '#C9A84C' },
+}
+
+function sourceBadgeLabel(rdv: Appointment): { label: string; color: string } {
+  if (rdv.source === 'telepro') {
+    const name = rdv.telepro?.name?.trim()
+    return {
+      label: name ? `Télépro : ${name}` : 'Télépro (inconnu)',
+      color: '#C9A84C',
+    }
+  }
+  return SOURCE_LABEL[rdv.source || 'telepro'] || { label: rdv.source || '', color: '#4a6070' }
 }
 
 export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => void }) {
@@ -121,7 +132,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {filtered.map((rdv) => {
-              const sourceInfo = SOURCE_LABEL[rdv.source || 'telepro'] || { label: rdv.source || '', color: '#4a6070' }
+              const sourceInfo = sourceBadgeLabel(rdv)
               return (
                 <div
                   key={rdv.id}

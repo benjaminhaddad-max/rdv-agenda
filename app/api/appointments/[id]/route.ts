@@ -6,6 +6,7 @@ import { formatParis } from '@/lib/date-paris'
 import { syncAppointmentRecapToContactActivity } from '@/lib/appointment-recap-activity'
 import { isValidCampus } from '@/lib/campus'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
+import { fetchAppointmentEnriched } from '@/lib/appointment-display'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -152,8 +153,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // Recharger pour inclure sms_booking_sent_at si mis à jour
-    const { data: finalRow } = await db.from('rdv_appointments').select().eq('id', id).single()
+    const { data: finalRow } = await fetchAppointmentEnriched(db, id)
     return NextResponse.json(finalRow ?? updated)
   }
 
@@ -264,7 +264,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       console.error(`[appointments PATCH] Propagation closer CRM échouée pour ${id}:`, e)
     }
 
-    return NextResponse.json(updated)
+    const { data: enriched } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json(enriched ?? updated)
   }
 
   // === CAS 2c : SUIVI TÉLÉPRO SEULEMENT ===
@@ -283,7 +284,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+    const { data: enriched } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json(enriched ?? data)
   }
 
   // === CAS 2b : NOTE INTERNE SEULEMENT (pas de statut) ===
@@ -295,7 +297,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+    const { data: enrichedNotes } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json(enrichedNotes ?? data)
   }
 
   // === CAS 2d : EMAIL PARENT SEULEMENT ===
@@ -308,7 +311,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json(data)
+    const { data: enrichedEmail } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json(enrichedEmail ?? data)
   }
 
   // === CAS 2e : CHANGEMENT DE MODE (visio ↔ présentiel) ===
@@ -439,7 +443,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    const { data: finalRow } = await db.from('rdv_appointments').select().eq('id', id).single()
+    const { data: finalRow } = await fetchAppointmentEnriched(db, id)
     return NextResponse.json(finalRow ?? updated)
   }
 
@@ -512,7 +516,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  return NextResponse.json(data)
+  const { data: enrichedStatus } = await fetchAppointmentEnriched(db, id)
+  return NextResponse.json(enrichedStatus ?? data)
 }
 
 // DELETE /api/appointments/:id — Suppression

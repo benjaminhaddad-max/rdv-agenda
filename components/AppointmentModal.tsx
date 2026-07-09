@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 import MeetingModeSwitcher from './MeetingModeSwitcher'
+import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -39,6 +40,7 @@ type Appointment = {
   financement?: string | null
   jpo_invitation?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
+  telepro?: { id: string; name: string; avatar_color?: string | null } | null
   sms_confirmed_at?: string | null
   email_parent?: string | null
 }
@@ -52,7 +54,6 @@ const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; 
 ]
 
 const SOURCE_LABEL: Record<string, string> = {
-  telepro: '📞 Placé par télépro',
   prospect: '🌐 Réservé en ligne',
   admin: '⚙️ Placé en admin',
 }
@@ -632,7 +633,18 @@ export default function AppointmentModal({
             {appointment.source && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <Zap size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>{SOURCE_LABEL[appointment.source] || appointment.source}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {appointment.source === 'telepro'
+                    ? formatAppointmentSourceLabel('telepro', appointment.telepro?.name)
+                    : (SOURCE_LABEL[appointment.source] || appointment.source)}
+                  {appointment.source === 'telepro' && appointment.telepro?.avatar_color && (
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: appointment.telepro.avatar_color,
+                      flexShrink: 0, display: 'inline-block',
+                    }} />
+                  )}
+                </span>
               </div>
             )}
             {appointment.sms_confirmed_at && (

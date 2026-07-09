@@ -7,6 +7,7 @@ import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
+import { APPOINTMENT_LIST_SELECT, enrichAppointmentsTelepro } from '@/lib/appointment-display'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -79,28 +80,7 @@ export async function GET(req: NextRequest) {
   }
 
   const db = createServiceClient()
-  let query = db.from('rdv_appointments').select(`
-    id,
-    prospect_name,
-    prospect_email,
-    prospect_phone,
-    start_at,
-    end_at,
-    status,
-    formation_type,
-    meeting_type,
-    meeting_link,
-    report_summary,
-    report_telepro_advice,
-    hubspot_contact_id,
-    hubspot_deal_id,
-    notes,
-    source,
-    classe_actuelle,
-    departement,
-    rdv_users:commercial_id (id, name, avatar_color, slug),
-    telepro:telepro_id (id, name)
-  `)
+  let query = db.from('rdv_appointments').select(APPOINTMENT_LIST_SELECT)
 
   if (teleproId) {
     query = query.eq('telepro_id', teleproId)
@@ -141,11 +121,7 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     )
   }
-  // Compat : le front (WeekCalendar, AppointmentModal) lit `appt.users`
-  // alors que le query alias la jointure en `rdv_users`. On expose les deux
-  // pour ne pas casser TeleproClient qui utilise `rdv_users`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enriched = (data ?? []).map((r: any) => ({ ...r, users: r.rdv_users ?? null }))
+  const enriched = await enrichAppointmentsTelepro(db, data ?? [])
   return NextResponse.json(enriched, {
     headers: {
       'Cache-Control': 'no-store',
