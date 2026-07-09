@@ -5,6 +5,8 @@ type SupabaseClient = ReturnType<typeof createServiceClient>
 
 const FRESH_TTL_MS = 5 * 60 * 1000
 const STALE_TTL_MS = 60 * 60 * 1000
+/** Incrémenter pour invalider crm_form_event_cache après changement de résolution. */
+const CACHE_VERSION = 2
 
 const refreshInFlight = new Set<string>()
 
@@ -23,18 +25,25 @@ export type FormEventFilterIds = {
 
 export type FormEventFilterResult = FormEventFilterHybrid | FormEventFilterIds
 
+/** Suffixe date (et variante v1/V2) : sélection explicite, pas d'expansion de préfixe. */
+const DATED_FORM_SUFFIX =
+  /\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}(\s*\(?v\d+\)?|\s*v\d+)?\s*$/i
+
 function parseFilterValue(filterValue: string): {
   normalizedFormNames: string[]
   distinctPrefixes: string[]
 } {
   const formNames = filterValue.split(',').map(s => s.trim()).filter(Boolean)
   const normalizedFormNames = [...new Set(formNames)]
+  const namesSet = new Set(normalizedFormNames)
+  // Un formulaire daté (ex. "Immersion Médecine - 07/07/2026") ne doit pas
+  // élargir au préfixe campagne — seules les sélections sans date le font.
   const formNamePrefixes = [...new Set(
     normalizedFormNames
-      .map(name => name.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/i, '').trim())
+      .filter(name => !DATED_FORM_SUFFIX.test(name))
+      .map(name => name.replace(DATED_FORM_SUFFIX, '').trim())
       .filter(prefix => prefix.length >= 6)
   )]
-  const namesSet = new Set(normalizedFormNames)
   const distinctPrefixes = formNamePrefixes.filter(p => !namesSet.has(p))
   return { normalizedFormNames, distinctPrefixes }
 }
@@ -300,7 +309,7 @@ export async function resolveFormEventFilter(
   db: SupabaseClient,
   filterValue: string,
 ): Promise<FormEventFilterResult> {
-  const filterHash = crypto.createHash('sha1').update(filterValue).digest('hex')
+  const filterHash = crypto.createHash('sha1').update(`${CACHE_VERSION}|${filterValue}`).digest('hex')
   const now = Date.now()
   const staleThreshold = new Date(now - STALE_TTL_MS).toISOString()
 
