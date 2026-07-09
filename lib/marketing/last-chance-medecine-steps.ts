@@ -4,8 +4,32 @@ import { FORM_CTA_PLACEHOLDER } from '@/lib/marketing/last-chance-cta-landings'
 
 export type LastChanceBrand = 'afem' | 'numerus' | 'hermione' | 'prepamedecine'
 
-/** Objet unique — intrigue ouverte sur toute la séquence */
-export const LAST_CHANCE_SUBJECT = 'La meilleure prépa médecine 2026 à Paris est…'
+/** Objet distinct par mail (J1–J20) — évite regroupement Gmail et fatigue objet. */
+export const LAST_CHANCE_SUBJECTS: Record<string, string> = {
+  J1: 'Tu vises la médecine à Paris en 2026 : la meilleure prépa PASS/LAS est…',
+  J2: 'Futur PASS/LAS : quelle prépa choisir pour ta fac avant septembre ?',
+  J3: 'Tu vises la médecine en 2026 ? Installe ta méthode avant le PASS/LAS',
+  J4: 'Futur PASS/LAS : ton comparatif prépa personnalisé en 24 h (gratuit)',
+  J5: 'PASS, LAS ou LSPS : prépa, tutorat ou les deux avant septembre ?',
+  J6: "Futur étudiant en médecine : ce que le premier concours blanc t'apprendra",
+  J7: 'Futur PASS/LAS : le planning à préparer cet été (pas en septembre)',
+  J8: '30 prépas pour futurs PASS/LAS — filtre par ville et budget',
+  J9: 'Tu vises la médecine à Paris : 6 facs — ta prépa prépare la bonne ?',
+  J10: 'Futur PASS/LAS : ce sera une année de classement (anticipe avant septembre)',
+  J11: 'Avant la rentrée médecine : août utile ou août perdu ?',
+  J12: 'PASS, LAS ou LSPS : 4 questions avant de choisir ta prépa',
+  J13: 'Prépa PASS/LAS Paris : 7 790 € ou 9 200 € — le vrai calcul avant septembre',
+  J14: 'Futur PASS/LAS à Paris : 5 erreurs à éviter avant la rentrée',
+  J15: 'Tu vas faire médecine : anticiper les oraux avant septembre',
+  J16: "Top prépas PASS/LAS 2025 : ce que les avis disent (avant de t'inscrire)",
+  J17: 'Futur PASS/LAS : QCM, rédactionnel, oral — ta fac ne joue pas pareil',
+  J18: "Tu n'es pas encore en médecine — et c'est ton avantage",
+  J19: 'Futur PASS/LAS : un coach avant la rentrée, ça change quoi ?',
+  J20: 'Rentrée PASS/LAS 2026 : checklist 7 points + rappel conseiller gratuit',
+}
+
+/** @deprecated Utiliser LAST_CHANCE_SUBJECTS — conservé pour compat. */
+export const LAST_CHANCE_SUBJECT = LAST_CHANCE_SUBJECTS.J1
 
 /** 6 facultés de médecine en Île-de-France — libellés officiels */
 export const PARIS_FACS_LIST =
@@ -42,7 +66,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'afem',
     label: 'J1',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J1,
     preheader: 'Comparatif des prépas parisiennes — PASS/LAS 2026.',
     paragraphs: [
       'Tu as ta place en PASS/LAS pour septembre — la vraie question, c\'est <strong>quelle prépa choisir à Paris</strong>. Parmi les quelques <strong>prépas parisiennes</strong> du marché, <strong>Diploma Santé</strong> revient souvent dans les comparatifs pour les facs d\'Île-de-France.',
@@ -56,20 +80,20 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'numerus',
     label: 'J2',
-    subject: LAST_CHANCE_SUBJECT,
-    preheader: 'Niveau réel avant la rentrée — quelle prépa pour ta fac ?',
+    subject: LAST_CHANCE_SUBJECTS.J2,
+    preheader: 'QCM, suivi, colles — quelle prépa pour ta fac parisienne ?',
     paragraphs: [
-      'Avant ta rentrée en <strong>fac parisienne</strong>, beaucoup sous-estiment l\'écart entre le lycée et le concours PASS/LAS. Le premier partiel peut surprendre — surtout sans préparation adaptée à <strong>ta fac</strong>.',
-      'Les <strong>prépas parisiennes</strong> ne se valent pas toutes : certaines misent sur le volume de QCM, d\'autres sur le suivi individuel — à croiser avec le barème de ta fac.',
-      '<strong>Numerus Club</strong> te met en relation avec des étudiants ayant réussi le concours dans une fac parisienne — pour une photo réaliste de ton niveau avant septembre.',
-      'Indique ta fac, ton cursus (PASS/LAS) et si tu as déjà une prépa.',
+      'Tu as ta place en PASS/LAS pour septembre — la question qui revient : <strong>quelle prépa choisir à Paris</strong> ? Volume de QCM, suivi individuel, colles, présentiel ou hybride : les <strong>prépas parisiennes</strong> ne se valent pas toutes selon <strong>ta fac</strong> et ton profil.',
+      'Il n\'y a pas une prépa « meilleure » pour tout le monde. Tout dépend du barème de ta fac (' + PARIS_FACS_LIST + '), de ton budget et de ton besoin de cadre.',
+      '<strong>Numerus Club</strong> te met en relation avec des étudiants ayant réussi le concours dans une fac parisienne — pour comparer les options et éviter un mauvais choix de prépa.',
+      'Indique ta fac, ton cursus (PASS/LAS) et si tu as déjà une prépa — ou si tu hésites encore.',
     ],
     ctaLabel: BRAND_FORM_CTA_LABEL.numerus,
   },
   {
     brand: 'hermione',
     label: 'J3',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J3,
     preheader: 'Méthode de travail — quelle prépa t\'accompagne vraiment ?',
     paragraphs: [
       'En PASS/LAS à Paris, le volume de cours explose dès la première semaine. <strong>La méthode</strong> — fiches, annales, reprises espacées — fait souvent plus que le nombre d\'heures de cours.',
@@ -82,7 +106,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'prepamedecine',
     label: 'J4',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J4,
     preheader: 'Comparatif prépas Paris — conseil indépendant.',
     paragraphs: [
       'À Paris, le marché des <strong>prépas PASS/LAS</strong> se résume à <strong>4 à 5 structures majeures</strong> — dont <strong>Diploma Santé</strong>, régulièrement comparée pour les concours des facs parisiennes.',
@@ -96,7 +120,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'afem',
     label: 'J5',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J5,
     preheader: 'Prépa, tutorat ou solo — le marché parisien.',
     paragraphs: [
       'Ta rentrée PASS/LAS est fixée — as-tu tranché entre <strong>prépa classique</strong>, tutorat, colles ou autonomie ? Beaucoup hésitent encore alors que les places partent.',
@@ -110,7 +134,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'numerus',
     label: 'J6',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J6,
     preheader: 'Concours blanc & prépa — laquelle prépare ta fac ?',
     paragraphs: [
       'Un <strong>concours blanc</strong> calibré sur les annales de ta fac parisienne donne une photo réaliste de ton niveau — avant de t\'engager dans une prépa.',
@@ -123,7 +147,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'hermione',
     label: 'J7',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J7,
     preheader: 'Planning été + prépa — options Paris & IDF.',
     paragraphs: [
       'Le <strong>planning d\'été</strong> avant une rentrée PASS/LAS à Paris : 3 à 5 sessions par semaine, matières prioritaires selon ta fac, vacances protégées — pas 12 h par jour.',
@@ -136,7 +160,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'prepamedecine',
     label: 'J8',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J8,
     preheader: 'Budget & fac — comparer les prépas à Paris.',
     paragraphs: [
       'Comparer les <strong>prépas parisiennes</strong> selon <strong>ton budget</strong> et <strong>ta fac</strong> — pas parcourir toute la France à l\'aveugle.',
@@ -149,7 +173,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'afem',
     label: 'J9',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J9,
     preheader: '6 facs parisiennes — ta prépa couvre la bonne ?',
     paragraphs: [
       PARIS_FACS_LIST + ' : <strong>coefficients et épreuves diffèrent</strong>. Ta prépa doit préparer le bon barème — pas un concours « moyen ».',
@@ -163,7 +187,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'numerus',
     label: 'J10',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J10,
     preheader: 'Classement parisien — quelle prépa t\'y prépare ?',
     paragraphs: [
       'En PASS/LAS dans une <strong>fac parisienne</strong>, c\'est une année de <strong>classement</strong>. Chaque point compte ; la régularité bat le sprint de dernière minute.',
@@ -176,7 +200,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'hermione',
     label: 'J11',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J11,
     preheader: 'Été utile — prépa ou plan solo ?',
     paragraphs: [
       'Août avant une rentrée PASS/LAS à Paris : ni tout arrêter, ni s\'épuiser. <strong>3 à 5 sessions par semaine</strong>, matières ciblées, vacances protégées.',
@@ -189,7 +213,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'prepamedecine',
     label: 'J12',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J12,
     preheader: '4 questions avant de signer une prépa à Paris.',
     paragraphs: [
       'Avant de signer une prépa à Paris, <strong>4 questions</strong> évitent la plupart des mauvais choix :<br><strong>1.</strong> Quelle fac parisienne ?<br><strong>2.</strong> Quel budget total ?<br><strong>3.</strong> Cadre ou autonomie ?<br><strong>4.</strong> Prépa seule ou combo tutorat / colles ?',
@@ -203,7 +227,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'afem',
     label: 'J13',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J13,
     preheader: 'Tarifs affichés vs coût réel des prépas à Paris.',
     paragraphs: [
       'Les prix affichés des prépas parisiennes incluent rarement tout : options, stages, colles et frais annexes peuvent s\'ajouter.',
@@ -217,7 +241,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'numerus',
     label: 'J14',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J14,
     preheader: '5 erreurs avant la rentrée — et le choix de prépa.',
     paragraphs: [
       'Les <strong>5 erreurs classiques</strong> des futurs PASS/LAS parisiens :<br><strong>1.</strong> Choisir sa prépa avant sa fac.<br><strong>2.</strong> Négliger les annales de SA fac.<br><strong>3.</strong> Travailler sans planning.<br><strong>4.</strong> S\'isoler.<br><strong>5.</strong> Attendre le premier partiel pour juger son niveau.',
@@ -231,7 +255,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'hermione',
     label: 'J15',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J15,
     preheader: 'Oraux & rédactionnel — quelle prépa pour ta fac ?',
     paragraphs: [
       'Sur plusieurs <strong>facs parisiennes</strong>, oraux et rédactionnel font la différence — pas seulement le QCM.',
@@ -244,7 +268,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'prepamedecine',
     label: 'J16',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J16,
     preheader: 'Avis sur les prépas parisiennes — 2026.',
     paragraphs: [
       'Avant de t\'engager financièrement, tu veux des <strong>avis structurés</strong> sur les prépas PASS/LAS à Paris — pas seulement des notes Google.',
@@ -258,7 +282,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'afem',
     label: 'J17',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J17,
     preheader: 'QCM, rédactionnel, oral — les prépas par fac.',
     paragraphs: [
       'QCM, rédactionnel, oral : <strong>ta fac parisienne ne joue pas pareil</strong>. Ta prépa doit préparer ces épreuves — pas une méthode générique.',
@@ -272,7 +296,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'numerus',
     label: 'J18',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J18,
     preheader: 'Été — comparer les prépas avant de s\'engager.',
     paragraphs: [
       'Tu n\'es pas encore en médecine : c\'est le moment de <strong>construire la bonne méthode</strong> — et de valider ta prépa avant de t\'engager.',
@@ -286,7 +310,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'hermione',
     label: 'J19',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J19,
     preheader: 'Coach + prépa — Hermione ou prépa classique ?',
     paragraphs: [
       'Un <strong>coach avant la rentrée PASS/LAS à Paris</strong> complète souvent une prépa — ou remplace une partie du cadre si tu es autonome.',
@@ -300,7 +324,7 @@ export const LAST_CHANCE_MEDECINE_STEPS: LastChanceStepDef[] = [
   {
     brand: 'prepamedecine',
     label: 'J20',
-    subject: LAST_CHANCE_SUBJECT,
+    subject: LAST_CHANCE_SUBJECTS.J20,
     preheader: 'Checklist rentrée — prépa validée ?',
     paragraphs: [
       'Rentrée <strong>PASS/LAS Paris 2026</strong> : <strong>7 points</strong> à valider — ① Fac parisienne. ② Prépa choisie ou autonomie. ③ Planning été. ④ Matériel. ⑤ Annales de ta fac. ⑥ Réseau. ⑦ Santé.',
