@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import {
-  LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy,
+  LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy, Phone,
 } from 'lucide-react'
 
 interface Dashboard {
@@ -59,16 +59,29 @@ export default function DashboardsListPage() {
             Crée des tableaux de bord personnalisés avec tes KPIs
           </span>
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
-        >
-          <Plus size={14} /> Nouveau dashboard
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link
+            href="/admin/crm/reports/telepro-rdv"
+            style={{
+              background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.35)',
+              borderRadius: 8, padding: '8px 16px', color: '#2ea3f2', fontSize: 13,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none',
+            }}
+          >
+            <Phone size={14} /> RDV par télépro
+          </Link>
+          <button
+            onClick={() => setShowNewModal(true)}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            <Plus size={14} /> Nouveau dashboard
+          </button>
+        </div>
       </div>
 
       {/* Rapport télépros — accès rapide */}
-      <div style={{ padding: '0 24px 8px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
         <Link
           href="/admin/crm/reports/telepro-rdv"
           style={{
@@ -114,18 +127,22 @@ export default function DashboardsListPage() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-            <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun dashboard pour le moment</div>
-            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
-              Crée ton premier tableau de bord pour suivre tes KPIs en temps réel.
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <TeleproReportCard />
+            <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
+              <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun dashboard personnalisé</div>
+              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
+                Crée un tableau de bord pour suivre tes KPIs en temps réel.
+              </div>
+              <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
+                <Plus size={14} /> Créer un dashboard
+              </button>
             </div>
-            <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
-              <Plus size={14} /> Créer mon premier dashboard
-            </button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <TeleproReportCard />
             {filtered.map(d => (
               <DashboardCard key={d.id} dashboard={d} onDelete={() => remove(d)} />
             ))}
@@ -140,6 +157,41 @@ export default function DashboardsListPage() {
         />
       )}
     </div>
+  )
+}
+
+function TeleproReportCard() {
+  return (
+    <Link
+      href="/admin/crm/reports/telepro-rdv"
+      style={{
+        background: 'linear-gradient(135deg, #ffffff 0%, rgba(46,163,242,0.06) 100%)',
+        border: '2px solid rgba(46,163,242,0.35)',
+        borderRadius: 12, padding: 20, cursor: 'pointer',
+        textDecoration: 'none', color: '#0e1e35', display: 'block',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: 'rgba(46,163,242,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Phone size={20} style={{ color: '#2ea3f2' }} />
+        </div>
+        <span style={{
+          fontSize: 10, color: '#2ea3f2', background: 'rgba(46,163,242,0.12)',
+          padding: '3px 8px', borderRadius: 999, fontWeight: 700,
+        }}>
+          Rapport
+        </span>
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>RDV par télépro (hebdo)</div>
+      <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 14, minHeight: 32, lineHeight: 1.4 }}>
+        Combien de RDV chaque téléprospecteur a pris, semaine par semaine — avec comparaison à la semaine précédente.
+      </div>
+      <div style={{ fontSize: 11, color: '#2ea3f2', fontWeight: 600 }}>Ouvrir le rapport →</div>
+    </Link>
   )
 }
 
