@@ -66,6 +66,11 @@ import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { logger } from '@/lib/logger'
 import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
+import {
+  isRecalifRequalificationSubmission,
+  RECALIF_2026_FORM_EVENT,
+  recalifBrandFromSourceUrl,
+} from '@/lib/recalif-2026'
 
 export const dynamic = 'force-dynamic'
 
@@ -251,7 +256,20 @@ export async function POST(req: NextRequest) {
     updatedRaw.prepa_non_raison = prepaNonRaison
   }
   if (prepaNonRaisonLibre) updatedRaw.afem_requal_prepa_non_raison_libre = prepaNonRaisonLibre
-  updatedRaw.afem_requal_at = nowIso
+  const isRecalif = isRecalifRequalificationSubmission({
+    sourceUrl,
+    commencePassLas,
+    meta: extraMeta,
+  })
+  if (isRecalif) {
+    updatedRaw.recalif_2026_at = nowIso
+    updatedRaw.recalif_2026_brand =
+      recalifBrandFromSourceUrl(sourceUrl) ||
+      (typeof extraMeta?.brand_slug === 'string' ? extraMeta.brand_slug : null) ||
+      'afem'
+  } else {
+    updatedRaw.afem_requal_at = nowIso
+  }
 
   // Un trigger Postgres synchronise les colonnes natives depuis hubspot_raw
   // (format plat : hubspot_raw.firstname, hubspot_raw.email, etc.). Si on
@@ -268,7 +286,7 @@ export async function POST(req: NextRequest) {
   updatedRaw.source = 'AFEM'
   if (!existing) updatedRaw.hs_lead_status = 'Nouveau'
 
-  const eventName = 'Formulaire AFEM'
+  const eventName = isRecalif ? RECALIF_2026_FORM_EVENT : 'Formulaire AFEM'
   const conversionMeta = buildConversionFieldsForSubmission(
     nowIso,
     eventName,

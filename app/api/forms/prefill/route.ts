@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://www.prepamedecine.fr',
   'https://hermione.co',
   'https://www.hermione.co',
+  'https://orientation.hermione.co',
   'https://www.numerusclub.fr',
   'https://numerusclub.fr',
 ])

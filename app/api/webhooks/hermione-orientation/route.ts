@@ -19,6 +19,10 @@ import {
   formatHermioneClassement,
   type HermioneOrientationPayload,
 } from '@/lib/hermione-orientation'
+import {
+  isRecalifHermioneSubmission,
+  RECALIF_2026_FORM_EVENT,
+} from '@/lib/recalif-2026'
 
 export const dynamic = 'force-dynamic'
 
@@ -186,9 +190,23 @@ export async function POST(req: NextRequest) {
   if (classeMapped) updatedRaw.classe_actuelle = classeMapped
   if (departement) updatedRaw.departement = departement
 
+  const sourceUrl = cleanString((body as { source_url?: unknown }).source_url)
+  const isRecalif = isRecalifHermioneSubmission({
+    hubspotContactId: hubspotIdHint,
+    sourceUrl,
+  })
+  const conversionEvent = isRecalif
+    ? RECALIF_2026_FORM_EVENT
+    : HERMIONE_ORIENTATION_FORM_EVENT
+
+  if (isRecalif) {
+    updatedRaw.recalif_2026_at = submittedIso
+    updatedRaw.recalif_2026_brand = 'hermione'
+  }
+
   const conversionMeta = buildConversionFieldsForSubmission(
     submittedIso,
-    HERMIONE_ORIENTATION_FORM_EVENT,
+    conversionEvent,
     existing,
   )
 
