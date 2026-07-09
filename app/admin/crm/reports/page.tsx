@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import {
   LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy,
@@ -64,6 +65,35 @@ export default function DashboardsListPage() {
         >
           <Plus size={14} /> Nouveau dashboard
         </button>
+      </div>
+
+      {/* Rapport télépros — accès rapide */}
+      <div style={{ padding: '0 24px 8px', maxWidth: 1400, margin: '0 auto' }}>
+        <Link
+          href="/admin/crm/reports/telepro-rdv"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'linear-gradient(135deg, rgba(204,172,113,0.12), rgba(46,163,242,0.08))',
+            border: '1px solid rgba(204,172,113,0.35)',
+            borderRadius: 12, padding: '14px 18px',
+            textDecoration: 'none', color: '#0e1e35',
+          }}
+        >
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: 'rgba(204,172,113,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <BarChart3 size={20} style={{ color: '#C9A84C' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>RDV placés par télépro (hebdo)</div>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
+              Tableau chiffré semaine par semaine — qui a pris combien de RDV
+            </div>
+          </div>
+          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>Voir →</span>
+        </Link>
       </div>
 
       {/* Recherche */}

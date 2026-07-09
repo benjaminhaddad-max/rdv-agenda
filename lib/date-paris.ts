@@ -40,3 +40,62 @@ export function formatParis(
   const parisDate = new Date(date.getTime() + getParisMsOffset(date))
   return format(parisDate, pattern, { locale: fr })
 }
+
+/** Date calendaire (YYYY-MM-DD) en heure de Paris pour un instant donné. */
+export function parisDateKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+/** Lundi de la semaine (YYYY-MM-DD) contenant `date`, semaine ISO (lun→dim). */
+export function parisWeekStartKey(date: Date): string {
+  const key = parisDateKey(date)
+  const [y, m, d] = key.split('-').map(Number)
+  const utcNoon = new Date(Date.UTC(y, m - 1, d, 12))
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Paris',
+    weekday: 'short',
+  }).format(utcNoon)
+  const dayMap: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  }
+  const offset = dayMap[weekday] ?? 0
+  const monday = new Date(Date.UTC(y, m - 1, d - offset, 12))
+  return monday.toISOString().slice(0, 10)
+}
+
+/** Ajoute `weeks` semaines à un lundi (YYYY-MM-DD). */
+export function addParisWeeks(weekStartKey: string, weeks: number): string {
+  const [y, m, d] = weekStartKey.split('-').map(Number)
+  const next = new Date(Date.UTC(y, m - 1, d + weeks * 7, 12))
+  return next.toISOString().slice(0, 10)
+}
+
+/** Libellé « 6 au 12 juillet 2026 » pour une semaine lun→dim. */
+export function formatParisWeekRange(weekStartKey: string): string {
+  const [y, m, d] = weekStartKey.split('-').map(Number)
+  const start = new Date(Date.UTC(y, m - 1, d, 12))
+  const end = new Date(Date.UTC(y, m - 1, d + 6, 12))
+  const startLabel = formatParis(start, 'd MMMM')
+  const endLabel = formatParis(end, 'd MMMM yyyy')
+  return `${startLabel} au ${endLabel}`
+}
+
+/** Instant UTC correspondant à minuit (00:00) à Paris pour une date calendaire. */
+export function parisMidnightUtc(dateKey: string): Date {
+  const [y, mo, d] = dateKey.split('-').map(Number)
+  const ref = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0))
+  const offset = getParisMsOffset(ref)
+  return new Date(Date.UTC(y, mo - 1, d, 0, 0, 0) - offset)
+}
+
+/** Bornes UTC [start, end) pour filtrer created_at sur une semaine Paris. */
+export function parisWeekUtcBounds(weekStartKey: string): { start: string; end: string } {
+  const startUtc = parisMidnightUtc(weekStartKey)
+  const endUtc = parisMidnightUtc(addParisWeeks(weekStartKey, 1))
+  return { start: startUtc.toISOString(), end: endUtc.toISOString() }
+}
