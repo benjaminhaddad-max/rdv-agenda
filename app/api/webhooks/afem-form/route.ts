@@ -69,7 +69,10 @@ import { buildConversionFieldsForSubmission } from '@/lib/conversion-fields'
 import {
   isRecalifRequalificationSubmission,
   RECALIF_2026_FORM_EVENT,
-  recalifBrandFromSourceUrl,
+  recalifBrandActivitySource,
+  recalifBrandLabel,
+  recalifBrandOrigine,
+  resolveRecalifBrandSlug,
 } from '@/lib/recalif-2026'
 
 export const dynamic = 'force-dynamic'
@@ -261,12 +264,19 @@ export async function POST(req: NextRequest) {
     commencePassLas,
     meta: extraMeta,
   })
+  const brandSlug = isRecalif
+    ? resolveRecalifBrandSlug({ sourceUrl, meta: extraMeta })
+    : 'afem'
+  const brandLabel = recalifBrandLabel(brandSlug)
+  const brandOrigine = isRecalif ? recalifBrandOrigine(brandSlug) : 'Site AFEM'
+  const brandSource = isRecalif ? brandLabel : 'AFEM'
+  const activitySource = isRecalif
+    ? recalifBrandActivitySource(brandSlug)
+    : 'afem_webhook'
+
   if (isRecalif) {
     updatedRaw.recalif_2026_at = nowIso
-    updatedRaw.recalif_2026_brand =
-      recalifBrandFromSourceUrl(sourceUrl) ||
-      (typeof extraMeta?.brand_slug === 'string' ? extraMeta.brand_slug : null) ||
-      'afem'
+    updatedRaw.recalif_2026_brand = brandSlug
   } else {
     updatedRaw.afem_requal_at = nowIso
   }
@@ -282,8 +292,8 @@ export async function POST(req: NextRequest) {
   if (phone) updatedRaw.phone = phone
   if (classeMapped) updatedRaw.classe_actuelle = classeMapped
   if (departement) updatedRaw.departement = departement
-  updatedRaw.origine = 'Site AFEM'
-  updatedRaw.source = 'AFEM'
+  updatedRaw.origine = brandOrigine
+  updatedRaw.source = brandSource
   if (!existing) updatedRaw.hs_lead_status = 'Nouveau'
 
   const eventName = isRecalif ? RECALIF_2026_FORM_EVENT : 'Formulaire AFEM'
@@ -296,8 +306,8 @@ export async function POST(req: NextRequest) {
   const contactData: Record<string, unknown> = {
     synced_at: nowIso,
     ...conversionMeta,
-    origine: 'Site AFEM',
-    source: 'AFEM',
+    origine: brandOrigine,
+    source: brandSource,
     hubspot_raw: updatedRaw,
   }
   if (firstname) contactData.firstname = firstname
@@ -349,7 +359,11 @@ export async function POST(req: NextRequest) {
     action = 'created'
   }
 
-  // Trace l'arrivée du lead AFEM en activité (best-effort, ne bloque pas la réponse)
+  const activitySubject = isRecalif
+    ? `Réponse Recalif 2026 — ${brandLabel} (${action})`
+    : `Lead reçu de AFEM (${action})`
+
+  // Trace la soumission formulaire en activité (best-effort, ne bloque pas la réponse)
   const voeuxSummary = voeux
     ? voeux
         .map((v: unknown) => {
@@ -386,8 +400,9 @@ export async function POST(req: NextRequest) {
     await db.from('crm_activities').insert({
       activity_type: 'note',
       hubspot_contact_id: contactId,
-      subject: `Lead reçu de AFEM (${action})`,
+      subject: activitySubject,
       body: [
+        isRecalif ? `Marque : ${brandLabel}` : null,
         `Classe : ${classeMapped ?? 'n/a'}`,
         `Département : ${departement ?? 'n/a'}`,
         requalSummary,
@@ -396,7 +411,12 @@ export async function POST(req: NextRequest) {
       ]
         .filter(Boolean)
         .join('\n'),
-      metadata: { source: 'afem_webhook', payload: body },
+      metadata: {
+        source: activitySource,
+        brand_slug: brandSlug,
+        campaign: isRecalif ? RECALIF_2026_FORM_EVENT : null,
+        payload: body,
+      },
       occurred_at: nowIso,
     })
   } catch (e) {
