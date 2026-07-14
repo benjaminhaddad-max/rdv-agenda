@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
     prospect_email,
     prospect_phone,
     email_parent,           // optionnel — email du/des parent(s)
+    phone_parent,           // optionnel — téléphone du/des parent(s)
     start_at,
     end_at,
     source = 'telepro',     // 'telepro' | 'prospect' | 'admin'
@@ -360,6 +361,7 @@ export async function POST(req: NextRequest) {
       prospect_email,
       prospect_phone: prospect_phone || null,
       email_parent: email_parent || null,
+      phone_parent: phone_parent || null,
       start_at,
       end_at,
       status: assignedCommercialId ? 'confirme' : 'non_assigne',

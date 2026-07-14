@@ -26,6 +26,7 @@ export const APPOINTMENT_LIST_SELECT = `
   commercial_id,
   sms_confirmed_at,
   email_parent,
+  phone_parent,
   negatif_reason,
   negatif_reason_detail,
   interlocuteur_principal,

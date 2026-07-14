@@ -4,6 +4,7 @@ import { sendSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
 import { sendBookingConfirmationEmail, sendMeetingModeChangeEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { syncAppointmentRecapToContactActivity } from '@/lib/appointment-recap-activity'
+import { syncAppointmentParentInfoToContact } from '@/lib/appointment-parent-sync'
 import { isValidCampus } from '@/lib/campus'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 import { fetchAppointmentEnriched } from '@/lib/appointment-display'
@@ -18,6 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     consigne_text, consigne_echeance, consigne_rien_a_faire,
     contexte_concurrence, financement, jpo_invitation,
     email_parent,
+    phone_parent,
     start_at, end_at,
   } = body
 
@@ -31,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       prospect_name, prospect_email, prospect_phone,
       start_at, end_at, formation_type,
       meeting_type, meeting_link, google_event_id,
-      hubspot_contact_id, notes, departement, classe_actuelle, email_parent
+      hubspot_contact_id, notes, departement, classe_actuelle, email_parent, phone_parent
     `)
     .eq('id', id)
     .single()
@@ -289,7 +291,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // === CAS 2b : NOTE INTERNE SEULEMENT (pas de statut) ===
-  if (notes !== undefined && status === undefined && email_parent === undefined) {
+  if (notes !== undefined && status === undefined && email_parent === undefined && phone_parent === undefined) {
     const { data, error } = await db
       .from('rdv_appointments')
       .update({ notes: notes || null })
@@ -301,15 +303,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(enrichedNotes ?? data)
   }
 
-  // === CAS 2d : EMAIL PARENT SEULEMENT ===
-  if (email_parent !== undefined && status === undefined && notes === undefined) {
+  // === CAS 2d : COORDONNÉES PARENT SEULEMENT ===
+  if ((email_parent !== undefined || phone_parent !== undefined) && status === undefined && notes === undefined) {
+    const parentUpdate: Record<string, string | null> = {}
+    if (email_parent !== undefined) parentUpdate.email_parent = email_parent || null
+    if (phone_parent !== undefined) parentUpdate.phone_parent = phone_parent || null
+
     const { data, error } = await db
       .from('rdv_appointments')
-      .update({ email_parent: email_parent || null })
+      .update(parentUpdate)
       .eq('id', id)
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    try {
+      await syncAppointmentParentInfoToContact(db, appointment.hubspot_contact_id, {
+        email_parent: parentUpdate.email_parent,
+        phone_parent: parentUpdate.phone_parent,
+      })
+    } catch (e) {
+      console.error(`[appointments PATCH] sync parent contact échouée pour ${id}:`, e)
+    }
 
     const { data: enrichedEmail } = await fetchAppointmentEnriched(db, id)
     return NextResponse.json(enrichedEmail ?? data)
@@ -473,6 +488,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (financement !== undefined) updatePayload.financement = financement || null
   if (jpo_invitation !== undefined) updatePayload.jpo_invitation = jpo_invitation || null
   if (email_parent !== undefined) updatePayload.email_parent = email_parent || null
+  if (phone_parent !== undefined) updatePayload.phone_parent = phone_parent || null
 
   const { data, error } = await db
     .from('rdv_appointments')
@@ -482,6 +498,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (email_parent !== undefined || phone_parent !== undefined) {
+    try {
+      await syncAppointmentParentInfoToContact(db, appointment.hubspot_contact_id, {
+        email_parent: email_parent !== undefined ? (email_parent || null) : undefined,
+        phone_parent: phone_parent !== undefined ? (phone_parent || null) : undefined,
+      })
+    } catch (e) {
+      console.error(`[appointments PATCH] sync parent contact échouée pour ${id}:`, e)
+    }
+  }
 
   // Recap closer → note sur la fiche contact (best-effort, idempotent).
   if (report_summary !== undefined || report_telepro_advice !== undefined) {

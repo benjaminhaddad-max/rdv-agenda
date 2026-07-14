@@ -43,6 +43,7 @@ type Appointment = {
   telepro?: { id: string; name: string; avatar_color?: string | null } | null
   sms_confirmed_at?: string | null
   email_parent?: string | null
+  phone_parent?: string | null
 }
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
@@ -159,6 +160,7 @@ export default function AppointmentModal({
   const [financement, setFinancement] = useState<string | null>(appointment.financement || null)
   const [jpoInvitation, setJpoInvitation] = useState<string | null>(appointment.jpo_invitation || null)
   const [emailParent, setEmailParent] = useState(appointment.email_parent || '')
+  const [phoneParent, setPhoneParent] = useState(appointment.phone_parent || '')
 
   // Fix : évite la fermeture accidentelle quand mousedown est sur un bouton
   // et que la souris glisse légèrement sur le backdrop avant le mouseup
@@ -182,6 +184,37 @@ export default function AppointmentModal({
     setRescheduleError(null)
     setRescheduleOk(false)
   }, [appointment.start_at, appointment.end_at])
+
+  // Pré-remplit les coordonnées parent depuis la fiche contact si absentes sur le RDV.
+  useEffect(() => {
+    if (!appointment.hubspot_contact_id) return
+    const needEmail = !appointment.email_parent
+    const needPhone = !appointment.phone_parent
+    if (!needEmail && !needPhone) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/crm/contacts/${appointment.hubspot_contact_id}/details?phase=core`)
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        const raw = (data.contact?.hubspot_raw ?? {}) as Record<string, unknown>
+        if (needEmail) {
+          const email = raw.email_parent
+          if (typeof email === 'string' && email.trim()) setEmailParent(email.trim())
+        }
+        if (needPhone) {
+          const phone = raw.telephone_parent ?? raw.telephone_du_responsable_legal_1
+          if (typeof phone === 'string' && phone.trim()) setPhoneParent(phone.trim())
+        }
+      } catch {
+        // best-effort
+      }
+    })()
+
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointment.hubspot_contact_id, appointment.email_parent, appointment.phone_parent])
 
   const displayStart = combineDateAndTime(rdvDate, rdvStartTime)
   const displayEnd = combineDateAndTime(rdvDate, rdvEndTime)
@@ -239,6 +272,8 @@ export default function AppointmentModal({
           notes,
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
+          email_parent: emailParent.trim() || null,
+          phone_parent: phoneParent.trim() || null,
           ...buildExtraFields(),
         }),
       })
@@ -364,6 +399,7 @@ export default function AppointmentModal({
           report_summary: reportSummary.trim() || null,
           report_telepro_advice: reportTelepro.trim() || null,
           email_parent: emailParent.trim() || null,
+          phone_parent: phoneParent.trim() || null,
           ...buildExtraFields(),
         }),
       })
@@ -609,21 +645,6 @@ export default function AppointmentModal({
                 <span>{appointment.prospect_phone}</span>
               </div>
             )}
-            {/* Email parent — éditable */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Mail size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
-              <input
-                type="email"
-                value={emailParent}
-                onChange={(e) => setEmailParent(e.target.value)}
-                placeholder="Email parent (facultatif)"
-                style={{
-                  flex: 1, background: 'transparent', border: 'none',
-                  borderBottom: '1px solid #e5ddc8', color: emailParent ? '#7c3aed' : '#4a6070',
-                  fontSize: 13, padding: '2px 0', outline: 'none', fontFamily: 'inherit',
-                }}
-              />
-            </div>
             {appointment.formation_type && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <Tag size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
@@ -1263,6 +1284,41 @@ export default function AppointmentModal({
                   outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
                 }}
               />
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #e5ddc8' }}>
+              <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 8, fontWeight: 600 }}>
+                Coordonnées parent <span style={{ fontWeight: 400, textTransform: 'none' }}>(facultatif)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Mail size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
+                  <input
+                    type="email"
+                    value={emailParent}
+                    onChange={(e) => setEmailParent(e.target.value)}
+                    placeholder="Email parent"
+                    style={{
+                      flex: 1, background: '#f7f4ee', border: '1px solid #e5ddc8',
+                      borderRadius: 8, padding: '8px 12px', color: '#0f172a',
+                      fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Phone size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
+                  <input
+                    type="tel"
+                    value={phoneParent}
+                    onChange={(e) => setPhoneParent(e.target.value)}
+                    placeholder="Numéro parent"
+                    style={{
+                      flex: 1, background: '#f7f4ee', border: '1px solid #e5ddc8',
+                      borderRadius: 8, padding: '8px 12px', color: '#0f172a',
+                      fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
