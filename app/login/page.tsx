@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
@@ -24,32 +23,26 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         router.push('/')
         router.refresh()
         return
       }
-      if (res.status === 401) {
-        setError('Email ou mot de passe incorrect')
-        setLoading(false)
-        return
-      }
-      // 504 ou autre erreur serveur → tentative directe navigateur ci-dessous.
+      setError(
+        typeof data.error === 'string'
+          ? data.error
+          : res.status === 401
+            ? 'Email ou mot de passe incorrect'
+            : 'Connexion impossible pour le moment.'
+      )
+      setLoading(false)
+      return
     } catch {
-      // Erreur réseau → tentative directe navigateur ci-dessous.
-    }
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      setError('Email ou mot de passe incorrect')
+      setError("Impossible de joindre le serveur. Vérifie ta connexion et réessaie.")
       setLoading(false)
       return
     }
-
-    router.push('/')
-    router.refresh()
   }
 
   return (

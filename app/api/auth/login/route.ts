@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const result = await Promise.race([
     supabase.auth.signInWithPassword({ email, password }),
-    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 12_000)),
+    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 4_000)),
   ])
 
   if (result === 'timeout') {
