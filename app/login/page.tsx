@@ -16,6 +16,29 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    // Connexion via le serveur (Vercel → Supabase) : passe même quand le
+    // réseau local est bloqué/rate-limité par Supabase Auth.
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      if (res.ok) {
+        router.push('/')
+        router.refresh()
+        return
+      }
+      if (res.status === 401) {
+        setError('Email ou mot de passe incorrect')
+        setLoading(false)
+        return
+      }
+      // 504 ou autre erreur serveur → tentative directe navigateur ci-dessous.
+    } catch {
+      // Erreur réseau → tentative directe navigateur ci-dessous.
+    }
+
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
