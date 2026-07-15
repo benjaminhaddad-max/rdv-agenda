@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
+import { getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 // GET /api/me — Retourne l'utilisateur connecté (rdv_users)
 export async function GET() {
   const supabase = await createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const userId = await getAuthUserIdResilient(
+    () => supabase.auth.getUser(),
+    cookieStore
+  )
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
 
@@ -14,7 +20,7 @@ export async function GET() {
   const { data, error } = await db
     .from('rdv_users')
     .select('id, name, email, role, slug, avatar_color, crm_brand, crm_scope, hubspot_owner_id')
-    .eq('auth_id', user.id)
+    .eq('auth_id', userId)
     .single()
 
   if (error || !data) {

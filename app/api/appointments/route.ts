@@ -166,13 +166,16 @@ export async function POST(req: NextRequest) {
   // le flux Linova dedie (/api/linova/appointments).
   try {
     const auth = await createServerSupabase()
-    const { data: { user } } = await auth.auth.getUser()
-    if (user) {
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const { getAuthUserIdResilient } = await import('@/lib/auth-resilient')
+    const userId = await getAuthUserIdResilient(() => auth.auth.getUser(), cookieStore)
+    if (userId) {
       const dbCheck = createServiceClient()
       const { data: rdvUser } = await dbCheck
         .from('rdv_users')
         .select('crm_brand')
-        .eq('auth_id', user.id)
+        .eq('auth_id', userId)
         .maybeSingle()
       if (String(rdvUser?.crm_brand || '').toLowerCase() === 'linova') {
         return NextResponse.json(

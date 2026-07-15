@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -59,23 +60,27 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session for page routes only (API auth is enforced in route handlers).
-  const { data: { user } } = await supabase.auth.getUser()
+  // Résilient aux pannes Supabase Auth : timeout court + fallback cookie JWT.
+  const userId = await getAuthUserIdResilient(
+    () => supabase.auth.getUser(),
+    request.cookies
+  )
 
   // ── Login page ─────────────────────────────────────────────────
   if (pathname === '/login') {
-    if (user) {
-      const dbUser = await getUserFromDb(user.id)
+    if (userId) {
+      const dbUser = await getUserFromDb(userId)
       if (dbUser) return redirectByRole(dbUser, request)
     }
     return response
   }
 
   // ── Protected routes: require auth ─────────────────────────────
-  if (!user) {
+  if (!userId) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  const dbUser = await getUserFromDb(user.id)
+  const dbUser = await getUserFromDb(userId)
   if (!dbUser) {
     return NextResponse.redirect(new URL('/login', request.url))
   }

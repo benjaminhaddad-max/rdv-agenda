@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
+import { getAuthUserIdResilient } from '@/lib/auth-resilient'
 
 export type ApiRole = 'admin' | 'telepro' | 'closer' | 'manager'
 
@@ -23,22 +24,26 @@ const roleAliases: Record<string, ApiRole> = {
 
 export async function getApiUserContext(): Promise<ApiUserContext | null> {
   const auth = await createServerSupabase()
-  const {
-    data: { user },
-  } = await auth.auth.getUser()
-  if (!user) return null
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  // Résilient aux pannes Supabase Auth : timeout court + fallback cookie JWT.
+  const authUserId = await getAuthUserIdResilient(
+    () => auth.auth.getUser(),
+    cookieStore
+  )
+  if (!authUserId) return null
 
   const db = createServiceClient()
   const { data: dbUser } = await db
     .from('rdv_users')
     .select('id, role, slug, hubspot_owner_id, crm_brand, crm_scope, is_default_brand_telepro')
-    .eq('auth_id', user.id)
+    .eq('auth_id', authUserId)
     .maybeSingle()
 
   if (!dbUser || !dbUser.role) return null
 
   return {
-    authUserId: user.id,
+    authUserId,
     appUserId: dbUser.id,
     role: String(dbUser.role),
     slug: dbUser.slug ?? null,

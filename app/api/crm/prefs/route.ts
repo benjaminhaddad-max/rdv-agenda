@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
+import { getAuthUserIdResilient } from '@/lib/auth-resilient'
+
+async function getUserId(): Promise<string | null> {
+  const auth = await createServerSupabase()
+  const cookieStore = await cookies()
+  return getAuthUserIdResilient(() => auth.auth.getUser(), cookieStore)
+}
 
 export async function GET() {
-  const auth = await createServerSupabase()
-  const { data: { user } } = await auth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  const userId = await getUserId()
+  if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const db = createServiceClient()
   // select('*') évite un 500 si une colonne (ex: contact_about_fields) n'a pas
@@ -12,7 +19,7 @@ export async function GET() {
   const { data } = await db
     .from('crm_user_prefs')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .single()
 
   if (!data) return NextResponse.json({})
@@ -24,12 +31,11 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const auth = await createServerSupabase()
-  const { data: { user } } = await auth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  const userId = await getUserId()
+  if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const body = await req.json()
-  const update: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() }
+  const update: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() }
   if (body.col_order  !== undefined) update.col_order  = body.col_order
   if (body.col_widths !== undefined) update.col_widths = body.col_widths
   if (body.contact_about_fields !== undefined) update.contact_about_fields = body.contact_about_fields
