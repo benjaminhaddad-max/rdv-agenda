@@ -9,10 +9,14 @@ import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/component
 import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import {
-  CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
+  CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type CRMFilterField, type CRMFilterOp, type SelectOption,
 } from '@/lib/crm-constants'
+
+// Liste stable dès le premier rendu : évite que la colonne « Statut du lead »
+// disparaisse tant que /api/crm/field-options n'a pas répondu (scan lent en prod).
+const DEFAULT_LEAD_STATUS_VALUES = LEAD_STATUS_OPTIONS_FALLBACK.map(o => o.id)
 
 // Règle de filtre avancé (filtre sur n'importe quelle propriété CRM).
 type AdvancedRule = {
@@ -596,7 +600,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [telepros, setTelePros] = useState<RdvUser[]>([])
 
   // ─ Field options
-  const [leadStatusOpts, setLeadStatusOpts] = useState<string[]>([])
+  const [leadStatusOpts, setLeadStatusOpts] = useState<string[]>(DEFAULT_LEAD_STATUS_VALUES)
   const [formationOpts, setFormationOpts]   = useState<string[]>([])
   const [sourceOpts, setSourceOpts]         = useState<string[]>([])
   const [zoneOpts, setZoneOpts]             = useState<string[]>([])
@@ -803,18 +807,49 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
       .catch(() => {})
   }, [])
 
-  // Fetch field options (force-cache : profite du Cache-Control s-maxage=3600 côté CDN Vercel)
+  // Options de filtres / colonnes : fallback immédiat + fusion avec la DB.
+  // On ne remplace jamais par une liste vide (sinon colonnes instables).
   useEffect(() => {
-    fetch('/api/crm/field-options', { cache: 'force-cache' })
-      .then(r => r.json())
-      .then(d => {
-        if (d.leadStatuses?.length) setLeadStatusOpts(d.leadStatuses)
-        if (d.formations?.length)   setFormationOpts(d.formations)
-        if (d.sources?.length)      setSourceOpts(d.sources)
-        if (d.zones?.length)        setZoneOpts(d.zones)
-        if (d.formEvents?.length)   setFormEventOpts(d.formEvents)
-      })
-      .catch(() => {})
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const mergeLeadStatuses = (fromApi: string[]) => {
+      const merged = new Set(DEFAULT_LEAD_STATUS_VALUES)
+      for (const v of fromApi) if (v) merged.add(v)
+      return [...merged]
+    }
+
+    const load = async (attempt: number) => {
+      try {
+        const r = await fetch('/api/crm/field-options', { cache: 'no-store' })
+        const d = await r.json()
+        if (cancelled) return
+
+        if (Array.isArray(d.leadStatuses)) {
+          setLeadStatusOpts(mergeLeadStatuses(d.leadStatuses as string[]))
+        }
+        if (d.formations?.length) setFormationOpts(d.formations)
+        if (d.sources?.length) setSourceOpts(d.sources)
+        if (d.zones?.length) setZoneOpts(d.zones)
+        if (d.formEvents?.length) setFormEventOpts(d.formEvents)
+
+        const gotCore = (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0)
+          || (Array.isArray(d.sources) && d.sources.length > 0)
+        if (!gotCore && attempt < 4) {
+          retryTimer = setTimeout(() => { void load(attempt + 1) }, 1500 * (attempt + 1))
+        }
+      } catch {
+        if (!cancelled && attempt < 4) {
+          retryTimer = setTimeout(() => { void load(attempt + 1) }, 1500 * (attempt + 1))
+        }
+      }
+    }
+
+    void load(0)
+    return () => {
+      cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [])
 
   function handleSortChange(col: string) {
@@ -994,7 +1029,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
-  const leadStatusOptions = leadStatusOpts.map(v => ({ id: v, label: v }))
+  const leadStatusOptions = useMemo(
+    () => leadStatusOpts.map(v => ({ id: v, label: v })),
+    [leadStatusOpts],
+  )
   const sourceOptions     = sourceOpts.map(v => ({ id: v, label: v }))
 
   // Jeux d'options pour les filtres avancés (champs enum hardcodés).

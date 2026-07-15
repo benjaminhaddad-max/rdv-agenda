@@ -974,8 +974,18 @@ const BLOCKED_EXTRA_COLUMN_PROPS = new Set([
 // Colonnes cachées par défaut
 const DEFAULT_HIDDEN_COLS: ColKey[] = []
 
-const MIXED_COL_STORAGE_KEY = 'crm-mixed-col-order'
-const DYN_COL_WIDTHS_STORAGE_KEY = 'crm-dyn-col-widths'
+function tableStorageKey(mode: 'admin' | 'closer' | 'telepro', suffix: string): string {
+  return `crm-${suffix}-${mode}`
+}
+
+/** Garantit que la valeur courante reste sélectionnable (ex. NRP1 déjà en base). */
+function ensureSelectOptions(
+  value: string,
+  options: { id: string; label: string; color?: string }[],
+): { id: string; label: string; color?: string }[] {
+  if (!value || options.some(o => o.id === value)) return options
+  return [{ id: value, label: value }, ...options]
+}
 const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
   'classe', 'zone', 'etape', 'lead_status', 'origine', 'closer', 'closer_du_contact', 'telepro',
 ])
@@ -1051,6 +1061,11 @@ export default function CRMContactsTable({
   onRequestProps,
 }: Props) {
   const RENDER_CHUNK = 120
+  const colOrderKey = tableStorageKey(mode, 'col-order')
+  const colWidthsKey = tableStorageKey(mode, 'col-widths')
+  const colHiddenKey = tableStorageKey(mode, 'col-hidden')
+  const mixedColOrderKey = tableStorageKey(mode, 'mixed-col-order')
+  const dynColWidthsKey = tableStorageKey(mode, 'dyn-col-widths')
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
   const [noteModal,         setNoteModal]          = useState<{ dealId: string; name: string } | null>(null)
   const [assignPanel,       setAssignPanel]        = useState<{
@@ -1189,7 +1204,7 @@ export default function CRMContactsTable({
   const [colOrder, setColOrder] = useState<ColKey[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_COL_ORDER
     try {
-      const saved = localStorage.getItem('crm-col-order')
+      const saved = localStorage.getItem(colOrderKey)
       if (saved) {
         const parsed: ColKey[] = JSON.parse(saved)
         // Fusionner avec DEFAULT_COL_ORDER pour inclure les nouvelles colonnes
@@ -1207,7 +1222,7 @@ export default function CRMContactsTable({
   const [mixedColOrder, setMixedColOrder] = useState<string[]>(() => {
     if (typeof window === 'undefined') return mergeMixedColOrder(null, DEFAULT_COL_ORDER, [])
     try {
-      const saved = localStorage.getItem(MIXED_COL_STORAGE_KEY)
+      const saved = localStorage.getItem(mixedColOrderKey)
       if (saved) {
         const parsed = JSON.parse(saved) as string[]
         return mergeMixedColOrder(parsed, DEFAULT_COL_ORDER, [])
@@ -1219,7 +1234,7 @@ export default function CRMContactsTable({
   const [dynColWidths, setDynColWidths] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const saved = localStorage.getItem(DYN_COL_WIDTHS_STORAGE_KEY)
+      const saved = localStorage.getItem(dynColWidthsKey)
       if (saved) return JSON.parse(saved) as Record<string, number>
     } catch { /* ignore */ }
     return {}
@@ -1229,7 +1244,7 @@ export default function CRMContactsTable({
   const [colWidths, setColWidths] = useState<Record<ColKey, number>>(() => {
     if (typeof window === 'undefined') return { ...COL_WIDTHS }
     try {
-      const saved = localStorage.getItem('crm-col-widths')
+      const saved = localStorage.getItem(colWidthsKey)
       if (saved) return { ...COL_WIDTHS, ...JSON.parse(saved) }
     } catch { /* ignore */ }
     return { ...COL_WIDTHS }
@@ -1241,7 +1256,7 @@ export default function CRMContactsTable({
   const [hiddenCols, setHiddenCols] = useState<Set<ColKey>>(() => {
     if (typeof window === 'undefined') return new Set(DEFAULT_HIDDEN_COLS)
     try {
-      const saved = localStorage.getItem('crm-col-hidden')
+      const saved = localStorage.getItem(colHiddenKey)
       if (saved) return new Set(JSON.parse(saved) as ColKey[])
     } catch { /* ignore */ }
     return new Set(DEFAULT_HIDDEN_COLS)
@@ -1250,14 +1265,28 @@ export default function CRMContactsTable({
   const colMenuRef = useRef<HTMLDivElement>(null)
 
   function toggleColVisibility(key: ColKey) {
+    // Colonne métier critique pour les télépros : non masquable.
+    if (mode === 'telepro' && key === 'lead_status') return
     setHiddenCols(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
-      localStorage.setItem('crm-col-hidden', JSON.stringify(Array.from(next)))
+      localStorage.setItem(colHiddenKey, JSON.stringify(Array.from(next)))
       return next
     })
   }
+
+  // Vue télépro : la colonne Statut du lead doit toujours rester visible.
+  useEffect(() => {
+    if (mode !== 'telepro') return
+    setHiddenCols(prev => {
+      if (!prev.has('lead_status')) return prev
+      const next = new Set(prev)
+      next.delete('lead_status')
+      localStorage.setItem(colHiddenKey, JSON.stringify(Array.from(next)))
+      return next
+    })
+  }, [mode, colHiddenKey])
 
   // Fermer le menu colonnes quand on clique ailleurs
   useEffect(() => {
@@ -1279,7 +1308,9 @@ export default function CRMContactsTable({
   }, [colMenuOpen, onRequestProps])
 
   // ── Chargement des préférences utilisateur depuis Supabase ────────────────
+  // Réservé à la vue admin : évite qu'un layout admin écrase la vue télépro.
   useEffect(() => {
+    if (mode !== 'admin') return
     fetch('/api/crm/prefs')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -1290,32 +1321,32 @@ export default function CRMContactsTable({
           const missing = DEFAULT_COL_ORDER.filter(k => !valid.includes(k))
           const merged = [...valid, ...missing]
           setColOrder(merged)
-          localStorage.setItem('crm-col-order', JSON.stringify(merged))
+          localStorage.setItem(colOrderKey, JSON.stringify(merged))
           setMixedColOrder(prev => {
             const next = mergeMixedColOrder(prev, merged, extraColumns ?? [])
-            localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+            localStorage.setItem(mixedColOrderKey, JSON.stringify(next))
             return next
           })
         }
         if (data.col_widths && typeof data.col_widths === 'object') {
           setColWidths(prev => {
             const merged = { ...prev, ...data.col_widths }
-            localStorage.setItem('crm-col-widths', JSON.stringify(merged))
+            localStorage.setItem(colWidthsKey, JSON.stringify(merged))
             return merged
           })
         }
       })
       .catch(() => { /* silently ignore */ })
-  }, [])
+  }, [mode, colOrderKey, colWidthsKey, mixedColOrderKey, extraColumns])
 
   // Synchroniser l'ordre mixte quand les colonnes natives ou dynamiques changent
   useEffect(() => {
     setMixedColOrder(prev => {
       const next = mergeMixedColOrder(prev, colOrder, extraColumns ?? [])
-      localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+      localStorage.setItem(mixedColOrderKey, JSON.stringify(next))
       return next
     })
-  }, [colOrder, extraColumns])
+  }, [colOrder, extraColumns, mixedColOrderKey])
 
   function handleResizeStart(e: React.MouseEvent, key: ColKey) {
     e.preventDefault()
@@ -1335,12 +1366,14 @@ export default function CRMContactsTable({
       document.body.style.userSelect = ''
       // Persist
       setColWidths(prev => {
-        localStorage.setItem('crm-col-widths', JSON.stringify(prev))
-        fetch('/api/crm/prefs', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ col_widths: prev }),
-        }).catch(() => {})
+        localStorage.setItem(colWidthsKey, JSON.stringify(prev))
+        if (mode === 'admin') {
+          fetch('/api/crm/prefs', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ col_widths: prev }),
+          }).catch(() => {})
+        }
         return prev
       })
       resizingRef.current = null
@@ -1469,10 +1502,7 @@ export default function CRMContactsTable({
 
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
-    if (hiddenCols.has(key)) return false
-    if (key === 'lead_status'        && !leadStatusOptions?.length) return false
-    if (key === 'origine'            && !sourceOptions?.length)     return false
-    return true
+    return !hiddenCols.has(key)
   }
 
   const visibleCols = colOrder.filter(isColVisible)
@@ -1483,7 +1513,7 @@ export default function CRMContactsTable({
       if (isDynToken(entry)) return dynamicCols.includes(entry.slice(2))
       return false
     }),
-    [mixedColOrder, hiddenCols, leadStatusOptions, sourceOptions, dynamicCols],
+    [mixedColOrder, hiddenCols, dynamicCols],
   )
   // +1 pour checkbox (optionnel) +1 pour actions — non draggables
   const totalCols = displayCols.length + (onToggleSelect ? 1 : 0) + 1
@@ -1612,17 +1642,19 @@ export default function CRMContactsTable({
       if (fromReal < 0 || toReal < 0) return prev
       next.splice(fromReal, 1)
       next.splice(toReal, 0, fromToken)
-      localStorage.setItem(MIXED_COL_STORAGE_KEY, JSON.stringify(next))
+      localStorage.setItem(mixedColOrderKey, JSON.stringify(next))
       const nativeOrder = next
         .filter(isNativeToken)
         .map(s => s.slice(2) as ColKey)
       setColOrder(nativeOrder)
-      localStorage.setItem('crm-col-order', JSON.stringify(nativeOrder))
-      fetch('/api/crm/prefs', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ col_order: nativeOrder }),
-      }).catch(() => {})
+      localStorage.setItem(colOrderKey, JSON.stringify(nativeOrder))
+      if (mode === 'admin') {
+        fetch('/api/crm/prefs', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ col_order: nativeOrder }),
+        }).catch(() => {})
+      }
       return next
     })
     resetDrag()
@@ -1645,7 +1677,7 @@ export default function CRMContactsTable({
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       setDynColWidths(prev => {
-        localStorage.setItem(DYN_COL_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
+        localStorage.setItem(dynColWidthsKey, JSON.stringify(prev))
         return prev
       })
       resizingDynRef.current = null
@@ -1818,25 +1850,37 @@ export default function CRMContactsTable({
           />
         ) : <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
 
-      case 'lead_status':
+      case 'lead_status': {
+        const statusVal = contact.hs_lead_status || ''
+        const statusOpts = ensureSelectOptions(
+          statusVal,
+          (leadStatusOptions || []).map(o => ({ id: o.id, label: o.label })),
+        )
         return (
           <InlineCellSelect
-            value={contact.hs_lead_status || ''}
-            options={(leadStatusOptions || []).map(o => ({ id: o.id, label: o.label }))}
+            value={statusVal}
+            options={statusOpts}
             onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:hs_lead_status`}
           />
         )
+      }
 
-      case 'origine':
+      case 'origine': {
+        const origineVal = contact.origine || ''
+        const origineOpts = ensureSelectOptions(
+          origineVal,
+          (sourceOptions || []).map(o => ({ id: o.id, label: o.label })),
+        )
         return (
           <InlineCellSelect
-            value={contact.origine || ''}
-            options={(sourceOptions || []).map(o => ({ id: o.id, label: o.label }))}
+            value={origineVal}
+            options={origineOpts}
             onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'origine', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:origine`}
           />
         )
+      }
 
       case 'closer': {
         const cVal    = (contact.hubspot_owner_id || deal?.hubspot_owner_id || '')
@@ -2062,17 +2106,19 @@ export default function CRMContactsTable({
             {colOrder.map(key => {
               // Toutes les colonnes sont disponibles dans le menu, même si la
               // liste d'options n'est pas chargée (les cellules afficheront —).
-              const checked = !hiddenCols.has(key)
+              const pinned = mode === 'telepro' && key === 'lead_status'
+              const checked = pinned || !hiddenCols.has(key)
               return (
                 <label key={key} style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 4px',
-                  cursor: 'pointer',
+                  cursor: pinned ? 'default' : 'pointer',
                   fontSize: 13,
                   color: '#0e1e35',
                   borderRadius: 4,
+                  opacity: pinned ? 0.75 : 1,
                 }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -2080,10 +2126,11 @@ export default function CRMContactsTable({
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={pinned}
                     onChange={() => toggleColVisibility(key)}
-                    style={{ accentColor: BLUE, cursor: 'pointer' }}
+                    style={{ accentColor: BLUE, cursor: pinned ? 'default' : 'pointer' }}
                   />
-                  {COL_LABELS[key]}
+                  {COL_LABELS[key]}{pinned ? ' (fixe)' : ''}
                 </label>
               )
             })}
