@@ -1806,7 +1806,7 @@ export default function CRMPage() {
   }
 
   const bulkPropMeta = useMemo(
-    () => allCrmProps.find(p => p.name === bulkPropName) ?? null,
+    () => resolveBulkPropMeta(bulkPropName, allCrmProps),
     [allCrmProps, bulkPropName],
   )
 
