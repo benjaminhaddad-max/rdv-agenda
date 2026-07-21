@@ -172,15 +172,20 @@ export async function triggerPropertyChangedWorkflows(
 }
 
 /**
- * Bulk write : même sémantique que le PATCH unitaire, en lots.
- * `onProgress` optionnel pour logs serveur.
+ * Bulk write : fetch en lot + updates parallèles + history en batch.
+ * Pas de workflows ni sync Benjamin awaités (trop lents en masse).
  */
 export async function writeContactPropertyBulk(
   db: SupabaseClient,
   contactIds: string[],
   property: string,
   value: unknown,
-  opts?: { sourceLabel?: string; batchSize?: number },
+  opts?: {
+    sourceLabel?: string
+    /** Concurrence des UPDATEs (défaut 40). */
+    concurrency?: number
+    skipWorkflows?: boolean
+  },
 ): Promise<{ done: number; errors: string[]; normalizedValue: string | null }> {
   const propertyMeta = await loadContactPropertyMeta(db, property)
   if (isReadOnlyProperty(propertyMeta)) {
@@ -188,42 +193,146 @@ export async function writeContactPropertyBulk(
   }
 
   const normalizedValue = normalizeContactPropertyValue(property, value, propertyMeta)
-  const BATCH = opts?.batchSize ?? 25
+  const col = HUBSPOT_PROPERTY_TO_COLUMN[property]
+  const dbColValue = normalizePropertyValueForDbColumn(normalizedValue, propertyMeta)
+  const now = new Date().toISOString()
+  const sourceLabel = opts?.sourceLabel ?? 'Modifié en masse depuis le CRM'
+  const CONCURRENCY = opts?.concurrency ?? 40
   const errors: string[] = []
   let done = 0
   const benjaminIds: string[] = []
+  const historyRows: Array<{
+    hubspot_contact_id: string
+    property_name: string
+    value: string | null
+    changed_at: string
+    source_type: string
+    source_id: null
+    source_label: string
+    source_metadata: null
+  }> = []
 
-  for (let i = 0; i < contactIds.length; i += BATCH) {
-    const chunk = contactIds.slice(i, i + BATCH)
-    // Concurrency limitée pour rester sous les timeouts / rate limits DB.
-    const CONCURRENCY = 8
-    for (let j = 0; j < chunk.length; j += CONCURRENCY) {
-      const slice = chunk.slice(j, j + CONCURRENCY)
-      const results = await Promise.all(
-        slice.map(id =>
-          writeContactProperty(db, id, property, value, {
-            propertyMeta,
-            sourceLabel: opts?.sourceLabel ?? 'Modifié en masse depuis le CRM',
-            skipBenjaminSync: true,
-          }),
-        ),
-      )
-      for (const r of results) {
-        if (!r.ok) {
-          errors.push(`${r.contactId}: ${r.error}`)
-          continue
-        }
-        done += 1
-        if (isTeleproProperty(property) && isBenjaminTeleproId(String(r.normalizedValue ?? ''))) {
-          benjaminIds.push(r.contactId)
-        }
-        await triggerPropertyChangedWorkflows(db, r.contactId, property, r.normalizedValue)
+  // Fetch identity rows par pages de 200 (limite PostgREST `.in`).
+  const FETCH = 200
+  const existingById = new Map<string, Record<string, unknown>>()
+  for (let i = 0; i < contactIds.length; i += FETCH) {
+    const idChunk = contactIds.slice(i, i + FETCH)
+    const { data, error } = await db
+      .from('crm_contacts')
+      .select(CONTACT_IDENTITY_COLUMNS.join(','))
+      .in('hubspot_contact_id', idChunk)
+    if (error) {
+      errors.push(`fetch: ${error.message}`)
+      continue
+    }
+    for (const row of data ?? []) {
+      const r = row as unknown as Record<string, unknown>
+      const id = String(r.hubspot_contact_id ?? '')
+      if (id) existingById.set(id, r)
+    }
+  }
+
+  // Updates parallèles
+  const ids = contactIds.filter(id => {
+    if (existingById.has(id)) return true
+    errors.push(`${id}: Contact introuvable`)
+    return false
+  })
+
+  for (let i = 0; i < ids.length; i += CONCURRENCY) {
+    const slice = ids.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(slice.map(async (contactId) => {
+      const existing = existingById.get(contactId)!
+      const update: Record<string, unknown> = {
+        synced_at: now,
+        hubspot_raw: mergeSafeHubspotRaw(existing, { [property]: normalizedValue }),
+      }
+      if (col) update[col] = dbColValue
+
+      const { error: updateErr } = await db
+        .from('crm_contacts')
+        .update(update)
+        .eq('hubspot_contact_id', contactId)
+
+      if (updateErr) return { ok: false as const, contactId, error: updateErr.message }
+      return { ok: true as const, contactId }
+    }))
+
+    for (const r of results) {
+      if (!r.ok) {
+        errors.push(`${r.contactId}: ${r.error}`)
+        continue
+      }
+      done += 1
+      historyRows.push({
+        hubspot_contact_id: r.contactId,
+        property_name: property,
+        value: normalizedValue === null ? null : String(normalizedValue),
+        changed_at: now,
+        source_type: 'CRM_UI',
+        source_id: null,
+        source_label: sourceLabel,
+        source_metadata: null,
+      })
+      if (isTeleproProperty(property) && isBenjaminTeleproId(String(normalizedValue ?? ''))) {
+        benjaminIds.push(r.contactId)
       }
     }
   }
 
+  // History en un seul insert (chunks de 500)
+  for (let i = 0; i < historyRows.length; i += 500) {
+    const rows = historyRows.slice(i, i + 500)
+    try {
+      const { error } = await db.from('crm_property_history').insert(rows)
+      if (error) console.warn('[crm-contact-prop-write] bulk history insert failed:', error.message)
+    } catch (e) {
+      console.warn('[crm-contact-prop-write] bulk history insert failed:', e)
+    }
+  }
+
+  // Workflows : volontairement skip en bulk (trop lent). Option pour réactiver.
+  if (opts?.skipWorkflows === false && done > 0) {
+    const sampleIds = ids.slice(0, Math.min(ids.length, done))
+    // Charge les workflows UNE fois, puis enroll en parallèle limité.
+    try {
+      const { enrollContact } = await import('@/lib/workflow-engine')
+      const { data: workflows } = await db
+        .from('crm_workflows')
+        .select('id, trigger_config')
+        .eq('status', 'active')
+        .eq('trigger_type', 'property_changed')
+      const matching = (workflows ?? []).filter(wf => {
+        const cfg = (wf.trigger_config ?? {}) as { property?: string; to?: string | string[] }
+        if (cfg.property && cfg.property !== property) return false
+        if (cfg.to !== undefined && cfg.to !== null) {
+          const expected = Array.isArray(cfg.to) ? cfg.to : [cfg.to]
+          if (!expected.includes(String(normalizedValue ?? ''))) return false
+        }
+        return true
+      })
+      if (matching.length > 0) {
+        const WF_CONC = 10
+        for (let i = 0; i < sampleIds.length; i += WF_CONC) {
+          const slice = sampleIds.slice(i, i + WF_CONC)
+          await Promise.all(
+            slice.flatMap(contactId =>
+              matching.map(wf =>
+                enrollContact(db, wf.id, contactId, { property, value: normalizedValue, source: 'CRM_UI' })
+                  .catch(() => {}),
+              ),
+            ),
+          )
+        }
+      }
+    } catch (e) {
+      console.warn('[crm-contact-prop-write] bulk workflow trigger failed:', e)
+    }
+  }
+
   if (benjaminIds.length > 0) {
-    await triggerBenjaminSheetSyncForContacts(db, benjaminIds)
+    // Best-effort, ne bloque pas la réponse si lent
+    void triggerBenjaminSheetSyncForContacts(db, benjaminIds)
   }
 
   return { done, errors, normalizedValue }

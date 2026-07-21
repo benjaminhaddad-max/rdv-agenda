@@ -1833,7 +1833,7 @@ export default function CRMPage() {
     setBulkUpdating(true)
     const allIds = [...selectedIds]
     const propertyName = bulkPropName
-    const CHUNK = 200
+    const CHUNK = 500
     let done = 0
     let appliedValue: string = bulkPropValue
     const allErrors: string[] = []
@@ -1849,7 +1849,6 @@ export default function CRMPage() {
             contact_ids: chunk,
             property: propertyName,
             value: bulkPropValue,
-            // MV refresh une seule fois en fin de run (évite N refreshes lents).
             refresh_mv: isLast,
           }),
         })
