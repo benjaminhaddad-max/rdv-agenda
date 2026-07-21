@@ -124,19 +124,26 @@ function normalizeSearch(s: string): string {
     .trim()
 }
 
+const SEARCH_STOPWORDS = new Set(['du', 'de', 'des', 'la', 'le', 'les', 'un', 'une', 'et', 'a', 'au', 'aux'])
+
 function matchesQuery(p: BulkProp, q: string): boolean {
   if (!q) return true
   const nq = normalizeSearch(q)
-  const tokens = nq.split(' ').filter(Boolean)
-  const haystacks = [
-    p.label,
-    p.name,
-    p.group_name || '',
-    ...(p.aliases || []),
-  ].map(normalizeSearch)
-  return haystacks.some(h =>
-    h.includes(nq) || tokens.every(tok => h.includes(tok)),
+  if (!nq) return true
+
+  // hs_lead_status : toujours visible pour statut / status / lead
+  if (p.name === 'hs_lead_status') {
+    if (nq.includes('statut') || nq.includes('status') || nq.includes('lead')) return true
+  }
+
+  const blob = normalizeSearch(
+    [p.label, p.name, p.group_name || '', ...(p.aliases || [])].join(' '),
   )
+  if (blob.includes(nq)) return true
+
+  const tokens = nq.split(' ').filter(t => t.length >= 2 && !SEARCH_STOPWORDS.has(t))
+  if (tokens.length === 0) return false
+  return tokens.every(tok => blob.includes(tok))
 }
 
 function mergeWithCatalog(base: BulkProp, catalog: CrmPropertyMeta | undefined): BulkProp {
@@ -186,9 +193,21 @@ export function CRMBulkPropertyPicker({
 
   // Section Fréquentes : toujours dérivée de FREQUENT_PROPS (jamais du catalogue seul).
   const frequentMatched = useMemo(() => {
-    return FREQUENT_PROPS
+    const matched = FREQUENT_PROPS
       .map(p => mergeWithCatalog(p, catalogByName.get(p.name)))
       .filter(p => matchesQuery(p, q))
+    // Garantie : si la query parle de statut, hs_lead_status est en tête.
+    if (q && !matched.some(p => p.name === 'hs_lead_status')) {
+      const nq = normalizeSearch(q)
+      if (nq.includes('statut') || nq.includes('status') || nq.includes('lead')) {
+        const lead = mergeWithCatalog(
+          FREQUENT_PROPS.find(p => p.name === 'hs_lead_status')!,
+          catalogByName.get('hs_lead_status'),
+        )
+        return [lead, ...matched]
+      }
+    }
+    return matched
   }, [catalogByName, q])
 
   const catalogMatched = useMemo(() => {
