@@ -2,82 +2,117 @@
 
 /**
  * Picker searchable pour choisir une propriété CRM à éditer en masse.
- * Catalogue = crm_properties + props métier épinglées (libellés FR + alias).
+ * Les props métier courantes sont TOUJOURS proposées en tête (libellés FR),
+ * indépendamment du catalogue HubSpot (souvent en anglais).
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
-import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
 import type { CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 
-/** Props les plus utilisées en bulk, avec libellés FR (souvent absents / EN dans HubSpot). */
-const PINNED_BULK_PROPS: Array<{
-  name: string
-  label: string
-  aliases: string[]
-  type?: string
-  field_type?: string
-  options?: Array<{ label: string; value: string }> | null
-}> = [
+type BulkProp = CrmPropertyMeta & { aliases?: string[] }
+
+/** Options statut lead — inline pour éviter tout souci d'import circulaire. */
+const LEAD_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
+  { value: 'Nouveau', label: 'Nouveau' },
+  { value: 'Nouveau - Chaud', label: 'Nouveau - Chaud' },
+  { value: 'En cours', label: 'En cours' },
+  { value: 'RDV pris', label: 'RDV pris' },
+  { value: 'A replanifier', label: 'A replanifier' },
+  { value: 'A relancer', label: 'A relancer' },
+  { value: 'NRP1', label: 'NRP1' },
+  { value: 'NRP2', label: 'NRP2' },
+  { value: 'NRP3', label: 'NRP3' },
+  { value: 'NRP4', label: 'NRP4' },
+  { value: 'Raccroche au nez', label: 'Raccroche au nez' },
+  { value: 'Mauvais numéro', label: 'Mauvais numéro' },
+  { value: 'En attente / Réfléchit', label: 'En attente / Réfléchit' },
+  { value: 'Autre prépa concurrente', label: 'Autre prépa concurrente' },
+  { value: "A garder pour l'an prochain", label: "A garder pour l'an prochain" },
+  { value: 'Pré-inscrit 2025/2026', label: 'Pré-inscrit 2025/2026' },
+  { value: 'Pré-inscrit 2026/2027', label: 'Pré-inscrit 2026/2027' },
+  { value: 'Inscrit', label: 'Inscrit' },
+  { value: 'Doublon', label: 'Doublon' },
+  { value: 'Disqualifié', label: 'Disqualifié' },
+]
+
+const FREQUENT_PROPS: BulkProp[] = [
   {
     name: 'hs_lead_status',
     label: 'Statut du lead',
-    aliases: ['statut', 'statut lead', 'lead status', 'status', 'statut du lead'],
+    group_name: 'Fréquentes',
     type: 'enumeration',
     field_type: 'select',
-    options: LEAD_STATUS_OPTIONS_FALLBACK.map(o => ({ label: o.label, value: o.id })),
+    options: LEAD_STATUS_OPTIONS,
+    aliases: ['statut', 'statut lead', 'statut du lead', 'lead status', 'status', 'lead'],
   },
   {
     name: 'origine',
     label: 'Origine',
-    aliases: ['source', 'origine du lead'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['source', 'origine du lead'],
   },
   {
     name: 'classe_actuelle',
     label: 'Classe actuelle',
-    aliases: ['classe', 'niveau'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['classe', 'niveau'],
   },
   {
     name: 'zone___localite',
     label: 'Zone / Localité',
-    aliases: ['zone', 'localite', 'localité'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['zone', 'localite', 'localité'],
   },
   {
     name: 'departement',
     label: 'Département',
-    aliases: ['dept', 'département'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['dept', 'département'],
   },
   {
     name: 'formation_souhaitee',
     label: 'Formation souhaitée',
-    aliases: ['formation'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['formation'],
   },
   {
     name: 'telepro_user_id',
     label: 'Télépro',
-    aliases: ['telepro', 'télépro', 'teleprospecteur'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['telepro', 'télépro', 'teleprospecteur'],
   },
   {
     name: 'closer_du_contact_owner_id',
     label: 'Closer du contact',
-    aliases: ['closer'],
+    group_name: 'Fréquentes',
     type: 'string',
     field_type: 'text',
+    options: null,
+    aliases: ['closer'],
   },
 ]
+
+const FREQUENT_NAMES = new Set(FREQUENT_PROPS.map(p => p.name))
 
 function normalizeSearch(s: string): string {
   return s
@@ -89,16 +124,32 @@ function normalizeSearch(s: string): string {
     .trim()
 }
 
-function matchesQuery(p: CrmPropertyMeta & { aliases?: string[] }, q: string): boolean {
+function matchesQuery(p: BulkProp, q: string): boolean {
   if (!q) return true
   const nq = normalizeSearch(q)
+  const tokens = nq.split(' ').filter(Boolean)
   const haystacks = [
     p.label,
     p.name,
     p.group_name || '',
     ...(p.aliases || []),
   ].map(normalizeSearch)
-  return haystacks.some(h => h.includes(nq) || nq.split(' ').every(tok => tok && h.includes(tok)))
+  return haystacks.some(h =>
+    h.includes(nq) || tokens.every(tok => h.includes(tok)),
+  )
+}
+
+function mergeWithCatalog(base: BulkProp, catalog: CrmPropertyMeta | undefined): BulkProp {
+  if (!catalog) return base
+  const options = (catalog.options && catalog.options.length > 0)
+    ? catalog.options
+    : base.options
+  return {
+    ...base,
+    type: catalog.type || base.type,
+    field_type: catalog.field_type || base.field_type,
+    options,
+  }
 }
 
 export function CRMBulkPropertyPicker({
@@ -123,74 +174,64 @@ export function CRMBulkPropertyPicker({
     return () => document.removeEventListener('mousedown', h)
   }, [open])
 
-  const editable = useMemo(() => {
-    const byName = new Map<string, CrmPropertyMeta & { aliases?: string[]; pinned?: boolean }>()
-
+  const catalogByName = useMemo(() => {
+    const map = new Map<string, CrmPropertyMeta>()
     for (const p of crmProps) {
-      if (isReadOnlyProperty(p)) continue
-      byName.set(p.name, { ...p })
+      if (!isReadOnlyProperty(p)) map.set(p.name, p)
     }
-
-    // Épinglées en premier : forcent le libellé FR + alias, et créent la prop
-    // si absente du catalogue HubSpot.
-    for (const pin of PINNED_BULK_PROPS) {
-      const existing = byName.get(pin.name)
-      const options = (existing?.options && existing.options.length > 0)
-        ? existing.options
-        : (pin.options ?? null)
-      byName.set(pin.name, {
-        name: pin.name,
-        label: pin.label,
-        group_name: existing?.group_name ?? 'Fréquentes',
-        type: existing?.type ?? pin.type ?? 'string',
-        field_type: existing?.field_type ?? pin.field_type ?? 'text',
-        options,
-        aliases: pin.aliases,
-        pinned: true,
-      })
-    }
-
-    const pinnedNames = new Set(PINNED_BULK_PROPS.map(p => p.name))
-    const pinned = PINNED_BULK_PROPS
-      .map(p => byName.get(p.name)!)
-      .filter(Boolean)
-    const rest = [...byName.values()]
-      .filter(p => !pinnedNames.has(p.name))
-      .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-
-    return [...pinned, ...rest]
+    return map
   }, [crmProps])
 
-  const current = editable.find(p => p.name === value)
   const q = search.trim()
 
-  const filtered = useMemo(() => {
-    const matched = editable.filter(p => matchesQuery(p, q))
-    // Sans recherche : montrer les épinglées + un échantillon du catalogue.
-    if (!q) {
-      const pinned = matched.filter(p => (p as { pinned?: boolean }).pinned)
-      const rest = matched.filter(p => !(p as { pinned?: boolean }).pinned).slice(0, 60)
-      return [...pinned, ...rest]
-    }
-    return matched.slice(0, 120)
-  }, [editable, q])
+  // Section Fréquentes : toujours dérivée de FREQUENT_PROPS (jamais du catalogue seul).
+  const frequentMatched = useMemo(() => {
+    return FREQUENT_PROPS
+      .map(p => mergeWithCatalog(p, catalogByName.get(p.name)))
+      .filter(p => matchesQuery(p, q))
+  }, [catalogByName, q])
 
-  const grouped = useMemo(() => {
-    const map: Record<string, Array<CrmPropertyMeta & { aliases?: string[]; pinned?: boolean }>> = {}
-    for (const p of filtered) {
-      const g = (p as { pinned?: boolean }).pinned
-        ? 'Fréquentes'
-        : (p.group_name || 'Autres')
-      if (!map[g]) map[g] = []
-      map[g].push(p)
+  const catalogMatched = useMemo(() => {
+    const list: BulkProp[] = []
+    for (const p of crmProps) {
+      if (FREQUENT_NAMES.has(p.name)) continue
+      if (isReadOnlyProperty(p)) continue
+      if (!matchesQuery(p, q)) continue
+      list.push(p)
     }
-    // "Fréquentes" en premier
-    return Object.entries(map).sort(([a], [b]) => {
-      if (a === 'Fréquentes') return -1
-      if (b === 'Fréquentes') return 1
-      return a.localeCompare(b, 'fr')
-    })
-  }, [filtered])
+    if (!q) return list.slice(0, 50)
+    return list.slice(0, 100)
+  }, [crmProps, q])
+
+  const currentLabel = useMemo(() => {
+    const freq = FREQUENT_PROPS.find(p => p.name === value)
+    if (freq) return freq.label
+    const cat = catalogByName.get(value)
+    return cat?.label || null
+  }, [value, catalogByName])
+
+  function renderItem(p: BulkProp) {
+    return (
+      <button
+        key={p.name}
+        type="button"
+        onClick={() => { onChange(p.name); setOpen(false) }}
+        style={{
+          display: 'block', width: '100%', textAlign: 'left',
+          padding: '7px 12px', border: 'none',
+          background: p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent',
+          color: '#3D5275', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+        }}
+        onMouseEnter={e => { if (p.name !== value) e.currentTarget.style.background = '#faf7f0' }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent'
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>{p.label}</div>
+        <div style={{ fontSize: 10, color: '#8a9bb0', marginTop: 1 }}>{p.name}</div>
+      </button>
+    )
+  }
 
   return (
     <div ref={ref} style={{ position: 'relative', minWidth: 220 }}>
@@ -205,7 +246,7 @@ export function CRMBulkPropertyPicker({
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {current ? current.label : '— Choisir une propriété —'}
+          {currentLabel || '— Choisir une propriété —'}
         </span>
         <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
       </button>
@@ -222,7 +263,7 @@ export function CRMBulkPropertyPicker({
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher une propriété…"
+              placeholder="Ex. statut du lead…"
               style={{
                 flex: 1, border: 'none', outline: 'none', fontSize: 12,
                 fontFamily: 'inherit', color: '#3D5275', background: 'transparent',
@@ -230,36 +271,31 @@ export function CRMBulkPropertyPicker({
             />
           </div>
           <div style={{ overflowY: 'auto', padding: '4px 0' }}>
-            {grouped.length === 0 && (
+            {frequentMatched.length === 0 && catalogMatched.length === 0 && (
               <div style={{ padding: '10px 12px', fontSize: 12, color: '#3D5275' }}>Aucun résultat</div>
             )}
-            {grouped.map(([group, props]) => (
-              <div key={group}>
+            {frequentMatched.length > 0 && (
+              <div>
                 <div style={{
                   padding: '6px 12px 2px', fontSize: 10, fontWeight: 700,
                   color: '#8a6e3a', textTransform: 'uppercase', letterSpacing: 0.4,
                 }}>
-                  {group}
+                  Fréquentes
                 </div>
-                {props.map(p => (
-                  <button
-                    key={p.name}
-                    type="button"
-                    onClick={() => { onChange(p.name); setOpen(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '7px 12px', border: 'none', background: p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent',
-                      color: '#3D5275', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
-                    }}
-                    onMouseEnter={e => { if (p.name !== value) e.currentTarget.style.background = '#faf7f0' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent' }}
-                  >
-                    <div style={{ fontWeight: 600 }}>{p.label}</div>
-                    <div style={{ fontSize: 10, color: '#8a9bb0', marginTop: 1 }}>{p.name}</div>
-                  </button>
-                ))}
+                {frequentMatched.map(renderItem)}
               </div>
-            ))}
+            )}
+            {catalogMatched.length > 0 && (
+              <div>
+                <div style={{
+                  padding: '6px 12px 2px', fontSize: 10, fontWeight: 700,
+                  color: '#8a6e3a', textTransform: 'uppercase', letterSpacing: 0.4,
+                }}>
+                  Toutes les propriétés
+                </div>
+                {catalogMatched.map(renderItem)}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -273,18 +309,18 @@ export function resolveBulkPropMeta(
   crmProps: CrmPropertyMeta[],
 ): CrmPropertyMeta | null {
   if (!propertyName) return null
-  const pin = PINNED_BULK_PROPS.find(p => p.name === propertyName)
+  const freq = FREQUENT_PROPS.find(p => p.name === propertyName)
   const fromCatalog = crmProps.find(p => p.name === propertyName) ?? null
-  if (!pin && !fromCatalog) return null
+  if (!freq && !fromCatalog) return null
   const options = (fromCatalog?.options && fromCatalog.options.length > 0)
     ? fromCatalog.options
-    : (pin?.options ?? null)
+    : (freq?.options ?? null)
   return {
     name: propertyName,
-    label: pin?.label || fromCatalog?.label || propertyName,
-    group_name: fromCatalog?.group_name ?? pin?.label ?? null,
-    type: fromCatalog?.type ?? pin?.type ?? 'string',
-    field_type: fromCatalog?.field_type ?? pin?.field_type ?? 'text',
+    label: freq?.label || fromCatalog?.label || propertyName,
+    group_name: fromCatalog?.group_name ?? 'Fréquentes',
+    type: fromCatalog?.type ?? freq?.type ?? 'string',
+    field_type: fromCatalog?.field_type ?? freq?.field_type ?? 'text',
     options,
   }
 }
