@@ -253,7 +253,7 @@ export function CRMBulkPropertyPicker({
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 220 }}>
+    <div ref={ref} style={{ position: 'relative', minWidth: 220, zIndex: open ? 10000 : 'auto' }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -271,7 +271,7 @@ export function CRMBulkPropertyPicker({
       </button>
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40,
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10000,
           marginTop: 4, background: '#fff', border: '1px solid #e5ddc8',
           borderRadius: 8, boxShadow: '0 8px 24px rgba(15,31,61,0.12)',
           maxHeight: 320, overflow: 'hidden', display: 'flex', flexDirection: 'column',

@@ -2414,7 +2414,7 @@ export default function CRMPage() {
         {/* ── Barre sélection en masse ───────────────────────────────────────── */}
         {(selectedIds.size > 0 || selectingAllView) && (
           <div style={{
-            position: 'sticky', top: 0, zIndex: 10,
+            position: 'sticky', top: 0, zIndex: 40,
             background: '#ffffff', border: `1px solid #e5ddc8`,
             borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
             display: 'flex', flexDirection: 'column', gap: 10,
@@ -2560,8 +2560,11 @@ export default function CRMPage() {
                 alignItems: 'flex-end',
                 gap: 10,
                 flexWrap: 'wrap',
+                position: 'relative',
+                zIndex: 50,
+                overflow: 'visible',
               }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, position: 'relative', zIndex: 50, overflow: 'visible' }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#3D5275' }}>Propriété</label>
                   <CRMBulkPropertyPicker
                     value={bulkPropName}
