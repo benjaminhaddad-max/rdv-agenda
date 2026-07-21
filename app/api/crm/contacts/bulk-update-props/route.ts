@@ -5,17 +5,17 @@ import { writeContactPropertyBulk } from '@/lib/crm-contact-prop-write'
 
 /**
  * POST /api/crm/contacts/bulk-update-props
- * Body: { contact_ids: string[], property: string, value: unknown }
+ * Body: { contact_ids: string[], property: string, value: unknown, refresh_mv?: boolean }
  *
- * Met à jour une propriété HubSpot/CRM sur N contacts (même sémantique que PATCH /prop).
- * Le client doit découper les gros volumes en chunks pour éviter les timeouts.
+ * Écrit uniquement dans Supabase (colonnes + hubspot_raw). Aucun appel HubSpot.
+ * Le client découpe les gros volumes ; `refresh_mv` uniquement sur le dernier lot.
  */
 export async function POST(req: NextRequest) {
   const authz = await requireApiRole(['admin'])
   if (!authz.ok) return authz.response
 
   const db = createServiceClient()
-  let body: { contact_ids?: unknown; property?: unknown; value?: unknown }
+  let body: { contact_ids?: unknown; property?: unknown; value?: unknown; refresh_mv?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   const contactIds = Array.isArray(body.contact_ids)
     ? [...new Set(body.contact_ids.map(id => String(id ?? '').trim()).filter(Boolean))]
     : []
+  const refreshMv = body.refresh_mv !== false
 
   if (!property) {
     return NextResponse.json({ error: 'property required' }, { status: 400 })
@@ -46,11 +47,13 @@ export async function POST(req: NextRequest) {
     { sourceLabel: 'Modifié en masse depuis le CRM', batchSize: 25 },
   )
 
-  // Refresh MV pour que la liste reflète immédiatement la nouvelle valeur
-  // (colonnes connues : statut, télépro, origine, etc.).
-  const { error: refreshError } = await db.rpc('crm_refresh_contacts_fast_mv')
-  if (refreshError) {
-    errors.push(`fast_mv_refresh: ${refreshError.message}`)
+  // Refresh MV optionnel (coûteux) — le client ne le demande que sur le dernier lot.
+  // L'UI applique aussi un patch optimiste, donc pas bloquant pour l'affichage.
+  if (refreshMv) {
+    const { error: refreshError } = await db.rpc('crm_refresh_contacts_fast_mv')
+    if (refreshError) {
+      errors.push(`fast_mv_refresh: ${refreshError.message}`)
+    }
   }
 
   return NextResponse.json({
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
     total: contactIds.length,
     property,
     value: normalizedValue,
+    hubspot_mirrored: false,
     errors: errors.length > 0 ? errors.slice(0, 50) : undefined,
     errors_truncated: errors.length > 50,
   })

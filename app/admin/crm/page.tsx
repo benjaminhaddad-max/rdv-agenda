@@ -32,7 +32,8 @@ const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), 
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { CRMBulkPropertyPicker, resolveBulkPropMeta } from '@/components/crm/CRMBulkPropertyPicker'
 import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
-import { getCached, invalidate, refetch } from '@/lib/client-cache'
+import { getCached, invalidate, invalidatePrefix, refetch } from '@/lib/client-cache'
+import { HUBSPOT_PROPERTY_TO_COLUMN } from '@/lib/crm-contact-write'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { buildEdumoveGroups, isEdumoveGroups } from '@/lib/edumove-crm-view'
@@ -474,6 +475,8 @@ export default function CRMPage() {
   const lastFetchSignatureRef = useRef('')
   const contactsAbortRef = useRef<AbortController | null>(null)
   const didInitViewFromUrlRef = useRef(false)
+  /** Force le prochain fetchContacts à bypasser le cache (après bulk edit). */
+  const forceFreshListRef = useRef(false)
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
   useEffect(() => {
@@ -924,8 +927,9 @@ export default function CRMPage() {
     } else {
       params.set('exact_count', '1')
     }
-    if (BYPASS_CRM_CACHE) {
+    if (BYPASS_CRM_CACHE || forceFreshListRef.current) {
       params.set('no_cache', '1')
+      params.set('force_sql', '1')
     }
     if (activeViewId) params.set('view_id', activeViewId)
     if (debouncedSearch)      params.set('search', debouncedSearch)
@@ -1098,6 +1102,11 @@ export default function CRMPage() {
     // Cache hit (typiquement : retour sur la page apres avoir ouvert un
     // contact) → render immediat avec les anciennes donnees, puis revalidation
     // silencieuse en arriere-plan.
+    // Après un bulk edit, on ignore volontairement le cache stale.
+    if (forceFreshListRef.current) {
+      invalidate(url)
+      forceFreshListRef.current = false
+    }
     const cached = getCached<
       | {
           payload?: { data?: CRMContact[]; total?: number; total_estimated?: boolean }
@@ -1823,20 +1832,25 @@ export default function CRMPage() {
 
     setBulkUpdating(true)
     const allIds = [...selectedIds]
+    const propertyName = bulkPropName
     const CHUNK = 200
     let done = 0
+    let appliedValue: string = bulkPropValue
     const allErrors: string[] = []
     setBulkUpdateProgress({ done: 0, total: allIds.length })
     try {
       for (let i = 0; i < allIds.length; i += CHUNK) {
         const chunk = allIds.slice(i, i + CHUNK)
+        const isLast = i + CHUNK >= allIds.length
         const res = await fetch('/api/crm/contacts/bulk-update-props', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contact_ids: chunk,
-            property: bulkPropName,
+            property: propertyName,
             value: bulkPropValue,
+            // MV refresh une seule fois en fin de run (évite N refreshes lents).
+            refresh_mv: isLast,
           }),
         })
         const d = await res.json().catch(() => ({}))
@@ -1844,12 +1858,32 @@ export default function CRMPage() {
           throw new Error(d?.error || `Erreur mise à jour (lot ${Math.floor(i / CHUNK) + 1})`)
         }
         done += typeof d.done === 'number' ? d.done : chunk.length
+        if (d.value !== undefined && d.value !== null) appliedValue = String(d.value)
         if (Array.isArray(d.errors)) allErrors.push(...d.errors)
         setBulkUpdateProgress({ done, total: allIds.length })
       }
       if (allErrors.length > 0) {
         alert(`Mise à jour partielle : ${done}/${allIds.length} OK.\n\nExemples d'erreurs :\n${allErrors.slice(0, 5).join('\n')}`)
       }
+
+      // Affichage immédiat (pas d'attente MV / cache) — 100 % Supabase, pas HubSpot.
+      const idSet = new Set(allIds)
+      const col = HUBSPOT_PROPERTY_TO_COLUMN[propertyName]
+      setContacts(prev => prev.map(c => {
+        if (!idSet.has(c.hubspot_contact_id)) return c
+        const next: CRMContact = { ...c }
+        if (col) (next as unknown as Record<string, unknown>)[col] = appliedValue
+        const extra: Record<string, unknown> = { ...(next.extra_props ?? {}), [propertyName]: appliedValue }
+        if (propertyName === 'telepro_user_id' || propertyName === 'teleprospecteur') {
+          extra.teleprospecteur = appliedValue
+          next.telepro_user_id = appliedValue
+        }
+        next.extra_props = extra
+        return next
+      }))
+
+      invalidatePrefix('/api/crm/contacts')
+      forceFreshListRef.current = true
       clearSelection()
       await fetchContacts(true)
     } catch (e) {
