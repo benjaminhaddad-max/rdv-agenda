@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen } from 'lucide-react'
+import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil } from 'lucide-react'
 import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
@@ -30,6 +30,8 @@ import {
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
+import { CRMBulkPropertyPicker } from '@/components/crm/CRMBulkPropertyPicker'
+import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
 import { getCached, invalidate, refetch } from '@/lib/client-cache'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -450,9 +452,19 @@ export default function CRMPage() {
 
   // Sélection en masse + drawer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /** 'page' = sélection manuelle / page ; 'view' = tous les contacts matching la vue. */
+  const [selectionScope, setSelectionScope] = useState<'page' | 'view'>('page')
+  const [selectingAllView, setSelectingAllView] = useState(false)
+  const [selectAllViewProgress, setSelectAllViewProgress] = useState<{ loaded: number; total: number } | null>(null)
+  const selectAllViewAbortRef = useRef<AbortController | null>(null)
   const [bulkTeleproId, setBulkTeleproId] = useState('')
   const [bulkAssigning, setBulkAssigning] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkPropOpen, setBulkPropOpen] = useState(false)
+  const [bulkPropName, setBulkPropName] = useState('')
+  const [bulkPropValue, setBulkPropValue] = useState('')
+  const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [bulkUpdateProgress, setBulkUpdateProgress] = useState<{ done: number; total: number } | null>(null)
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
 
   const [limit, setLimit] = useState(50)
@@ -784,6 +796,12 @@ export default function CRMPage() {
   // ── Récupérer les contacts ───────────────────────────────────────────────────
 
   const fetchContacts = useCallback(async (resetPage = false) => {
+    // Si une sélection « toute la vue » est en cours, on l'annule : les filtres
+    // viennent de changer et les IDs en cours de chargement ne seraient plus valides.
+    selectAllViewAbortRef.current?.abort()
+    setSelectingAllView(false)
+    setSelectAllViewProgress(null)
+
     contactsAbortRef.current?.abort()
     const requestAbort = new AbortController()
     contactsAbortRef.current = requestAbort
@@ -1370,6 +1388,11 @@ export default function CRMPage() {
     setTotal(0)
     setTotalEstimated(false)
     setSelectedIds(new Set())
+    setSelectionScope('page')
+    setBulkPropOpen(false)
+    selectAllViewAbortRef.current?.abort()
+    setSelectingAllView(false)
+    setSelectAllViewProgress(null)
     // Evite qu'un ancien état UI (classes/externe) réduise silencieusement
     // les résultats d'une vue sauvegardée.
     setShowExternal(true)
@@ -1563,7 +1586,20 @@ export default function CRMPage() {
 
   // ── Sélection en masse ────────────────────────────────────────────────────────
 
+  function clearSelection() {
+    setSelectedIds(new Set())
+    setSelectionScope('page')
+    setBulkPropOpen(false)
+    setBulkPropName('')
+    setBulkPropValue('')
+    setBulkUpdateProgress(null)
+    selectAllViewAbortRef.current?.abort()
+    setSelectingAllView(false)
+    setSelectAllViewProgress(null)
+  }
+
   function toggleSelect(id: string) {
+    setSelectionScope('page')
     setSelectedIds(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -1573,20 +1609,131 @@ export default function CRMPage() {
   }
 
   function selectAllPage(ids: string[]) {
+    setSelectionScope('page')
     setSelectedIds(prev => new Set([...prev, ...ids]))
   }
 
   function deselectAll() {
-    setSelectedIds(new Set())
+    clearSelection()
   }
 
   function selectFirst(n: number) {
+    setSelectionScope('page')
     const ids = displayed.slice(0, n).map(c => c.hubspot_contact_id)
     setSelectedIds(new Set(ids))
   }
 
   function selectAll() {
+    setSelectionScope('page')
     setSelectedIds(new Set(displayed.map(c => c.hubspot_contact_id)))
+  }
+
+  /** Params de liste alignés sur fetchContacts (pour select-all-view / export IDs). */
+  function buildCurrentListParams(): URLSearchParams {
+    const activeView = crmViews.find(v => v.id === activeViewId)
+    const activeViewName = (activeView?.name ?? '').toLowerCase()
+    const forceMetaAdsOnly = activeViewId === 'v_meta_ads_all' || activeViewName.includes('meta ads')
+    const params = new URLSearchParams()
+    if (activeViewId) params.set('view_id', activeViewId)
+    if (debouncedSearch)      params.set('search', debouncedSearch)
+    if (stage)                params.set('stage', stage)
+    if (closerHsId)           params.set('closer_hs_id', closerHsId)
+    if (closerContactHsId)    params.set('closer_contact_hs_id', closerContactHsId)
+    if (closerContactNot)     params.set('closer_contact_not', closerContactNot)
+    if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
+    if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
+    if (noTelepro)            params.set('no_telepro', '1')
+    if (ownerExclude)         params.set('owner_exclude', ownerExclude)
+    if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
+    if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
+    if (createdBeforeDays > 0) params.set('created_before_days', String(createdBeforeDays))
+    const forceStableViewScope = !!activeViewId && activeViewId !== 'all'
+    if (showExternal || forceStableViewScope) params.set('show_external', '1')
+    if (allClasses || forceMetaAdsOnly || forceStableViewScope) params.set('all_classes', '1')
+    if (leadStatus)           params.set('lead_status', leadStatus)
+    if (source)               params.set('source', source)
+    if (formEvent)            params.set('form_event', formEvent)
+    if (parcoursupVerdict)    params.set('parcoursup_verdict', parcoursupVerdict)
+    if (zoneFilter)           params.set('zone', zoneFilter)
+    if (deptFilter)           params.set('departement', deptFilter)
+    if (stageNot)             params.set('stage_not', stageNot)
+    if (leadStatusNot)        params.set('lead_status_not', leadStatusNot)
+    if (sourceNot)            params.set('source_not', sourceNot)
+    if (formEventNot)         params.set('form_event_not', formEventNot)
+    if (zoneNot)              params.set('zone_not', zoneNot)
+    if (deptNot)              params.set('departement_not', deptNot)
+    if (closerNot)            params.set('closer_not', closerNot)
+    if (contactOwnerNot)      params.set('contact_owner_not', contactOwnerNot)
+    if (teleproNot)           params.set('telepro_not', teleproNot)
+    if (formationNot)         params.set('formation_not', formationNot)
+    if (pipeline)             params.set('pipeline', pipeline)
+    if (pipelineNot)          params.set('pipeline_not', pipelineNot)
+    if (priorPreinscription)  params.set('prior_preinscription', '1')
+    if (emptyFields)          params.set('empty_fields', emptyFields)
+    if (notEmptyFields)       params.set('not_empty_fields', notEmptyFields)
+    if (formation)            params.set('formation', formation)
+    if (classe)               params.set('classe', classe)
+    if (period)               params.set('period', period)
+    params.set('sort_by', sortBy)
+    params.set('sort_dir', sortDir)
+    if (customFilterParam && !forceMetaAdsOnly) params.set('cf', customFilterParam)
+    if (forceMetaAdsOnly) params.set('meta_ads_only', '1')
+    return params
+  }
+
+  const pageFullySelected =
+    displayed.length > 0 &&
+    displayed.every(c => selectedIds.has(c.hubspot_contact_id))
+  const canSelectEntireView =
+    pageFullySelected &&
+    selectionScope === 'page' &&
+    total > displayed.length &&
+    !selectingAllView
+
+  async function selectAllMatchingView() {
+    if (selectingAllView) return
+    selectAllViewAbortRef.current?.abort()
+    const abort = new AbortController()
+    selectAllViewAbortRef.current = abort
+
+    setSelectingAllView(true)
+    setSelectAllViewProgress({ loaded: 0, total })
+    try {
+      const params = buildCurrentListParams()
+      params.set('export', '1')
+      params.set('ids_only', '1')
+      params.set('exact_count', '1')
+      const ids = new Set<string>()
+      let exportPage = 0
+      // Pas de plafond métier : on pagine jusqu'à épuisement (10k / page).
+      while (true) {
+        if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        params.set('page', String(exportPage))
+        const res = await fetch(`/api/crm/contacts?${params.toString()}`, { signal: abort.signal })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          throw new Error(d?.error || `Erreur chargement des contacts (page ${exportPage})`)
+        }
+        const data = await res.json()
+        const batch: Array<{ hubspot_contact_id?: string | null }> = data.data ?? []
+        for (const row of batch) {
+          const id = row?.hubspot_contact_id
+          if (id) ids.add(String(id))
+        }
+        setSelectAllViewProgress({ loaded: ids.size, total: typeof data.total === 'number' ? data.total : total })
+        if (batch.length < 10000) break
+        exportPage += 1
+      }
+      if (abort.signal.aborted) return
+      setSelectedIds(ids)
+      setSelectionScope('view')
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      alert(e instanceof Error ? e.message : 'Erreur sélection de la vue')
+    } finally {
+      setSelectingAllView(false)
+      setSelectAllViewProgress(null)
+    }
   }
 
   async function handleBulkAssign() {
@@ -1596,20 +1743,26 @@ export default function CRMPage() {
     const teleproHsUserId = selectedTelepro.hubspot_user_id || selectedTelepro.hubspot_owner_id || null
     setBulkAssigning(true)
     try {
-      const res = await fetch('/api/crm/contacts/bulk-assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact_ids: [...selectedIds],
-          telepro_rdv_user_id: selectedTelepro.id,
-          telepro_user_id: teleproHsUserId,
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error || 'Erreur attribution en masse')
+      // Chunk technique (évite timeouts) — pas de plafond métier.
+      const allIds = [...selectedIds]
+      const CHUNK = 200
+      for (let i = 0; i < allIds.length; i += CHUNK) {
+        const chunk = allIds.slice(i, i + CHUNK)
+        const res = await fetch('/api/crm/contacts/bulk-assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_ids: chunk,
+            telepro_rdv_user_id: selectedTelepro.id,
+            telepro_user_id: teleproHsUserId,
+          }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          throw new Error(d?.error || `Erreur attribution (lot ${Math.floor(i / CHUNK) + 1})`)
+        }
       }
-      setSelectedIds(new Set())
+      clearSelection()
       setBulkTeleproId('')
       await fetchContacts(true)
     } catch (e) {
@@ -1629,21 +1782,81 @@ export default function CRMPage() {
 
     setBulkDeleting(true)
     try {
-      const res = await fetch('/api/crm/contacts/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_ids: [...selectedIds] }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error || 'Erreur suppression en masse')
+      const allIds = [...selectedIds]
+      const CHUNK = 200
+      for (let i = 0; i < allIds.length; i += CHUNK) {
+        const chunk = allIds.slice(i, i + CHUNK)
+        const res = await fetch('/api/crm/contacts/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact_ids: chunk }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          throw new Error(d?.error || `Erreur suppression (lot ${Math.floor(i / CHUNK) + 1})`)
+        }
       }
-      setSelectedIds(new Set())
+      clearSelection()
       await fetchContacts(true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erreur suppression en masse')
     } finally {
       setBulkDeleting(false)
+    }
+  }
+
+  const bulkPropMeta = useMemo(
+    () => allCrmProps.find(p => p.name === bulkPropName) ?? null,
+    [allCrmProps, bulkPropName],
+  )
+
+  async function handleBulkPropUpdate() {
+    if (!bulkPropName || selectedIds.size === 0 || bulkUpdating) return
+    if (isReadOnlyProperty(bulkPropMeta)) {
+      alert('Cette propriété est en lecture seule.')
+      return
+    }
+    const label = bulkPropMeta?.label || bulkPropName
+    const displayValue = bulkPropValue === '' ? '(vide)' : bulkPropValue
+    const msg = `Mettre à jour « ${label} » = « ${displayValue} » sur ${selectedIds.size.toLocaleString('fr-FR')} contact${selectedIds.size > 1 ? 's' : ''} ?\n\nCette action est irréversible.`
+    if (!window.confirm(msg)) return
+
+    setBulkUpdating(true)
+    const allIds = [...selectedIds]
+    const CHUNK = 200
+    let done = 0
+    const allErrors: string[] = []
+    setBulkUpdateProgress({ done: 0, total: allIds.length })
+    try {
+      for (let i = 0; i < allIds.length; i += CHUNK) {
+        const chunk = allIds.slice(i, i + CHUNK)
+        const res = await fetch('/api/crm/contacts/bulk-update-props', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_ids: chunk,
+            property: bulkPropName,
+            value: bulkPropValue,
+          }),
+        })
+        const d = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(d?.error || `Erreur mise à jour (lot ${Math.floor(i / CHUNK) + 1})`)
+        }
+        done += typeof d.done === 'number' ? d.done : chunk.length
+        if (Array.isArray(d.errors)) allErrors.push(...d.errors)
+        setBulkUpdateProgress({ done, total: allIds.length })
+      }
+      if (allErrors.length > 0) {
+        alert(`Mise à jour partielle : ${done}/${allIds.length} OK.\n\nExemples d'erreurs :\n${allErrors.slice(0, 5).join('\n')}`)
+      }
+      clearSelection()
+      await fetchContacts(true)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erreur mise à jour en masse')
+    } finally {
+      setBulkUpdating(false)
+      setBulkUpdateProgress(null)
     }
   }
 
@@ -2199,37 +2412,61 @@ export default function CRMPage() {
         </div>
 
         {/* ── Barre sélection en masse ───────────────────────────────────────── */}
-        {selectedIds.size > 0 && (
+        {(selectedIds.size > 0 || selectingAllView) && (
           <div style={{
             position: 'sticky', top: 0, zIndex: 10,
             background: '#ffffff', border: `1px solid #e5ddc8`,
             borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
-            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            display: 'flex', flexDirection: 'column', gap: 10,
           }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#4cabdb' }}>
-              ☑ {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
+              ☑ {selectingAllView
+                ? `Chargement… ${(selectAllViewProgress?.loaded ?? 0).toLocaleString('fr-FR')}${selectAllViewProgress?.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
+                : `${selectedIds.size.toLocaleString('fr-FR')} lead${selectedIds.size > 1 ? 's' : ''} sélectionné${selectedIds.size > 1 ? 's' : ''}${selectionScope === 'view' ? ' (toute la vue)' : ''}`}
             </span>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[25, 100, 500].map(n => (
                 <button key={n} onClick={() => selectFirst(n)}
+                  disabled={selectingAllView || bulkUpdating}
                   style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.3)', borderRadius: 6, padding: '4px 10px', color: '#4cabdb', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {n} premiers
                 </button>
               ))}
               <button onClick={selectAll}
+                disabled={selectingAllView || bulkUpdating}
                 style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Tout ({displayed.length})
               </button>
-              <button onClick={() => setSelectedIds(new Set())}
+              <button onClick={clearSelection}
                 style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 10px', color: '#3D5275', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Désélectionner
+                {selectingAllView ? 'Annuler' : 'Désélectionner'}
+              </button>
+              <button
+                onClick={() => {
+                  ensureCrmPropsLoaded()
+                  setBulkPropOpen(o => !o)
+                }}
+                disabled={selectingAllView || selectedIds.size === 0 || bulkUpdating}
+                style={{
+                  background: bulkPropOpen ? 'rgba(76,171,219,0.15)' : 'rgba(76,171,219,0.08)',
+                  border: '1px solid rgba(76,171,219,0.4)',
+                  borderRadius: 6, padding: '4px 10px',
+                  color: '#4cabdb', fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  opacity: selectingAllView || selectedIds.size === 0 ? 0.5 : 1,
+                }}
+              >
+                <Pencil size={12} />
+                Modifier une propriété
               </button>
               <button
                 onClick={handleBulkDelete}
-                disabled={bulkDeleting}
+                disabled={bulkDeleting || selectingAllView || bulkUpdating || selectedIds.size === 0}
                 title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
                 style={{
-                  background: bulkDeleting ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.10)',
+                  background: 'rgba(239,68,68,0.10)',
                   border: '1px solid rgba(239,68,68,0.45)',
                   borderRadius: 6, padding: '4px 10px',
                   color: '#ef4444', fontSize: 11, fontWeight: 700,
@@ -2247,6 +2484,7 @@ export default function CRMPage() {
             <select
               value={bulkTeleproId}
               onChange={e => setBulkTeleproId(e.target.value)}
+              disabled={selectingAllView || bulkUpdating}
               style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 10px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit' }}
             >
               <option value="">— Choisir un télépro —</option>
@@ -2256,7 +2494,7 @@ export default function CRMPage() {
             </select>
             <button
               onClick={handleBulkAssign}
-              disabled={!bulkTeleproId || bulkAssigning}
+              disabled={!bulkTeleproId || bulkAssigning || selectingAllView || bulkUpdating || selectedIds.size === 0}
               style={{
                 background: bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.1)',
                 border: `1px solid ${bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.3)'}`,
@@ -2267,6 +2505,145 @@ export default function CRMPage() {
             >
               {bulkAssigning ? 'Attribution…' : 'Assigner'}
             </button>
+            </div>
+
+            {/* HubSpot-like : sélectionner toute la vue */}
+            {(canSelectEntireView || selectingAllView) && (
+              <div style={{
+                background: 'rgba(76,171,219,0.08)',
+                border: '1px solid rgba(76,171,219,0.25)',
+                borderRadius: 8,
+                padding: '8px 12px',
+                fontSize: 12,
+                color: '#2a4a66',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}>
+                {selectingAllView ? (
+                  <span>
+                    Sélection de tous les contacts de la vue en cours…
+                    {selectAllViewProgress
+                      ? ` ${selectAllViewProgress.loaded.toLocaleString('fr-FR')}${selectAllViewProgress.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
+                      : ''}
+                  </span>
+                ) : (
+                  <>
+                    <span>
+                      Les {displayed.length.toLocaleString('fr-FR')} contacts de cette page sont sélectionnés.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={selectAllMatchingView}
+                      style={{
+                        background: '#4cabdb', border: 'none', borderRadius: 6,
+                        padding: '5px 12px', color: '#fff', fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      Sélectionner les {total.toLocaleString('fr-FR')} contacts de cette vue
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Panel édition propriété en masse */}
+            {bulkPropOpen && selectedIds.size > 0 && !selectingAllView && (
+              <div style={{
+                background: '#faf7f0',
+                border: '1px solid #e5ddc8',
+                borderRadius: 8,
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#3D5275' }}>Propriété</label>
+                  <CRMBulkPropertyPicker
+                    value={bulkPropName}
+                    onChange={name => {
+                      setBulkPropName(name)
+                      setBulkPropValue('')
+                    }}
+                    crmProps={allCrmProps}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 200, flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#3D5275' }}>Nouvelle valeur</label>
+                  {(() => {
+                    const meta = bulkPropMeta
+                    const ft = String(meta?.field_type || '').toLowerCase()
+                    const tp = String(meta?.type || '').toLowerCase()
+                    const opts = Array.isArray(meta?.options) ? meta!.options! : null
+                    const inputStyle = {
+                      background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
+                      padding: '6px 10px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit', width: '100%',
+                    } as const
+                    if (!bulkPropName) {
+                      return <input disabled placeholder="Choisir une propriété d’abord" style={inputStyle} />
+                    }
+                    if (tp === 'bool' || ft === 'booleancheckbox') {
+                      return (
+                        <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
+                          <option value="">—</option>
+                          <option value="true">Oui</option>
+                          <option value="false">Non</option>
+                        </select>
+                      )
+                    }
+                    if ((ft === 'select' || ft === 'radio' || ft === 'checkbox') && opts && opts.length > 0) {
+                      return (
+                        <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
+                          <option value="">— (vide)</option>
+                          {opts.map(o => (
+                            <option key={String(o.value)} value={String(o.value)}>{o.label || o.value}</option>
+                          ))}
+                        </select>
+                      )
+                    }
+                    if (tp === 'date' || ft === 'date') {
+                      return (
+                        <input type="date" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
+                      )
+                    }
+                    if (tp === 'number' || ft === 'number') {
+                      return (
+                        <input type="number" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
+                      )
+                    }
+                    return (
+                      <input
+                        type="text"
+                        value={bulkPropValue}
+                        onChange={e => setBulkPropValue(e.target.value)}
+                        placeholder="Valeur (vide = effacer)"
+                        style={inputStyle}
+                      />
+                    )
+                  })()}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBulkPropUpdate}
+                  disabled={!bulkPropName || bulkUpdating}
+                  style={{
+                    background: bulkPropName && !bulkUpdating ? '#4cabdb' : 'rgba(76,171,219,0.25)',
+                    border: 'none', borderRadius: 8, padding: '8px 16px',
+                    color: '#fff', fontSize: 12, fontWeight: 700,
+                    cursor: bulkPropName && !bulkUpdating ? 'pointer' : 'not-allowed',
+                    fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {bulkUpdating
+                    ? `Mise à jour… ${bulkUpdateProgress ? `${bulkUpdateProgress.done}/${bulkUpdateProgress.total}` : ''}`
+                    : `Appliquer à ${selectedIds.size.toLocaleString('fr-FR')}`}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

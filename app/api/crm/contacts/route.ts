@@ -137,7 +137,8 @@ export async function GET(req: NextRequest) {
   const emptyFields      = (searchParams.get('empty_fields') ?? '').split(',').filter(Boolean)
   const notEmptyFields   = (searchParams.get('not_empty_fields') ?? '').split(',').filter(Boolean)
 
-  const isExport         = searchParams.get('export') === '1'
+  const isExport         = searchParams.get('export') === '1' || searchParams.get('ids_only') === '1'
+  const idsOnly          = searchParams.get('ids_only') === '1'
   // Compat: anciens clients envoient `count_only=1`; nouveau chemin standard
   // utilise `limit=0`.
   const countOnly        = searchParams.get('limit') === '0' || searchParams.get('count_only') === '1'
@@ -949,7 +950,9 @@ export async function GET(req: NextRequest) {
         fastMvQ = fastMvQ.order('synced_at', { ascending: false })
       }
 
-      const mvOffset = isExport ? 0 : page * limit
+      // Export paginé : respecter `page` (sinon page>0 renvoyait toujours les
+      // 10k premières lignes — bug bloquant pour export / select-all-view).
+      const mvOffset = page * limit
       const pageFetchLimit = deferCount ? limit + 1 : limit
       const { data: mvRows, count: mvCount, error: mvErr } = await fastMvQ
         .range(mvOffset, mvOffset + pageFetchLimit - 1)
@@ -2056,7 +2059,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Pagination SQL pure — .range(offset, offset+limit-1) ignore max_rows Supabase
-  const offset = isExport ? 0 : page * limit
+  // Export paginé : même formule (page * limit), sinon les pages > 0 bouclaient.
+  const offset = page * limit
 
   const buildPayload = async () => {
     const pageFetchLimit = deferCount ? limit + 1 : limit
@@ -2203,7 +2207,17 @@ export async function GET(req: NextRequest) {
     ? await cached(responseCacheKey, 20, buildPayload)
     : await buildPayload()
 
-  const response = NextResponse.json(payload)
+  // Mode ids_only : réponse allégée pour select-all-view (même pagination export).
+  const responsePayload = idsOnly && payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)
+    ? {
+        ...(payload as Record<string, unknown>),
+        data: ((payload as { data: Array<{ hubspot_contact_id?: string | null }> }).data).map(r => ({
+          hubspot_contact_id: r?.hubspot_contact_id ?? null,
+        })),
+      }
+    : payload
+
+  const response = NextResponse.json(responsePayload)
   // Stale-while-revalidate : le navigateur peut reutiliser la reponse pendant
   // 15s sans refetch (max-age=15), et entre 15s et 60s elle est servie
   // immediatement tout en revalidant en arriere-plan. Combine avec le cache
