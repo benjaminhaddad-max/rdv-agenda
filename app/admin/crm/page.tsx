@@ -2418,6 +2418,7 @@ export default function CRMPage() {
             background: '#ffffff', border: `1px solid #e5ddc8`,
             borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
             display: 'flex', flexDirection: 'column', gap: 10,
+            overflow: 'visible',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#4cabdb' }}>
