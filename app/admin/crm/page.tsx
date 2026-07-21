@@ -30,7 +30,7 @@ import {
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
-import { CRMBulkPropertyPicker } from '@/components/crm/CRMBulkPropertyPicker'
+import { CRMBulkPropertyPicker, resolveBulkPropMeta } from '@/components/crm/CRMBulkPropertyPicker'
 import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
 import { getCached, invalidate, refetch } from '@/lib/client-cache'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'

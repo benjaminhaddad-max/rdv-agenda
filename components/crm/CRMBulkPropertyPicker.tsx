@@ -2,13 +2,104 @@
 
 /**
  * Picker searchable pour choisir une propriété CRM à éditer en masse.
- * Catalogue = crm_properties (mêmes props que la fiche contact).
+ * Catalogue = crm_properties + props métier épinglées (libellés FR + alias).
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
+import { LEAD_STATUS_OPTIONS_FALLBACK } from '@/lib/crm-constants'
 import type { CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
+
+/** Props les plus utilisées en bulk, avec libellés FR (souvent absents / EN dans HubSpot). */
+const PINNED_BULK_PROPS: Array<{
+  name: string
+  label: string
+  aliases: string[]
+  type?: string
+  field_type?: string
+  options?: Array<{ label: string; value: string }> | null
+}> = [
+  {
+    name: 'hs_lead_status',
+    label: 'Statut du lead',
+    aliases: ['statut', 'statut lead', 'lead status', 'status', 'statut du lead'],
+    type: 'enumeration',
+    field_type: 'select',
+    options: LEAD_STATUS_OPTIONS_FALLBACK.map(o => ({ label: o.label, value: o.id })),
+  },
+  {
+    name: 'origine',
+    label: 'Origine',
+    aliases: ['source', 'origine du lead'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'classe_actuelle',
+    label: 'Classe actuelle',
+    aliases: ['classe', 'niveau'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'zone___localite',
+    label: 'Zone / Localité',
+    aliases: ['zone', 'localite', 'localité'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'departement',
+    label: 'Département',
+    aliases: ['dept', 'département'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'formation_souhaitee',
+    label: 'Formation souhaitée',
+    aliases: ['formation'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'telepro_user_id',
+    label: 'Télépro',
+    aliases: ['telepro', 'télépro', 'teleprospecteur'],
+    type: 'string',
+    field_type: 'text',
+  },
+  {
+    name: 'closer_du_contact_owner_id',
+    label: 'Closer du contact',
+    aliases: ['closer'],
+    type: 'string',
+    field_type: 'text',
+  },
+]
+
+function normalizeSearch(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_/.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function matchesQuery(p: CrmPropertyMeta & { aliases?: string[] }, q: string): boolean {
+  if (!q) return true
+  const nq = normalizeSearch(q)
+  const haystacks = [
+    p.label,
+    p.name,
+    p.group_name || '',
+    ...(p.aliases || []),
+  ].map(normalizeSearch)
+  return haystacks.some(h => h.includes(nq) || nq.split(' ').every(tok => tok && h.includes(tok)))
+}
 
 export function CRMBulkPropertyPicker({
   value,
@@ -32,33 +123,73 @@ export function CRMBulkPropertyPicker({
     return () => document.removeEventListener('mousedown', h)
   }, [open])
 
-  const editable = useMemo(
-    () => crmProps.filter(p => !isReadOnlyProperty(p)),
-    [crmProps],
-  )
+  const editable = useMemo(() => {
+    const byName = new Map<string, CrmPropertyMeta & { aliases?: string[]; pinned?: boolean }>()
+
+    for (const p of crmProps) {
+      if (isReadOnlyProperty(p)) continue
+      byName.set(p.name, { ...p })
+    }
+
+    // Épinglées en premier : forcent le libellé FR + alias, et créent la prop
+    // si absente du catalogue HubSpot.
+    for (const pin of PINNED_BULK_PROPS) {
+      const existing = byName.get(pin.name)
+      const options = (existing?.options && existing.options.length > 0)
+        ? existing.options
+        : (pin.options ?? null)
+      byName.set(pin.name, {
+        name: pin.name,
+        label: pin.label,
+        group_name: existing?.group_name ?? 'Fréquentes',
+        type: existing?.type ?? pin.type ?? 'string',
+        field_type: existing?.field_type ?? pin.field_type ?? 'text',
+        options,
+        aliases: pin.aliases,
+        pinned: true,
+      })
+    }
+
+    const pinnedNames = new Set(PINNED_BULK_PROPS.map(p => p.name))
+    const pinned = PINNED_BULK_PROPS
+      .map(p => byName.get(p.name)!)
+      .filter(Boolean)
+    const rest = [...byName.values()]
+      .filter(p => !pinnedNames.has(p.name))
+      .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
+
+    return [...pinned, ...rest]
+  }, [crmProps])
 
   const current = editable.find(p => p.name === value)
-  const q = search.toLowerCase().trim()
+  const q = search.trim()
 
   const filtered = useMemo(() => {
-    if (!q) return editable.slice(0, 80)
-    return editable
-      .filter(p =>
-        p.label.toLowerCase().includes(q) ||
-        p.name.toLowerCase().includes(q) ||
-        (p.group_name || '').toLowerCase().includes(q),
-      )
-      .slice(0, 80)
+    const matched = editable.filter(p => matchesQuery(p, q))
+    // Sans recherche : montrer les épinglées + un échantillon du catalogue.
+    if (!q) {
+      const pinned = matched.filter(p => (p as { pinned?: boolean }).pinned)
+      const rest = matched.filter(p => !(p as { pinned?: boolean }).pinned).slice(0, 60)
+      return [...pinned, ...rest]
+    }
+    return matched.slice(0, 120)
   }, [editable, q])
 
   const grouped = useMemo(() => {
-    const map: Record<string, CrmPropertyMeta[]> = {}
+    const map: Record<string, Array<CrmPropertyMeta & { aliases?: string[]; pinned?: boolean }>> = {}
     for (const p of filtered) {
-      const g = p.group_name || 'Autres'
+      const g = (p as { pinned?: boolean }).pinned
+        ? 'Fréquentes'
+        : (p.group_name || 'Autres')
       if (!map[g]) map[g] = []
       map[g].push(p)
     }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b, 'fr'))
+    // "Fréquentes" en premier
+    return Object.entries(map).sort(([a], [b]) => {
+      if (a === 'Fréquentes') return -1
+      if (b === 'Fréquentes') return 1
+      return a.localeCompare(b, 'fr')
+    })
   }, [filtered])
 
   return (
@@ -134,4 +265,26 @@ export function CRMBulkPropertyPicker({
       )}
     </div>
   )
+}
+
+/** Meta effective pour l'éditeur de valeur (options lead status etc.). */
+export function resolveBulkPropMeta(
+  propertyName: string,
+  crmProps: CrmPropertyMeta[],
+): CrmPropertyMeta | null {
+  if (!propertyName) return null
+  const pin = PINNED_BULK_PROPS.find(p => p.name === propertyName)
+  const fromCatalog = crmProps.find(p => p.name === propertyName) ?? null
+  if (!pin && !fromCatalog) return null
+  const options = (fromCatalog?.options && fromCatalog.options.length > 0)
+    ? fromCatalog.options
+    : (pin?.options ?? null)
+  return {
+    name: propertyName,
+    label: pin?.label || fromCatalog?.label || propertyName,
+    group_name: fromCatalog?.group_name ?? pin?.label ?? null,
+    type: fromCatalog?.type ?? pin?.type ?? 'string',
+    field_type: fromCatalog?.field_type ?? pin?.field_type ?? 'text',
+    options,
+  }
 }
