@@ -7,6 +7,10 @@
 //     check de disponibilité / blocage / quota à la prise — Pascal
 //     fait le routage à la main.
 //
+// OVERRIDE TEMPORAIRE (jusqu'au 17 août 2026 inclus, date du RDV Paris) :
+//   → Judith Diploma (owner_id 798051044) pour tout RDV dont la date
+//     (start_at, Europe/Paris) est ≤ 2026-08-17. Après cette date → Pascal.
+//
 // Si Pascal n'existe pas dans rdv_users (cas exceptionnel) → file
 // d'attente (commercial_id = null) et alerte email.
 //
@@ -18,6 +22,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { weekStartISO } from '@/lib/week'
 
 export const PASCAL_OWNER_ID = '76299546'
+export const JUDITH_OWNER_ID = '798051044'
+/** Fin inclusive de l'override Judith — date du RDV en Europe/Paris. */
+export const JUDITH_OVERRIDE_UNTIL_DATE = '2026-08-17'
 
 export interface AssignedCloser {
   id: string                   // rdv_users.id
@@ -27,20 +34,46 @@ export interface AssignedCloser {
   isPascal: boolean
 }
 
+function parisDateISO(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso))
+}
+
 /**
- * Retourne Pascal Tawfik (par défaut) pour tous les RDV.
- * Pascal redispatche ensuite manuellement aux closers.
+ * Attribution closer à la prise de RDV.
+ * Jusqu'au 17/08/2026 inclus (date du créneau, Paris) → Judith Diploma.
+ * Ensuite → Pascal Tawfik (redispatch manuel).
  *
- * @returns         Pascal en tant qu'AssignedCloser, ou null si Pascal
- *                  n'existe pas dans rdv_users.
+ * @returns AssignedCloser, ou null si aucun closer trouvé.
  */
 export async function assignCloserForSlot(
   db: SupabaseClient,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _start_at: string,
+  start_at: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _end_at: string,
 ): Promise<AssignedCloser | null> {
+  // Override temporaire : RDV dont la date (Paris) ≤ 17 août 2026 → Judith
+  if (parisDateISO(start_at) <= JUDITH_OVERRIDE_UNTIL_DATE) {
+    const { data: judith } = await db
+      .from('rdv_users')
+      .select('id, name, hubspot_owner_id, role')
+      .eq('hubspot_owner_id', JUDITH_OWNER_ID)
+      .maybeSingle()
+    if (judith) {
+      return {
+        id: judith.id as string,
+        name: judith.name as string | null,
+        hubspot_owner_id: judith.hubspot_owner_id as string | null,
+        role: judith.role as string,
+        isPascal: false,
+      }
+    }
+  }
+
   const { data: pascal } = await db
     .from('rdv_users')
     .select('id, name, hubspot_owner_id, role')
