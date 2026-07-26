@@ -176,6 +176,39 @@ body {
   background: linear-gradient(135deg, #d9bc6b 0%, #b8963e 100%) !important;
 }
 
+/* ── Fiche contact : la grande bande navy devient un en-tête blanc ────── */
+.crm-v2-skin .text-white.pb-20 {
+  background: #ffffff !important;
+  color: #2d3e50 !important;
+  padding-bottom: 16px !important;
+  border-bottom: 1px solid #e4eaf2;
+}
+.crm-v2-skin .text-white.pb-20 .text-white\/80,
+.crm-v2-skin .text-white.pb-20 .text-white\/90 {
+  color: #64748b !important;
+}
+.crm-v2-skin .text-white.pb-20 a:hover {
+  color: #0e1e35 !important;
+}
+.crm-v2-skin .text-white.pb-20 h1 {
+  font-size: 24px !important;
+  filter: none !important;
+}
+/* Initiales du header : pastille dorée compacte, lisible sur blanc */
+.crm-v2-skin .text-white.pb-20 .w-20.rounded-full {
+  background: linear-gradient(135deg, #d9bc6b 0%, #b8963e 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  width: 56px !important;
+  height: 56px !important;
+  font-size: 20px !important;
+  box-shadow: 0 4px 12px rgba(184, 150, 62, 0.35) !important;
+}
+/* La rangée de cartes KPI ne chevauche plus le bandeau */
+.crm-v2-skin .-mt-14 {
+  margin-top: 16px !important;
+}
+
 /* ── Cartes / conteneurs blancs : coins plus généreux + ombre douce ───── */
 .crm-v2-skin [style*="border-radius: 8px"] {
   border-radius: 12px !important;
