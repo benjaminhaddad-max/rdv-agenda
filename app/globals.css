@@ -84,3 +84,14 @@ body {
 .crm-v2 ::-webkit-scrollbar-track { background: #f5f8fa; }
 .crm-v2 ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
 .crm-v2 ::-webkit-scrollbar-thumb:hover { background: #7c98b6; }
+
+/*
+ * Design B — skin visuelle uniquement (pas de changement de comportement).
+ * Adoucit les fonds crème des pages classiques montées dans le shell V2.
+ */
+.crm-v2-bridge-body {
+  background: #f5f8fa;
+}
+.crm-v2-bridge-body a[href] {
+  border-radius: 6px;
+}

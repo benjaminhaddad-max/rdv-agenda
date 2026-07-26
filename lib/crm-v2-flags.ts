@@ -1,6 +1,9 @@
 /**
  * Feature flags CRM Design B (Version V2).
  *
+ * Règle d’or : Design B = shell / look uniquement.
+ * Zéro réécriture de logique métier — on monte les pages classiques dans /admin/crm-v2.
+ *
  * Cutover prod = passer CRM_V2_DEFAULT_FOR_ADMIN à true
  * (et brancher une redirection /admin/crm → /admin/crm-v2 dans le layout A).
  * Ne pas activer sans validation métier.
