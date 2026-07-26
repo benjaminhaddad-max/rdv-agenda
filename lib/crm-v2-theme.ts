@@ -18,11 +18,11 @@ export const crmV2 = {
   dangerSoft: 'rgba(242, 84, 91, 0.08)',
   success: '#00bda5',
   focus: '#C9A84C',
-  radiusSm: 6,
-  radius: 8,
-  radiusLg: 12,
+  radiusSm: 8,
+  radius: 10,
+  radiusLg: 16,
   radiusPill: 999,
-  shadow: '0 1px 3px rgba(45, 62, 80, 0.06)',
+  shadow: '0 2px 8px rgba(45, 62, 80, 0.08)',
   font: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 } as const
 

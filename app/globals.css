@@ -87,11 +87,72 @@ body {
 
 /*
  * Design B — skin visuelle uniquement (pas de changement de comportement).
- * Adoucit les fonds crème des pages classiques montées dans le shell V2.
+ * Les pages classiques utilisent des styles inline ; le navigateur sérialise
+ * les couleurs hex en rgb() dans l'attribut style, d'où les sélecteurs rgb.
  */
 .crm-v2-bridge-body {
   background: #f5f8fa;
 }
-.crm-v2-bridge-body a[href] {
-  border-radius: 6px;
+
+/* ── Formes arrondies (boutons pill, inputs doux) ─────────────────────── */
+.crm-v2-skin button {
+  border-radius: 999px !important;
+}
+.crm-v2-skin input:not([type="checkbox"]):not([type="radio"]),
+.crm-v2-skin select,
+.crm-v2-skin textarea {
+  border-radius: 10px !important;
+}
+.crm-v2-skin a[style] {
+  border-radius: 999px;
+}
+
+/* ── Fonds crème → gris clair HubSpot ─────────────────────────────────── */
+.crm-v2-skin [style*="background: rgb(245, 240, 232)"],
+.crm-v2-skin [style*="#F5F0E8"],
+.crm-v2-skin [style*="#f5f0e8"] {
+  background-color: #f5f8fa !important;
+}
+.crm-v2-skin [style*="background: rgb(247, 244, 238)"],
+.crm-v2-skin [style*="#f7f4ee"] {
+  background-color: #f5f8fa !important;
+}
+.crm-v2-skin [style*="background: rgb(237, 230, 214)"],
+.crm-v2-skin [style*="#EDE6D6"] {
+  background-color: #eaf0f6 !important;
+}
+.crm-v2-skin [style*="background: rgb(212, 196, 160)"] {
+  background-color: #dfe3eb !important;
+}
+.crm-v2-skin [style*="background: rgb(229, 221, 200)"] {
+  background-color: #dfe3eb !important;
+}
+
+/* ── Bordures crème → gris doux ───────────────────────────────────────── */
+.crm-v2-skin [style*="solid rgb(229, 221, 200)"],
+.crm-v2-skin [style*="#e5ddc8"] {
+  border-color: #dfe3eb !important;
+}
+.crm-v2-skin [style*="solid rgb(212, 196, 160)"],
+.crm-v2-skin [style*="#D4C4A0"] {
+  border-color: #cbd6e2 !important;
+}
+
+/* ── Classes Tailwind crème utilisées par certaines pages ─────────────── */
+.crm-v2-skin .bg-\[\#f7f4ee\] {
+  background-color: #f5f8fa !important;
+}
+.crm-v2-skin .border-\[\#e5ddc8\] {
+  border-color: #dfe3eb !important;
+}
+
+/* ── Cartes / conteneurs blancs : coins plus généreux + ombre douce ───── */
+.crm-v2-skin [style*="border-radius: 8px"] {
+  border-radius: 12px !important;
+}
+.crm-v2-skin [style*="border-radius: 10px"] {
+  border-radius: 14px !important;
+}
+.crm-v2-skin [style*="border-radius: 12px"] {
+  border-radius: 16px !important;
 }

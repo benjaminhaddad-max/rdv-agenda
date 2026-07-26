@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CheckSquare, Columns3, Filter, Plus, Circle } from 'lucide-react'
+import { CheckSquare, Columns3, Copy, Filter, Circle } from 'lucide-react'
 import {
   CrmV2Avatar,
   CrmV2Button,
@@ -43,7 +43,7 @@ interface Owner {
   avatar_color?: string
 }
 
-type FilterDue = 'all' | 'today' | 'overdue' | 'completed'
+type FilterDue = 'all' | 'today' | 'overdue' | 'week' | 'completed'
 
 function formatDue(dueAt?: string) {
   if (!dueAt) return { label: '—', overdue: false }
@@ -78,7 +78,7 @@ export default function TasksV2Page() {
     try {
       const params = new URLSearchParams()
       if (filterOwner) params.set('owner', filterOwner)
-      if (filterDue === 'today' || filterDue === 'overdue') params.set('due', filterDue)
+      if (filterDue === 'today' || filterDue === 'overdue' || filterDue === 'week') params.set('due', filterDue)
       params.set('status', filterDue === 'completed' ? 'completed' : 'pending')
 
       const res = await fetch(`/api/crm/tasks?${params.toString()}`)
@@ -98,7 +98,7 @@ export default function TasksV2Page() {
         if (cRes?.ok) {
           const cj = await cRes.json()
           const map: Record<string, { firstname?: string; lastname?: string; email?: string }> = {}
-          for (const c of cj.contacts ?? []) {
+          for (const c of cj.data ?? cj.contacts ?? []) {
             map[c.hubspot_contact_id] = c
           }
           setContacts(map)
@@ -117,6 +117,11 @@ export default function TasksV2Page() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'completed' }),
     })
+    load()
+  }
+
+  const duplicateTask = async (id: number) => {
+    await fetch(`/api/crm/tasks/${id}/duplicate`, { method: 'POST' })
     load()
   }
 
@@ -161,6 +166,7 @@ export default function TasksV2Page() {
     { id: 'all', label: 'Toutes', count: filterDue === 'all' ? filtered.length : undefined },
     { id: 'today', label: "Dû aujourd'hui" },
     { id: 'overdue', label: 'En retard' },
+    { id: 'week', label: 'Cette semaine' },
     { id: 'completed', label: 'Toutes les tâches terminées' },
   ]
 
@@ -170,14 +176,9 @@ export default function TasksV2Page() {
         title="Tâches"
         subtitle="Design B — référence visuelle HubSpot"
         actions={
-          <>
-            <CrmV2Button variant="ghost" onClick={() => { window.location.href = '/admin/crm/tasks' }}>
-              Version classique
-            </CrmV2Button>
-            <CrmV2Button variant="secondary">
-              <Plus size={14} /> Créer une tâche
-            </CrmV2Button>
-          </>
+          <CrmV2Button variant="ghost" onClick={() => { window.location.href = '/admin/crm/tasks' }}>
+            Version classique
+          </CrmV2Button>
         }
       />
 
@@ -279,6 +280,7 @@ export default function TasksV2Page() {
                   </CrmV2Th>
                   <CrmV2Th>Attribué à</CrmV2Th>
                   <CrmV2Th>Notes</CrmV2Th>
+                  <CrmV2Th style={{ width: 48 }}> </CrmV2Th>
                 </tr>
               </thead>
               <tbody>
@@ -361,6 +363,21 @@ export default function TasksV2Page() {
                         }}>
                           {task.description || '—'}
                         </span>
+                      </CrmV2Td>
+                      <CrmV2Td>
+                        <button
+                          type="button"
+                          onClick={() => duplicateTask(task.id)}
+                          title="Dupliquer la tâche"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 28, height: 28, borderRadius: '50%',
+                            border: `1px solid ${crmV2.border}`, background: 'transparent',
+                            color: crmV2.textMuted, cursor: 'pointer', padding: 0,
+                          }}
+                        >
+                          <Copy size={13} />
+                        </button>
                       </CrmV2Td>
                     </tr>
                   )

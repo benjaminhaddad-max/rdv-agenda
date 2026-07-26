@@ -50,7 +50,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="crm-v2"
+      className="crm-v2 crm-v2-skin"
       style={{ display: 'flex', minHeight: '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font }}
     >
       {showAdminChrome && <CRMSidebarV2 />}
