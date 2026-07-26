@@ -145,16 +145,15 @@ export default function CRMSidebarV2() {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    padding: compact ? '10px' : '8px 12px',
-    borderRadius: crmV2.radiusSm,
+    padding: compact ? '10px' : '9px 14px',
+    borderRadius: crmV2.radiusPill,
     textDecoration: 'none',
-    color: active ? crmV2.text : crmV2.textMuted,
+    color: active ? '#8a6d1f' : crmV2.textMuted,
     background: active ? crmV2.goldSoft : 'transparent',
-    borderLeft: active ? `3px solid ${crmV2.gold}` : '3px solid transparent',
-    paddingLeft: compact ? 10 : 9,
     fontSize: 13,
-    fontWeight: active ? 600 : 500,
+    fontWeight: active ? 700 : 500,
     justifyContent: compact ? 'center' : 'flex-start',
+    transition: 'background .12s ease',
   })
 
   const renderNav = (onNavigate?: () => void) => (
@@ -283,8 +282,9 @@ export default function CRMSidebarV2() {
   return (
     <>
       <aside style={{
-        position: 'fixed', left: 0, top: 0, bottom: 0, width,
-        background: crmV2.bg, borderRight: `1px solid ${crmV2.border}`,
+        position: 'fixed', left: 12, top: 12, bottom: 12, width,
+        background: crmV2.bg, border: `1px solid ${crmV2.border}`,
+        borderRadius: 22, boxShadow: crmV2.shadow,
         display: 'flex', flexDirection: 'column', transition: 'width .18s ease',
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
@@ -294,7 +294,8 @@ export default function CRMSidebarV2() {
           display: 'flex', alignItems: 'center', gap: 10, height: 56, boxSizing: 'border-box',
         }}>
           <div style={{
-            width: 30, height: 30, borderRadius: crmV2.radiusSm, background: crmV2.gold,
+            width: 32, height: 32, borderRadius: crmV2.radiusPill,
+            background: 'linear-gradient(135deg, #ddc27a 0%, #C9A84C 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 12, flexShrink: 0,
           }}>
@@ -325,7 +326,6 @@ export default function CRMSidebarV2() {
             style={{
               ...linkStyle(false, collapsed),
               color: crmV2.link,
-              borderLeft: '3px solid transparent',
             }}
             title={collapsed ? 'Version classique' : undefined}
           >
@@ -337,7 +337,6 @@ export default function CRMSidebarV2() {
             style={{
               ...linkStyle(false, collapsed),
               color: crmV2.textFaint,
-              borderLeft: '3px solid transparent',
               fontSize: 12,
             }}
             title={collapsed ? 'Cutover' : undefined}
@@ -355,7 +354,7 @@ export default function CRMSidebarV2() {
               } catch { /* ignore */ }
               window.location.href = '/login'
             }}
-            style={{ ...linkStyle(false, collapsed), color: crmV2.danger, borderLeft: '3px solid transparent' }}
+            style={{ ...linkStyle(false, collapsed), color: crmV2.danger }}
             title={collapsed ? 'Déconnexion' : undefined}
           >
             <LogOut size={15} style={{ flexShrink: 0 }} />
@@ -377,7 +376,7 @@ export default function CRMSidebarV2() {
           </button>
         </div>
       </aside>
-      <div style={{ width, flexShrink: 0, transition: 'width .18s ease' }} />
+      <div style={{ width: width ? width + 24 : 0, flexShrink: 0, transition: 'width .18s ease' }} />
     </>
   )
 }

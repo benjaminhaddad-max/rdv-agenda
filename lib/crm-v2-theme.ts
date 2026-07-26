@@ -2,7 +2,7 @@
 
 export const crmV2 = {
   bg: '#ffffff',
-  bgSoft: '#f5f8fa',
+  bgSoft: '#eef1f6',
   bgMuted: '#eaf0f6',
   border: '#dfe3eb',
   borderStrong: '#cbd6e2',
@@ -23,7 +23,7 @@ export const crmV2 = {
   radiusLg: 16,
   radiusPill: 999,
   shadow: '0 2px 8px rgba(45, 62, 80, 0.08)',
-  font: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  font: 'var(--crm-v2-font, ui-rounded), ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 } as const
 
 export type CrmV2Theme = typeof crmV2

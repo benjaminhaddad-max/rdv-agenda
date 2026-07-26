@@ -156,3 +156,48 @@ body {
 .crm-v2-skin [style*="border-radius: 12px"] {
   border-radius: 16px !important;
 }
+
+/* ── Typo ronde et lisible partout (Nunito via next/font) ─────────────── */
+.crm-v2,
+.crm-v2 * {
+  font-family: var(--crm-v2-font, ui-rounded), ui-rounded, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* ── Lisibilité : survol des lignes de tableaux ───────────────────────── */
+.crm-v2-skin tbody tr:hover td {
+  background-color: rgba(201, 168, 76, 0.05);
+}
+
+/* ── Survol des liens de navigation (pilules) ─────────────────────────── */
+.crm-v2 nav a[style*="background: transparent"]:hover {
+  background-color: #eef1f6 !important;
+}
+
+/* ── Focus clavier doré et arrondi ────────────────────────────────────── */
+.crm-v2 :focus-visible {
+  outline: 2px solid rgba(201, 168, 76, 0.55) !important;
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+
+/* ── Scrollbars fines et rondes ───────────────────────────────────────── */
+.crm-v2 *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.crm-v2 *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.crm-v2 *::-webkit-scrollbar-thumb {
+  background: #cbd6e2;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.crm-v2 *::-webkit-scrollbar-thumb:hover {
+  background: #9db4cc;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
