@@ -102,12 +102,12 @@ const NAV_SECTIONS: NavSection[] = [
 
 /* Palette navy Diploma — utilisée uniquement pour le chrome V2 (design only) */
 const NAVY = {
-  bg: 'linear-gradient(180deg, #142440 0%, #0F1F3D 100%)',
-  solid: '#0F1F3D',
+  bg: '#241F3F',
+  solid: '#241F3F',
   border: 'rgba(255, 255, 255, 0.08)',
   text: '#eef2f8',
   muted: '#a3b3cc',
-  faint: '#64789a',
+  faint: '#7a7a9a',
   goldIcon: '#e3c878',
   goldText: '#f0d999',
   goldBg: 'rgba(201, 168, 76, 0.22)',
@@ -326,7 +326,7 @@ export default function CRMSidebarV2() {
           {collapsed ? (
             <div style={{
               width: 34, height: 34, borderRadius: '50%', overflow: 'hidden',
-              flexShrink: 0, background: '#2f2c4a',
+              flexShrink: 0, background: '#241F3F',
               boxShadow: '0 0 0 2px rgba(94, 188, 227, 0.35)',
             }}>
               <img
@@ -343,7 +343,7 @@ export default function CRMSidebarV2() {
               alt="Hub Diploma"
               width={196}
               height={70}
-              style={{ width: '100%', maxWidth: 196, height: 'auto', display: 'block', borderRadius: 10 }}
+              style={{ width: '100%', maxWidth: 196, height: 'auto', display: 'block' }}
             />
           )}
         </div>

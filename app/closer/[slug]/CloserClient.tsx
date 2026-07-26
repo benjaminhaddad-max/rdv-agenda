@@ -713,7 +713,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-            background: '#5BA4D9', boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)',
+            background: '#241F3F', boxShadow: '0 0 0 2px rgba(94, 188, 227, 0.35)',
           }}>
             <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
