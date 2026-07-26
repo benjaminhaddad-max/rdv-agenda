@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Calendar as CalendarIcon, Clock, Users, Briefcase, Plus, Inbox, Link2 } from 'lucide-react'
 import WeekCalendar from '@/components/WeekCalendar'
 import AdminAvailability from '@/components/AdminAvailability'
@@ -11,7 +12,9 @@ import SiteContenusPanel from '@/components/SiteContenusPanel'
 import { CrmV2Button, CrmV2Header, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 
-export default function AgendaV2Page() {
+function AgendaV2Inner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [calendarKey, setCalendarKey] = useState(0)
   const [showAvailability, setShowAvailability] = useState(false)
   const [showTelepros, setShowTelepros] = useState(false)
@@ -19,6 +22,16 @@ export default function AgendaV2Page() {
   const [showQueue, setShowQueue] = useState(false)
   const [showSite, setShowSite] = useState(false)
   const [unassignedCount, setUnassignedCount] = useState<number | null>(null)
+
+  // Ouverture directe des panneaux depuis la sidebar (?open=telepros|closers)
+  useEffect(() => {
+    const open = searchParams.get('open')
+    if (open === 'telepros') setShowTelepros(true)
+    if (open === 'closers') setShowClosers(true)
+    if (open === 'telepros' || open === 'closers') {
+      router.replace('/admin/crm-v2/agenda', { scroll: false })
+    }
+  }, [searchParams, router])
 
   const fetchCount = useCallback(async () => {
     try {
@@ -118,6 +131,18 @@ export default function AgendaV2Page() {
       {showClosers && <CloserManager onClose={() => setShowClosers(false)} />}
       {showSite && <SiteContenusPanel onClose={() => setShowSite(false)} />}
     </CrmV2Page>
+  )
+}
+
+export default function AgendaV2Page() {
+  return (
+    <Suspense fallback={
+      <CrmV2Page>
+        <div style={{ padding: 40, color: crmV2.textMuted, fontSize: 13 }}>Chargement…</div>
+      </CrmV2Page>
+    }>
+      <AgendaV2Inner />
+    </Suspense>
   )
 }
 

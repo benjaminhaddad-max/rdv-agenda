@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -19,6 +19,7 @@ interface NavItem {
   icon: typeof Users
   badgeKey?: 'errors'
   ready?: boolean
+  external?: boolean
 }
 
 interface NavSection {
@@ -50,6 +51,14 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'proprietes', label: 'Propriétés', href: '/admin/crm-v2/proprietes', icon: Database, ready: true },
       { key: 'users', label: 'Utilisateurs', href: '/admin/crm-v2/users', icon: Users, ready: true },
       { key: 'parametres', label: 'Paramètres', href: '/admin/crm-v2/parametres', icon: SettingsIcon, ready: true },
+    ],
+  },
+  {
+    title: 'Équipe',
+    items: [
+      { key: 'espace-telepro', label: 'Espace télépro', href: '/telepro', icon: Phone, ready: true, external: true },
+      { key: 'manage-telepros', label: 'Télépros', href: '/admin/crm-v2/agenda?open=telepros', icon: Users, ready: true },
+      { key: 'manage-closers', label: 'Closers', href: '/admin/crm-v2/agenda?open=closers', icon: Briefcase, ready: true },
     ],
   },
   {
@@ -148,8 +157,12 @@ export default function CRMSidebarV2() {
   }
 
   const isActive = (href: string) => {
-    if (href === '/admin/crm-v2') return pathname === '/admin/crm-v2'
-    return pathname.startsWith(href)
+    // Liens d'ouverture de panneau : pas d'état actif (évite le double highlight avec Agenda)
+    if (href.includes('?open=')) return false
+    const pathOnly = href.split('?')[0]
+    if (pathOnly === '/admin/crm-v2') return pathname === '/admin/crm-v2'
+    if (pathOnly === '/telepro') return pathname.startsWith('/telepro')
+    return pathname.startsWith(pathOnly)
   }
 
   const width = isMobile ? 0 : (collapsed ? 60 : 240)
@@ -199,6 +212,9 @@ export default function CRMSidebarV2() {
                   {!collapsed && (
                     <>
                       <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+                      {item.external && (
+                        <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />
+                      )}
                       {!ready && (
                         <span style={{
                           fontSize: 9, fontWeight: 700, color: NAVY.faint,
