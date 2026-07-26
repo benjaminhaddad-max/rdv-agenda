@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, Sparkles, ArrowLeftRight,
+  Palette, Repeat2, FileSignature, Phone,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -247,7 +247,7 @@ export default function CRMSidebarV2() {
                 padding: '14px 16px', borderBottom: `1px solid ${NAVY.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>CRM Design B</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>CRM Diploma Santé</div>
                 <button type="button" onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: NAVY.muted }}>
                   <X size={20} />
                 </button>
@@ -316,17 +316,10 @@ export default function CRMSidebarV2() {
           </div>
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2 }}>
                 Diploma Santé
-                <span style={{
-                  fontSize: 9, fontWeight: 700, color: NAVY.goldText,
-                  background: NAVY.goldBg, borderRadius: 999, padding: '2px 6px',
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                }}>
-                  <Sparkles size={9} /> B
-                </span>
               </div>
-              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>Nouveau design</div>
+              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>CRM</div>
             </div>
           )}
         </div>
@@ -334,29 +327,6 @@ export default function CRMSidebarV2() {
         {renderNav()}
 
         <div style={{ padding: 8, borderTop: `1px solid ${NAVY.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <a
-            href="/admin/crm"
-            style={{
-              ...linkStyle(false, collapsed),
-              color: '#8fd4e3',
-            }}
-            title={collapsed ? 'Version classique' : undefined}
-          >
-            <ArrowLeftRight size={15} style={{ flexShrink: 0 }} />
-            {!collapsed && <span>Version classique</span>}
-          </a>
-          <a
-            href="/admin/crm-v2/cutover"
-            style={{
-              ...linkStyle(false, collapsed),
-              color: NAVY.faint,
-              fontSize: 12,
-            }}
-            title={collapsed ? 'Cutover' : undefined}
-          >
-            <Sparkles size={14} style={{ flexShrink: 0 }} />
-            {!collapsed && <span>Cutover (info)</span>}
-          </a>
           <a
             href="/login"
             onClick={async e => {

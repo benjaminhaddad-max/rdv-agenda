@@ -70,16 +70,11 @@ export default function DashboardV2Page() {
     <CrmV2Page>
       <CrmV2Header
         title="Dashboard"
-        subtitle="Vue d’ensemble du CRM — Design B"
+        subtitle="Vue d’ensemble du CRM"
         actions={
-          <>
-            <CrmV2Button variant="ghost" onClick={() => { window.location.href = '/admin/crm/dashboard' }}>
-              Version classique
-            </CrmV2Button>
-            <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
-              <RefreshCw size={14} /> Actualiser
-            </CrmV2Button>
-          </>
+          <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
+            <RefreshCw size={14} /> Actualiser
+          </CrmV2Button>
         }
       />
 

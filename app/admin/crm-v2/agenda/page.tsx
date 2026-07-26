@@ -43,14 +43,9 @@ export default function AgendaV2Page() {
         title="Agenda"
         subtitle="Planification et RDV de toute l’équipe"
         actions={
-          <>
-            <CrmV2Button variant="ghost" onClick={() => { window.location.href = '/admin/crm/agenda' }}>
-              Version classique
-            </CrmV2Button>
-            <CrmV2Button variant="gold" onClick={() => { window.location.href = '/telepro' }}>
-              <Plus size={14} /> Nouveau RDV
-            </CrmV2Button>
-          </>
+          <CrmV2Button variant="gold" onClick={() => { window.location.href = '/telepro' }}>
+            <Plus size={14} /> Nouveau RDV
+          </CrmV2Button>
         }
       />
 

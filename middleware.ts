@@ -20,6 +20,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // ── Cutover Design B : une seule version du CRM ────────────────────
+  // Toutes les URLs classiques /admin/crm/* sont servies par le shell V2
+  // (mêmes pages métier, habillage Design B). 307 = réversible.
+  if (pathname === '/admin/crm' || pathname.startsWith('/admin/crm/')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/admin/crm-v2' + pathname.slice('/admin/crm'.length)
+    return NextResponse.redirect(url, 307)
+  }
+
   // Fast-path public routes: avoid Supabase auth network call on every hit.
   const isPublicPath =
     pathname.startsWith('/book/') ||
@@ -149,7 +158,7 @@ function redirectByRole(
   request: NextRequest
 ) {
   if (dbUser.role === 'admin') {
-    return NextResponse.redirect(new URL('/admin/crm', request.url))
+    return NextResponse.redirect(new URL('/admin/crm-v2', request.url))
   }
   if (dbUser.role === 'closer') {
     return NextResponse.redirect(new URL(`/closer/${dbUser.slug}`, request.url))

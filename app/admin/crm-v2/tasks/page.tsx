@@ -174,12 +174,7 @@ export default function TasksV2Page() {
     <CrmV2Page>
       <CrmV2Header
         title="Tâches"
-        subtitle="Design B — référence visuelle HubSpot"
-        actions={
-          <CrmV2Button variant="ghost" onClick={() => { window.location.href = '/admin/crm/tasks' }}>
-            Version classique
-          </CrmV2Button>
-        }
+        subtitle="Suivi des tâches de l’équipe"
       />
 
       <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '16px 28px' }}>
