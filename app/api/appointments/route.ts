@@ -273,20 +273,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Auto-attribution closer (si télépro et pas de closer pré-assigné) ─────
+  // ── Auto-attribution closer (si pas de closer pré-assigné) ────────────────
   // Règle actuelle (cf. lib/closer-assignment.ts) :
-  //   → tous les RDV télépro sont assignés par défaut à Pascal Tawfik,
-  //     qui redispatche ensuite manuellement aux closers.
+  //   → télépro / widget web / admin sans closer → assignCloserForSlot
+  //     (Judith jusqu'au 17/08/2026, puis Pascal pour redispatch).
   let assignedCommercialId: string | null = commercial_id || null
   let assignedOwnerId: string | null = null
-  let autoAssignedToPascal = false
-  if (!assignedCommercialId && (source === 'telepro' || isWebBooking)) {
+  let autoAssigned = false
+  if (!assignedCommercialId && (source === 'telepro' || source === 'admin' || isWebBooking)) {
     try {
       const closer = await assignCloserForSlot(db, start_at, end_at)
       if (closer) {
         assignedCommercialId = closer.id
         assignedOwnerId = closer.hubspot_owner_id
-        autoAssignedToPascal = closer.isPascal
+        autoAssigned = true
       }
     } catch (e) {
       console.error('[appointments POST] Auto-assign closer failed:', e)
@@ -294,10 +294,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Vérifier disponibilité si commercial assigné MANUELLEMENT
-  // (Si auto-assigné à Pascal pour redispatch, on skip le check :
-  //  Pascal peut avoir plusieurs RDV en parallèle dans la file car
-  //  il ne les prend pas réellement, il les redispatche.)
-  if (assignedCommercialId && !autoAssignedToPascal) {
+  // (Si auto-assigné via assignCloserForSlot, on skip le check : le
+  //  closer par défaut / override peut recevoir plusieurs RDV en parallèle.)
+  if (assignedCommercialId && !autoAssigned) {
     const { data: conflict } = await db
       .from('rdv_appointments')
       .select('id')
