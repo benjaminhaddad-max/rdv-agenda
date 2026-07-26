@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -251,6 +251,14 @@ export default function CRMSidebar() {
                     </div>
                   </div>
                 ))}
+                <a
+                  href="/admin/crm-v2"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{ ...navLinkStyle(false), color: COLORS.accent, background: COLORS.accentBg, marginTop: 8 }}
+                >
+                  <Sparkles size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
+                  <span>Nouveau design</span>
+                </a>
                 <a
                   href="/login"
                   onClick={async (e) => {
@@ -517,7 +525,7 @@ export default function CRMSidebar() {
           ))}
         </nav>
 
-        {/* Footer : logout + collapse */}
+        {/* Footer : design B + logout + collapse */}
         <div style={{
           padding: 8,
           borderTop: `1px solid ${COLORS.border}`,
@@ -526,6 +534,27 @@ export default function CRMSidebar() {
           gap: 4,
           background: COLORS.bg,
         }}>
+          <a
+            href="/admin/crm-v2"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: collapsed ? '10px' : '8px 12px',
+              borderRadius: 6,
+              textDecoration: 'none',
+              color: COLORS.accent,
+              background: COLORS.accentBg,
+              fontSize: 13,
+              fontWeight: 600,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              transition: 'background .12s',
+            }}
+            title={collapsed ? 'Nouveau design' : undefined}
+          >
+            <Sparkles size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
+            {!collapsed && <span>Nouveau design</span>}
+          </a>
           <a
             href="/login"
             onClick={async (e) => {

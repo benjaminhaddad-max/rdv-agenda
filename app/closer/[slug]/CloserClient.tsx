@@ -17,6 +17,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import UserCRMViewV2 from '@/components/crm-v2/UserCRMViewV2'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -179,6 +180,11 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
+  const [useCrmV2, setUseCrmV2] = useState(false)
+  useEffect(() => {
+    setUseCrmV2(new URLSearchParams(window.location.search).get('ui') === 'v2')
+  }, [])
+  const ContactsView = useCrmV2 ? UserCRMViewV2 : UserCRMView
   const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'>('planning')
   const [leadsTotal, setLeadsTotal] = useState(0)
   const [contactsTotal, setContactsTotal] = useState(0)
@@ -1462,7 +1468,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
             </div>
           ) : (
-            <UserCRMView
+            <ContactsView
               ownerParam="contact_owner_hs_id"
               ownerId={user.hubspot_owner_id}
               mode="closer"

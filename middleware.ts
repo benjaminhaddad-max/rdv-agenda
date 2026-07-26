@@ -94,7 +94,7 @@ export async function middleware(request: NextRequest) {
   // (closer/telepro doivent pouvoir les ouvrir depuis la recherche globale,
   // leur journal de repop, etc. — pour traiter un lead même non attribué).
   if (pathname.startsWith('/admin')) {
-    const isSharedCrmRecordView = /^\/admin\/crm\/(contacts|deals)\/[^/]+\/?$/.test(pathname)
+    const isSharedCrmRecordView = /^\/admin\/crm(?:-v2)?\/(contacts|deals)\/[^/]+\/?$/.test(pathname)
     if (dbUser.role !== 'admin' && !isSharedCrmRecordView) {
       return redirectByRole(dbUser, request)
     }

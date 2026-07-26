@@ -53,3 +53,34 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-secondary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* CRM Version B — fond clair HubSpot + accent or Diploma */
+.crm-v2 {
+  color: #2d3e50;
+  --crm-v2-bg: #ffffff;
+  --crm-v2-bg-soft: #f5f8fa;
+  --crm-v2-border: #dfe3eb;
+  --crm-v2-text: #2d3e50;
+  --crm-v2-muted: #516f90;
+  --crm-v2-link: #0091ae;
+  --crm-v2-gold: #C9A84C;
+}
+.crm-v2 input,
+.crm-v2 textarea,
+.crm-v2 select,
+.crm-v2 button {
+  color: inherit;
+}
+.crm-v2 input::placeholder,
+.crm-v2 textarea::placeholder {
+  color: #7c98b6;
+}
+.crm-v2 a:not([style]) {
+  color: #0091ae;
+}
+@keyframes crm-v2-spin {
+  to { transform: rotate(360deg); }
+}
+.crm-v2 ::-webkit-scrollbar-track { background: #f5f8fa; }
+.crm-v2 ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
+.crm-v2 ::-webkit-scrollbar-thumb:hover { background: #7c98b6; }

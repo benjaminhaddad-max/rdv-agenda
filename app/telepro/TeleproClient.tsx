@@ -18,6 +18,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import UserCRMViewV2 from '@/components/crm-v2/UserCRMViewV2'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
@@ -472,6 +473,11 @@ export default function TeleproClient({
   previewMode?: boolean
   adminUser?: { name: string }
 }) {
+  const [useCrmV2, setUseCrmV2] = useState(false)
+  useEffect(() => {
+    setUseCrmV2(new URLSearchParams(window.location.search).get('ui') === 'v2')
+  }, [])
+  const ContactsView = useCrmV2 ? UserCRMViewV2 : UserCRMView
   const isAdmin = teleproUser.role === 'admin'
   const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
   // "Mes Contacts" doit reposer sur l'identité CRM interne du télépro.
@@ -2658,7 +2664,7 @@ export default function TeleproClient({
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {teleproCrmFilterId ? (
-            <UserCRMView
+            <ContactsView
               ownerParam="telepro_id"
               ownerId={teleproCrmFilterId}
               mode="telepro"
