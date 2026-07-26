@@ -274,13 +274,13 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Auto-attribution closer (si pas de closer pré-assigné) ────────────────
-  // Règle actuelle (cf. lib/closer-assignment.ts) :
-  //   → télépro / widget web / admin sans closer → assignCloserForSlot
-  //     (Judith jusqu'au 17/08/2026, puis Pascal pour redispatch).
+  // TOUS les canaux (télépro, admin, prospect/en ligne, widget…) :
+  //   → assignCloserForSlot (Judith jusqu'au 17/08/2026, puis Pascal).
+  // Seul cas exempt : closer déjà fourni (ex. /book/[slug] d'un closer).
   let assignedCommercialId: string | null = commercial_id || null
   let assignedOwnerId: string | null = null
   let autoAssigned = false
-  if (!assignedCommercialId && (source === 'telepro' || source === 'admin' || isWebBooking)) {
+  if (!assignedCommercialId) {
     try {
       const closer = await assignCloserForSlot(db, start_at, end_at)
       if (closer) {
