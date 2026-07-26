@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import CRMSidebarV2 from '@/components/crm-v2/CRMSidebarV2'
@@ -15,10 +15,62 @@ type Me = {
   name?: string
 }
 
+/* Sections classiques qui existent aussi en V2 (routes bridgées). */
+const V2_SEGMENTS = new Set([
+  'contacts', 'deals', 'transactions', 'tasks', 'agenda', 'dashboard',
+  'import', 'doublons', 'recherche-prop', 'proprietes', 'users', 'parametres',
+  'campaigns', 'email-templates', 'workflows', 'forms', 'meta-ads',
+  'ads-dashboard', 'sms-factor', 'events', 'alternance', 'reports',
+])
+
+/**
+ * Design only : les pages classiques génèrent des liens vers /admin/crm/…
+ * On réécrit leurs href vers /admin/crm-v2/… pour rester dans le shell V2.
+ * Aucune logique métier n'est modifiée (le comportement du lien reste natif).
+ */
+function useV2LinkRewriter(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+
+    const rewrite = (a: HTMLAnchorElement) => {
+      const href = a.getAttribute('href')
+      if (!href || href.startsWith('/admin/crm-v2')) return
+      if (href === '/admin/crm' || href.startsWith('/admin/crm?')) {
+        a.setAttribute('href', '/admin/crm-v2' + href.slice('/admin/crm'.length))
+        return
+      }
+      if (!href.startsWith('/admin/crm/')) return
+      const rest = href.slice('/admin/crm/'.length)
+      const seg = rest.split(/[/?#]/)[0]
+      if (!V2_SEGMENTS.has(seg)) return
+      a.setAttribute('href', '/admin/crm-v2/' + rest)
+    }
+
+    let scheduled = false
+    const scan = () => {
+      scheduled = false
+      root.querySelectorAll<HTMLAnchorElement>('a[href^="/admin/crm"]').forEach(rewrite)
+    }
+    const schedule = () => {
+      if (scheduled) return
+      scheduled = true
+      requestAnimationFrame(scan)
+    }
+
+    scan()
+    const mo = new MutationObserver(schedule)
+    mo.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] })
+    return () => mo.disconnect()
+  }, [rootRef])
+}
+
 function Inner({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const isMobile = useIsMobile()
+  const rootRef = useRef<HTMLDivElement>(null)
+  useV2LinkRewriter(rootRef)
   const embed = searchParams.get('embed') === '1'
   const hideSearchBar = pathname?.startsWith('/admin/crm-v2/agenda')
   const [me, setMe] = useState<Me | null>(null)
@@ -50,6 +102,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   return (
     <div
+      ref={rootRef}
       className="crm-v2 crm-v2-skin"
       style={{ display: 'flex', minHeight: '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font }}
     >

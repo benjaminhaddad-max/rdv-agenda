@@ -146,6 +146,36 @@ body {
   border-color: #dfe3eb !important;
 }
 
+/* ── Arrondis Tailwind poussés (fiches contact/transaction, modales…) ── */
+.crm-v2-skin .rounded {
+  border-radius: 10px !important;
+}
+.crm-v2-skin .rounded-md {
+  border-radius: 12px !important;
+}
+.crm-v2-skin .rounded-lg {
+  border-radius: 16px !important;
+}
+.crm-v2-skin .rounded-xl {
+  border-radius: 20px !important;
+}
+
+/* ── Avatar héro des fiches : cercle → squircle ───────────────────────── */
+.crm-v2-skin .w-20.rounded-full,
+.crm-v2-skin .w-16.rounded-full {
+  border-radius: 32% !important;
+}
+
+/* ── Cartes des fiches : ombre plus douce et présente ─────────────────── */
+.crm-v2-skin .shadow-sm {
+  box-shadow: 0 2px 12px rgba(15, 31, 61, 0.07) !important;
+}
+
+/* ── CTA navy Tailwind → dégradé doré signature ───────────────────────── */
+.crm-v2-skin .bg-\[\#0e1e35\] {
+  background: linear-gradient(135deg, #d9bc6b 0%, #b8963e 100%) !important;
+}
+
 /* ── Cartes / conteneurs blancs : coins plus généreux + ombre douce ───── */
 .crm-v2-skin [style*="border-radius: 8px"] {
   border-radius: 12px !important;
