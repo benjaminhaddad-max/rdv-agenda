@@ -1,20 +1,18 @@
 'use client'
 
 import UserCRMView from '@/components/UserCRMView'
-import { ClassicBridgeBanner } from '@/components/crm-v2/ClassicBridge'
 import { crmV2 } from '@/lib/crm-v2-theme'
 
 type Props = React.ComponentProps<typeof UserCRMView>
 
 /**
  * Variante Design B pour closer / télépro.
- * Même logique métier (UserCRMView), chrome V2 + bandeau.
- * Activation : ?ui=v2 sur /closer/[slug] ou /telepro
+ * Même logique métier (UserCRMView), chrome V2 via skin CSS.
  */
 export default function UserCRMViewV2(props: Props) {
   return (
     <div
-      className="crm-v2"
+      className="crm-v2 crm-v2-skin"
       style={{
         height: '100%',
         display: 'flex',
@@ -24,10 +22,6 @@ export default function UserCRMViewV2(props: Props) {
         minHeight: 0,
       }}
     >
-      <ClassicBridgeBanner
-        classicHref={typeof window !== 'undefined' ? window.location.pathname : '/'}
-        label="Design B — Mes contacts"
-      />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <UserCRMView {...props} />
       </div>

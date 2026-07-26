@@ -18,7 +18,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
-import UserCRMViewV2 from '@/components/crm-v2/UserCRMViewV2'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
@@ -473,11 +473,6 @@ export default function TeleproClient({
   previewMode?: boolean
   adminUser?: { name: string }
 }) {
-  const [useCrmV2, setUseCrmV2] = useState(false)
-  useEffect(() => {
-    setUseCrmV2(new URLSearchParams(window.location.search).get('ui') === 'v2')
-  }, [])
-  const ContactsView = useCrmV2 ? UserCRMViewV2 : UserCRMView
   const isAdmin = teleproUser.role === 'admin'
   const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
   // "Mes Contacts" doit reposer sur l'identité CRM interne du télépro.
@@ -1246,7 +1241,7 @@ export default function TeleproClient({
   // ─── Success screen ────────────────────────────────────────────────────
   if (success) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="crm-v2 crm-v2-skin" style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: crmV2.font }}>
         <div style={{ background: '#e5ddc8', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
           <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
@@ -1284,28 +1279,29 @@ export default function TeleproClient({
 
   // ─── Main UI ───────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35' }}>
+    <div
+      className="crm-v2 crm-v2-skin"
+      style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font }}
+    >
 
       {/* Preview banner */}
       {previewMode && adminUser && (
-        <div style={{ background: 'rgba(204,172,113,0.12)', borderBottom: '1px solid rgba(204,172,113,0.3)', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-          <span style={{ color: '#C9A84C', fontWeight: 700 }}>👁 Mode aperçu</span>
-          <span style={{ color: '#4a6070' }}>Tu vois la plateforme telle que</span>
-          <span style={{ color: '#0e1e35', fontWeight: 700 }}>{teleproUser.name}</span>
-          <span style={{ color: '#4a6070' }}>la voit.</span>
-          <a href="/admin" style={{ marginLeft: 'auto', color: '#C9A84C', fontSize: 11, textDecoration: 'none', background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 600 }}>
+        <div style={{ background: crmV2.goldSoft, borderBottom: `1px solid ${crmV2.goldBorder}`, padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+          <span style={{ color: crmV2.gold, fontWeight: 700 }}>Mode aperçu</span>
+          <span style={{ color: crmV2.textMuted }}>Tu vois la plateforme telle que</span>
+          <span style={{ color: crmV2.text, fontWeight: 700 }}>{teleproUser.name}</span>
+          <span style={{ color: crmV2.textMuted }}>la voit.</span>
+          <a href="/admin/crm-v2" style={{ marginLeft: 'auto', color: crmV2.gold, fontSize: 11, textDecoration: 'none', background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 999, padding: '4px 12px', fontWeight: 600 }}>
             ← Retour Admin
           </a>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ background: '#ffffff', borderBottom: '1px solid #e5ddc8', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: teleproUser.avatar_color ? `${teleproUser.avatar_color}25` : 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${teleproUser.avatar_color || '#C9A84C'}50` }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: teleproUser.avatar_color || '#C9A84C' }}>
-              {teleproUser.name.charAt(0).toUpperCase()}
-            </span>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#5BA4D9', boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)' }}>
+            <img src="/logo-diploma-mark.png" alt="Diploma Santé" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Bonjour {teleproUser.name}</div>
@@ -2664,7 +2660,7 @@ export default function TeleproClient({
       {activeTab === 'contacts' && !isAdmin && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {teleproCrmFilterId ? (
-            <ContactsView
+            <UserCRMView
               ownerParam="telepro_id"
               ownerId={teleproCrmFilterId}
               mode="telepro"

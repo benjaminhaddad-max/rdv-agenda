@@ -17,7 +17,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
-import UserCRMViewV2 from '@/components/crm-v2/UserCRMViewV2'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -180,11 +180,6 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
-  const [useCrmV2, setUseCrmV2] = useState(false)
-  useEffect(() => {
-    setUseCrmV2(new URLSearchParams(window.location.search).get('ui') === 'v2')
-  }, [])
-  const ContactsView = useCrmV2 ? UserCRMViewV2 : UserCRMView
   const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'>('planning')
   const [leadsTotal, setLeadsTotal] = useState(0)
   const [contactsTotal, setContactsTotal] = useState(0)
@@ -670,7 +665,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
   // ─── Success screen RDV ────────────────────────────────────────────────
   if (rdvSuccess) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="crm-v2 crm-v2-skin" style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: crmV2.font }}>
         <div style={{ background: '#ffffff', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
           <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
@@ -703,32 +698,33 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
   // ─── Render ───────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f7f4ee', color: '#0e1e35' }}>
+    <div
+      className="crm-v2 crm-v2-skin"
+      style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font }}
+    >
 
       {/* Header */}
       <div style={{
-        background: '#ffffff', borderBottom: '1px solid #2d4a6b',
+        background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
         padding: '0 24px', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: `${user.avatar_color}20`,
-            border: `1px solid ${user.avatar_color}40`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+            background: '#5BA4D9', boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)',
           }}>
-            <User size={17} style={{ color: user.avatar_color }} />
+            <img src="/logo-diploma-mark.png" alt="Diploma Santé" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>Mon espace closer</div>
+            <div style={{ fontSize: 11, color: crmV2.textMuted }}>Mon espace closer</div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', background: '#f7f4ee', borderRadius: 8, padding: 3, border: '1px solid #2d4a6b' }}>
+        <div style={{ display: 'flex', background: crmV2.bgSoft, borderRadius: crmV2.radiusPill, padding: 3, border: `1px solid ${crmV2.border}` }}>
           {([
             { key: 'planning' as const, label: 'Mon planning', icon: <Calendar size={13} /> },
             { key: 'rdv' as const, label: 'Nouveau RDV', icon: <PlusCircle size={13} /> },
@@ -1468,7 +1464,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
             </div>
           ) : (
-            <ContactsView
+            <UserCRMView
               ownerParam="contact_owner_hs_id"
               ownerId={user.hubspot_owner_id}
               mode="closer"
