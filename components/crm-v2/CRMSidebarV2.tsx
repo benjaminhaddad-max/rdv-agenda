@@ -302,27 +302,30 @@ export default function CRMSidebarV2() {
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
         <div style={{
-          padding: collapsed ? '10px 8px' : '12px 16px',
+          padding: collapsed ? '14px 10px' : '14px 18px',
           borderBottom: `1px solid ${NAVY.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
-          height: 64, boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', gap: 10, height: 56, boxSizing: 'border-box',
         }}>
-          {collapsed ? (
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%', overflow: 'hidden',
+            flexShrink: 0, background: '#5BA4D9',
+            boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)',
+          }}>
             <img
               src="/logo-diploma-mark.png"
               alt="Diploma Santé"
-              width={40}
-              height={40}
-              style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover', display: 'block' }}
+              width={34}
+              height={34}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-          ) : (
-            <img
-              src="/logo-diploma.svg"
-              alt="Diploma Santé"
-              width={168}
-              height={22}
-              style={{ width: 168, height: 22, display: 'block' }}
-            />
+          </div>
+          {!collapsed && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2 }}>
+                Diploma Santé
+              </div>
+              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>CRM</div>
+            </div>
           )}
         </div>
 
