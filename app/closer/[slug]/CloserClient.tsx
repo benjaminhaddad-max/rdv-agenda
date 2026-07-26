@@ -715,7 +715,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
             background: '#5BA4D9', boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)',
           }}>
-            <img src="/logo-diploma-mark.png" alt="Diploma Santé" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div>

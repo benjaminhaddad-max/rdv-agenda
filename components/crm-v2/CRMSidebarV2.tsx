@@ -263,7 +263,7 @@ export default function CRMSidebarV2() {
                 padding: '14px 16px', borderBottom: `1px solid ${NAVY.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>CRM Diploma Santé</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>Hub Diploma</div>
                 <button type="button" onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: NAVY.muted }}>
                   <X size={20} />
                 </button>
@@ -318,30 +318,33 @@ export default function CRMSidebarV2() {
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
         <div style={{
-          padding: collapsed ? '14px 10px' : '14px 18px',
+          padding: collapsed ? '14px 10px' : '12px 14px',
           borderBottom: `1px solid ${NAVY.border}`,
-          display: 'flex', alignItems: 'center', gap: 10, height: 56, boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', gap: 10,
+          height: collapsed ? 56 : 64, boxSizing: 'border-box',
         }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%', overflow: 'hidden',
-            flexShrink: 0, background: '#5BA4D9',
-            boxShadow: '0 0 0 2px rgba(201, 168, 76, 0.45)',
-          }}>
-            <img
-              src="/logo-diploma-mark.png"
-              alt="Diploma Santé"
-              width={34}
-              height={34}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
-          </div>
-          {!collapsed && (
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2 }}>
-                Diploma Santé
-              </div>
-              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>CRM</div>
+          {collapsed ? (
+            <div style={{
+              width: 34, height: 34, borderRadius: '50%', overflow: 'hidden',
+              flexShrink: 0, background: '#2f2c4a',
+              boxShadow: '0 0 0 2px rgba(94, 188, 227, 0.35)',
+            }}>
+              <img
+                src="/logo-hub-diploma-mark.png"
+                alt="Hub Diploma"
+                width={34}
+                height={34}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             </div>
+          ) : (
+            <img
+              src="/logo-hub-diploma.png"
+              alt="Hub Diploma"
+              width={196}
+              height={70}
+              style={{ width: '100%', maxWidth: 196, height: 'auto', display: 'block', borderRadius: 10 }}
+            />
           )}
         </div>
 
