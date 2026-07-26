@@ -302,25 +302,27 @@ export default function CRMSidebarV2() {
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
         <div style={{
-          padding: collapsed ? '14px 10px' : '14px 18px',
+          padding: collapsed ? '10px 8px' : '12px 16px',
           borderBottom: `1px solid ${NAVY.border}`,
-          display: 'flex', alignItems: 'center', gap: 10, height: 56, boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
+          height: 64, boxSizing: 'border-box',
         }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: crmV2.radiusPill,
-            background: 'linear-gradient(135deg, #ddc27a 0%, #C9A84C 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 800, fontSize: 12, flexShrink: 0,
-          }}>
-            DS
-          </div>
-          {!collapsed && (
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2 }}>
-                Diploma Santé
-              </div>
-              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>CRM</div>
-            </div>
+          {collapsed ? (
+            <img
+              src="/logo-diploma-mark.png"
+              alt="Diploma Santé"
+              width={40}
+              height={40}
+              style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <img
+              src="/logo-diploma.svg"
+              alt="Diploma Santé"
+              width={168}
+              height={22}
+              style={{ width: 168, height: 22, display: 'block' }}
+            />
           )}
         </div>
 
