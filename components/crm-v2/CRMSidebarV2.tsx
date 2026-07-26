@@ -91,6 +91,19 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+/* Palette navy Diploma — utilisée uniquement pour le chrome V2 (design only) */
+const NAVY = {
+  bg: 'linear-gradient(180deg, #142440 0%, #0F1F3D 100%)',
+  solid: '#0F1F3D',
+  border: 'rgba(255, 255, 255, 0.08)',
+  text: '#eef2f8',
+  muted: '#a3b3cc',
+  faint: '#64789a',
+  goldIcon: '#e3c878',
+  goldText: '#f0d999',
+  goldBg: 'rgba(201, 168, 76, 0.22)',
+}
+
 const MOBILE_TABS = [
   { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users },
   { key: 'tasks', label: 'Tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare },
@@ -148,8 +161,8 @@ export default function CRMSidebarV2() {
     padding: compact ? '10px' : '9px 14px',
     borderRadius: crmV2.radiusPill,
     textDecoration: 'none',
-    color: active ? '#8a6d1f' : crmV2.textMuted,
-    background: active ? crmV2.goldSoft : 'transparent',
+    color: active ? NAVY.goldText : NAVY.muted,
+    background: active ? NAVY.goldBg : 'transparent',
     fontSize: 13,
     fontWeight: active ? 700 : 500,
     justifyContent: compact ? 'center' : 'flex-start',
@@ -162,7 +175,7 @@ export default function CRMSidebarV2() {
         <div key={section.title} style={{ marginBottom: 18 }}>
           {!collapsed && (
             <div style={{
-              fontSize: 10, fontWeight: 700, color: crmV2.textFaint,
+              fontSize: 10, fontWeight: 700, color: NAVY.faint,
               textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 8px',
             }}>
               {section.title}
@@ -182,14 +195,14 @@ export default function CRMSidebarV2() {
                   title={collapsed ? item.label : undefined}
                   style={linkStyle(active, collapsed)}
                 >
-                  <Icon size={16} strokeWidth={2} style={{ color: active ? crmV2.gold : crmV2.textFaint, flexShrink: 0 }} />
+                  <Icon size={16} strokeWidth={2} style={{ color: active ? NAVY.goldIcon : NAVY.faint, flexShrink: 0 }} />
                   {!collapsed && (
                     <>
                       <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
                       {!ready && (
                         <span style={{
-                          fontSize: 9, fontWeight: 700, color: crmV2.textFaint,
-                          background: crmV2.bgMuted, borderRadius: 4, padding: '1px 5px',
+                          fontSize: 9, fontWeight: 700, color: NAVY.faint,
+                          background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: '1px 6px',
                         }}>
                           bientôt
                         </span>
@@ -227,15 +240,15 @@ export default function CRMSidebarV2() {
             onClick={e => { if (e.target === e.currentTarget) setMobileMenuOpen(false) }}
           >
             <div style={{
-              background: crmV2.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+              background: NAVY.solid, borderTopLeftRadius: 22, borderTopRightRadius: 22,
               maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
             }}>
               <div style={{
-                padding: '14px 16px', borderBottom: `1px solid ${crmV2.border}`,
+                padding: '14px 16px', borderBottom: `1px solid ${NAVY.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>CRM Design B</div>
-                <button type="button" onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: crmV2.textMuted }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: NAVY.text }}>CRM Design B</div>
+                <button type="button" onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: NAVY.muted }}>
                   <X size={20} />
                 </button>
               </div>
@@ -245,7 +258,7 @@ export default function CRMSidebarV2() {
         )}
         <nav style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, height: 56,
-          background: crmV2.bg, borderTop: `1px solid ${crmV2.border}`,
+          background: NAVY.solid, borderTop: `1px solid ${NAVY.border}`,
           display: 'flex', zIndex: 40, paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}>
           {MOBILE_TABS.map(item => {
@@ -255,7 +268,7 @@ export default function CRMSidebarV2() {
               <a key={item.key} href={item.href} style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center', gap: 2, textDecoration: 'none',
-                color: active ? crmV2.gold : crmV2.textMuted, fontSize: 10, fontWeight: active ? 700 : 500,
+                color: active ? NAVY.goldIcon : NAVY.muted, fontSize: 10, fontWeight: active ? 700 : 500,
               }}>
                 <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                 <span>{item.label}</span>
@@ -268,7 +281,7 @@ export default function CRMSidebarV2() {
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
               justifyContent: 'center', gap: 2, background: 'none', border: 'none',
-              color: crmV2.textMuted, fontSize: 10, cursor: 'pointer',
+              color: NAVY.muted, fontSize: 10, cursor: 'pointer',
             }}
           >
             <Menu size={18} />
@@ -283,14 +296,14 @@ export default function CRMSidebarV2() {
     <>
       <aside style={{
         position: 'fixed', left: 12, top: 12, bottom: 12, width,
-        background: crmV2.bg, border: `1px solid ${crmV2.border}`,
-        borderRadius: 22, boxShadow: crmV2.shadow,
+        background: NAVY.bg, border: `1px solid ${NAVY.border}`,
+        borderRadius: 24, boxShadow: '0 8px 28px rgba(15, 31, 61, 0.28)',
         display: 'flex', flexDirection: 'column', transition: 'width .18s ease',
         zIndex: 30, overflow: 'hidden', fontFamily: crmV2.font,
       }}>
         <div style={{
           padding: collapsed ? '14px 10px' : '14px 18px',
-          borderBottom: `1px solid ${crmV2.border}`,
+          borderBottom: `1px solid ${NAVY.border}`,
           display: 'flex', alignItems: 'center', gap: 10, height: 56, boxSizing: 'border-box',
         }}>
           <div style={{
@@ -303,29 +316,29 @@ export default function CRMSidebarV2() {
           </div>
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY.text, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 6 }}>
                 Diploma Santé
                 <span style={{
-                  fontSize: 9, fontWeight: 700, color: crmV2.gold,
-                  background: crmV2.goldSoft, borderRadius: 4, padding: '2px 5px',
+                  fontSize: 9, fontWeight: 700, color: NAVY.goldText,
+                  background: NAVY.goldBg, borderRadius: 999, padding: '2px 6px',
                   display: 'inline-flex', alignItems: 'center', gap: 3,
                 }}>
                   <Sparkles size={9} /> B
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: crmV2.textMuted, fontWeight: 500 }}>Nouveau design</div>
+              <div style={{ fontSize: 11, color: NAVY.muted, fontWeight: 500 }}>Nouveau design</div>
             </div>
           )}
         </div>
 
         {renderNav()}
 
-        <div style={{ padding: 8, borderTop: `1px solid ${crmV2.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ padding: 8, borderTop: `1px solid ${NAVY.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <a
             href="/admin/crm"
             style={{
               ...linkStyle(false, collapsed),
-              color: crmV2.link,
+              color: '#8fd4e3',
             }}
             title={collapsed ? 'Version classique' : undefined}
           >
@@ -336,7 +349,7 @@ export default function CRMSidebarV2() {
             href="/admin/crm-v2/cutover"
             style={{
               ...linkStyle(false, collapsed),
-              color: crmV2.textFaint,
+              color: NAVY.faint,
               fontSize: 12,
             }}
             title={collapsed ? 'Cutover' : undefined}
@@ -354,7 +367,7 @@ export default function CRMSidebarV2() {
               } catch { /* ignore */ }
               window.location.href = '/login'
             }}
-            style={{ ...linkStyle(false, collapsed), color: crmV2.danger }}
+            style={{ ...linkStyle(false, collapsed), color: '#ff9298' }}
             title={collapsed ? 'Déconnexion' : undefined}
           >
             <LogOut size={15} style={{ flexShrink: 0 }} />
@@ -366,8 +379,8 @@ export default function CRMSidebarV2() {
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: collapsed ? '10px' : '8px 12px',
-              borderRadius: crmV2.radiusSm, border: 'none', background: 'transparent',
-              color: crmV2.textMuted, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+              borderRadius: crmV2.radiusPill, border: 'none', background: 'transparent',
+              color: NAVY.muted, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
               justifyContent: collapsed ? 'center' : 'flex-start',
             }}
           >

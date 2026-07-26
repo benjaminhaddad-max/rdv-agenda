@@ -169,9 +169,47 @@ body {
   background-color: rgba(201, 168, 76, 0.05);
 }
 
-/* ── Survol des liens de navigation (pilules) ─────────────────────────── */
+/* ── Survol des liens de navigation (pilules sur fond navy) ───────────── */
 .crm-v2 nav a[style*="background: transparent"]:hover {
-  background-color: #eef1f6 !important;
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* ── Avatars initiales : cercle → squircle avec anneau blanc ──────────── */
+.crm-v2-skin table div[style*="border-radius: 50%"] {
+  border-radius: 36% !important;
+  box-shadow: 0 0 0 2px #ffffff, 0 2px 6px rgba(15, 31, 61, 0.22);
+}
+
+/* ── Valeurs éditables des cellules (statut, étape, closer…) en chips ── */
+.crm-v2-skin td button[style*="min-width: 40px"] {
+  background-color: #f1f4f9 !important;
+  border: 1px solid #e3e8f0 !important;
+  border-radius: 999px !important;
+  width: auto !important;
+  max-width: 100%;
+  padding: 4px 12px !important;
+}
+.crm-v2-skin td button[style*="min-width: 40px"]:hover {
+  background-color: #e9eef6 !important;
+  border-color: #c9d4e3 !important;
+}
+
+/* ── Boutons d'action navy → dégradé doré signature ───────────────────── */
+.crm-v2-skin [style*="background: rgb(18, 49, 77)"] {
+  background: linear-gradient(135deg, #d9bc6b 0%, #b8963e 100%) !important;
+  border-color: transparent !important;
+}
+
+/* ── En-têtes de tableaux : bandeau doux et net ───────────────────────── */
+.crm-v2-skin thead th {
+  background-color: #f4f7fb !important;
+  border-bottom: 2px solid #e4eaf2 !important;
+}
+
+/* ── Lignes plus aérées, lecture facile ───────────────────────────────── */
+.crm-v2-skin tbody td {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
 }
 
 /* ── Focus clavier doré et arrondi ────────────────────────────────────── */
