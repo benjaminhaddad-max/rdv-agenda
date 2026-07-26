@@ -41,9 +41,18 @@ export default function ContactsV2Page() {
   const [sortBy, setSortBy] = useState('contact_createdate')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [drawerContact, setDrawerContact] = useState<CRMContact | null>(null)
-  const [closers, setClosers] = useState<Array<{ id: string; name: string; hubspot_owner_id?: string; avatar_color?: string }>>([])
-  const [telepros, setTelepros] = useState<Array<{ id: string; name: string; hubspot_owner_id?: string; hubspot_user_id?: string; avatar_color?: string }>>([])
-  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; role?: string; hubspot_owner_id?: string; hubspot_user_id?: string; avatar_color?: string }>>([])
+  type RdvUserLite = {
+    id: string
+    name: string
+    role: string
+    email?: string
+    hubspot_owner_id?: string
+    hubspot_user_id?: string
+    avatar_color?: string
+  }
+  const [closers, setClosers] = useState<RdvUserLite[]>([])
+  const [telepros, setTelepros] = useState<RdvUserLite[]>([])
+  const [allUsers, setAllUsers] = useState<RdvUserLite[]>([])
   const [extraColumns, setExtraColumns] = useState<string[]>([])
   const [allCrmProps, setAllCrmProps] = useState<Array<{ name: string; label?: string; type?: string; groupName?: string }>>([])
 
@@ -76,11 +85,11 @@ export default function ContactsV2Page() {
     fetch('/api/users?roles=closer,admin,telepro')
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
-        const users = Array.isArray(j) ? j : (j?.users ?? [])
+        const users = (Array.isArray(j) ? j : (j?.users ?? [])) as RdvUserLite[]
         if (!Array.isArray(users)) return
         setAllUsers(users)
-        setClosers(users.filter((u: { role?: string }) => u.role === 'closer' || u.role === 'admin'))
-        setTelepros(users.filter((u: { role?: string }) => u.role === 'telepro'))
+        setClosers(users.filter(u => u.role === 'closer' || u.role === 'admin'))
+        setTelepros(users.filter(u => u.role === 'telepro'))
       })
       .catch(() => {})
   }, [])
