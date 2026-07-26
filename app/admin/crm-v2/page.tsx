@@ -104,8 +104,9 @@ export default function ContactsV2Page() {
     try {
       const params = viewToParams(activeView)
       params.set('limit', String(limit))
-      params.set('offset', String(page * limit))
-      if (searchDebounced) params.set('q', searchDebounced)
+      // L’API contacts utilise `page` (0-based), pas `offset`.
+      params.set('page', String(page))
+      if (searchDebounced) params.set('search', searchDebounced)
       // Prefer view_id when the API supports server-side view resolution
       if (activeView.id && activeView.id !== 'all') {
         params.set('view_id', activeView.id)
@@ -113,8 +114,10 @@ export default function ContactsV2Page() {
 
       const res = await fetch(`/api/crm/contacts?${params.toString()}`)
       const json = await res.json()
-      setContacts(json.contacts ?? [])
-      setTotal(typeof json.total === 'number' ? json.total : (json.contacts?.length ?? 0))
+      // L’API renvoie `data` (pas `contacts`).
+      const rows: ContactRow[] = json.data ?? json.contacts ?? []
+      setContacts(rows)
+      setTotal(typeof json.total === 'number' ? json.total : rows.length)
       setSelected(new Set())
     } catch {
       setContacts([])
