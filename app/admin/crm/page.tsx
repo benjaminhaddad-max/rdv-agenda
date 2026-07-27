@@ -2290,9 +2290,9 @@ export default function CRMPage() {
                 padding: '7px 12px',
                 background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
                 border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-                borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#3D5275',
+                borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#0F1F3D',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: totalFilterRules > 0 ? 600 : 400,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
                 whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >
@@ -2322,7 +2322,7 @@ export default function CRMPage() {
                   padding: '7px 10px', background: 'none', border: '1px solid transparent',
                   borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+                  fontSize: 12, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
                 onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
@@ -2338,7 +2338,7 @@ export default function CRMPage() {
                   padding: '8px 12px', background: 'none', border: 'none',
                   color: '#0F1F3D', cursor: 'pointer', display: 'flex',
                   alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
-                  whiteSpace: 'nowrap', flexShrink: 0,
+                  fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
                 }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
@@ -2400,7 +2400,7 @@ export default function CRMPage() {
                 <span style={{ fontSize: 17, fontWeight: 800, color: '#4cabdb', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.5px' }}>
                   {totalEstimated ? `≈ ${total.toLocaleString('fr')}` : total.toLocaleString('fr')}
                 </span>
-                <span style={{ fontSize: 11, color: '#4a6a8a', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: 11, color: '#0F1F3D', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   contact{total !== 1 ? 's' : ''}
                 </span>
               </div>

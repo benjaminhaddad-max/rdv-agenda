@@ -2206,11 +2206,11 @@ export default function CRMContactsTable({
                       style={{
                         padding: '9px 12px',
                         textAlign: 'left',
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: 700,
-                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : isActivSort ? '#a5b4fc' : '#0e1e35',
+                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0F1F3D',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
+                        letterSpacing: '0.06em',
                         background: dragOverIdx === idx && dragIdx !== idx
                           ? 'rgba(76,171,219,0.07)'
                           : dragIdx === idx
@@ -2294,11 +2294,11 @@ export default function CRMContactsTable({
                     style={{
                       padding: '9px 12px',
                       textAlign: 'left',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 700,
-                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0e1e35',
+                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0F1F3D',
                       textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
+                      letterSpacing: '0.06em',
                       background: dragOverIdx === idx && dragIdx !== idx
                         ? 'rgba(76,171,219,0.07)'
                         : dragIdx === idx
