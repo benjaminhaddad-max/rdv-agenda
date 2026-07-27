@@ -2147,7 +2147,7 @@ export default function CRMPage() {
               ) : (
                 <span style={{
                   fontSize: 13, fontWeight: isActive ? 700 : 600,
-                  color: isActive ? '#C9A84C' : '#0F1F3D',
+                  color: '#0F1F3D',
                 }}>
                   {view.name}
                 </span>
@@ -3156,7 +3156,7 @@ export default function CRMPage() {
                             />
                           ) : (
                             <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#3D5275' }}>{view.name}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#0F1F3D' }}>{view.name}</span>
                               {ruleCount > 0 && (
                                 <span style={{ marginLeft: 8, fontSize: 11, color: '#0F1F3D' }}>{ruleCount} filtre{ruleCount > 1 ? 's' : ''}</span>
                               )}

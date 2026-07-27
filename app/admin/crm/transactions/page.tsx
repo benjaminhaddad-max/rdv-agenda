@@ -1162,7 +1162,7 @@ export default function TransactionsPage() {
               ) : (
                 <span style={{
                   fontSize: 13, fontWeight: isActive ? 700 : 600,
-                  color: isActive ? '#C9A84C' : '#0F1F3D',
+                  color: '#0F1F3D',
                 }}>
                   {view.name}
                 </span>
