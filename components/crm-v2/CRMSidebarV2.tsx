@@ -106,8 +106,8 @@ const NAVY = {
   solid: '#241F3F',
   border: 'rgba(255, 255, 255, 0.08)',
   text: '#eef2f8',
-  muted: '#a3b3cc',
-  faint: '#7a7a9a',
+  muted: '#ffffff',
+  faint: 'rgba(255, 255, 255, 0.72)',
   goldIcon: '#e3c878',
   goldText: '#f0d999',
   goldBg: 'rgba(201, 168, 76, 0.22)',
@@ -177,7 +177,7 @@ export default function CRMSidebarV2() {
     color: active ? NAVY.goldText : NAVY.muted,
     background: active ? NAVY.goldBg : 'transparent',
     fontSize: 13,
-    fontWeight: active ? 700 : 500,
+    fontWeight: active ? 700 : 600,
     justifyContent: compact ? 'center' : 'flex-start',
     transition: 'background .12s ease',
   })
@@ -284,7 +284,7 @@ export default function CRMSidebarV2() {
               <a key={item.key} href={item.href} style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center', gap: 2, textDecoration: 'none',
-                color: active ? NAVY.goldIcon : NAVY.muted, fontSize: 10, fontWeight: active ? 700 : 500,
+                color: active ? NAVY.goldIcon : NAVY.muted, fontSize: 10, fontWeight: active ? 700 : 600,
               }}>
                 <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                 <span>{item.label}</span>
@@ -375,6 +375,7 @@ export default function CRMSidebarV2() {
               padding: collapsed ? '10px' : '8px 12px',
               borderRadius: crmV2.radiusPill, border: 'none', background: 'transparent',
               color: NAVY.muted, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+              fontWeight: 600,
               justifyContent: collapsed ? 'center' : 'flex-start',
             }}
           >
