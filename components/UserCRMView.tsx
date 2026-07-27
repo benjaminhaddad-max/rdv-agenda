@@ -1232,8 +1232,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                   />
                 ) : (
                   <span style={{
-                    fontSize: 12, fontWeight: isActive ? 700 : 500,
-                    color: isActive ? GOLD : TEXT_DIM,
+                    fontSize: 13, fontWeight: isActive ? 700 : 600,
+                    color: isActive ? GOLD : TEXT_MID,
                   }}>
                     {view.name}
                   </span>
