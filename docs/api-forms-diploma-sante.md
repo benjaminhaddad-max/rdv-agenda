@@ -53,20 +53,178 @@ Le « type » = le **slug** publié dans le CRM (folder `Diploma Santé`, status
 | Type | Usage typique sur le site | Comportement post-submit |
 |---|---|---|
 | **Candidature** | Page candidature / PASS-LAS / prépa | Redirect conditionnel selon la classe (voir A.6) |
-| **Brochure** | Téléchargement brochure | Redirect form (`redirect_url` / `redirect_file_url`) — **pas** de redirect conditionnel classe |
-| **Guide Parcoursup** | Lead magnet guide | Idem brochure |
-| **Kit PASS / LAS** | Lead magnet kit | Idem brochure |
-| **Autre lead gen** | Landing, campagne ADS, email | Selon config du form dans le CRM |
+| **Brochure** | Téléchargement brochure | PDF via `redirect_url` — **pas** de redirect conditionnel classe |
+| **Guide Parcoursup** | Lead magnet guide | PDF via `redirect_url` |
+| **Kit PASS / LAS** | Lead magnet kit | PDF via `redirect_url` |
+| **Infos / Financement / Events** | Landing, CTA, soirée PO | Selon config du form |
 
-> Les slugs exacts sont gérés dans le CRM (`/admin/crm/forms`, folder Diploma Santé).  
-> Lister les forms publiés : `GET /api/external/forms` (clé API).  
-> Récupérer le schéma d’un slug : `GET /api/forms/{slug}/public`.
+Pattern d’embed (à coller tel quel, en changeant le slug) :
 
-Forms exclus du redirect conditionnel classe (utilisent leur propre `redirect_url`) :
+```html
+<div data-diploma-form="SLUG"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/SLUG/embed.js"></script>
+```
 
-- `NS - Formulaire kit PASS / LAS`
-- `NS - Formulaire "Guide Parcoursup 2026" - Diploma Sante`
-- `NS - Brochure Diploma Sante`
+Également disponibles pour chaque slug :
+
+- Page : `https://hub.diploma-sante.fr/forms/{slug}`
+- iframe : `https://hub.diploma-sante.fr/embed/forms/{slug}`
+- Schéma : `GET /api/forms/{slug}/public`
+- Submit : `POST /api/forms/{slug}/submit`
+
+---
+
+### A.1bis Codes d’intégration — tous les forms Diploma publiés
+
+Slugs issus du CRM production (folder `Diploma Santé`, status `published`).  
+Copier-coller directement sur diploma-sante.fr.
+
+#### Lead magnets (PDF après submit)
+
+**Brochure Diploma Santé** → `https://hub.diploma-sante.fr/brochures/ds-brochure-2026.pdf`
+
+```html
+<div data-diploma-form="ns-brochure-diploma-sante-hs61dd5d"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-brochure-diploma-sante-hs61dd5d/embed.js"></script>
+```
+
+**Guide Parcoursup 2026** → `https://hub.diploma-sante.fr/brochures/guide-parcoursup.pdf`
+
+```html
+<div data-diploma-form="ns-formulaire-guide-parcoursup-2026-dipl-hscd8dd6"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-formulaire-guide-parcoursup-2026-dipl-hscd8dd6/embed.js"></script>
+```
+
+**Kit PASS / LAS** → `https://hub.diploma-sante.fr/brochures/fiches-cours-pass-las.pdf`
+
+```html
+<div data-diploma-form="ns-formulaire-kit-pass-las-hs321c61"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-formulaire-kit-pass-las-hs321c61/embed.js"></script>
+```
+
+#### Candidatures (redirect conditionnel Terminale / non-Terminale)
+
+**Candidater Global**
+
+```html
+<div data-diploma-form="ns-candidater-global-hs1fd83d"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-global-hs1fd83d/embed.js"></script>
+```
+
+**Candidater Header**
+
+```html
+<div data-diploma-form="ns-candidater-header-hs70cd44"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-header-hs70cd44/embed.js"></script>
+```
+
+**Candidater Article**
+
+```html
+<div data-diploma-form="ns-candidater-article-hs4ee975"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-article-hs4ee975/embed.js"></script>
+```
+
+**Candidater Prépa PASS**
+
+```html
+<div data-diploma-form="ns-candidater-prepa-pass-hs350993"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-pass-hs350993/embed.js"></script>
+```
+
+**Candidater Prépa LAS**
+
+```html
+<div data-diploma-form="ns-candidater-prepa-las-hs4633f0"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-las-hs4633f0/embed.js"></script>
+```
+
+**Candidater Prépa LSPS**
+
+```html
+<div data-diploma-form="ns-candidater-prepa-lsps-hs2d5675"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-lsps-hs2d5675/embed.js"></script>
+```
+
+**Candidater Terminale Santé**
+
+```html
+<div data-diploma-form="ns-candidater-terminale-sante-hsca3e0b"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-terminale-sante-hsca3e0b/embed.js"></script>
+```
+
+**Candidater Première Élite**
+
+```html
+<div data-diploma-form="ns-candidater-premiere-elite-hs9d47bb"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-premiere-elite-hs9d47bb/embed.js"></script>
+```
+
+**Candidater PAES**
+
+```html
+<div data-diploma-form="ns-candidater-paes-hsac0864"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-paes-hsac0864/embed.js"></script>
+```
+
+**Candidater Paris 16**
+
+```html
+<div data-diploma-form="ns-candidater-paris-16-hsae66bc"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-paris-16-hsae66bc/embed.js"></script>
+```
+
+#### Infos / Financement / Events
+
+**Obtenir plus d’informations**
+
+```html
+<div data-diploma-form="ns-obtenir-plus-d-informations-hs904f68"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-obtenir-plus-d-informations-hs904f68/embed.js"></script>
+```
+
+**Financement**
+
+```html
+<div data-diploma-form="ns-financement-hsa8e997"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-financement-hsa8e997/embed.js"></script>
+```
+
+**FORM COMPLÉMENT**
+
+```html
+<div data-diploma-form="form-complement-kzjx"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/form-complement-kzjx/embed.js"></script>
+```
+
+**Soirée portes ouvertes — 16/07**
+
+```html
+<div data-diploma-form="form-soiree-portes-ouvertes-16-07-9ih7"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/form-soiree-portes-ouvertes-16-07-9ih7/embed.js"></script>
+```
+
+#### Récap slugs
+
+| Formulaire | Slug |
+|---|---|
+| Brochure | `ns-brochure-diploma-sante-hs61dd5d` |
+| Guide Parcoursup 2026 | `ns-formulaire-guide-parcoursup-2026-dipl-hscd8dd6` |
+| Kit PASS / LAS | `ns-formulaire-kit-pass-las-hs321c61` |
+| Candidater Global | `ns-candidater-global-hs1fd83d` |
+| Candidater Header | `ns-candidater-header-hs70cd44` |
+| Candidater Article | `ns-candidater-article-hs4ee975` |
+| Candidater Prépa PASS | `ns-candidater-prepa-pass-hs350993` |
+| Candidater Prépa LAS | `ns-candidater-prepa-las-hs4633f0` |
+| Candidater Prépa LSPS | `ns-candidater-prepa-lsps-hs2d5675` |
+| Candidater Terminale Santé | `ns-candidater-terminale-sante-hsca3e0b` |
+| Candidater Première Élite | `ns-candidater-premiere-elite-hs9d47bb` |
+| Candidater PAES | `ns-candidater-paes-hsac0864` |
+| Candidater Paris 16 | `ns-candidater-paris-16-hsae66bc` |
+| Obtenir plus d’infos | `ns-obtenir-plus-d-informations-hs904f68` |
+| Financement | `ns-financement-hsa8e997` |
+| FORM COMPLÉMENT | `form-complement-kzjx` |
+| Soirée PO 16/07 | `form-soiree-portes-ouvertes-16-07-9ih7` |
 
 ### A.2 Endpoints lead
 
@@ -96,8 +254,8 @@ Pages front :
 ```json
 {
   "id": "uuid",
-  "slug": "candidature-pass-las",
-  "title": "Candidature Diploma Santé",
+  "slug": "ns-candidater-prepa-pass-hs350993",
+  "title": "NS - Candidater Prépa PASS",
   "subtitle": null,
   "submit_label": "Envoyer",
   "success_message": "Merci !",
@@ -139,10 +297,10 @@ Pages front :
 #### `GET /api/forms/{slug}/embed.js`
 
 ```html
-<div data-diploma-form="candidature-pass-las"></div>
+<div data-diploma-form="ns-candidater-prepa-pass-hs350993"></div>
 <script
   async
-  src="https://hub.diploma-sante.fr/api/forms/candidature-pass-las/embed.js"
+  src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-pass-hs350993/embed.js"
 ></script>
 ```
 
@@ -199,7 +357,7 @@ Si aucun `div[data-diploma-form]` n’existe, le script en crée un avant la bal
 Exemple :
 
 ```bash
-curl -X POST 'https://hub.diploma-sante.fr/api/forms/candidature-pass-las/submit' \
+curl -X POST 'https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-pass-hs350993/submit' \
   -H 'Content-Type: application/json' \
   -H 'Origin: https://diploma-sante.fr' \
   -d '{
@@ -316,7 +474,7 @@ https://hub.diploma-sante.fr/forms/{slug}?t={token}
 {
   "ok": true,
   "hubspot_contact_id": "NATIVE_...",
-  "brand_slug": "candidature-pass-las",
+  "brand_slug": "ns-candidater-prepa-pass-hs350993",
   "values": {
     "firstname": "Camille",
     "lastname": "Dupont",
@@ -420,7 +578,7 @@ Auth : `Authorization: Bearer <EVENT_PLATFORM_API_KEY>` ou `X-API-Key`
 
 ```json
 [
-  { "id": "uuid", "slug": "candidature-pass-las", "name": "Candidature", "status": "published" }
+  { "id": "uuid", "slug": "ns-candidater-prepa-pass-hs350993", "name": "NS - Candidater Prépa PASS", "status": "published" }
 ]
 ```
 
@@ -604,19 +762,22 @@ Le widget impose en plus téléphone, département, classe, formation, lieu.
 ### Lead — embed one-liner
 
 ```html
-<div data-diploma-form="candidature-pass-las"></div>
-<script async src="https://hub.diploma-sante.fr/api/forms/candidature-pass-las/embed.js"></script>
+<div data-diploma-form="ns-candidater-prepa-pass-hs350993"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-pass-hs350993/embed.js"></script>
 ```
+
+> Tous les codes prêts à coller : section **A.1bis**.
 
 ### Lead — custom UI (React / Next)
 
 ```js
+const slug = 'ns-candidater-prepa-pass-hs350993'
 const schema = await fetch(
-  'https://hub.diploma-sante.fr/api/forms/candidature-pass-las/public'
+  `https://hub.diploma-sante.fr/api/forms/${slug}/public`
 ).then(r => r.json())
 
 const res = await fetch(
-  'https://hub.diploma-sante.fr/api/forms/candidature-pass-las/submit',
+  `https://hub.diploma-sante.fr/api/forms/${slug}/submit`,
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -659,8 +820,8 @@ if (json.redirect_url) location.href = json.redirect_url
 </script>
 <script defer src="https://hub.diploma-sante.fr/diploma-tracker.js"></script>
 
-<div data-diploma-form="candidature-pass-las"></div>
-<script async src="https://hub.diploma-sante.fr/api/forms/candidature-pass-las/embed.js"></script>
+<div data-diploma-form="ns-candidater-prepa-pass-hs350993"></div>
+<script async src="https://hub.diploma-sante.fr/api/forms/ns-candidater-prepa-pass-hs350993/embed.js"></script>
 ```
 
 ---
