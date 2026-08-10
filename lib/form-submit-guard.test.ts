@@ -37,6 +37,9 @@ describe('form-submit-guard', () => {
   test('allows diploma and brand origins', () => {
     expect(isAllowedFormOriginHeader('https://www.diploma-sante.fr/')).toBe(true)
     expect(isAllowedFormOriginHeader('https://hub.diploma-sante.fr')).toBe(true)
+    expect(isAllowedFormOriginHeader('https://edumove.fr')).toBe(true)
+    expect(isAllowedFormOriginHeader('https://www.edumove.fr')).toBe(true)
+    expect(isAllowedFormOriginHeader('https://candidature.edumove.fr')).toBe(true)
     expect(isAllowedFormOriginHeader('https://random-attacker.test')).toBe(false)
   })
 

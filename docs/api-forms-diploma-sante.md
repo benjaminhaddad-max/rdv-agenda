@@ -407,7 +407,7 @@ Honeypot déclenché → `{ "ok": true }` sans créer de contact (`spam`).
 #### Garde-fous
 
 - Rate limit : **5 / min** et **25 / h** par formulaire / IP
-- Origines Diploma autorisées : `diploma-sante.fr`, `hub.diploma-sante.fr`, `admission.diploma-sante.fr` (+ sous-domaines)
+- Origines Diploma autorisées : `diploma-sante.fr`, `hub.diploma-sante.fr`, `admission.diploma-sante.fr`, `edumove.fr` (+ sous-domaines)
 - Extra : `FORM_SUBMIT_ALLOWED_ORIGINS` (CSV)
 - Bypass : header `x-form-submit-bypass` **ou** `contact_token` valide
 - Honeypot : si `honeypot_enabled` et `hp` non vide → spam silencieux

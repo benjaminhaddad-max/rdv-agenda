@@ -37,6 +37,7 @@ const DEFAULT_ALLOWED_HOSTS = [
   'hermione.co',
   'numerusclub.fr',
   'linova-education.fr',
+  'edumove.fr',
 ]
 
 const BLOCKED_UTM_SOURCES = new Set(['debug', 'assessment', 'test', 'qa'])
