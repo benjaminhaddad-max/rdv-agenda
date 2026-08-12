@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, Plus, RefreshCw } from 'lucide-react'
+import { CalendarDays, CalendarRange, Copy, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -11,6 +11,7 @@ import {
   EVENT_TYPES,
   brandEventTypes,
   eventTypeOf,
+  planningPublicUrl,
   type EventBrand,
 } from '@/lib/events-studio/config'
 
@@ -56,6 +57,9 @@ export default function EventsListPage() {
   const [events, setEvents] = useState<EventRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const planningYear = new Date().getFullYear()
+  const planningUrl = planningPublicUrl(planningYear)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,6 +83,13 @@ export default function EventsListPage() {
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
 
+  function copyPlanningLink() {
+    navigator.clipboard.writeText(planningUrl).then(() => {
+      setToast('Lien planning copié')
+      setTimeout(() => setToast(null), 2000)
+    })
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
       <MarketingNav title="Événements" />
@@ -93,7 +104,7 @@ export default function EventsListPage() {
               Créez un événement et son formulaire CRM type (Nom, Prénom, Téléphone, Email, Classe, Département).
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
               <RefreshCw size={14} /> Actualiser
             </CrmV2Button>
@@ -115,6 +126,67 @@ export default function EventsListPage() {
             Types : {types.map((t) => EVENT_TYPES[t].short).join(' · ')}
           </div>
         </div>
+
+        {toast && (
+          <div style={{ padding: '0 28px 12px' }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                borderRadius: crmV2.radius,
+                background: crmV2.goldSoft,
+                fontSize: 13,
+                color: crmV2.text,
+              }}
+            >
+              {toast}
+            </div>
+          </div>
+        )}
+
+        {brand === 'diploma' && (
+          <div style={{ padding: '0 28px 16px' }}>
+            <CrmV2Card style={{ padding: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <CalendarRange size={16} color={crmV2.gold} />
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>Planning staff {planningYear}</span>
+                  </div>
+                  <p style={{ margin: '0 0 10px', fontSize: 12, color: crmV2.textMuted }}>
+                    Lien public pour que les équipes s’inscrivent aux JPO et salons Diploma de l’année.
+                  </p>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      color: crmV2.link,
+                      wordBreak: 'break-all',
+                      padding: '8px 10px',
+                      background: crmV2.bgSoft,
+                      borderRadius: crmV2.radius,
+                      border: `1px solid ${crmV2.border}`,
+                    }}
+                  >
+                    {planningUrl}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <CrmV2Button variant="gold" onClick={copyPlanningLink}>
+                    <Copy size={14} /> Copier le lien
+                  </CrmV2Button>
+                  <a href={planningUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                    <CrmV2Button variant="secondary">
+                      <ExternalLink size={14} /> Ouvrir
+                    </CrmV2Button>
+                  </a>
+                  <Link href="/admin/crm/events/planning" style={{ textDecoration: 'none' }}>
+                    <CrmV2Button variant="primary">Voir le planning</CrmV2Button>
+                  </Link>
+                </div>
+              </div>
+            </CrmV2Card>
+          </div>
+        )}
 
         <div style={{ padding: '0 28px' }}>
           {error && (
