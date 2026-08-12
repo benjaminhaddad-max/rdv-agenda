@@ -1,60 +1,203 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { CalendarDays, Plus, RefreshCw } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
+import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  BRAND_CONFIG,
+  EVENT_TYPES,
+  brandEventTypes,
+  eventTypeOf,
+  type EventBrand,
+} from '@/lib/events-studio/config'
 
-const EVENTS_STUDIO_SRC = '/events-studio/?crm=1#dashboard'
+type EventRow = {
+  id: string
+  name: string
+  brand: string | null
+  event_type: string | null
+  event_date: string
+  event_time_end: string | null
+  location: string | null
+  status: string
+  zoom_join_url: string | null
+}
 
-export default function EventsPage() {
-  const [loaded, setLoaded] = useState(false)
+const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
+
+function formatWhen(iso: string, end?: string | null) {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Europe/Paris',
+  })
+  const start = d.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Paris',
+  })
+  return end ? `${date} · ${start}–${end}` : `${date} · ${start}`
+}
+
+function statusStyle(status: string): { bg: string; color: string; label: string } {
+  if (status === 'published') return { bg: 'rgba(0,189,165,0.12)', color: crmV2.success, label: 'Publié' }
+  if (status === 'cancelled') return { bg: crmV2.dangerSoft, color: crmV2.danger, label: 'Annulé' }
+  return { bg: crmV2.bgMuted, color: crmV2.textMuted, label: 'Brouillon' }
+}
+
+export default function EventsListPage() {
+  const [brand, setBrand] = useState<EventBrand>('diploma')
+  const [events, setEvents] = useState<EventRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/events-studio/events?brand=${brand}`, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erreur chargement')
+      setEvents(data.events || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+      setEvents([])
+    } finally {
+      setLoading(false)
+    }
+  }, [brand])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const types = useMemo(() => brandEventTypes(brand), [brand])
 
   return (
-    <div
-      className="marketing-light"
-      style={{
-        minHeight: '100vh',
-        background: '#f7f4ee',
-        color: '#0e1e35',
-        fontFamily: 'Inter, system-ui, sans-serif',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
       <MarketingNav title="Événements" />
-
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        {!loaded && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#f7f4ee',
-              color: '#4a6070',
-              fontSize: 13,
-            }}
-          >
-            Chargement d&apos;Events Studio…
+      <CrmV2Page style={{ paddingBottom: 48 }}>
+        <div style={{ padding: '20px 28px 0', display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <CalendarDays size={20} color={crmV2.gold} />
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: crmV2.text }}>Événements</h1>
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: crmV2.textMuted }}>
+              Créez un événement et son formulaire CRM type (Nom, Prénom, Téléphone, Email, Classe, Département).
+            </p>
           </div>
-        )}
-        <iframe
-          id="events-studio-frame"
-          src={EVENTS_STUDIO_SRC}
-          onLoad={() => setLoaded(true)}
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            display: 'block',
-            background: '#ffffff',
-            minHeight: 'calc(100vh - 52px)',
-          }}
-          allow="camera; microphone; clipboard-write; clipboard-read"
-          title="Events Studio — Diploma Santé · Medibox · Edumove"
-        />
-      </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
+              <RefreshCw size={14} /> Actualiser
+            </CrmV2Button>
+            <Link href={`/admin/crm/events/new?brand=${brand}`} style={{ textDecoration: 'none' }}>
+              <CrmV2Button variant="gold">
+                <Plus size={14} /> Nouvel événement
+              </CrmV2Button>
+            </Link>
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 28px' }}>
+          <CrmV2PillTabs
+            items={BRANDS.map((b) => ({ id: b, label: BRAND_CONFIG[b].name }))}
+            value={brand}
+            onChange={(id) => setBrand(id as EventBrand)}
+          />
+          <div style={{ marginTop: 10, fontSize: 12, color: crmV2.textFaint }}>
+            Types : {types.map((t) => EVENT_TYPES[t].short).join(' · ')}
+          </div>
+        </div>
+
+        <div style={{ padding: '0 28px' }}>
+          {error && (
+            <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: crmV2.radius, background: crmV2.dangerSoft, color: crmV2.danger, fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+          {loading ? (
+            <div style={{ color: crmV2.textMuted, fontSize: 13, padding: 24 }}>Chargement…</div>
+          ) : events.length === 0 ? (
+            <CrmV2Card style={{ padding: 28, textAlign: 'center' }}>
+              <p style={{ margin: 0, color: crmV2.textMuted, fontSize: 14 }}>Aucun événement pour {BRAND_CONFIG[brand].name}.</p>
+              <div style={{ marginTop: 14 }}>
+                <Link href={`/admin/crm/events/new?brand=${brand}`} style={{ textDecoration: 'none' }}>
+                  <CrmV2Button variant="gold">
+                    <Plus size={14} /> Créer le premier
+                  </CrmV2Button>
+                </Link>
+              </div>
+            </CrmV2Card>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {events.map((ev) => {
+                const type = eventTypeOf(ev)
+                const st = statusStyle(ev.status)
+                return (
+                  <Link
+                    key={ev.id}
+                    href={`/admin/crm/events/${ev.id}`}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <CrmV2Card
+                      style={{
+                        padding: '14px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: 15 }}>{ev.name}</span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: crmV2.radiusPill,
+                              background: crmV2.goldSoft,
+                              color: crmV2.text,
+                            }}
+                          >
+                            {type.short}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: crmV2.radiusPill,
+                              background: st.bg,
+                              color: st.color,
+                            }}
+                          >
+                            {st.label}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 12, color: crmV2.textMuted }}>
+                          {formatWhen(ev.event_date, ev.event_time_end)}
+                          {ev.location ? ` · ${ev.location}` : ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 12, color: crmV2.link, flexShrink: 0 }}>Ouvrir →</span>
+                    </CrmV2Card>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </CrmV2Page>
     </div>
   )
 }
