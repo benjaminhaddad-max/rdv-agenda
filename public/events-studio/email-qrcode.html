@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Votre inscription est confirmée</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style type="text/css">
+    @media only screen and (max-width: 600px) {
+      .email-container { width: 100% !important; }
+      .hero { padding: 20px 24px 36px !important; }
+      .hero-title { font-size: 22px !important; line-height: 1.3 !important; }
+      .body-section { padding: 28px 20px 44px !important; }
+      .cta-section { padding: 36px 20px !important; }
+      .qr-img { width: 220px !important; height: 220px !important; }
+      .event-detail-table { width: 100% !important; }
+      .event-detail-cell { display: block !important; width: 100% !important; padding: 8px 0 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#F5F2EC; font-family:'DM Sans', Arial, sans-serif; -webkit-font-smoothing:antialiased;">
+
+<!-- PREHEADER (texte caché visible dans la preview inbox) -->
+<div style="display:none; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:#F5F2EC;">
+  Votre QR code personnel pour l'événement — Présentez-le à l'entrée le jour J.
+</div>
+
+<!-- WRAPPER -->
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#F5F2EC;">
+  <tr>
+    <td align="center" style="padding:24px 16px;">
+
+      <!-- LOGO -->
+      <div style="text-align:center; padding:28px 0 20px; background-color:#FFFFFF; border-radius:16px 16px 0 0; max-width:640px; margin:0 auto;">
+        <img src="https://26711031.fs1.hubspotusercontent-eu1.net/hubfs/26711031/logo-diploma-bleu.png" alt="Diploma Santé" width="260" style="display:block; margin:0 auto; width:260px;">
+      </div>
+
+      <!-- MAIN TABLE -->
+      <table class="email-container" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; max-width:640px; margin:0 auto;">
+
+        <!-- HERO -->
+        <tr>
+          <td>
+            <div class="hero" style="background-color:#1C2436; padding:32px 32px 40px; text-align:center;" bgcolor="#1C2436" align="center">
+              <h1 class="hero-title" style="font-family:'DM Serif Display', Georgia, serif; font-size:28px; line-height:1.2; color:#FFFFFF; margin:0 0 16px;">
+                <em style="font-style:italic; color:#C2AB82;">Votre inscription</em><br>est confirmée !
+              </h1>
+              <p style="font-size:16px; line-height:1.65; color:rgba(255,255,255,0.72); max-width:440px; margin:0 auto;">
+                Merci pour votre inscription. Vous trouverez ci-dessous votre QR code personnel à présenter le jour de l'événement.
+              </p>
+              <div style="width:48px; height:2px; background:linear-gradient(90deg, #C2AB82, transparent); margin:28px auto 0;"></div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- EVENT DETAILS -->
+        <tr>
+          <td>
+            <div class="body-section" style="background-color:#FFFFFF; padding:36px 32px 0;" bgcolor="#FFFFFF">
+              <h2 style="font-family:'DM Serif Display', Georgia, serif; font-size:22px; color:#1C2436; margin:0 0 20px; padding-bottom:14px; border-bottom:1.5px solid #EAE8E3;">
+                Détails de l'événement
+              </h2>
+              <table class="event-detail-table" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:28px;">
+                <tr>
+                  <td class="event-detail-cell" style="padding:8px 16px 8px 0; vertical-align:top; width:50%;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#C2AB82; margin:0 0 4px; font-weight:700;">Événement</p>
+                    <p style="font-size:16px; color:#1C2436; margin:0; font-weight:700;">{{ event_name }}</p>
+                  </td>
+                  <td class="event-detail-cell" style="padding:8px 0 8px 16px; vertical-align:top; width:50%;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#C2AB82; margin:0 0 4px; font-weight:700;">Date</p>
+                    <p style="font-size:16px; color:#1C2436; margin:0; font-weight:700;">{{ event_date }}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="event-detail-cell" style="padding:8px 16px 8px 0; vertical-align:top;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#C2AB82; margin:0 0 4px; font-weight:700;">Lieu</p>
+                    <p style="font-size:16px; color:#1C2436; margin:0; font-weight:700;">{{ event_location }}</p>
+                  </td>
+                  <td class="event-detail-cell" style="padding:8px 0 8px 16px; vertical-align:top;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#C2AB82; margin:0 0 4px; font-weight:700;">Participant</p>
+                    <p style="font-size:16px; color:#1C2436; margin:0; font-weight:700;">{{ contact.firstname }} {{ contact.lastname }}</p>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+
+        <!-- QR CODE -->
+        <tr>
+          <td>
+            <div style="background-color:#FFFFFF; padding:0 32px 40px; text-align:center;" bgcolor="#FFFFFF" align="center">
+              <!-- QR Code Card -->
+              <div style="background-color:#F5F2EC; border-radius:16px; padding:32px; display:inline-block; max-width:360px; margin:0 auto;">
+                <p style="font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:#C2AB82; margin:0 0 20px; font-weight:700;">Votre QR Code personnel</p>
+                <!--
+                  IMAGE QR CODE
+                  Remplacez l'URL ci-dessous par le token HubSpot :
+                  {{ contact.qr_code_url_evenement }}
+                -->
+                <img class="qr-img" src="{{ contact.qr_code_url_evenement }}" alt="QR Code" width="260" height="260" style="display:block; margin:0 auto; width:260px; height:260px; border-radius:12px; border:3px solid #1C2436;">
+                <div style="width:48px; height:2px; background:linear-gradient(90deg, transparent, #C2AB82, transparent); margin:20px auto;"></div>
+                <p style="font-size:14px; line-height:1.6; color:#3D4B5C; margin:0;">
+                  Présentez ce QR code<br><strong style="color:#1C2436;">à l'entrée de l'événement</strong>
+                </p>
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- INSTRUCTIONS -->
+        <tr>
+          <td>
+            <div style="background-color:#FFFFFF; padding:0 32px 40px;" bgcolor="#FFFFFF">
+              <h2 style="font-family:'DM Serif Display', Georgia, serif; font-size:22px; color:#1C2436; margin:0 0 16px; padding-bottom:14px; border-bottom:1.5px solid #EAE8E3;">
+                Le jour J
+              </h2>
+              <ul style="margin:0 0 24px 0; padding:0 0 0 8px; list-style:none;">
+                <li style="font-size:16px; line-height:1.7; color:#3D4B5C; margin-bottom:12px;">
+                  <span style="color:#C2AB82; font-size:18px; display:inline-block; width:18px; vertical-align:top; margin-top:-2px;">•</span>
+                  <strong style="color:#1C2436;">Ouvrez cet email</strong> sur votre téléphone en arrivant
+                </li>
+                <li style="font-size:16px; line-height:1.7; color:#3D4B5C; margin-bottom:12px;">
+                  <span style="color:#C2AB82; font-size:18px; display:inline-block; width:18px; vertical-align:top; margin-top:-2px;">•</span>
+                  <strong style="color:#1C2436;">Présentez votre QR code</strong> au personnel à l'accueil
+                </li>
+                <li style="font-size:16px; line-height:1.7; color:#3D4B5C; margin-bottom:12px;">
+                  <span style="color:#C2AB82; font-size:18px; display:inline-block; width:18px; vertical-align:top; margin-top:-2px;">•</span>
+                  <strong style="color:#1C2436;">Votre présence sera enregistrée</strong> instantanément
+                </li>
+              </ul>
+              <div style="background-color:#F5F2EC; border-left:4px solid #C2AB82; border-radius:0 12px 12px 0; padding:20px 24px;">
+                <p style="font-size:15px; line-height:1.7; color:#3D4B5C; margin:0; font-style:italic;">
+                  Astuce : faites une <strong style="color:#1C2436; font-style:normal;">capture d'écran</strong> du QR code pour y accéder facilement, même sans connexion internet.
+                </p>
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- FOOTER CTA -->
+        <tr>
+          <td>
+            <div class="cta-section" style="background:#1C2436; padding:40px 32px; text-align:center; border-radius:0 0 16px 16px;" bgcolor="#1C2436" align="center">
+              <h2 style="font-family:'DM Serif Display', Georgia, serif; font-size:22px; color:#FFFFFF; margin:0 0 12px; line-height:1.3;">
+                À très bientôt !
+              </h2>
+              <p style="font-size:15px; line-height:1.65; color:rgba(255,255,255,0.65); margin:0 0 24px; max-width:400px; margin-left:auto; margin-right:auto;">
+                Nous avons hâte de vous accueillir. En cas de question, n'hésitez pas à nous contacter.
+              </p>
+              <a href="mailto:contact@diploma-sante.fr" style="display:inline-block; background-color:#C2AB82; color:#1C2436 !important; font-family:'DM Sans',Arial,sans-serif; font-size:15px; font-weight:700; padding:14px 32px; border-radius:100px; text-decoration:none;">
+                Nous contacter →
+              </a>
+              <div style="width:48px; height:2px; background:linear-gradient(90deg, transparent, rgba(194,171,130,0.4), transparent); margin:24px auto 0;"></div>
+              <p style="margin-top:16px; font-size:11px; color:rgba(255,255,255,0.3); letter-spacing:0.5px;">
+                Diploma Santé · Formation aux études de santé
+              </p>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+      <!-- FOOTER LEGAL -->
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px; margin:0 auto;">
+        <tr>
+          <td style="padding:24px 16px; text-align:center;">
+            <p style="font-size:11px; line-height:1.6; color:#9A9A9A; margin:0;">
+              Cet email vous a été envoyé suite à votre inscription à un événement Diploma Santé.<br>
+              © {{ current_year }} Diploma Santé — Tous droits réservés
+            </p>
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

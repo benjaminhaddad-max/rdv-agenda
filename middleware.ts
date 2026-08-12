@@ -40,7 +40,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/forms/') ||    // pages publiques de formulaires
     pathname.startsWith('/embed/') ||    // iframes d'embed (forms, events, etc.)
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
-    pathname.startsWith('/r/')
+    pathname.startsWith('/r/') ||
+    pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
+    pathname.startsWith('/q/') // QR courts Events Studio
   if (isPublicPath) {
     return NextResponse.next()
   }

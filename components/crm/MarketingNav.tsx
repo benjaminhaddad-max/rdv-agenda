@@ -12,10 +12,12 @@ const LINKS = [
   { href: '/admin/crm/campaigns/marketing-lists', label: 'Listes marketing' },
   { href: '/admin/crm/email-templates', label: 'Templates' },
   { href: '/admin/crm/campaigns/segments', label: 'Segments CRM' },
+  { href: '/admin/crm/events', label: 'Événements' },
 ]
 
 export default function MarketingNav({ title }: { title?: string }) {
   const path = usePathname()
+  const pathNorm = path.replace(/^\/admin\/crm-v2/, '/admin/crm')
 
   return (
     <div style={{ padding: '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#0e1e35' }}>
@@ -26,23 +28,26 @@ export default function MarketingNav({ title }: { title?: string }) {
         <span style={{ fontSize: 14, fontWeight: 600 }}>{title || 'Email Marketing'}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        {LINKS.map(l => (
-          <Link
-            key={l.href}
-            href={l.href}
-            style={{
-              fontSize: 11,
-              padding: '4px 10px',
-              borderRadius: 6,
-              textDecoration: 'none',
-              border: '1px solid #e5ddc8',
-              background: path === l.href || path.startsWith(l.href + '/') ? '#0e1e35' : '#fff',
-              color: path === l.href || path.startsWith(l.href + '/') ? '#fff' : '#4a6070',
-            }}
-          >
-            {l.label}
-          </Link>
-        ))}
+        {LINKS.map(l => {
+          const active = pathNorm === l.href || pathNorm.startsWith(l.href + '/')
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: 6,
+                textDecoration: 'none',
+                border: '1px solid #e5ddc8',
+                background: active ? '#0e1e35' : '#fff',
+                color: active ? '#fff' : '#4a6070',
+              }}
+            >
+              {l.label}
+            </Link>
+          )
+        })}
         <LogoutButton />
       </div>
     </div>
