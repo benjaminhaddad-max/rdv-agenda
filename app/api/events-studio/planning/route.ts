@@ -15,8 +15,11 @@ export async function GET(req: NextRequest) {
   const year = Number.isFinite(yearParam) ? yearParam : new Date().getFullYear()
   const typeFilter = req.nextUrl.searchParams.get('type') // jpo | salon | ''
 
-  const start = `${year}-01-01T00:00:00+01:00`
-  const end = `${year + 1}-01-01T00:00:00+01:00`
+  const yearStart = `${year}-01-01T00:00:00+01:00`
+  const yearEnd = `${year + 1}-01-01T00:00:00+01:00`
+  // Ne pas afficher les événements déjà passés (à partir de maintenant)
+  const nowIso = new Date().toISOString()
+  const start = nowIso > yearStart ? nowIso : yearStart
 
   const db = createEventsClient()
   const { data, error } = await db
@@ -24,7 +27,7 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('brand', 'diploma')
     .gte('event_date', start)
-    .lt('event_date', end)
+    .lt('event_date', yearEnd)
     .order('event_date', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

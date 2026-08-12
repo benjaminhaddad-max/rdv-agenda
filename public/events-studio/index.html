@@ -3139,8 +3139,10 @@ async function loadPlanningAdmin() {
   const year = parseInt(yearSelect?.value || thisYear, 10);
   document.getElementById('planning-link-display').textContent = planningLinkFor(year);
 
-  const start = `${year}-01-01T00:00:00+01:00`;
+  const yearStart = `${year}-01-01T00:00:00+01:00`;
   const end = `${year + 1}-01-01T00:00:00+01:00`;
+  const nowIso = new Date().toISOString();
+  const start = nowIso > yearStart ? nowIso : yearStart;
   const { data, error } = await db.from('events')
     .select('*')
     .eq('brand', 'diploma')
@@ -3232,8 +3234,10 @@ async function loadPlanningPublic(brand, yearParam) {
   const year = parseInt(yearParam || new Date().getFullYear(), 10);
   document.getElementById('planning-public-year-label').textContent = year;
   const container = document.getElementById('planning-public-events');
-  const start = `${year}-01-01T00:00:00+01:00`;
+  const yearStart = `${year}-01-01T00:00:00+01:00`;
   const end = `${year + 1}-01-01T00:00:00+01:00`;
+  const nowIso = new Date().toISOString();
+  const start = nowIso > yearStart ? nowIso : yearStart;
 
   const { data, error } = await db.from('events')
     .select('id,name,event_date,event_time_end,location,event_type,status,brand,zoom_join_url')
