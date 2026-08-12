@@ -236,6 +236,7 @@ Copier-coller directement sur diploma-sante.fr.
 | `/api/forms/prefill` | `GET` | Token HMAC `t` | Pré-remplissage (emails / liens perso) |
 | `/api/web/track` | `POST` | Optionnel | Tracking pages / attribution |
 | `/api/external/forms` | `GET` | Clé API | Liste des forms |
+| `/api/external/forms` | `POST` | Clé API | Créer un form (Events platform) |
 
 Pages front :
 
