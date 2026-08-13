@@ -129,8 +129,22 @@ export async function POST(req: NextRequest) {
     ? body.extra_crm_fields.filter((n: unknown) => typeof n === 'string')
     : []
 
-  const typeLabel = typeCfg.short
-  const formName = `${typeLabel} — ${name}`
+  // Nom formulaire = "Nom de l'événement — JJ/MM/AAAA"
+  const dateLabel = (() => {
+    const [y, m, d] = date.split('-')
+    if (y && m && d) return `${d}/${m}/${y}`
+    try {
+      return new Date(event.event_date).toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'Europe/Paris',
+      })
+    } catch {
+      return date
+    }
+  })()
+  const formName = `${name} — ${dateLabel}`
   let crmForm: {
     id: string
     slug: string
