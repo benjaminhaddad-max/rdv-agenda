@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, CalendarRange, Copy, ExternalLink, Plus, RefreshCw } from 'lucide-react'
+import { CalendarDays, CalendarRange, Copy, ExternalLink, FileUp, Plus, RefreshCw } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -108,6 +108,11 @@ export default function EventsListPage() {
             <CrmV2Button variant="secondary" onClick={load} disabled={loading}>
               <RefreshCw size={14} /> Actualiser
             </CrmV2Button>
+            <Link href={`/admin/crm/events/import?brand=${brand}`} style={{ textDecoration: 'none' }}>
+              <CrmV2Button variant="secondary">
+                <FileUp size={14} /> Importer CSV
+              </CrmV2Button>
+            </Link>
             <Link href={`/admin/crm/events/new?brand=${brand}`} style={{ textDecoration: 'none' }}>
               <CrmV2Button variant="gold">
                 <Plus size={14} /> Nouvel événement
