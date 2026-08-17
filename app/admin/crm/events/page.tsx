@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { CalendarDays, CalendarRange, Copy, ExternalLink, FileUp, Plus, RefreshCw } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
+import EventsAgendaCalendar, { EVENT_BRAND_COLORS } from '@/components/crm/EventsAgendaCalendar'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
@@ -54,7 +55,7 @@ function statusStyle(status: string): { bg: string; color: string; label: string
 
 export default function EventsListPage() {
   const [brand, setBrand] = useState<EventBrand>('diploma')
-  const [events, setEvents] = useState<EventRow[]>([])
+  const [allEvents, setAllEvents] = useState<EventRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -65,21 +66,26 @@ export default function EventsListPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/events-studio/events?brand=${brand}`, { credentials: 'include' })
+      const res = await fetch('/api/events-studio/events', { credentials: 'include' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur chargement')
-      setEvents(data.events || [])
+      setAllEvents(data.events || [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
-      setEvents([])
+      setAllEvents([])
     } finally {
       setLoading(false)
     }
-  }, [brand])
+  }, [])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const events = useMemo(
+    () => allEvents.filter((e) => (e.brand || 'diploma') === brand),
+    [allEvents, brand],
+  )
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
 
@@ -147,6 +153,10 @@ export default function EventsListPage() {
             </div>
           </div>
         )}
+
+        <div style={{ padding: '0 28px 16px' }}>
+          <EventsAgendaCalendar events={allEvents} loading={loading} />
+        </div>
 
         {brand === 'diploma' && (
           <div style={{ padding: '0 28px 16px' }}>
@@ -217,6 +227,7 @@ export default function EventsListPage() {
               {events.map((ev) => {
                 const type = eventTypeOf(ev)
                 const st = statusStyle(ev.status)
+                const brandColor = EVENT_BRAND_COLORS[brand]
                 return (
                   <Link
                     key={ev.id}
@@ -231,6 +242,7 @@ export default function EventsListPage() {
                         justifyContent: 'space-between',
                         gap: 12,
                         cursor: 'pointer',
+                        borderLeft: `4px solid ${brandColor.solid}`,
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
