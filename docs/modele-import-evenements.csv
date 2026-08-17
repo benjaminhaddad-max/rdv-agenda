@@ -1,0 +1,8 @@
+Type,Opération,Date événement,Géo,Cible,Budget,Statut,Pourquoi / comment
+Webinaire,Réforme PASS/LAS,10/09/2026,France entière,Terminale + Parents,1400 €,Exemple,Webinaire → créé automatiquement à 19h00–20h00
+Webinaire,Dossier Parcoursup,24/09/2026,FR,Terminale,1500 €,Exemple,Nom du webinaire = colonne Opération
+Événement physique,Salon des études de médecine,19/09/2026,IDF,Terminale + Parents,3000 €,Exemple,Salon / Forum → type Salon · 14h00–18h00
+Événement physique,Forum des études de médecine,10/10/2026,IDF,Terminale,2400 €,Exemple,Forum → type Salon · 14h00–18h00
+Événement physique,JPO Objectif Médecine,07/11/2026,IDF,Terminale + Parents,2200 €,Exemple,JPO → type JPO · 14h00–18h00
+Événement physique,Journée d'immersion — Campus 16e,26/09/2026,IDF,PASS / LAS,2000 €,Exemple,Immersion → type JPO · 14h00–18h00
+Réserve,Réserve d'opportunité,,,,,,Ligne ignorée à l'import (ne pas supprimer du modèle si vous voulez un rappel)

@@ -178,9 +178,13 @@ function EventsImportInner() {
               </CrmV2Button>
             </div>
             <p style={{ margin: '10px 0 0', fontSize: 12, color: crmV2.textFaint }}>
-              Colonnes attendues : Type (Webinaire / Événement physique), Opération, Date événement
-              (JJ/MM/AAAA). Les lignes « Réserve » sont ignorées. Les doublons (même nom + date)
-              sont sautés.
+              Colonnes obligatoires : Type (Webinaire / Événement physique), Opération, Date
+              événement (JJ/MM/AAAA). Optionnelles : Géo, Cible, Budget, Statut, Pourquoi /
+              comment. Les lignes « Réserve » sont ignorées. Les doublons (même nom + date) sont
+              sautés.{' '}
+              <a href="/modele-import-evenements.csv" download style={{ color: crmV2.link }}>
+                Télécharger le fichier modèle
+              </a>
             </p>
           </CrmV2Card>
 
