@@ -1,10 +1,13 @@
 import type { EventBrand, EventTypeId } from '@/lib/events-studio/config'
 
-/** Horaires métier planning Diploma / événements. */
+/** Horaires par défaut si absents du CSV. */
 export const IMPORT_SCHEDULE = {
   webinaire: { time_start: '19:00', time_end: '20:00' },
   presentiel: { time_start: '14:00', time_end: '18:00' },
 } as const
+
+/** Lieu présentiel par défaut (Diploma). */
+export const IMPORT_DEFAULT_LOCATION = '100 quai de la Rapee, 75012 Paris'
 
 export type ImportDraftEvent = {
   row: number
@@ -99,15 +102,27 @@ export function parseFrDate(raw: string): string | null {
   return `${y}-${mo}-${d}`
 }
 
-function mapPhysicalType(operation: string): EventTypeId {
-  const o = operation.toLowerCase()
+/** "19:00", "19h", "19h00", "19.00" → "19:00" */
+export function parseTime(raw: string): string | null {
+  const t = raw.trim().toLowerCase().replace(/\s/g, '')
+  if (!t || t === '—' || t === '-') return null
+  const m = t.match(/^(\d{1,2})(?:[:h.]?(\d{2}))?(?:h)?$/)
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = m[2] != null ? parseInt(m[2], 10) : 0
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+function mapPhysicalType(name: string): EventTypeId {
+  const o = name.toLowerCase()
   if (/\bjpo\b/.test(o) || o.includes('portes ouvertes')) return 'jpo'
   if (o.includes('immersion') || o.includes("journée d'immersion") || o.includes('journee d')) return 'jpo'
   if (o.includes('salon') || o.includes('forum')) return 'salon'
   return 'salon'
 }
 
-function mapCsvType(typeRaw: string, operation: string): EventTypeId | null {
+function mapCsvType(typeRaw: string, name: string): EventTypeId | null {
   const t = typeRaw
     .trim()
     .toLowerCase()
@@ -115,12 +130,11 @@ function mapCsvType(typeRaw: string, operation: string): EventTypeId | null {
     .replace(/[\u0300-\u036f]/g, '')
   if (!t || t === 'reserve' || t.includes('reserve')) return null
   if (t.includes('webinaire')) return 'webinaire'
+  if (t === 'jpo' || t.includes('portes ouvertes')) return 'jpo'
+  if (t === 'salon' || t.includes('salon') || t.includes('forum')) return 'salon'
   if (t.includes('physique') || t.includes('presentiel') || t.includes('evenement')) {
-    return mapPhysicalType(operation)
+    return mapPhysicalType(name)
   }
-  if (t === 'jpo') return 'jpo'
-  if (t === 'salon') return 'salon'
-  if (t === 'webinaire') return 'webinaire'
   return null
 }
 
@@ -133,8 +147,10 @@ function col(map: Record<string, number>, row: string[], ...aliases: string[]): 
 }
 
 /**
- * Transforme un CSV planning (ex. Diploma Sept–Déc) en brouillons d’événements.
- * Règles horaires : webinaire 19h–20h ; présentiel 14h–18h.
+ * CSV import événements.
+ * Colonnes : Nom, Date, Heure début, Heure fin, Type, Lieu [, Zoom]
+ * Horaires absents → webinaire 19h–20h / présentiel 14h–18h.
+ * Lieu absent (présentiel) → 100 quai de la Rapée.
  */
 export function planningCsvToDrafts(
   csvText: string,
@@ -152,16 +168,16 @@ export function planningCsvToDrafts(
     if (h) map[h] = i
   })
 
-  const requiredHints = ['type', 'operation', 'date']
-  const hasType = Object.keys(map).some((k) => k.includes('type'))
-  const hasOp = Object.keys(map).some((k) => k.includes('operation'))
+  const hasName = Object.keys(map).some(
+    (k) => k === 'nom' || k.includes('operation') || k === 'name',
+  )
   const hasDate = Object.keys(map).some((k) => k.includes('date'))
-  if (!hasType || !hasOp || !hasDate) {
+  const hasType = Object.keys(map).some((k) => k.includes('type'))
+  if (!hasName || !hasDate || !hasType) {
     errors.push(
-      `Colonnes attendues : Type, Opération, Date événement (trouvées : ${matrix[0].join(', ')})`,
+      `Colonnes attendues : Nom, Date, Type [, Heure début, Heure fin, Lieu] (trouvées : ${matrix[0].join(', ')})`,
     )
   }
-  void requiredHints
 
   const drafts: ImportDraftEvent[] = []
 
@@ -169,21 +185,41 @@ export function planningCsvToDrafts(
     const row = matrix[r]
     const rowNum = r + 1
     const typeRaw = col(map, row, 'type')
-    const operation = col(map, row, 'operation', 'opération', 'nom')
-    const dateRaw = col(map, row, 'date evenement', 'date événement', 'date')
+    const name = col(map, row, 'nom', 'operation', 'opération', 'name', 'evenement', 'événement')
+    const dateRaw = col(map, row, 'date', 'date evenement', 'date événement', 'date de l evenement', "date de l'evenement")
+    const timeStartRaw = col(
+      map,
+      row,
+      'heure debut',
+      'heure début',
+      'heure de debut',
+      'heure de début',
+      'debut',
+      'début',
+      'time_start',
+      'horaire debut',
+      'horaire début',
+    )
+    const timeEndRaw = col(
+      map,
+      row,
+      'heure fin',
+      'heure de fin',
+      'fin',
+      'time_end',
+      'horaire fin',
+    )
+    const lieuRaw = col(map, row, 'lieu', 'location', 'adresse', 'campus')
+    const zoomRaw = col(map, row, 'zoom', 'lien zoom', 'zoom_join_url', 'visio')
     const geo = col(map, row, 'geo', 'géo') || null
-    const cible = col(map, row, 'cible')
-    const budget = col(map, row, 'budget')
-    const pourquoi = col(map, row, 'pourquoi / comment', 'pourquoi', 'comment')
-    const statut = col(map, row, 'statut')
 
-    if (!operation && !typeRaw && !dateRaw) continue
+    if (!name && !typeRaw && !dateRaw) continue
 
-    const eventType = mapCsvType(typeRaw, operation)
+    const eventType = mapCsvType(typeRaw, name)
     if (!eventType) {
       drafts.push({
         row: rowNum,
-        name: operation || typeRaw || `Ligne ${rowNum}`,
+        name: name || typeRaw || `Ligne ${rowNum}`,
         brand,
         event_type: 'autre',
         date: '',
@@ -196,9 +232,10 @@ export function planningCsvToDrafts(
         source_type: typeRaw,
         source_geo: geo,
         skip: true,
-        skip_reason: typeRaw.toLowerCase().includes('réserve') || typeRaw.toLowerCase().includes('reserve')
-          ? 'Ligne réserve — ignorée'
-          : `Type non importable : « ${typeRaw || 'vide'} »`,
+        skip_reason:
+          typeRaw.toLowerCase().includes('réserve') || typeRaw.toLowerCase().includes('reserve')
+            ? 'Ligne réserve — ignorée'
+            : `Type non importable : « ${typeRaw || 'vide'} » (Webinaire, Salon, JPO)`,
       })
       continue
     }
@@ -207,7 +244,7 @@ export function planningCsvToDrafts(
     if (!date) {
       drafts.push({
         row: rowNum,
-        name: operation || `Ligne ${rowNum}`,
+        name: name || `Ligne ${rowNum}`,
         brand,
         event_type: eventType,
         date: '',
@@ -226,32 +263,28 @@ export function planningCsvToDrafts(
     }
 
     const isWebinar = eventType === 'webinaire'
-    const schedule = isWebinar ? IMPORT_SCHEDULE.webinaire : IMPORT_SCHEDULE.presentiel
+    const defaults = isWebinar ? IMPORT_SCHEDULE.webinaire : IMPORT_SCHEDULE.presentiel
+    const time_start = parseTime(timeStartRaw) || defaults.time_start
+    const time_end = parseTime(timeEndRaw) || defaults.time_end
+
     const location = isWebinar
       ? 'Visioconference'
-      : geo && geo !== '—' && geo !== '-'
-        ? geo
-        : 'À confirmer'
-
-    const descParts = [
-      cible ? `Cible : ${cible}` : null,
-      geo ? `Géo : ${geo}` : null,
-      budget ? `Budget : ${budget}` : null,
-      statut ? `Statut planning : ${statut}` : null,
-    ].filter(Boolean)
+      : lieuRaw && lieuRaw !== '—' && lieuRaw !== '-'
+        ? lieuRaw
+        : IMPORT_DEFAULT_LOCATION
 
     drafts.push({
       row: rowNum,
-      name: operation,
+      name,
       brand,
       event_type: eventType,
       date,
-      time_start: schedule.time_start,
-      time_end: schedule.time_end,
+      time_start,
+      time_end,
       location,
-      zoom_join_url: null,
-      description: descParts.length ? descParts.join(' · ') : null,
-      brief: pourquoi && pourquoi !== '—' ? pourquoi : null,
+      zoom_join_url: zoomRaw || null,
+      description: null,
+      brief: null,
       source_type: typeRaw,
       source_geo: geo,
       skip: false,

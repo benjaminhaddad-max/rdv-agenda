@@ -8,7 +8,7 @@ import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { BRAND_CONFIG, EVENT_TYPES, type EventBrand } from '@/lib/events-studio/config'
-import { IMPORT_SCHEDULE } from '@/lib/events-studio/import-csv'
+import { IMPORT_DEFAULT_LOCATION, IMPORT_SCHEDULE } from '@/lib/events-studio/import-csv'
 
 type Draft = {
   row: number
@@ -142,10 +142,10 @@ function EventsImportInner() {
             Import CSV — {BRAND_CONFIG[brand].name}
           </h1>
           <p style={{ margin: '8px 0 0', fontSize: 13, color: crmV2.textMuted, maxWidth: 640 }}>
-            Chargez un planning (Type, Opération, Date événement…). Les webinaires sont créés à{' '}
-            {IMPORT_SCHEDULE.webinaire.time_start}–{IMPORT_SCHEDULE.webinaire.time_end}, les
-            événements présentiels à {IMPORT_SCHEDULE.presentiel.time_start}–
-            {IMPORT_SCHEDULE.presentiel.time_end}. Chaque ligne crée un brouillon + formulaire CRM
+            Colonnes : Nom, Date, Heure début, Heure fin, Type, Lieu. Sans horaires → webinaire{' '}
+            {IMPORT_SCHEDULE.webinaire.time_start}–{IMPORT_SCHEDULE.webinaire.time_end}, présentiel{' '}
+            {IMPORT_SCHEDULE.presentiel.time_start}–{IMPORT_SCHEDULE.presentiel.time_end}. Sans lieu
+            (présentiel) → {IMPORT_DEFAULT_LOCATION}. Chaque ligne crée un brouillon + formulaire CRM
             « Nom — JJ/MM/AAAA ».
           </p>
         </div>
@@ -178,10 +178,8 @@ function EventsImportInner() {
               </CrmV2Button>
             </div>
             <p style={{ margin: '10px 0 0', fontSize: 12, color: crmV2.textFaint }}>
-              Colonnes obligatoires : Type (Webinaire / Événement physique), Opération, Date
-              événement (JJ/MM/AAAA). Optionnelles : Géo, Cible, Budget, Statut, Pourquoi /
-              comment. Les lignes « Réserve » sont ignorées. Les doublons (même nom + date) sont
-              sautés.{' '}
+              Type : Webinaire, Salon ou JPO. Lieu vide en présentiel = Quai de la Rapée. Zoom
+              optionnel (colonne Zoom) pour les webinaires. Doublons (même nom + date) ignorés.{' '}
               <a href="/modele-import-evenements.csv" download style={{ color: crmV2.link }}>
                 Télécharger le fichier modèle
               </a>
