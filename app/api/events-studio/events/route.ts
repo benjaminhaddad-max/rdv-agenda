@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status')
   const db = createEventsClient()
 
-  let q = db.from('events').select('*').order('event_date', { ascending: false })
+  let q = db.from('events').select('*').order('event_date', { ascending: true })
   if (brand) q = q.eq('brand', brand)
   if (status) q = q.eq('status', status)
 
