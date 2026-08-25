@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  addDays,
   addMonths,
   addWeeks,
   eachDayOfInterval,
@@ -11,6 +12,7 @@ import {
   format,
   isSameMonth,
   isToday,
+  parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -55,6 +57,7 @@ export type CalendarEventRow = {
   event_time_end: string | null
   location: string | null
   status: string
+  description?: string | null
 }
 
 type ViewMode = 'month' | 'week' | 'agenda'
@@ -62,6 +65,7 @@ type ViewMode = 'month' | 'week' | 'agenda'
 const HOUR_START = 8
 const HOUR_END = 21
 const PX_PER_HOUR = 52
+const DATE_END_RE = /\[date_end=(\d{4}-\d{2}-\d{2})\]/
 
 function brandOf(ev: CalendarEventRow): EventBrand {
   if (ev.brand === 'medibox' || ev.brand === 'edumove' || ev.brand === 'diploma') return ev.brand
@@ -79,6 +83,23 @@ function parisParts(iso: string) {
   })
   const [hh, mm] = time.split(':').map((x) => parseInt(x, 10))
   return { dayKey, hh: hh || 0, mm: mm || 0, time }
+}
+
+/** Jours couverts (inclus) pour un événement multi-jours via [date_end=YYYY-MM-DD]. */
+function dayKeysForEvent(ev: CalendarEventRow): string[] {
+  const { dayKey: startKey } = parisParts(ev.event_date)
+  const m = (ev.description || '').match(DATE_END_RE)
+  if (!m) return [startKey]
+  const endKey = m[1]
+  if (endKey <= startKey) return [startKey]
+  const keys: string[] = []
+  let cur = parseISO(`${startKey}T12:00:00`)
+  const end = parseISO(`${endKey}T12:00:00`)
+  while (cur <= end) {
+    keys.push(format(cur, 'yyyy-MM-dd'))
+    cur = addDays(cur, 1)
+  }
+  return keys.length ? keys : [startKey]
 }
 
 function endMinutes(ev: CalendarEventRow, startMin: number): number {
@@ -111,10 +132,11 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEventRow[]>()
     for (const ev of active) {
-      const { dayKey } = parisParts(ev.event_date)
-      const list = map.get(dayKey) || []
-      list.push(ev)
-      map.set(dayKey, list)
+      for (const dayKey of dayKeysForEvent(ev)) {
+        const list = map.get(dayKey) || []
+        list.push(ev)
+        map.set(dayKey, list)
+      }
     }
     for (const list of map.values()) {
       list.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
@@ -125,7 +147,11 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
   const upcoming = useMemo(() => {
     const start = startOfTodayParis().getTime()
     return active
-      .filter((e) => new Date(e.event_date).getTime() >= start)
+      .filter((e) => {
+        const keys = dayKeysForEvent(e)
+        const last = keys[keys.length - 1]
+        return parseISO(`${last}T23:59:59`).getTime() >= start
+      })
       .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
   }, [active])
 
