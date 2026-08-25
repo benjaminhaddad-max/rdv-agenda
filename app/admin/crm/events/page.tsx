@@ -308,7 +308,7 @@ export default function EventsListPage() {
           )}
           {loading ? (
             <div style={{ color: crmV2.textMuted, fontSize: 13, padding: 24 }}>Chargement…</div>
-          ) : events.length === 0 ? (
+          ) : upcoming.length === 0 && past.length === 0 ? (
             <CrmV2Card style={{ padding: 28, textAlign: 'center' }}>
               <p style={{ margin: 0, color: crmV2.textMuted, fontSize: 14 }}>Aucun événement pour {BRAND_CONFIG[brand].name}.</p>
               <div style={{ marginTop: 14 }}>
@@ -320,66 +320,46 @@ export default function EventsListPage() {
               </div>
             </CrmV2Card>
           ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {events.map((ev) => {
-                const type = eventTypeOf(ev)
-                const st = statusStyle(ev.status)
-                const brandColor = EVENT_BRAND_COLORS[brand]
-                return (
-                  <Link
-                    key={ev.id}
-                    href={`/admin/crm/events/${ev.id}`}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
+            <div style={{ display: 'grid', gap: 24 }}>
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: crmV2.textMuted,
+                    marginBottom: 10,
+                  }}
+                >
+                  À venir ({upcoming.length})
+                </div>
+                {upcoming.length === 0 ? (
+                  <div style={{ fontSize: 13, color: crmV2.textFaint, padding: '8px 0' }}>
+                    Aucun événement à venir.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 10 }}>{upcoming.map((ev) => renderEventCard(ev))}</div>
+                )}
+              </div>
+
+              {past.length > 0 && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: crmV2.textMuted,
+                      marginBottom: 10,
+                      paddingTop: 8,
+                      borderTop: `1px solid ${crmV2.border}`,
+                    }}
                   >
-                    <CrmV2Card
-                      style={{
-                        padding: '14px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        cursor: 'pointer',
-                        borderLeft: `4px solid ${brandColor.solid}`,
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 600, fontSize: 15 }}>{ev.name}</span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: crmV2.radiusPill,
-                              background: crmV2.goldSoft,
-                              color: crmV2.text,
-                            }}
-                          >
-                            {type.short}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: crmV2.radiusPill,
-                              background: st.bg,
-                              color: st.color,
-                            }}
-                          >
-                            {st.label}
-                          </span>
-                        </div>
-                        <div style={{ marginTop: 4, fontSize: 12, color: crmV2.textMuted }}>
-                          {formatWhen(ev.event_date, ev.event_time_end)}
-                          {ev.location ? ` · ${ev.location}` : ''}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 12, color: crmV2.link, flexShrink: 0 }}>Ouvrir →</span>
-                    </CrmV2Card>
-                  </Link>
-                )
-              })}
+                    Événements terminés ({past.length})
+                  </div>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {past.map((ev) => renderEventCard(ev, true))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
