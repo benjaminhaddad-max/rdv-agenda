@@ -84,7 +84,11 @@ export default function EventsListPage() {
   }, [load])
 
   const events = useMemo(
-    () => allEvents.filter((e) => (e.brand || 'diploma') === brand),
+    () =>
+      allEvents
+        .filter((e) => (e.brand || 'diploma') === brand)
+        .slice()
+        .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()),
     [allEvents, brand],
   )
 
