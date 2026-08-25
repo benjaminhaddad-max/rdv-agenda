@@ -26,6 +26,7 @@ type EventRow = {
   location: string | null
   status: string
   zoom_join_url: string | null
+  description?: string | null
 }
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
