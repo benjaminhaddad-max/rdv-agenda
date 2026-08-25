@@ -81,7 +81,6 @@ export function isFullDayStaffEvent(ev: {
   event_time_end?: string | null
   description?: string | null
 }): boolean {
-  if (parseDateEnd(ev.description)) return true
   const dur = eventDurationMinutes(ev)
   if (dur == null) return false
   return dur > FULL_DAY_MINUTES

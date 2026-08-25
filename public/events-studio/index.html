@@ -3239,7 +3239,7 @@ async function loadPlanningPublic(brand, yearParam) {
   const container = document.getElementById('planning-public-events');
 
   try {
-    const res = await fetch(`/api/events-studio/planning-public?year=${year}`);
+    const res = await fetch(`/api/events-studio/planning-public?year=${year}&_=${Date.now()}`, { cache: 'no-store' });
     const payload = await res.json();
     if (!res.ok) throw new Error(payload.error || 'Erreur');
 
