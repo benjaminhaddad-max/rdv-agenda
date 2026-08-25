@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
+import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import { eventHasComms, eventTypeOf } from '@/lib/events-studio/config'
 import { createServiceClient } from '@/lib/supabase'
 
@@ -56,12 +57,20 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     }
   })
 
+  let capacity = null
+  try {
+    capacity = await getSalonCapacitySnapshot(id)
+  } catch {
+    capacity = null
+  }
+
   return NextResponse.json({
     event,
     forms: formsEnriched,
     registrations: registrations || [],
     staff: staff || [],
     type: eventTypeOf(event),
+    capacity,
     staff_url: eventTypeOf(event).staff
       ? `https://hub.diploma-sante.fr/events-studio/?staff=${id}`
       : null,

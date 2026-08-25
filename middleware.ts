@@ -42,7 +42,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
     pathname.startsWith('/r/') ||
     pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
-    pathname.startsWith('/q/') // QR courts Events Studio
+    pathname.startsWith('/q/') || // QR courts Events Studio
+    pathname.startsWith('/inscription-salons') // hub public choix salon + places
   if (isPublicPath) {
     return NextResponse.next()
   }

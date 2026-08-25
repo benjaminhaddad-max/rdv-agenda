@@ -259,6 +259,20 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Formulaire introuvable ou non publié' }, { status: 404, headers: CORS_HEADERS })
   }
 
+  // Capacité salon (si formulaire lié à un événement Events)
+  try {
+    const { getEventCapacityByFormId } = await import('@/lib/events-studio/capacity')
+    const capacity = await getEventCapacityByFormId(form.id)
+    if (capacity?.is_full) {
+      return NextResponse.json(
+        { error: 'Plus de places disponibles pour cet événement.' },
+        { status: 409, headers: CORS_HEADERS },
+      )
+    }
+  } catch {
+    /* non bloquant si Events DB indisponible */
+  }
+
   const { data: fields } = await db
     .from('form_fields')
     .select('*')
