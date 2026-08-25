@@ -3,6 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PublicField, PublicForm } from '@/lib/public-forms'
 
+type PublicFormWithCapacity = PublicForm & {
+  event_capacity?: {
+    is_full: boolean
+    remaining: number | null
+    max_capacity: number | null
+    registered_count: number
+  } | null
+}
+
 function buildInitialValues(nextForm: PublicForm): Record<string, string> {
   const initial: Record<string, string> = {}
   for (const f of nextForm.fields) {
@@ -27,7 +36,7 @@ export default function FormRenderer({
   embed: boolean
   initialForm?: PublicForm | null
 }) {
-  const [form, setForm] = useState<PublicForm | null>(initialForm)
+  const [form, setForm] = useState<PublicFormWithCapacity | null>(initialForm)
   const [loading, setLoading] = useState(!initialForm)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -74,7 +83,7 @@ export default function FormRenderer({
 
     fetch(`/api/forms/${slug}/public`)
       .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then((data: PublicForm) => {
+      .then((data: PublicFormWithCapacity) => {
         setForm(data)
       })
       .catch(() => setError("Formulaire introuvable ou non publié"))
@@ -107,6 +116,10 @@ export default function FormRenderer({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (form?.event_capacity?.is_full) {
+      setError('Plus de places disponibles pour cet événement.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -183,6 +196,7 @@ export default function FormRenderer({
   const primary = form.primary_color || '#C9A84C'
   const bg = form.bg_color || '#ffffff'
   const text = form.text_color || '#1d2f4b'
+  const isFull = !!form.event_capacity?.is_full
 
   if (success) {
     return (
@@ -215,6 +229,49 @@ export default function FormRenderer({
               </p>
             </div>
           </div>
+        </div>
+      </Wrapper>
+    )
+  }
+
+  if (isFull) {
+    return (
+      <Wrapper embed={embed} bg={bg}>
+        <div style={{ padding: embed ? 16 : '40px 24px', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          {form.title && <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 700, color: text }}>{form.title}</h2>}
+          <div
+            style={{
+              marginTop: 16,
+              padding: '18px 16px',
+              borderRadius: 12,
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#b91c1c',
+              fontWeight: 700,
+              fontSize: 16,
+            }}
+          >
+            Plus de places disponibles pour cet événement.
+          </div>
+          <p style={{ marginTop: 12, fontSize: 14, color: text, opacity: 0.75 }}>
+            Ce salon est complet. Choisissez un autre lieu sur la page d’inscription.
+          </p>
+          <a
+            href="/inscription-salons"
+            style={{
+              display: 'inline-block',
+              marginTop: 16,
+              padding: '10px 18px',
+              borderRadius: 999,
+              background: primary,
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 14,
+              textDecoration: 'none',
+            }}
+          >
+            Voir les autres salons
+          </a>
         </div>
       </Wrapper>
     )
