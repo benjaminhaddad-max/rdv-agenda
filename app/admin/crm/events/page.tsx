@@ -30,6 +30,7 @@ type EventRow = {
 }
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
+const DATE_END_RE = /\[date_end=(\d{4}-\d{2}-\d{2})\]/
 
 function formatWhen(iso: string, end?: string | null) {
   const d = new Date(iso)
@@ -52,6 +53,27 @@ function statusStyle(status: string): { bg: string; color: string; label: string
   if (status === 'published') return { bg: 'rgba(0,189,165,0.12)', color: crmV2.success, label: 'Publié' }
   if (status === 'cancelled') return { bg: crmV2.dangerSoft, color: crmV2.danger, label: 'Annulé' }
   return { bg: crmV2.bgMuted, color: crmV2.textMuted, label: 'Brouillon' }
+}
+
+/** Fin effective de l’événement (multi-jours via [date_end=…] ou jour de event_date). */
+function eventEndsAtMs(ev: EventRow): number {
+  const m = (ev.description || '').match(DATE_END_RE)
+  if (m) {
+    const endTime = ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end) ? ev.event_time_end : '23:59'
+    return new Date(`${m[1]}T${endTime}:00`).getTime()
+  }
+  const start = new Date(ev.event_date)
+  if (ev.event_time_end && /^\d{1,2}:\d{2}$/.test(ev.event_time_end)) {
+    const day = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+    return new Date(`${day}T${ev.event_time_end}:00`).getTime()
+  }
+  // Fin de journée Paris si pas d’heure de fin
+  const day = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  return new Date(`${day}T23:59:59`).getTime()
+}
+
+function isEventPast(ev: EventRow, nowMs = Date.now()): boolean {
+  return eventEndsAtMs(ev) < nowMs
 }
 
 export default function EventsListPage() {
@@ -83,16 +105,80 @@ export default function EventsListPage() {
     load()
   }, [load])
 
-  const events = useMemo(
-    () =>
-      allEvents
-        .filter((e) => (e.brand || 'diploma') === brand)
-        .slice()
-        .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()),
-    [allEvents, brand],
-  )
+  const { upcoming, past } = useMemo(() => {
+    const now = Date.now()
+    const brandEvents = allEvents.filter((e) => (e.brand || 'diploma') === brand)
+    const upcomingList = brandEvents
+      .filter((e) => !isEventPast(e, now))
+      .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+    const pastList = brandEvents
+      .filter((e) => isEventPast(e, now))
+      .sort((a, b) => eventEndsAtMs(b) - eventEndsAtMs(a))
+    return { upcoming: upcomingList, past: pastList }
+  }, [allEvents, brand])
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
+
+  function renderEventCard(ev: EventRow, muted = false) {
+    const type = eventTypeOf(ev)
+    const st = statusStyle(ev.status)
+    const brandColor = EVENT_BRAND_COLORS[brand]
+    return (
+      <Link
+        key={ev.id}
+        href={`/admin/crm/events/${ev.id}`}
+        style={{ textDecoration: 'none', color: 'inherit' }}
+      >
+        <CrmV2Card
+          style={{
+            padding: '14px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            cursor: 'pointer',
+            borderLeft: `4px solid ${brandColor.solid}`,
+            opacity: muted ? 0.72 : 1,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>{ev.name}</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: crmV2.radiusPill,
+                  background: crmV2.goldSoft,
+                  color: crmV2.text,
+                }}
+              >
+                {type.short}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: crmV2.radiusPill,
+                  background: st.bg,
+                  color: st.color,
+                }}
+              >
+                {st.label}
+              </span>
+            </div>
+            <div style={{ marginTop: 4, fontSize: 12, color: crmV2.textMuted }}>
+              {formatWhen(ev.event_date, ev.event_time_end)}
+              {ev.location ? ` · ${ev.location}` : ''}
+            </div>
+          </div>
+          <span style={{ fontSize: 12, color: crmV2.link, flexShrink: 0 }}>Ouvrir →</span>
+        </CrmV2Card>
+      </Link>
+    )
+  }
 
   function copyPlanningLink() {
     navigator.clipboard.writeText(planningUrl).then(() => {
