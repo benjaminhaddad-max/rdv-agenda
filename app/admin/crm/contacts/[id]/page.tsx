@@ -351,13 +351,24 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       .catch(() => {})
   }, [])
 
-  const load = useCallback(async (opts?: { force?: boolean }) => {
+  const load = useCallback(async (opts?: { force?: boolean; silent?: boolean }) => {
     const force = opts?.force === true
+    const silent = opts?.silent === true
     const gen = ++loadGenRef.current
     const isStale = () => loadGenRef.current !== gen
     const coreKey = `/api/crm/contacts/${id}/details?phase=core`
     const extKey  = `/api/crm/contacts/${id}/details?phase=extended`
     const metaKey = '/api/crm/metadata'
+
+    if (silent) {
+      invalidate(coreKey)
+      try {
+        const core = await refetch<Any>(coreKey, () => jsonFetcher(coreKey), 30_000)
+        if (isStale()) return
+        setData(prev => (prev ? { ...prev, ...core } : { ...core }))
+      } catch { /* ignore */ }
+      return
+    }
 
     if (force) {
       invalidate(coreKey)
@@ -434,6 +445,25 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  // Les appels Aircall arrivent via webhook pendant que la fiche est ouverte :
+  // on rafraîchit la timeline sans spinner (focus + toutes les 12 s).
+  useEffect(() => {
+    const refresh = () => { void load({ silent: true }) }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', onVis)
+    document.addEventListener('visibilitychange', onVis)
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 12_000)
+    return () => {
+      window.removeEventListener('focus', onVis)
+      document.removeEventListener('visibilitychange', onVis)
+      window.clearInterval(interval)
+    }
+  }, [load])
 
   // Pousse le contact dans Aircall dès l'ouverture de la fiche, pour que
   // le prénom/nom s'affichent quand le télépro compose le numéro.
@@ -860,7 +890,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   onClick={() => {
                     void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
                   }}
-                  className="flex items-center gap-1 hover:text-white"
+                  className="crm-phone-cell flex items-center gap-1 hover:text-white"
                 >
                   <Phone size={14} /> {contact.phone}
                 </a>
@@ -981,6 +1011,26 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                           }}
                           className={`px-2.5 py-1 rounded-full text-xs font-medium border ${leadStatusColor}`}
                         >{displayValue}</button>
+                      ) : f.name === 'phone' && val ? (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <a
+                            href={telHref(String(val))}
+                            className="crm-phone-cell text-sm text-[#16a34a] hover:underline truncate"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {displayValue}
+                          </a>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => startInlineEdit(f.name, val, meta)}
+                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] shrink-0"
+                              title="Modifier"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <button
                           onClick={() => {
@@ -1021,7 +1071,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"     count={counts.note} />
                 <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"   count={counts.email} />
                 <TimelineTabBtn active={timelineTab === 'sms'}     onClick={() => setTimelineTab('sms')}     label="SMS"       count={counts.sms} />
-                <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"    count={counts.call} />
+                <TimelineTabBtn
+                  active={timelineTab === 'call'}
+                  onClick={() => {
+                    setTimelineTab('call')
+                    void load({ silent: true })
+                  }}
+                  label="Appels"
+                  count={counts.call}
+                />
                 <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
                 <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
               </div>
