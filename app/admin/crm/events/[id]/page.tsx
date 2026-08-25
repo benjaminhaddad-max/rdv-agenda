@@ -9,6 +9,7 @@ import {
   ExternalLink,
   EyeOff,
   Rocket,
+  Save,
   Trash2,
   Users,
 } from 'lucide-react'
@@ -49,6 +50,12 @@ type Detail = {
   staff: Array<{ id: string; first_name: string; last_name: string; email: string }>
   type: { short: string; label: string; staff: boolean; comms: boolean }
   staff_url: string | null
+  capacity?: {
+    registered_count: number
+    max_capacity: number | null
+    remaining: number | null
+    is_full: boolean
+  } | null
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -59,6 +66,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [locationEdit, setLocationEdit] = useState('')
+  const [capacityEdit, setCapacityEdit] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,6 +77,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
       setData(json)
+      setLocationEdit(json.event?.location || '')
+      setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -91,6 +102,29 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
       setToast(status === 'published' ? 'Événement publié' : 'Repassé en brouillon')
+      await load()
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function savePlaces() {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/events-studio/events/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: locationEdit,
+          max_capacity: capacityEdit.trim() === '' ? null : parseInt(capacityEdit, 10),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erreur')
+      setToast('Lieu et places enregistrés')
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -125,6 +159,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const ev = data?.event
   const brand = (ev?.brand || 'diploma') as EventBrand
   const crmForm = data?.forms?.find((f) => f.form_type === 'crm' || f.public_url)
+  const cap = data?.capacity
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: crmV2.radius,
+    border: `1px solid ${crmV2.border}`,
+    fontSize: 13,
+    boxSizing: 'border-box',
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
@@ -169,7 +212,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
         {ev && data && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 16,
+                alignItems: 'flex-start',
+                marginBottom: 18,
+              }}
+            >
               <div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>{ev.name}</h1>
@@ -196,6 +247,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   >
                     {ev.status === 'published' ? 'Publié' : 'Brouillon'}
                   </span>
+                  {cap?.is_full && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: crmV2.radiusPill,
+                        background: crmV2.dangerSoft,
+                        color: crmV2.danger,
+                      }}
+                    >
+                      Complet
+                    </span>
+                  )}
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted }}>
                   {BRAND_CONFIG[brand]?.name || brand} ·{' '}
@@ -236,6 +301,59 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
+            <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>Lieu & places disponibles</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                    Adresse / lieu
+                  </label>
+                  <input
+                    style={inputStyle}
+                    value={locationEdit}
+                    onChange={(e) => setLocationEdit(e.target.value)}
+                    placeholder="Ex: Paris Expo Porte de Versailles, Pav. 7.2"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                    Places max
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    style={inputStyle}
+                    value={capacityEdit}
+                    onChange={(e) => setCapacityEdit(e.target.value)}
+                    placeholder="Illimité"
+                  />
+                </div>
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+                  {cap
+                    ? `${cap.registered_count} inscrit(s)${
+                        cap.max_capacity != null
+                          ? ` / ${cap.max_capacity} · ${cap.remaining ?? 0} restante(s)`
+                          : ' · places illimitées'
+                      }`
+                    : 'Définissez un plafond pour bloquer les inscriptions quand c’est complet.'}
+                </div>
+                <CrmV2Button variant="gold" disabled={busy} onClick={savePlaces}>
+                  <Save size={14} /> Enregistrer
+                </CrmV2Button>
+              </div>
+            </CrmV2Card>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <CrmV2Card style={{ padding: 18 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10 }}>Formulaire CRM</div>
@@ -273,14 +391,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
               <CrmV2Card style={{ padding: 18 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={16} /> Inscriptions ({data.registrations.length})
+                  <Users size={16} /> Inscriptions (
+                  {cap?.registered_count ?? data.registrations.length})
                 </div>
-                {data.registrations.length === 0 ? (
+                {data.registrations.length === 0 && (cap?.registered_count || 0) === 0 ? (
                   <div style={{ fontSize: 13, color: crmV2.textMuted }}>Pas encore d’inscrits.</div>
+                ) : data.registrations.length === 0 ? (
+                  <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+                    {cap?.registered_count} inscription(s) via le formulaire CRM.
+                  </div>
                 ) : (
                   <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflow: 'auto' }}>
                     {data.registrations.slice(0, 30).map((r) => (
-                      <div key={r.id} style={{ fontSize: 13, borderBottom: `1px solid ${crmV2.border}`, paddingBottom: 6 }}>
+                      <div
+                        key={r.id}
+                        style={{ fontSize: 13, borderBottom: `1px solid ${crmV2.border}`, paddingBottom: 6 }}
+                      >
                         <strong>
                           {r.first_name} {r.last_name}
                         </strong>
