@@ -16,6 +16,10 @@
  * les fonctions renvoient simplement { ok: false } sans casser l'appelant.
  */
 
+import { aircallPhoneVariants, toE164French } from '@/lib/phone-e164'
+
+export { aircallPhoneVariants, toE164French }
+
 const AIRCALL_BASE = 'https://api.aircall.io/v1'
 
 export function isAircallEnabled(): boolean {
@@ -26,50 +30,6 @@ function authHeader(): string {
   const id = process.env.AIRCALL_API_ID ?? ''
   const token = process.env.AIRCALL_API_TOKEN ?? ''
   return 'Basic ' + Buffer.from(`${id}:${token}`).toString('base64')
-}
-
-/**
- * Normalise un numéro français vers le format E.164 attendu par Aircall :
- * "+33612345678". Renvoie null si le numéro est invalide / inutilisable.
- */
-export function toE164French(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  const cleaned = String(raw).replace(/[\s\-\.()]/g, '')
-  if (!cleaned) return null
-
-  if (cleaned.startsWith('+33') && cleaned.length === 12) return cleaned
-  if (cleaned.startsWith('+')) return cleaned // déjà E.164 (autre pays)
-  if (cleaned.startsWith('0033') && cleaned.length === 13) return '+33' + cleaned.slice(4)
-  if (cleaned.startsWith('33') && cleaned.length === 11) return '+' + cleaned
-  if (cleaned.startsWith('0') && cleaned.length === 10) return '+33' + cleaned.slice(1)
-  return null
-}
-
-/**
- * À partir d'un numéro brut (ex: reçu d'un webhook Aircall via `raw_digits`),
- * génère toutes les variantes de format plausibles pour retrouver le contact
- * dans `crm_contacts.phone` (qui peut stocker +33…, 0…, 0033…, 33…).
- * Utilisé avec un `.in('phone', variants)` côté Supabase.
- */
-export function aircallPhoneVariants(raw: string | null | undefined): string[] {
-  const set = new Set<string>()
-  if (!raw) return []
-
-  const cleaned = String(raw).replace(/[\s\-.()]/g, '')
-  if (cleaned) set.add(cleaned)
-
-  const e164 = toE164French(raw)
-  if (e164) {
-    set.add(e164)
-    if (e164.startsWith('+33')) {
-      const nsn = e164.slice(3) // numéro national significatif (9 chiffres)
-      set.add('0' + nsn)
-      set.add('33' + nsn)
-      set.add('0033' + nsn)
-    }
-  }
-
-  return Array.from(set)
 }
 
 export type AircallContactInput = {
@@ -192,4 +152,65 @@ export async function upsertAircallContact(
   }
   const created = await createAircallContact(input)
   return created !== null ? 'created' : 'skipped'
+}
+
+export type AircallInsightLine =
+  | { type: 'title'; text: string; link?: string }
+  | { type: 'shortText'; label: string; text: string; link?: string }
+
+/**
+ * Affiche une carte de contexte dans Aircall Workspace pendant l'appel
+ * (équivalent du panneau HubSpot : nom, lien fiche, télépro…).
+ */
+export async function sendInsightCard(
+  callId: number,
+  contents: AircallInsightLine[],
+): Promise<boolean> {
+  if (!callId || contents.length === 0) return false
+  const r = await aircallFetch<unknown>('POST', `/calls/${callId}/insight_cards`, { contents })
+  return r.ok
+}
+
+export type AircallWebhook = {
+  id?: number
+  url?: string
+  custom_name?: string | null
+  events?: string[]
+  token?: string
+  active?: boolean
+}
+
+export async function listAircallWebhooks(): Promise<AircallWebhook[]> {
+  const r = await aircallFetch<{ webhooks?: AircallWebhook[] }>('GET', '/webhooks')
+  if (!r.ok) return []
+  return r.data.webhooks ?? []
+}
+
+export async function createAircallWebhook(input: {
+  url: string
+  events: string[]
+  customName: string
+}): Promise<{ ok: true; webhook: AircallWebhook } | { ok: false; error: string }> {
+  const r = await aircallFetch<{ webhook?: AircallWebhook }>('POST', '/webhooks', {
+    custom_name: input.customName,
+    url: input.url,
+    events: input.events,
+  })
+  if (!r.ok || !r.data.webhook) {
+    return { ok: false, error: r.ok ? 'empty webhook' : `${r.status} ${r.error}` }
+  }
+  return { ok: true, webhook: r.data.webhook }
+}
+
+export async function updateAircallWebhook(
+  id: number,
+  input: { url?: string; events?: string[]; customName?: string; active?: boolean },
+): Promise<boolean> {
+  const body: Record<string, unknown> = {}
+  if (input.url) body.url = input.url
+  if (input.events) body.events = input.events
+  if (input.customName) body.custom_name = input.customName
+  if (typeof input.active === 'boolean') body.active = input.active
+  const r = await aircallFetch<{ webhook?: AircallWebhook }>('PUT', `/webhooks/${id}`, body)
+  return r.ok
 }

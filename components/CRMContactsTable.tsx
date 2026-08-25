@@ -10,6 +10,7 @@ import {
   parcoursupVerdictDefaultLabel,
 } from '@/lib/parcoursup-verdict'
 import { isUserTypeProperty } from '@/lib/crm-user-resolver'
+import { telHref } from '@/lib/phone-e164'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
@@ -739,7 +740,14 @@ function ExpandedDetail({
                 </a>
               )}
               {contact.phone && (
-                <a href={`tel:${contact.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#22c55e', fontSize: 12, textDecoration: 'none', marginBottom: 6 }}>
+                <a
+                  href={telHref(contact.phone)}
+                  onClick={e => {
+                    e.stopPropagation()
+                    void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#22c55e', fontSize: 12, textDecoration: 'none', marginBottom: 6 }}
+                >
                   <Phone size={11} />{contact.phone}
                 </a>
               )}
@@ -1768,7 +1776,14 @@ export default function CRMContactsTable({
 
       case 'phone':
         return contact.phone ? (
-          <a href={`tel:${contact.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <a
+            href={telHref(contact.phone)}
+            onClick={e => {
+              e.stopPropagation()
+              void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+            }}
+            style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
             <Phone size={11} />{formatPhone(contact.phone)}
           </a>
         ) : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>

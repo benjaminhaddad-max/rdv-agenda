@@ -14,6 +14,7 @@ export const ACTIVITY_SOURCE_LABELS: Record<string, string> = {
   rattrapage_2h: 'SMS Edumove',
   appointment_booking: 'Prise de RDV',
   appointment_recap: 'Rapport RDV',
+  aircall: 'Aircall',
 }
 
 type ActivityLike = {
@@ -50,6 +51,9 @@ export function resolveActivityAuthorLabel(
   if (authorId) {
     return ownerLabelMap[authorId] || authorId
   }
+
+  const agentName = activity.metadata?.agent_name
+  if (typeof agentName === 'string' && agentName.trim()) return agentName.trim()
 
   const src = activity.metadata?.source
   if (typeof src === 'string' && ACTIVITY_SOURCE_LABELS[src]) {

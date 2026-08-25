@@ -15,6 +15,7 @@ import {
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
+import { telHref } from '@/lib/phone-e164'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -434,6 +435,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => { load() }, [load])
 
+  // Pousse le contact dans Aircall dès l'ouverture de la fiche, pour que
+  // le prénom/nom s'affichent quand le télépro compose le numéro.
+  useEffect(() => {
+    if (!id) return
+    const key = `aircall-sync:${id}`
+    try {
+      const last = Number(sessionStorage.getItem(key) || '0')
+      if (Date.now() - last < 10 * 60 * 1000) return
+      sessionStorage.setItem(key, String(Date.now()))
+    } catch { /* ignore */ }
+    void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+  }, [id])
+
   // Charge les préférences utilisateur des propriétés « À propos »
   // (localStorage pour un affichage instantané, puis API pour la synchro cross-device).
   useEffect(() => {
@@ -684,6 +698,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     sendStatus?: string
     sms?: SMSMessage
     emailCampaign?: EmailCampaign
+    recordingUrl?: string
     // Renseigné pour les activités natives (crm_activities) → édition/suppression
     activityId?: string
     editable?: boolean
@@ -697,14 +712,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     const stats = type === 'email' && msgId ? emailStatsByMessageId[msgId] : undefined
     // Activités natives (saisies dans le CRM) = éditables. Les notes/appels/
     // emails loggés/réunions sont modifiables ; pas les SMS ni les emails de campagne.
-    const isNativeEditable = ['note', 'call', 'email', 'meeting'].includes(type)
+    const isNativeEditable = ['note', 'call', 'email', 'meeting'].includes(type) && !a.hubspot_engagement_id
+    const dir = String(a.direction || '').toUpperCase()
+    const dirLabel = dir === 'INCOMING' ? 'Entrant' : dir === 'OUTGOING' ? 'Sortant' : a.direction
+    const recordingUrl = typeof a.metadata?.recording === 'string' ? a.metadata.recording : undefined
     timeline.push({
       id: `act-${a.id}`,
       type,
       timestamp: new Date(a.occurred_at).getTime(),
       title: a.subject || labelForType(type),
       body: a.body ?? undefined,
-      subtitle: a.direction ? `Direction : ${a.direction}` : undefined,
+      subtitle: dirLabel ? `Direction : ${dirLabel}` : undefined,
       ownerId: a.owner_id ?? (a.metadata?.author_user_id as string | undefined),
       authorLabel: resolveActivityAuthorLabel(
         { owner_id: a.owner_id, metadata: a.metadata, hubspot_engagement_id: a.hubspot_engagement_id },
@@ -714,6 +732,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       sendStatus: type === 'email' ? a.status : undefined,
       activityId: String(a.id),
       editable: isNativeEditable,
+      recordingUrl,
     })
   }
   for (const f of formSubmissions) {
@@ -835,7 +854,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             <h1 className="text-3xl font-bold tracking-tight drop-shadow-sm">{fullName}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-white/90 text-sm">
               {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-white"><Mail size={14} /> {contact.email}</a>}
-              {contact.phone && <a href={`tel:${contact.phone}`} className="flex items-center gap-1 hover:text-white"><Phone size={14} /> {contact.phone}</a>}
+              {contact.phone && (
+                <a
+                  href={telHref(contact.phone)}
+                  onClick={() => {
+                    void fetch(`/api/crm/contacts/${id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+                  }}
+                  className="flex items-center gap-1 hover:text-white"
+                >
+                  <Phone size={14} /> {contact.phone}
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -1124,6 +1153,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-[#f7f4ee] p-2 rounded"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
+                              )}
+                              {t.recordingUrl && (
+                                <a
+                                  href={t.recordingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-[#C9A84C] hover:underline mt-2"
+                                >
+                                  Écouter l'enregistrement
+                                </a>
                               )}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
