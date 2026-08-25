@@ -9,6 +9,7 @@ import {
   type EventTypeId,
 } from '@/lib/events-studio/config'
 import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
+import { parseStaffNeeded } from '@/lib/events-studio/event-meta'
 
 function buildEventDate(date: string, timeStart: string): string {
   const tmpDate = new Date(`${date}T${timeStart}`)
@@ -33,7 +34,30 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ events: data ?? [] })
+
+  const events = data || []
+  const staffCounts: Record<string, number> = {}
+  if (events.length > 0) {
+    const ids = events.map((e) => e.id)
+    // chunk if huge
+    const { data: staffRows } = await db.from('staff_registrations').select('event_id').in('event_id', ids)
+    for (const row of staffRows || []) {
+      staffCounts[row.event_id] = (staffCounts[row.event_id] || 0) + 1
+    }
+  }
+
+  return NextResponse.json({
+    events: events.map((e) => {
+      const needed = parseStaffNeeded(e.description)
+      const count = staffCounts[e.id] || 0
+      return {
+        ...e,
+        staff_needed: needed,
+        staff_count: count,
+        staff_remaining: needed != null ? Math.max(0, needed - count) : null,
+      }
+    }),
+  })
 }
 
 export async function POST(req: NextRequest) {

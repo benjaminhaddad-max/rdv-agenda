@@ -1,23 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf, planningPublicUrl } from '@/lib/events-studio/config'
+import { humanDescription, parseStaffNeeded, staffPayForType } from '@/lib/events-studio/event-meta'
 
-/**
- * GET /api/events-studio/planning?year=2026
- * Planning annuel Diploma : JPO + salons de l'année + compteurs staff.
- */
-export async function GET(req: NextRequest) {
-  const userId = await requireCrmUserId()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+function enrichPlanningEvents(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  events: any[],
+  staffCounts: Record<string, number>,
+) {
+  return events.map((e) => {
+    const type = eventTypeOf(e)
+    const staffNeeded = parseStaffNeeded(e.description)
+    const staffCount = staffCounts[e.id] || 0
+    const pay = staffPayForType(type.id)
+    return {
+      ...e,
+      description_public: humanDescription(e.description),
+      type,
+      staff_count: staffCount,
+      staff_needed: staffNeeded,
+      staff_remaining: staffNeeded != null ? Math.max(0, staffNeeded - staffCount) : null,
+      staff_full: staffNeeded != null && staffCount >= staffNeeded,
+      pay_label: pay?.label || null,
+      pay_hint: pay?.hint || null,
+    }
+  })
+}
 
-  const yearParam = parseInt(req.nextUrl.searchParams.get('year') || '', 10)
-  const year = Number.isFinite(yearParam) ? yearParam : new Date().getFullYear()
-  const typeFilter = req.nextUrl.searchParams.get('type') // jpo | salon | ''
-
+async function loadDiplomaPlanning(year: number, typeFilter: string) {
   const yearStart = `${year}-01-01T00:00:00+01:00`
   const yearEnd = `${year + 1}-01-01T00:00:00+01:00`
-  // Ne pas afficher les événements déjà passés (à partir de maintenant)
   const nowIso = new Date().toISOString()
   const start = nowIso > yearStart ? nowIso : yearStart
 
@@ -30,11 +42,11 @@ export async function GET(req: NextRequest) {
     .lt('event_date', yearEnd)
     .order('event_date', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) throw new Error(error.message)
 
   let events = (data || []).filter((e) => {
     const t = eventTypeOf(e).id
-    return t === 'jpo' || t === 'salon'
+    return (t === 'jpo' || t === 'salon') && e.status !== 'cancelled'
   })
 
   if (typeFilter === 'jpo' || typeFilter === 'salon') {
@@ -53,20 +65,42 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const origin = req.nextUrl.origin
-  return NextResponse.json({
-    year,
-    public_url: planningPublicUrl(year, origin),
-    events: events.map((e) => ({
-      ...e,
-      type: eventTypeOf(e),
-      staff_count: staffCounts[e.id] || 0,
-    })),
-    totals: {
-      events: events.length,
-      jpo: events.filter((e) => eventTypeOf(e).id === 'jpo').length,
-      salon: events.filter((e) => eventTypeOf(e).id === 'salon').length,
-      staff: Object.values(staffCounts).reduce((a, b) => a + b, 0),
-    },
-  })
+  return { events: enrichPlanningEvents(events, staffCounts), staffCounts }
+}
+
+/**
+ * GET /api/events-studio/planning?year=2026 — admin (auth)
+ */
+export async function GET(req: NextRequest) {
+  const { requireCrmUserId } = await import('@/lib/events-studio/auth')
+  const userId = await requireCrmUserId()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const yearParam = parseInt(req.nextUrl.searchParams.get('year') || '', 10)
+  const year = Number.isFinite(yearParam) ? yearParam : new Date().getFullYear()
+  const typeFilter = req.nextUrl.searchParams.get('type') || ''
+
+  try {
+    const { events, staffCounts } = await loadDiplomaPlanning(year, typeFilter)
+    return NextResponse.json({
+      year,
+      public_url: planningPublicUrl(year, req.nextUrl.origin),
+      events,
+      pay_rules: {
+        salon: '120 € / jour',
+        jpo: '60 € / après-midi',
+      },
+      totals: {
+        events: events.length,
+        jpo: events.filter((e) => e.type.id === 'jpo').length,
+        salon: events.filter((e) => e.type.id === 'salon').length,
+        staff: Object.values(staffCounts).reduce((a, b) => a + b, 0),
+      },
+    })
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Erreur' },
+      { status: 500 },
+    )
+  }
 }

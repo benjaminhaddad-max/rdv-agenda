@@ -1095,7 +1095,10 @@
       </div>
       <p style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#C2AB82;font-weight:700;margin:0 0 10px;">Planning staff <span id="planning-public-year-label"></span></p>
       <h1 style="font-family:'DM Serif Display',Georgia,serif;font-size:28px;color:#FFF;margin:0 0 10px;line-height:1.2;">Où serez-vous présents ?</h1>
-      <p style="font-size:15px;color:rgba(255,255,255,0.65);max-width:480px;margin:0 auto;line-height:1.55;">Cochez les journées portes ouvertes et salons auxquels vous pouvez participer cette année.</p>
+      <p style="font-size:15px;color:rgba(255,255,255,0.65);max-width:520px;margin:0 auto;line-height:1.55;">Cochez les JPO et salons auxquels vous pouvez participer. Lieu, horaires et places staff restantes sont indiqués pour chaque événement.</p>
+      <div style="max-width:520px;margin:18px auto 0;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.08);border:1px solid rgba(194,171,130,0.35);text-align:left;">
+        <p style="margin:0;font-size:13px;color:#F0E9DC;line-height:1.55;"><strong style="color:#C2AB82;">Rémunération</strong><br>Salons : <strong>120 € / jour</strong><br>Journées portes ouvertes (après-midi) : <strong>60 €</strong></p>
+      </div>
     </div>
     <div style="max-width:720px;margin:-28px auto 40px;padding:0 16px;">
       <div id="planning-public-form" style="background:#FFF;border-radius:20px;padding:28px 24px;box-shadow:0 12px 40px rgba(28,36,54,0.12);">
@@ -3234,50 +3237,56 @@ async function loadPlanningPublic(brand, yearParam) {
   const year = parseInt(yearParam || new Date().getFullYear(), 10);
   document.getElementById('planning-public-year-label').textContent = year;
   const container = document.getElementById('planning-public-events');
-  const yearStart = `${year}-01-01T00:00:00+01:00`;
-  const end = `${year + 1}-01-01T00:00:00+01:00`;
-  const nowIso = new Date().toISOString();
-  const start = nowIso > yearStart ? nowIso : yearStart;
 
-  const { data, error } = await db.from('events')
-    .select('id,name,event_date,event_time_end,location,event_type,status,brand,zoom_join_url')
-    .eq('brand', 'diploma')
-    .gte('event_date', start)
-    .lt('event_date', end)
-    .order('event_date', { ascending: true });
+  try {
+    const res = await fetch(`/api/events-studio/planning-public?year=${year}`);
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || 'Erreur');
 
-  if (error) {
-    container.innerHTML = `<p style="color:#ef4444;text-align:center;font-size:14px;">Impossible de charger le planning.</p>`;
-    return;
-  }
+    planningPublicEvents = payload.events || [];
 
-  planningPublicEvents = (data || []).filter(e => {
-    const t = eventTypeOf(e).id;
-    return (t === 'jpo' || t === 'salon') && e.status !== 'cancelled';
-  });
+    if (planningPublicEvents.length === 0) {
+      container.innerHTML = `<p style="color:#8B95A5;text-align:center;font-size:14px;padding:24px 0;">Aucun événement planifié pour ${year} pour le moment.</p>`;
+      return;
+    }
 
-  if (planningPublicEvents.length === 0) {
-    container.innerHTML = `<p style="color:#8B95A5;text-align:center;font-size:14px;padding:24px 0;">Aucun événement planifié pour ${year} pour le moment.</p>`;
-    return;
-  }
-
-  container.innerHTML = planningPublicEvents.map(e => {
-    const t = eventTypeOf(e);
-    const d = new Date(e.event_date);
-    const dateLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-    const startT = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    return `<label style="display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border:1.5px solid #E5E0D5;border-radius:14px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#C2AB82'" onmouseout="this.style.borderColor='#E5E0D5'">
-      <input type="checkbox" class="plan-event-check" value="${e.id}" style="margin-top:4px;width:18px;height:18px;accent-color:#1C2436;">
+    container.innerHTML = planningPublicEvents.map(e => {
+      const t = e.type || { id: 'salon', short: 'Salon' };
+      const d = new Date(e.event_date);
+      const dateLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const startT = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const full = !!e.staff_full;
+      const slots =
+        e.staff_needed != null
+          ? (full
+              ? `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#FEE2E2;color:#B91C1C;">Complet</span>`
+              : `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#DBEAFE;color:#1D4ED8;">${e.staff_remaining} place${e.staff_remaining > 1 ? 's' : ''} staff</span>`)
+          : `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#F0E9DC;color:#8A7349;">Staff ouvert</span>`;
+      const pay = e.pay_label
+        ? `<p style="margin:6px 0 0;font-size:12px;color:#8A7349;font-weight:600;">Rémunération : ${esc(e.pay_label)}</p>`
+        : '';
+      const desc = e.description
+        ? `<p style="margin:6px 0 0;font-size:12px;color:#9CA3AF;">${esc(e.description)}</p>`
+        : '';
+      return `<label style="display:flex;gap:14px;align-items:flex-start;padding:16px;border:1.5px solid ${full ? '#FECACA' : '#E5E0D5'};border-radius:14px;cursor:${full ? 'not-allowed' : 'pointer'};opacity:${full ? '0.72' : '1'};background:${full ? '#FFFBFB' : '#FFF'};">
+      <input type="checkbox" class="plan-event-check" value="${e.id}" ${full ? 'disabled' : ''} style="margin-top:4px;width:18px;height:18px;accent-color:#1C2436;">
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;background:${t.id === 'salon' ? '#EDE9FE' : '#F0E9DC'};color:${t.id === 'salon' ? '#5B21B6' : '#8A7349'};">${t.short}</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;background:${t.id === 'salon' ? '#EDE9FE' : '#F0E9DC'};color:${t.id === 'salon' ? '#5B21B6' : '#8A7349'};">${esc(t.short)}</span>
+          ${slots}
         </div>
-        <p style="margin:0;font-weight:600;color:#1C2436;font-size:15px;">${esc(e.name)}</p>
-        <p style="margin:4px 0 0;font-size:13px;color:#6B7280;">${dateLabel} · ${startT}${e.event_time_end ? ' – ' + e.event_time_end : ''}</p>
-        <p style="margin:2px 0 0;font-size:13px;color:#6B7280;">${esc(e.location || 'Lieu à confirmer')}</p>
+        <p style="margin:0;font-weight:700;color:#1C2436;font-size:16px;">${esc(e.name)}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#6B7280;">${dateLabel} · ${startT}${e.event_time_end ? ' – ' + esc(e.event_time_end) : ''}</p>
+        <p style="margin:4px 0 0;font-size:13px;color:#6B7280;">📍 ${esc(e.location || 'Lieu à confirmer')}</p>
+        ${pay}
+        ${desc}
       </div>
     </label>`;
-  }).join('');
+    }).join('');
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = `<p style="color:#ef4444;text-align:center;font-size:14px;">Impossible de charger le planning.</p>`;
+  }
 }
 
 async function submitPlanningPublic() {
@@ -3296,6 +3305,16 @@ async function submitPlanningPublic() {
   }
   if (selected.length === 0) {
     status.textContent = 'Cochez au moins un événement.';
+    status.style.color = '#ef4444';
+    return;
+  }
+
+  const fullSelected = selected.filter(id => {
+    const ev = planningPublicEvents.find(e => e.id === id);
+    return ev && ev.staff_full;
+  });
+  if (fullSelected.length) {
+    status.textContent = 'Un ou plusieurs événements sélectionnés sont complets.';
     status.style.color = '#ef4444';
     return;
   }

@@ -16,6 +16,10 @@ type PlanningEvent = {
   location: string | null
   status: string
   staff_count: number
+  staff_needed?: number | null
+  staff_remaining?: number | null
+  staff_full?: boolean
+  pay_label?: string | null
   type: { id: string; short: string; label: string }
 }
 
@@ -327,8 +331,24 @@ export default function EventsPlanningPage() {
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1 }}>{e.staff_count}</div>
-                            <div style={{ fontSize: 10, color: crmV2.textFaint, textTransform: 'uppercase' }}>staff</div>
+                            <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1 }}>
+                              {e.staff_count}
+                              {e.staff_needed != null ? (
+                                <span style={{ fontSize: 14, fontWeight: 500, color: crmV2.textMuted }}>
+                                  /{e.staff_needed}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div style={{ fontSize: 10, color: crmV2.textFaint, textTransform: 'uppercase' }}>
+                              {e.staff_full
+                                ? 'Complet'
+                                : e.staff_remaining != null
+                                  ? `${e.staff_remaining} rest.`
+                                  : 'staff'}
+                            </div>
+                            {e.pay_label ? (
+                              <div style={{ fontSize: 10, color: crmV2.textMuted, marginTop: 2 }}>{e.pay_label}</div>
+                            ) : null}
                           </div>
                         </CrmV2Card>
                       </Link>

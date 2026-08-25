@@ -56,6 +56,9 @@ type Detail = {
     remaining: number | null
     is_full: boolean
   } | null
+  staff_needed?: number | null
+  staff_remaining?: number | null
+  staff_full?: boolean
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -68,6 +71,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [toast, setToast] = useState<string | null>(null)
   const [locationEdit, setLocationEdit] = useState('')
   const [capacityEdit, setCapacityEdit] = useState('')
+  const [staffNeededEdit, setStaffNeededEdit] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,6 +83,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setData(json)
       setLocationEdit(json.event?.location || '')
       setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
+      setStaffNeededEdit(json.staff_needed != null ? String(json.staff_needed) : '')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -120,11 +125,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({
           location: locationEdit,
           max_capacity: capacityEdit.trim() === '' ? null : parseInt(capacityEdit, 10),
+          staff_needed: staffNeededEdit.trim() === '' ? null : parseInt(staffNeededEdit, 10),
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
-      setToast('Lieu et places enregistrés')
+      setToast('Lieu, places et staff enregistrés')
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -302,8 +308,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             )}
 
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>Lieu & places disponibles</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>Lieu, places leads & staff</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
                     Adresse / lieu
@@ -317,7 +323,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                    Places max
+                    Places leads
                   </label>
                   <input
                     type="number"
@@ -326,6 +332,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     value={capacityEdit}
                     onChange={(e) => setCapacityEdit(e.target.value)}
                     placeholder="Illimité"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                    Staff nécessaires
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    style={inputStyle}
+                    value={staffNeededEdit}
+                    onChange={(e) => setStaffNeededEdit(e.target.value)}
+                    placeholder="Ex: 4"
                   />
                 </div>
               </div>
@@ -341,12 +360,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               >
                 <div style={{ fontSize: 12, color: crmV2.textMuted }}>
                   {cap
-                    ? `${cap.registered_count} inscrit(s)${
+                    ? `Leads : ${cap.registered_count}${
                         cap.max_capacity != null
                           ? ` / ${cap.max_capacity} · ${cap.remaining ?? 0} restante(s)`
-                          : ' · places illimitées'
+                          : ' · illimité'
                       }`
-                    : 'Définissez un plafond pour bloquer les inscriptions quand c’est complet.'}
+                    : 'Places leads optionnelles.'}
+                  {data.staff_needed != null
+                    ? ` · Staff : ${data.staff?.length || 0}/${data.staff_needed}${
+                        data.staff_remaining != null ? ` · ${data.staff_remaining} rest.` : ''
+                      }`
+                    : ''}
                 </div>
                 <CrmV2Button variant="gold" disabled={busy} onClick={savePlaces}>
                   <Save size={14} /> Enregistrer

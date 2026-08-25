@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, CalendarRange, Copy, ExternalLink, FileUp, Plus, RefreshCw } from 'lucide-react'
+import {
+  CalendarDays,
+  CalendarRange,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  ExternalLink,
+  FileUp,
+  Plus,
+  RefreshCw,
+  Save,
+  Users,
+} from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import EventsAgendaCalendar, { EVENT_BRAND_COLORS } from '@/components/crm/EventsAgendaCalendar'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
@@ -15,6 +27,7 @@ import {
   planningPublicUrl,
   type EventBrand,
 } from '@/lib/events-studio/config'
+import { staffPayForType } from '@/lib/events-studio/event-meta'
 
 type EventRow = {
   id: string
@@ -27,6 +40,10 @@ type EventRow = {
   status: string
   zoom_join_url: string | null
   description?: string | null
+  max_capacity?: number | null
+  staff_needed?: number | null
+  staff_count?: number
+  staff_remaining?: number | null
 }
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
@@ -82,6 +99,9 @@ export default function EventsListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [staffDraft, setStaffDraft] = useState('')
+  const [savingId, setSavingId] = useState<string | null>(null)
   const planningYear = new Date().getFullYear()
   const planningUrl = planningPublicUrl(planningYear)
 
@@ -119,36 +139,80 @@ export default function EventsListPage() {
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
 
+  async function saveStaffNeeded(ev: EventRow) {
+    setSavingId(ev.id)
+    try {
+      const res = await fetch(`/api/events-studio/events/${ev.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_needed: staffDraft.trim() === '' ? null : parseInt(staffDraft, 10),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erreur')
+      setToast('Besoin staff enregistré')
+      setTimeout(() => setToast(null), 2000)
+      await load()
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  function toggleExpand(ev: EventRow) {
+    if (expandedId === ev.id) {
+      setExpandedId(null)
+      return
+    }
+    setExpandedId(ev.id)
+    setStaffDraft(ev.staff_needed != null ? String(ev.staff_needed) : '')
+  }
+
   function renderEventCard(ev: EventRow, muted = false) {
     const type = eventTypeOf(ev)
     const st = statusStyle(ev.status)
     const brandColor = EVENT_BRAND_COLORS[brand]
+    const open = expandedId === ev.id
+    const pay = staffPayForType(type.id)
+    const showStaff = type.staff
+
     return (
-      <Link
+      <CrmV2Card
         key={ev.id}
-        href={`/admin/crm/events/${ev.id}`}
-        style={{ textDecoration: 'none', color: 'inherit' }}
+        style={{
+          padding: 0,
+          overflow: 'hidden',
+          borderLeft: `4px solid ${brandColor.solid}`,
+          opacity: muted ? 0.75 : 1,
+        }}
       >
-        <CrmV2Card
+        <button
+          type="button"
+          onClick={() => toggleExpand(ev)}
           style={{
-            padding: '14px 18px',
+            width: '100%',
+            textAlign: 'left',
+            border: 'none',
+            background: 'transparent',
+            padding: '18px 18px 16px',
+            cursor: 'pointer',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: 12,
-            cursor: 'pointer',
-            borderLeft: `4px solid ${brandColor.solid}`,
-            opacity: muted ? 0.72 : 1,
           }}
         >
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600, fontSize: 15 }}>{ev.name}</span>
+              <span style={{ fontWeight: 700, fontSize: 17, color: crmV2.text }}>{ev.name}</span>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  padding: '2px 8px',
+                  padding: '3px 9px',
                   borderRadius: crmV2.radiusPill,
                   background: crmV2.goldSoft,
                   color: crmV2.text,
@@ -160,7 +224,7 @@ export default function EventsListPage() {
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  padding: '2px 8px',
+                  padding: '3px 9px',
                   borderRadius: crmV2.radiusPill,
                   background: st.bg,
                   color: st.color,
@@ -168,15 +232,128 @@ export default function EventsListPage() {
               >
                 {st.label}
               </span>
+              {showStaff && ev.staff_needed != null && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    borderRadius: crmV2.radiusPill,
+                    background: 'rgba(56,189,248,0.15)',
+                    color: '#0369a1',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <Users size={11} />
+                  {ev.staff_count || 0}/{ev.staff_needed} staff
+                  {ev.staff_remaining != null ? ` · ${ev.staff_remaining} rest.` : ''}
+                </span>
+              )}
             </div>
-            <div style={{ marginTop: 4, fontSize: 12, color: crmV2.textMuted }}>
+            <div style={{ marginTop: 8, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
               {formatWhen(ev.event_date, ev.event_time_end)}
-              {ev.location ? ` · ${ev.location}` : ''}
+              {ev.location ? (
+                <>
+                  <br />
+                  {ev.location}
+                </>
+              ) : null}
+              {pay ? (
+                <>
+                  <br />
+                  <span style={{ color: crmV2.textFaint }}>Rémunération staff : {pay.label}</span>
+                </>
+              ) : null}
             </div>
           </div>
-          <span style={{ fontSize: 12, color: crmV2.link, flexShrink: 0 }}>Ouvrir →</span>
-        </CrmV2Card>
-      </Link>
+          <span style={{ color: crmV2.textMuted, flexShrink: 0, marginTop: 2 }}>
+            {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </span>
+        </button>
+
+        {open && (
+          <div
+            style={{
+              padding: '0 18px 18px',
+              borderTop: `1px solid ${crmV2.border}`,
+              background: crmV2.bgSoft,
+            }}
+          >
+            <div style={{ paddingTop: 14, display: 'grid', gap: 12 }}>
+              {showStaff && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 10,
+                    alignItems: 'end',
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: crmV2.textMuted,
+                        marginBottom: 6,
+                      }}
+                    >
+                      Personnes staff nécessaires
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={staffDraft}
+                      onChange={(e) => setStaffDraft(e.target.value)}
+                      placeholder="Ex: 4"
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '11px 12px',
+                        borderRadius: crmV2.radius,
+                        border: `1px solid ${crmV2.border}`,
+                        fontSize: 14,
+                        background: crmV2.bg,
+                      }}
+                    />
+                    <div style={{ marginTop: 6, fontSize: 12, color: crmV2.textFaint }}>
+                      Affiché sur le planning staff : places restantes
+                      {pay ? ` · tarif ${pay.label}` : ''}.
+                    </div>
+                  </div>
+                  <CrmV2Button
+                    variant="gold"
+                    disabled={savingId === ev.id}
+                    onClick={() => saveStaffNeeded(ev)}
+                  >
+                    <Save size={14} /> {savingId === ev.id ? '…' : 'Enregistrer'}
+                  </CrmV2Button>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Link href={`/admin/crm/events/${ev.id}`} style={{ textDecoration: 'none' }}>
+                  <CrmV2Button variant="primary">Ouvrir la fiche</CrmV2Button>
+                </Link>
+                {showStaff && (
+                  <a
+                    href={`/events-studio/?staff=${ev.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <CrmV2Button variant="secondary">
+                      <ExternalLink size={14} /> Lien staff
+                    </CrmV2Button>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </CrmV2Card>
     )
   }
 

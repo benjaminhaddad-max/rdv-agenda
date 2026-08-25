@@ -3,6 +3,7 @@ import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import { eventHasComms, eventTypeOf } from '@/lib/events-studio/config'
+import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
 import { createServiceClient } from '@/lib/supabase'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -64,6 +65,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     capacity = null
   }
 
+  const staffNeeded = parseStaffNeeded(event.description)
+  const staffCount = (staff || []).length
+
   return NextResponse.json({
     event,
     forms: formsEnriched,
@@ -71,6 +75,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     staff: staff || [],
     type: eventTypeOf(event),
     capacity,
+    staff_needed: staffNeeded,
+    staff_remaining: staffNeeded != null ? Math.max(0, staffNeeded - staffCount) : null,
+    staff_full: staffNeeded != null && staffCount >= staffNeeded,
     staff_url: eventTypeOf(event).staff
       ? `https://hub.diploma-sante.fr/events-studio/?staff=${id}`
       : null,
@@ -99,6 +106,17 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (typeof body.zoom_join_url === 'string') patch.zoom_join_url = body.zoom_join_url.trim() || null
   if (body.max_capacity !== undefined) {
     patch.max_capacity = body.max_capacity ? parseInt(String(body.max_capacity), 10) : null
+  }
+  if (body.staff_needed !== undefined) {
+    const n =
+      body.staff_needed === null || body.staff_needed === ''
+        ? null
+        : parseInt(String(body.staff_needed), 10)
+    const baseDesc =
+      typeof body.description === 'string'
+        ? body.description
+        : (patch.description ?? current.description)
+    patch.description = setStaffNeededInDescription(baseDesc, Number.isFinite(n as number) ? (n as number) : null)
   }
 
   if (Object.keys(patch).length === 0) {
