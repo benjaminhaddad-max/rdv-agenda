@@ -48,6 +48,44 @@ export const EVENT_BRAND_COLORS: Record<
   },
 }
 
+/** Couleurs calendrier par type d’événement. */
+export const EVENT_TYPE_COLORS: Record<
+  string,
+  { solid: string; soft: string; text: string; label: string }
+> = {
+  webinaire: {
+    solid: '#dc2626',
+    soft: 'rgba(220, 38, 38, 0.15)',
+    text: '#b91c1c',
+    label: 'Webinaire',
+  },
+  salon: {
+    solid: '#16a34a',
+    soft: 'rgba(22, 163, 74, 0.15)',
+    text: '#15803d',
+    label: 'Salon',
+  },
+  jpo: {
+    solid: '#c2ab82',
+    soft: 'rgba(194, 171, 130, 0.18)',
+    text: '#8a7349',
+    label: 'JPO',
+  },
+  autre: {
+    solid: '#64748b',
+    soft: 'rgba(100, 116, 139, 0.15)',
+    text: '#475569',
+    label: 'Autre',
+  },
+}
+
+const CALENDAR_LEGEND_TYPES = ['webinaire', 'salon', 'jpo'] as const
+
+function eventTypeColor(ev: CalendarEventRow) {
+  const typeId = eventTypeOf(ev).id
+  return EVENT_TYPE_COLORS[typeId] || EVENT_TYPE_COLORS.autre
+}
+
 export type CalendarEventRow = {
   id: string
   name: string
@@ -220,9 +258,9 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 10, marginRight: 4 }}>
-            {(Object.keys(EVENT_BRAND_COLORS) as EventBrand[]).map((b) => (
+            {CALENDAR_LEGEND_TYPES.map((typeId) => (
               <div
-                key={b}
+                key={typeId}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: crmV2.textMuted }}
               >
                 <span
@@ -230,10 +268,10 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                     width: 8,
                     height: 8,
                     borderRadius: 2,
-                    background: EVENT_BRAND_COLORS[b].solid,
+                    background: EVENT_TYPE_COLORS[typeId].solid,
                   }}
                 />
-                {EVENT_BRAND_COLORS[b].label}
+                {EVENT_TYPE_COLORS[typeId].label}
               </div>
             ))}
           </div>
@@ -345,8 +383,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                   </div>
                   <div style={{ display: 'grid', gap: 2 }}>
                     {dayEvents.slice(0, 4).map((ev) => {
-                      const b = brandOf(ev)
-                      const c = EVENT_BRAND_COLORS[b]
+                      const c = eventTypeColor(ev)
                       const { time } = parisParts(ev.event_date)
                       return (
                         <Link
@@ -479,8 +516,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                       const top = ((startMin - HOUR_START * 60) / 60) * PX_PER_HOUR
                       const height = Math.max(((endMin - startMin) / 60) * PX_PER_HOUR, 22)
                       if (endMin <= HOUR_START * 60 || startMin >= HOUR_END * 60) return null
-                      const b = brandOf(ev)
-                      const c = EVENT_BRAND_COLORS[b]
+                      const c = eventTypeColor(ev)
                       const type = eventTypeOf(ev)
                       return (
                         <Link
@@ -561,7 +597,7 @@ export default function EventsAgendaCalendar({ events, loading }: Props) {
                       </div>
                       {g.items.map((ev) => {
                         const b = brandOf(ev)
-                        const c = EVENT_BRAND_COLORS[b]
+                        const c = eventTypeColor(ev)
                         const type = eventTypeOf(ev)
                         const { time } = parisParts(ev.event_date)
                         return (
