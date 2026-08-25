@@ -98,6 +98,8 @@ export async function GET(req: NextRequest) {
   const hasShowExternalParam = searchParams.has('show_external')
   const hasAllClassesParam = searchParams.has('all_classes')
   const leadStatus       = searchParams.get('lead_status') ?? ''
+  const includeEmptyLeadStatusParam = searchParams.get('include_empty_lead_status') === '1'
+  const hasIncludeEmptyLeadStatusParam = searchParams.has('include_empty_lead_status')
   const source           = searchParams.get('source') ?? ''
   const parcoursupVerdictFilter = searchParams.get('parcoursup_verdict') ?? ''
   const metaAdsOnlyParam = searchParams.get('meta_ads_only') === '1'
@@ -170,6 +172,27 @@ export async function GET(req: NextRequest) {
     return q.or(`hs_lead_status.is.null,hs_lead_status.not.in.${toPostgrestInList(vals)}`)
   }
 
+  /** Statuts parmi une liste, éventuellement avec les leads au statut vide. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyLeadStatusInFilter = (q: any, raw: string, includeEmpty: boolean) => {
+    const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
+    if (vals.length === 0) {
+      if (!includeEmpty) return q
+      return q.or('hs_lead_status.is.null,hs_lead_status.eq.')
+    }
+    if (!includeEmpty) {
+      return vals.length > 1 ? q.in('hs_lead_status', vals) : q.eq('hs_lead_status', vals[0])
+    }
+    return q.or(`hs_lead_status.is.null,hs_lead_status.in.${toPostgrestInList(vals)}`)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyClasseFilter = (q: any, raw: string) => {
+    const vals = raw.split(',').map(s => s.trim()).filter(Boolean)
+    if (vals.length === 0) return q
+    return vals.length > 1 ? q.in('classe_actuelle', vals) : q.eq('classe_actuelle', vals[0])
+  }
+
   // "jean jean" => tokenized search across firstname/lastname/email/phone.
   const applySearchFilter = (q: any, rawSearch: string) => {
     const safeSearch = sanitizeSearch(rawSearch)
@@ -196,6 +219,7 @@ export async function GET(req: NextRequest) {
   let customFilters: CustomFilterRule[] = []
   let forcedScopedTeleproIds: string[] = []
   let effectiveNoTelepro = noTelepro
+  let effectiveIncludeEmptyLeadStatus = includeEmptyLeadStatusParam
   let effectiveRecentFormMonths = recentFormMonths
   let effectiveRecentFormDays = recentFormDays
   let effectiveCreatedBeforeDays = createdBeforeDays
@@ -336,8 +360,12 @@ export async function GET(req: NextRequest) {
       recentFormMonths?: number
       recentFormDays?: number
       createdBeforeDays?: number
+      includeEmptyLeadStatus?: boolean
     } | null) ?? null
     if (!hasNoTeleproParam && flags?.noTelepro) effectiveNoTelepro = true
+    if (!hasIncludeEmptyLeadStatusParam && flags?.includeEmptyLeadStatus) {
+      effectiveIncludeEmptyLeadStatus = true
+    }
     if (!hasRecentFormMonthsParam && Number(flags?.recentFormMonths || 0) > 0) {
       effectiveRecentFormMonths = Number(flags?.recentFormMonths || 0)
     }
@@ -723,7 +751,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fastQ: any = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
     if (!effectiveAllClasses) fastQ = fastQ.in('classe_actuelle', PRIORITY_CLASSES)
-    if (classeFilter) fastQ = fastQ.eq('classe_actuelle', classeFilter)
+    if (classeFilter) fastQ = applyClasseFilter(fastQ, classeFilter)
     if (effectiveTeleproFilterCsv) {
       const vals = fastSplit(effectiveTeleproFilterCsv)
       const teleproOr = buildTeleproOrFilter(vals)
@@ -748,8 +776,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (leadStatus) {
-      const vals = fastSplit(leadStatus)
-      fastQ = vals.length > 1 ? fastQ.in('hs_lead_status', vals) : fastQ.eq('hs_lead_status', leadStatus)
+      fastQ = applyLeadStatusInFilter(fastQ, leadStatus, effectiveIncludeEmptyLeadStatus)
     }
     if (leadStatusNot) fastQ = applyLeadStatusNotFilter(fastQ, leadStatusNot)
     if (source) {
@@ -884,7 +911,7 @@ export async function GET(req: NextRequest) {
         )
 
       if (!effectiveAllClasses) fastMvQ = fastMvQ.in('classe_actuelle', PRIORITY_CLASSES)
-      if (classeFilter) fastMvQ = fastMvQ.eq('classe_actuelle', classeFilter)
+      if (classeFilter) fastMvQ = applyClasseFilter(fastMvQ, classeFilter)
       if (effectiveTeleproFilterCsv) {
         const vals = splitMultiFast(effectiveTeleproFilterCsv)
         const teleproOr = buildTeleproOrFilter(vals)
@@ -899,8 +926,7 @@ export async function GET(req: NextRequest) {
         fastMvQ = vals.length > 1 ? fastMvQ.in('closer_du_contact_owner_id', vals) : fastMvQ.eq('closer_du_contact_owner_id', closerContactHsId)
       }
       if (leadStatus) {
-        const vals = splitMultiFast(leadStatus)
-        fastMvQ = vals.length > 1 ? fastMvQ.in('hs_lead_status', vals) : fastMvQ.eq('hs_lead_status', leadStatus)
+        fastMvQ = applyLeadStatusInFilter(fastMvQ, leadStatus, effectiveIncludeEmptyLeadStatus)
       }
       if (parcoursupVerdictContactIds !== null) {
         if (parcoursupVerdictContactIds.length === 0) {
@@ -1105,7 +1131,8 @@ export async function GET(req: NextRequest) {
     ((formEvent || formEventNot) && !allowLinovaFormEventInTypesense) ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
-    metaLeadAdsContactIds !== null
+    metaLeadAdsContactIds !== null ||
+    effectiveIncludeEmptyLeadStatus
   )
   const typesenseSortMap: Record<string, string> = {
     contact: 'lastname',
@@ -1702,9 +1729,9 @@ export async function GET(req: NextRequest) {
     query = query.in('classe_actuelle', PRIORITY_CLASSES)
   }
 
-  // Filtre classe spécifique
+  // Filtre classe spécifique (multi-valeurs)
   if (classeFilter) {
-    query = query.eq('classe_actuelle', classeFilter)
+    query = applyClasseFilter(query, classeFilter)
   }
 
   // Filtre période (sur deal.createdate — même logique que l'ancien filterClientSide)
@@ -1873,10 +1900,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Statut du lead (multi-value support)
+  // Statut du lead (multi-value support, optionnellement + statuts vides)
   if (leadStatus) {
-    const vals = splitMulti(leadStatus)
-    query = vals.length > 1 ? query.in('hs_lead_status', vals) : query.eq('hs_lead_status', leadStatus)
+    query = applyLeadStatusInFilter(query, leadStatus, effectiveIncludeEmptyLeadStatus)
   }
   if (leadStatusNot) {
     query = applyLeadStatusNotFilter(query, leadStatusNot)

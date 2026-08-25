@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil } from 'lucide-react'
+import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers } from 'lucide-react'
 import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
@@ -37,6 +37,13 @@ import { HUBSPOT_PROPERTY_TO_COLUMN } from '@/lib/crm-contact-write'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { buildEdumoveGroups, isEdumoveGroups } from '@/lib/edumove-crm-view'
+import {
+  inferViewKind,
+  isAttributionBucketId,
+  isAttributionSubViewId,
+  parseAttributionParentId,
+} from '@/lib/crm-attribution-buckets'
+import { CRMBucketSubviewsBar } from '@/components/crm/CRMBucketSubviews'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -449,6 +456,30 @@ export default function CRMPage() {
     () => new Set(crmViews.filter(v => (v.name ?? '').toLowerCase().includes('linova')).map(v => v.id)),
     [crmViews],
   )
+  const topLevelViews = useMemo(
+    () => crmViews.filter(v => !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id)),
+    [crmViews],
+  )
+  const activeBucketId = useMemo(() => {
+    const v = crmViews.find(x => x.id === activeViewId)
+    if (!v) return null
+    if (v.parentId) return v.parentId
+    const inferred = parseAttributionParentId(v.id)
+    if (inferred) return inferred
+    if (v.kind === 'bucket' || isAttributionBucketId(v.id)) return v.id
+    return null
+  }, [crmViews, activeViewId])
+  const activeBucketParent = useMemo(
+    () => (activeBucketId ? crmViews.find(v => v.id === activeBucketId) ?? null : null),
+    [crmViews, activeBucketId],
+  )
+  const activeBucketChildren = useMemo(() => {
+    if (!activeBucketId) return []
+    return crmViews.filter(v =>
+      v.id !== activeBucketId &&
+      (v.parentId === activeBucketId || parseAttributionParentId(v.id) === activeBucketId),
+    )
+  }, [crmViews, activeBucketId])
   const [fieldOptionsLoaded, setFieldOptionsLoaded] = useState(false)
 
   // Sélection en masse + drawer
@@ -482,7 +513,15 @@ export default function CRMPage() {
   useEffect(() => {
     fetch('/api/crm/views')
       .then(r => r.json())
-      .then((rows: Array<{ id: string; name: string; filter_groups: unknown; preset_flags: unknown; position: number }>) => {
+      .then((rows: Array<{
+        id: string
+        name: string
+        filter_groups: unknown
+        preset_flags: unknown
+        position: number
+        parent_id?: string | null
+        kind?: 'view' | 'bucket' | 'subview'
+      }>) => {
         if (!Array.isArray(rows) || rows.length === 0) { setViewsLoaded(true); return }
         const dbViews: CRMSavedView[] = rows.map(r => {
           const rawGroups = (r.filter_groups as CRMFilterGroup[]) ?? []
@@ -519,6 +558,8 @@ export default function CRMPage() {
             groups,
             presetFlags: r.preset_flags as CRMSavedView['presetFlags'] ?? undefined,
             isDefault: false,
+            parentId: r.parent_id ?? parseAttributionParentId(r.id),
+            kind: r.kind ?? inferViewKind(r.id, r.parent_id ?? parseAttributionParentId(r.id)),
           }
         })
         setCrmViews([...CRM_DEFAULT_VIEWS, ...dbViews])
@@ -617,14 +658,16 @@ export default function CRMPage() {
       const at = viewCountFetchedAtRef.current[id]
       return typeof at === 'number' && Date.now() - at < VIEW_COUNT_FRESH_MS
     }
-    const primaryIds = [activeViewId, 'all']
+    const siblingIds = activeBucketChildren.map(v => v.id)
+    const primaryIds = [activeViewId, 'all', activeBucketId, ...siblingIds]
+      .filter((id): id is string => !!id)
       .filter((id, i, arr) => arr.indexOf(id) === i)
       .filter(id => !isFresh(id))
     const t1 = setTimeout(() => {
       if (primaryIds.length > 0) void fetchViewCounts(primaryIds)
     }, 300)
     const idleCb = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback
-    const remainingIds = crmViews
+    const remainingIds = topLevelViews
       .map(v => v.id)
       .filter(id => id !== activeViewId && id !== 'all')
       .filter(id => !isFresh(id))
@@ -640,7 +683,7 @@ export default function CRMPage() {
       clearTimeout(t1)
       clearTimeout(t2)
     }
-  }, [viewsLoaded, crmViews.length, activeViewId, fetchViewCounts])
+  }, [viewsLoaded, crmViews.length, activeViewId, activeBucketId, activeBucketChildren, topLevelViews, fetchViewCounts])
 
   // Santé ingestion (Meta + CRM): évite les faux diagnostics "plus aucun lead".
   useEffect(() => {
@@ -862,6 +905,7 @@ export default function CRMPage() {
       extraColumns,
       customFilterParam,
       forceMetaAdsOnly,
+      includeEmptyLeadStatus: !!activeView?.presetFlags?.includeEmptyLeadStatus,
     })
 
     // Évite une requête inutile : si les filtres changent hors page 0,
@@ -940,6 +984,9 @@ export default function CRMPage() {
     if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
     if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
     if (noTelepro)            params.set('no_telepro', '1')
+    if (crmViews.find(v => v.id === activeViewId)?.presetFlags?.includeEmptyLeadStatus) {
+      params.set('include_empty_lead_status', '1')
+    }
     if (ownerExclude)         params.set('owner_exclude', ownerExclude)
     if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
     if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
@@ -1432,10 +1479,16 @@ export default function CRMPage() {
   }
 
   function deleteCRMView(viewId: string) {
-    const updated = crmViews.filter(v => v.id !== viewId)
+    const updated = crmViews.filter(v =>
+      v.id !== viewId &&
+      v.parentId !== viewId &&
+      parseAttributionParentId(v.id) !== viewId,
+    )
     setCrmViews(updated)
     persistViewDelete(viewId)
-    if (activeViewId === viewId) applyCRMView(updated[0])
+    if (activeViewId === viewId || parseAttributionParentId(activeViewId) === viewId) {
+      applyCRMView(updated[0])
+    }
   }
 
   function renameCRMView(viewId: string, newName: string) {
@@ -1459,7 +1512,9 @@ export default function CRMPage() {
     const toView = crmViews.find(v => v.id === toId)
     if (!fromView || !toView || fromView.isDefault || toView.isDefault) return
 
-    const customViews = crmViews.filter(v => !v.isDefault)
+    const isTopLevel = (v: CRMSavedView) =>
+      !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id)
+    const customViews = crmViews.filter(v => !v.isDefault && isTopLevel(v))
     const fromIdx = customViews.findIndex(v => v.id === fromId)
     const toIdx = customViews.findIndex(v => v.id === toId)
     if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
@@ -1469,7 +1524,8 @@ export default function CRMPage() {
     reordered.splice(toIdx, 0, moved)
 
     const defaults = crmViews.filter(v => v.isDefault)
-    setCrmViews([...defaults, ...reordered])
+    const nested = crmViews.filter(v => !v.isDefault && !isTopLevel(v))
+    setCrmViews([...defaults, ...reordered, ...nested])
 
     reordered.forEach((v, i) => {
       void persistViewUpdate(v.id, { position: i })
@@ -1652,6 +1708,9 @@ export default function CRMPage() {
     if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
     if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
     if (noTelepro)            params.set('no_telepro', '1')
+    if (crmViews.find(v => v.id === activeViewId)?.presetFlags?.includeEmptyLeadStatus) {
+      params.set('include_empty_lead_status', '1')
+    }
     if (ownerExclude)         params.set('owner_exclude', ownerExclude)
     if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
     if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))
@@ -2068,11 +2127,12 @@ export default function CRMPage() {
         display: 'flex', alignItems: 'center', gap: 0,
         overflowX: 'auto', overflowY: 'hidden',
       }}>
-        {crmViews.map(view => {
-          const isActive = activeViewId === view.id
+        {topLevelViews.map(view => {
+          const isBucket = view.kind === 'bucket' || isAttributionBucketId(view.id)
+          const isActive = activeViewId === view.id || (isBucket && activeBucketId === view.id)
           const isRenaming = renamingViewId === view.id
-          const Icon = view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
-          const isDraggable = !view.isDefault && !isRenaming
+          const Icon = isBucket ? Layers : view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
+          const isDraggable = !view.isDefault && !isRenaming && !isBucket
           const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
 
           return (
@@ -2124,7 +2184,7 @@ export default function CRMPage() {
                 opacity: draggedViewId === view.id ? 0.5 : 1,
               }}
             >
-              {view.isDefault && <Icon size={12} style={{ color: isActive ? '#C9A84C' : '#3D5275' }} />}
+              {(view.isDefault || isBucket) && <Icon size={12} style={{ color: isActive ? '#C9A84C' : '#3D5275' }} />}
 
               {isRenaming ? (
                 <input
@@ -2245,6 +2305,16 @@ export default function CRMPage() {
         )}
 
       </div>
+
+      {activeBucketParent && (
+        <CRMBucketSubviewsBar
+          parent={activeBucketParent}
+          subviews={activeBucketChildren}
+          activeViewId={activeViewId}
+          viewCounts={viewCounts}
+          onSelect={applyCRMView}
+        />
+      )}
 
       {/* ── Search + actions + quick dropdowns ──────────────────────────────── */}
       <div style={{
@@ -3140,8 +3210,9 @@ export default function CRMPage() {
                   {crmViews.filter(v => !v.isDefault).map(view => {
                     const isRenaming = renamingViewId === view.id
                     const ruleCount = view.groups.reduce((s, g) => s + g.rules.length, 0)
+                    const nested = !!view.parentId || isAttributionSubViewId(view.id)
                     return (
-                      <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 12px' }}>
+                      <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 12px', marginLeft: nested ? 18 : 0 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           {isRenaming ? (
                             <input
@@ -3156,7 +3227,7 @@ export default function CRMPage() {
                             />
                           ) : (
                             <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#0F1F3D' }}>{view.name}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#0F1F3D' }}>{nested ? `↳ ${view.name}` : view.name}</span>
                               {ruleCount > 0 && (
                                 <span style={{ marginLeft: 8, fontSize: 11, color: '#0F1F3D' }}>{ruleCount} filtre{ruleCount > 1 ? 's' : ''}</span>
                               )}
@@ -3243,6 +3314,9 @@ export default function CRMPage() {
               if (contactOwnerHsId)     params.set('contact_owner_hs_id', contactOwnerHsId)
               if (teleproHsId)          params.set('telepro_hs_id', teleproHsId)
               if (noTelepro)            params.set('no_telepro', '1')
+              if (crmViews.find(v => v.id === activeViewId)?.presetFlags?.includeEmptyLeadStatus) {
+                params.set('include_empty_lead_status', '1')
+              }
               if (ownerExclude)         params.set('owner_exclude', ownerExclude)
               if (recentFormMonths > 0) params.set('recent_form_months', String(recentFormMonths))
       if (recentFormDays > 0)   params.set('recent_form_days', String(recentFormDays))

@@ -41,13 +41,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.name        !== undefined) patch.name         = body.name
   if (body.filter_groups !== undefined) patch.filter_groups = body.filter_groups
   if (body.position    !== undefined) patch.position     = body.position
+  if (body.preset_flags !== undefined) patch.preset_flags = body.preset_flags
+  if (body.parent_id   !== undefined) patch.parent_id    = body.parent_id
+  if (body.kind        !== undefined) patch.kind         = body.kind
 
-  const { data, error } = await db
+  let { data, error } = await db
     .from('crm_saved_views')
     .update(patch)
     .eq('id', id)
     .select()
     .single()
+
+  if (error && /parent_id|kind/i.test(error.message)) {
+    const fallback = { ...patch }
+    delete fallback.parent_id
+    delete fallback.kind
+    const retry = await db
+      .from('crm_saved_views')
+      .update(fallback)
+      .eq('id', id)
+      .select()
+      .single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -59,6 +76,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const auth = await authorizeViewMutation(id)
   if (!auth.ok) return auth.response
   const { error } = await auth.db.from('crm_saved_views').delete().eq('id', id)
+  if (!error) {
+    await auth.db.from('crm_saved_views').delete().eq('parent_id', id)
+    await auth.db.from('crm_saved_views').delete().like('id', `${id}__%`)
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

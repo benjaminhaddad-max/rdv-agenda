@@ -94,6 +94,14 @@ body {
   background: #f5f8fa;
 }
 
+.crm-bucket-subviews-bar {
+  background: #1e3a5f !important;
+  border-bottom: 1px solid #16304f;
+}
+.crm-v2 .crm-bucket-subviews-bar {
+  background: #1e3a5f !important;
+}
+
 /* ── Formes arrondies (boutons pill, inputs doux) ─────────────────────── */
 .crm-v2-skin button {
   border-radius: 999px !important;

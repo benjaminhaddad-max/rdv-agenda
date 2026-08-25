@@ -16,8 +16,11 @@ export interface CRMSavedView {
     recentFormMonths?: number
     recentFormDays?: number
     createdBeforeDays?: number
+    includeEmptyLeadStatus?: boolean
   }
   isDefault?: boolean
+  parentId?: string | null
+  kind?: 'view' | 'bucket' | 'subview'
 }
 
 export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
@@ -41,6 +44,7 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
   if (flags?.recentFormMonths)  p.set('recent_form_months', String(flags.recentFormMonths))
   if (flags?.recentFormDays)    p.set('recent_form_days', String(flags.recentFormDays))
   if (flags?.createdBeforeDays) p.set('created_before_days', String(flags.createdBeforeDays))
+  if (flags?.includeEmptyLeadStatus) p.set('include_empty_lead_status', '1')
   const firstGroup = view.groups[0]
   const customFilters: Array<{ field: string; operator: string; value: string }> = []
   if (firstGroup) {
@@ -147,6 +151,8 @@ export async function persistViewCreate(view: CRMSavedView, position: number) {
       filter_groups: view.groups,
       preset_flags: view.presetFlags ?? null,
       position,
+      ...(view.parentId ? { parent_id: view.parentId } : {}),
+      ...(view.kind && view.kind !== 'view' ? { kind: view.kind } : {}),
     }),
   })
 }

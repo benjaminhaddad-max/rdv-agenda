@@ -252,7 +252,7 @@ export function normalizeFilterFieldKey(field: string): string {
 
 /** Champs filtre CRM affichés en multi-sélection (valeurs séparées par des virgules). */
 export const MULTI_SELECT_FILTER_FIELDS = new Set<CRMFilterField>([
-  'stage', 'formation', 'closer_contact', 'contact_owner', 'telepro',
+  'stage', 'formation', 'classe', 'closer_contact', 'contact_owner', 'telepro',
   'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
   'parcoursup_verdict',
 ])

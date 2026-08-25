@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const db = createServiceClient()
   const body = await req.json()
-  const { id, name, filter_groups, preset_flags, position, scope, owner } = body
+  const { id, name, filter_groups, preset_flags, position, scope, owner, parent_id, kind } = body
 
   let ownerId: string | null = null
   if (owner === 'me') {
@@ -64,19 +64,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data, error } = await db
-    .from('crm_saved_views')
-    .insert({
-      id,
-      name,
-      filter_groups: filter_groups ?? [],
-      preset_flags: preset_flags ?? null,
-      position: position ?? 0,
-      scope: scope ?? 'contacts',
-      owner_id: ownerId,
-    })
-    .select()
-    .single()
+  const row: Record<string, unknown> = {
+    id,
+    name,
+    filter_groups: filter_groups ?? [],
+    preset_flags: preset_flags ?? null,
+    position: position ?? 0,
+    scope: scope ?? 'contacts',
+    owner_id: ownerId,
+  }
+  if (parent_id !== undefined) row.parent_id = parent_id || null
+  if (kind) row.kind = kind
+
+  const insertOnce = async (payload: Record<string, unknown>) =>
+    db.from('crm_saved_views').insert(payload).select().single()
+
+  let { data, error } = await insertOnce(row)
+  if (error && /parent_id|kind/i.test(error.message)) {
+    const fallback = { ...row }
+    delete fallback.parent_id
+    delete fallback.kind
+    const retry = await insertOnce(fallback)
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
