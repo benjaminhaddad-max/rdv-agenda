@@ -3258,27 +3258,26 @@ async function loadPlanningPublic(brand, yearParam) {
       const full = !!e.staff_full;
       const needed = e.staff_needed;
       const remaining = e.staff_remaining;
-      const taken = needed != null ? Math.max(0, needed - (remaining ?? 0)) : (e.staff_count || 0);
-      let slotsBadge = '';
-      let placesLine = '';
+      let rightBlock = '';
       if (needed != null) {
         if (full) {
-          slotsBadge = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#FEE2E2;color:#B91C1C;">Complet</span>`;
-          placesLine = `<p style="margin:8px 0 0;font-size:14px;font-weight:700;color:#B91C1C;">Plus de place staff · ${taken}/${needed} inscrits</p>`;
+          rightBlock = `<div style="flex-shrink:0;text-align:right;min-width:110px;padding-top:2px;">
+            <p style="margin:0;font-size:28px;font-weight:700;line-height:1;color:#B91C1C;">0</p>
+            <p style="margin:6px 0 0;font-size:12px;font-weight:700;color:#B91C1C;line-height:1.25;">place restante</p>
+            <p style="margin:4px 0 0;font-size:11px;color:#9CA3AF;">Complet · ${needed} demandées</p>
+          </div>`;
         } else {
-          const restLabel = remaining === 0
-            ? 'Plus de place'
-            : remaining === 1
-              ? '1 place restante'
-              : `${remaining} places restantes`;
-          slotsBadge = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#DBEAFE;color:#1D4ED8;">${restLabel}</span>`;
-          placesLine = `<p style="margin:8px 0 0;font-size:14px;font-weight:700;color:#1D4ED8;">${restLabel} sur ${needed} · ${taken} déjà inscrit${taken > 1 ? 's' : ''}</p>`;
+          const n = remaining ?? needed;
+          rightBlock = `<div style="flex-shrink:0;text-align:right;min-width:110px;padding-top:2px;">
+            <p style="margin:0;font-size:28px;font-weight:700;line-height:1;color:#1C2436;">${n}</p>
+            <p style="margin:6px 0 0;font-size:12px;font-weight:700;color:#1D4ED8;line-height:1.25;">place${n > 1 ? 's' : ''} restante${n > 1 ? 's' : ''}</p>
+            <p style="margin:4px 0 0;font-size:11px;color:#9CA3AF;">sur ${needed}</p>
+          </div>`;
         }
       } else {
-        slotsBadge = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#F0E9DC;color:#8A7349;">Places non limitées</span>`;
-        placesLine = taken > 0
-          ? `<p style="margin:8px 0 0;font-size:13px;color:#6B7280;">${taken} personne${taken > 1 ? 's' : ''} déjà inscrite${taken > 1 ? 's' : ''} (pas de plafond staff)</p>`
-          : `<p style="margin:8px 0 0;font-size:13px;color:#9CA3AF;">Aucun plafond staff défini pour cet événement</p>`;
+        rightBlock = `<div style="flex-shrink:0;text-align:right;min-width:110px;padding-top:2px;">
+          <p style="margin:0;font-size:13px;font-weight:600;color:#8A7349;line-height:1.3;">Places<br>ouvertes</p>
+        </div>`;
       }
       const pay = e.pay_label
         ? `<p style="margin:6px 0 0;font-size:12px;color:#8A7349;font-weight:600;">Rémunération : ${esc(e.pay_label)}</p>`
@@ -3286,20 +3285,19 @@ async function loadPlanningPublic(brand, yearParam) {
       const desc = e.description
         ? `<p style="margin:6px 0 0;font-size:12px;color:#9CA3AF;">${esc(e.description)}</p>`
         : '';
-      return `<label style="display:flex;gap:14px;align-items:flex-start;padding:16px;border:1.5px solid ${full ? '#FECACA' : '#E5E0D5'};border-radius:14px;cursor:${full ? 'not-allowed' : 'pointer'};opacity:${full ? '0.72' : '1'};background:${full ? '#FFFBFB' : '#FFF'};">
-      <input type="checkbox" class="plan-event-check" value="${e.id}" ${full ? 'disabled' : ''} style="margin-top:4px;width:18px;height:18px;accent-color:#1C2436;">
+      return `<label style="display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border:1.5px solid ${full ? '#FECACA' : '#E5E0D5'};border-radius:14px;cursor:${full ? 'not-allowed' : 'pointer'};opacity:${full ? '0.72' : '1'};background:${full ? '#FFFBFB' : '#FFF'};">
+      <input type="checkbox" class="plan-event-check" value="${e.id}" ${full ? 'disabled' : ''} style="margin-top:4px;width:18px;height:18px;accent-color:#1C2436;flex-shrink:0;">
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <div style="margin-bottom:6px;">
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;background:${t.id === 'salon' ? '#EDE9FE' : '#F0E9DC'};color:${t.id === 'salon' ? '#5B21B6' : '#8A7349'};">${esc(t.short)}</span>
-          ${slotsBadge}
         </div>
         <p style="margin:0;font-weight:700;color:#1C2436;font-size:16px;">${esc(e.name)}</p>
         <p style="margin:6px 0 0;font-size:13px;color:#6B7280;">${dateLabel} · ${startT}${e.event_time_end ? ' – ' + esc(e.event_time_end) : ''}</p>
         <p style="margin:4px 0 0;font-size:13px;color:#6B7280;">📍 ${esc(e.location || 'Lieu à confirmer')}</p>
-        ${placesLine}
         ${pay}
         ${desc}
       </div>
+      ${rightBlock}
     </label>`;
     }).join('');
   } catch (e) {
