@@ -27,7 +27,7 @@ import {
   planningPublicUrl,
   type EventBrand,
 } from '@/lib/events-studio/config'
-import { staffPayForType } from '@/lib/events-studio/event-meta'
+import { staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 type EventRow = {
   id: string
@@ -176,7 +176,7 @@ export default function EventsListPage() {
     const st = statusStyle(ev.status)
     const brandColor = EVENT_BRAND_COLORS[brand]
     const open = expandedId === ev.id
-    const pay = staffPayForType(type.id)
+    const pay = staffPayForEvent(ev)
     const showStaff = type.staff
 
     return (

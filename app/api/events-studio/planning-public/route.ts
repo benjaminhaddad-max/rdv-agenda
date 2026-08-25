@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
-import { humanDescription, parseStaffNeeded, staffPayForType } from '@/lib/events-studio/event-meta'
+import { humanDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 /**
  * GET /api/events-studio/planning-public?year=2026
@@ -51,15 +51,16 @@ export async function GET(req: NextRequest) {
       year,
       pay_rules: {
         intro:
-          'Rémunération : salons = 120 € par jour · journées portes ouvertes (après-midi) = 60 €.',
-        salon: '120 € / jour',
+          'Rémunération : salons journée complète = 120 € · demi-journée (après-midi) et JPO = 60 €.',
+        salon_full_day: '120 € / jour',
+        half_day: '60 € / demi-journée',
         jpo: '60 € / après-midi',
       },
       events: events.map((e) => {
         const type = eventTypeOf(e)
         const staffNeeded = parseStaffNeeded(e.description)
         const staffCount = staffCounts[e.id] || 0
-        const pay = staffPayForType(type.id)
+        const pay = staffPayForEvent(e)
         return {
           id: e.id,
           name: e.name,
