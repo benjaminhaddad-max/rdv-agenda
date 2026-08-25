@@ -742,11 +742,12 @@ function ExpandedDetail({
               {contact.phone && (
                 <a
                   href={telHref(contact.phone)}
+                  className="crm-phone-cell"
                   onClick={e => {
                     e.stopPropagation()
                     void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
                   }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#22c55e', fontSize: 12, textDecoration: 'none', marginBottom: 6 }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#22c55e', fontSize: 12, textDecoration: 'none', marginBottom: 6 }}
                 >
                   <Phone size={11} />{contact.phone}
                 </a>
@@ -944,7 +945,7 @@ const COL_LABELS: Record<ColKey, string> = {
 
 const COL_WIDTHS: Record<ColKey, number> = {
   contact:              200,
-  phone:                120,
+  phone:                200,
   formation_souhaitee:  140,
   classe:               100,
   zone:                 100,
@@ -959,6 +960,14 @@ const COL_WIDTHS: Record<ColKey, number> = {
   createdat_deal:        150,
   form_submission:      160,
   parcoursup_verdict:    160,
+}
+
+const PHONE_COL_MIN_WIDTH = 200
+
+function mergeColWidths(saved?: Record<string, number> | null): Record<ColKey, number> {
+  const merged = { ...COL_WIDTHS, ...(saved || {}) } as Record<ColKey, number>
+  if ((merged.phone ?? 0) < PHONE_COL_MIN_WIDTH) merged.phone = PHONE_COL_MIN_WIDTH
+  return merged
 }
 
 const SORTABLE_COLS = new Set<ColKey>([
@@ -1238,7 +1247,7 @@ export default function CRMContactsTable({
     if (typeof window === 'undefined') return { ...COL_WIDTHS }
     try {
       const saved = localStorage.getItem('crm-col-widths')
-      if (saved) return { ...COL_WIDTHS, ...JSON.parse(saved) }
+      if (saved) return mergeColWidths(JSON.parse(saved) as Record<string, number>)
     } catch { /* ignore */ }
     return { ...COL_WIDTHS }
   })
@@ -1307,7 +1316,7 @@ export default function CRMContactsTable({
         }
         if (data.col_widths && typeof data.col_widths === 'object') {
           setColWidths(prev => {
-            const merged = { ...prev, ...data.col_widths }
+            const merged = mergeColWidths({ ...prev, ...data.col_widths })
             localStorage.setItem('crm-col-widths', JSON.stringify(merged))
             return merged
           })
@@ -1333,7 +1342,8 @@ export default function CRMContactsTable({
     function onMove(ev: MouseEvent) {
       if (!resizingRef.current) return
       const delta = ev.clientX - resizingRef.current.startX
-      const newW = Math.max(50, resizingRef.current.startW + delta)
+      const minW = resizingRef.current.key === 'phone' ? PHONE_COL_MIN_WIDTH : 50
+      const newW = Math.max(minW, resizingRef.current.startW + delta)
       setColWidths(prev => ({ ...prev, [resizingRef.current!.key]: newW }))
     }
     function onUp() {
@@ -1778,11 +1788,12 @@ export default function CRMContactsTable({
         return contact.phone ? (
           <a
             href={telHref(contact.phone)}
+            className="crm-phone-cell"
             onClick={e => {
               e.stopPropagation()
               void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
             }}
-            style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}
+            style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >
             <Phone size={11} />{formatPhone(contact.phone)}
           </a>
@@ -2422,10 +2433,15 @@ export default function CRMContactsTable({
                       if (isNativeToken(entry)) {
                         const key = entry.slice(2) as ColKey
                         const isOwnerCol = key === 'closer' || key === 'closer_du_contact' || key === 'telepro'
+                        const isPhoneCol = key === 'phone'
                         return (
                           <td
                             key={entry}
-                            style={{ padding: isOwnerCol ? '6px 8px' : '10px 12px', minWidth: 0, overflow: 'hidden' }}
+                            style={{
+                              padding: isOwnerCol ? '6px 8px' : '10px 12px',
+                              minWidth: 0,
+                              overflow: isPhoneCol ? 'visible' : 'hidden',
+                            }}
                             onClick={INLINE_EDIT_STOP_KEYS.has(key) ? e => e.stopPropagation() : undefined}
                           >
                             {renderCell(key, contact)}

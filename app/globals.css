@@ -302,3 +302,24 @@ body {
   border: 3px solid transparent;
   background-clip: content-box;
 }
+
+/*
+ * Aircall Click-to-Call (extension Chrome) injecte un bouton vert ~20px
+ * à droite des liens tel:. Un `display:flex` pleine largeur collait ce
+ * bouton au bord de la cellule, et overflow:hidden le coupait.
+ */
+.crm-phone-cell {
+  position: relative;
+  overflow: visible;
+  padding-right: 26px;
+}
+.crm-phone-cell [class*="aircall" i],
+.crm-phone-cell [class*="click-to-call" i],
+.crm-phone-cell [class*="clicktodial" i] {
+  flex-shrink: 0 !important;
+  position: static !important;
+  transform: none !important;
+  overflow: visible !important;
+  width: 18px !important;
+  height: 18px !important;
+}
