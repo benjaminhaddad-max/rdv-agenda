@@ -19,7 +19,6 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   BRAND_CONFIG,
   EVENT_TYPES,
-  brandEventTypes,
   eventTypeOf,
   type EventBrand,
   type EventTypeId,
@@ -188,9 +187,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const brand = (ev?.brand || 'diploma') as EventBrand
   const crmForm = data?.forms?.find((f) => f.form_type === 'crm' || f.public_url)
   const cap = data?.capacity
-  const typeOptions = brandEventTypes(brand).length
-    ? EDITABLE_TYPES.filter((t) => brandEventTypes(brand).includes(t) || t === typeEdit)
-    : EDITABLE_TYPES
+  const typeOptions = EDITABLE_TYPES
   const showStaffEdit = EVENT_TYPES[typeEdit].staff
   const inputStyle: CSSProperties = {
     width: '100%',
@@ -256,17 +253,31 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>{ev.name}</h1>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      borderRadius: crmV2.radiusPill,
-                      background: crmV2.goldSoft,
-                    }}
-                  >
-                    {EVENT_TYPES[typeEdit].short}
-                  </span>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600 }}>Type</span>
+                    <select
+                      value={typeEdit}
+                      disabled={busy}
+                      onChange={(e) => setTypeEdit(e.target.value as EventTypeId)}
+                      style={{
+                        ...inputStyle,
+                        width: 'auto',
+                        minWidth: 160,
+                        padding: '6px 10px',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        background: crmV2.goldSoft,
+                        border: `1px solid ${crmV2.goldBorder}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {EDITABLE_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {EVENT_TYPES[t].label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <span
                     style={{
                       fontSize: 11,
@@ -302,6 +313,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {typeEdit !== currentTypeId(ev) && (
+                  <CrmV2Button variant="gold" disabled={busy} onClick={savePlaces}>
+                    <Save size={14} /> Enregistrer le type
+                  </CrmV2Button>
+                )}
                 {ev.status !== 'published' ? (
                   <CrmV2Button variant="gold" disabled={busy} onClick={() => setStatus('published')}>
                     <Rocket size={14} /> Publier
