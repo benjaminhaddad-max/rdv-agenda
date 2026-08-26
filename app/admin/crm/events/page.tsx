@@ -331,7 +331,7 @@ export default function EventsListPage() {
                     onChange={(e) => setTypeDraft(e.target.value as EventTypeId)}
                     style={inputStyle}
                   >
-                    {(types.length ? EDITABLE_TYPES.filter((t) => types.includes(t) || t === typeDraft) : EDITABLE_TYPES).map(
+                    {(EDITABLE_TYPES).map(
                       (t) => (
                         <option key={t} value={t}>
                           {EVENT_TYPES[t].label}
