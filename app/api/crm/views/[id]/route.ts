@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
+import { unpinViewFromAdminLayout } from '@/lib/crm-admin-view-layout'
 
 // Vérifie que l'utilisateur courant a le droit de modifier / supprimer la vue.
 //   - vue privée (owner_id défini) → seul son propriétaire
@@ -26,7 +27,7 @@ async function authorizeViewMutation(id: string) {
     return { ok: false as const, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return { ok: true as const, db }
+  return { ok: true as const, db, ctx, ownerId: row.owner_id as string | null }
 }
 
 // PATCH /api/crm/views/[id] — update name / filter_groups
@@ -71,10 +72,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/crm/views/[id]
+//
+// Vue catalogue (owner_id NULL) : on ne la détruit plus. On la retire seulement
+// des onglets de l'admin courant, pour que les autres comptes la gardent.
+// Vue privée télépro/closer : suppression réelle.
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await authorizeViewMutation(id)
   if (!auth.ok) return auth.response
+
+  if (!auth.ownerId) {
+    const { error } = await unpinViewFromAdminLayout(auth.db, auth.ctx.appUserId, id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, unpinned: true })
+  }
+
   const { error } = await auth.db.from('crm_saved_views').delete().eq('id', id)
   if (!error) {
     await auth.db.from('crm_saved_views').delete().eq('parent_id', id)
