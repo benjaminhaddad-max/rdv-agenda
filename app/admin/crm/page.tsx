@@ -2121,10 +2121,12 @@ export default function CRMPage() {
       </div>
 
       {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
-      <div style={{
-        padding: '0 20px', background: '#F5F0E8',
+      <div
+        className="crm-views-tab-bar"
+        style={{
+        padding: '8px 16px 10px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8', flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 0,
+        display: 'flex', alignItems: 'center', gap: 6,
         overflowX: 'auto', overflowY: 'hidden',
       }}>
         {topLevelViews.map(view => {
@@ -2171,20 +2173,30 @@ export default function CRMPage() {
                   setRenameValue(view.name)
                 }
               }}
+              className={`crm-view-tab${isActive ? ' is-active' : ''}${isBucket ? ' is-bucket' : ''}`}
               style={{
-                padding: '10px 14px',
-                borderBottom: `2px solid ${isActive ? '#C9A84C' : 'transparent'}`,
-                borderLeft: isDragOver ? '2px solid #C9A84C' : '2px solid transparent',
-                background: isDragOver ? 'rgba(204,172,113,0.10)' : 'transparent',
+                padding: '8px 16px',
+                borderRadius: 999,
+                border: isActive
+                  ? '1px solid #C9A84C'
+                  : isDragOver
+                    ? '1px solid #C9A84C'
+                    : '1px solid #dfe3eb',
+                background: isActive
+                  ? '#C9A84C'
+                  : isDragOver
+                    ? 'rgba(201,168,76,0.12)'
+                    : '#f5f8fa',
+                boxShadow: isActive ? '0 1px 4px rgba(18,49,77,0.18)' : 'none',
                 cursor: isRenaming ? 'text' : isDraggable ? 'grab' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex', alignItems: 'center', gap: 7,
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s',
                 flexShrink: 0,
                 opacity: draggedViewId === view.id ? 0.5 : 1,
               }}
             >
-              {(view.isDefault || isBucket) && <Icon size={12} style={{ color: isActive ? '#C9A84C' : '#3D5275' }} />}
+              {(view.isDefault || isBucket) && <Icon size={14} style={{ color: isActive ? '#12314d' : '#3D5275' }} />}
 
               {isRenaming ? (
                 <input
@@ -2206,8 +2218,9 @@ export default function CRMPage() {
                 />
               ) : (
                 <span style={{
-                  fontSize: 13, fontWeight: isActive ? 700 : 600,
-                  color: '#0F1F3D',
+                  fontSize: 14, fontWeight: isActive ? 800 : 600,
+                  color: isActive ? '#12314d' : '#0F1F3D',
+                  letterSpacing: isActive ? '-0.01em' : undefined,
                 }}>
                   {view.name}
                 </span>
@@ -2216,10 +2229,10 @@ export default function CRMPage() {
               {/* Badge count — tous les onglets */}
               {viewCounts[view.id] !== undefined && viewCounts[view.id] > 0 && (
                 <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: isActive ? '#3D5275' : '#3D5275',
-                  background: isActive ? '#EDE6D6' : '#F5F0E8',
-                  border: `1px solid ${isActive ? '#D4C4A0' : '#F5F0E8'}`,
+                  fontSize: 11, fontWeight: 800,
+                  color: isActive ? '#12314d' : '#3D5275',
+                  background: isActive ? 'rgba(18,49,77,0.12)' : '#ffffff',
+                  border: `1px solid ${isActive ? 'rgba(18,49,77,0.18)' : '#dfe3eb'}`,
                   borderRadius: 6, padding: '1px 7px',
                   letterSpacing: '0.01em',
                   fontVariantNumeric: 'tabular-nums',
@@ -2289,13 +2302,14 @@ export default function CRMPage() {
             onClick={() => { setCreatingView(true); setNewViewName('') }}
             title="Créer une vue à partir des filtres actuels"
             style={{
-              padding: '10px 12px',
-              background: 'none', border: 'none',
+              padding: '8px 14px',
+              background: '#f5f8fa',
+              border: '1px dashed #cbd6e2',
+              borderRadius: 999,
               color: '#3D5275', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              fontSize: 13, fontFamily: 'inherit', fontWeight: 700,
               whiteSpace: 'nowrap', flexShrink: 0,
-              borderBottom: '2px solid transparent',
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
             onMouseLeave={e => (e.currentTarget.style.color = '#3D5275')}

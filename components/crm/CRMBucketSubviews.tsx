@@ -28,24 +28,24 @@ export function CRMBucketSubviewsBar({
     <div
       className="crm-bucket-subviews-bar"
       style={{
-        padding: '10px 20px 12px',
+        padding: '6px 20px 8px',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
         overflowX: 'auto',
       }}
     >
       <span
         style={{
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: '0.12em',
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          color: '#C9A84C',
+          color: '#7c98b6',
           whiteSpace: 'nowrap',
           flexShrink: 0,
-          marginRight: 4,
+          marginRight: 2,
         }}
       >
         Sous-vues
@@ -61,18 +61,18 @@ export function CRMBucketSubviewsBar({
             type="button"
             onClick={() => onSelect(view)}
             style={{
-              padding: '7px 14px',
+              padding: '4px 11px',
               borderRadius: 999,
-              border: isActive ? '1px solid #C9A84C' : '1px solid rgba(255,255,255,0.18)',
-              background: isActive ? '#C9A84C' : 'rgba(255,255,255,0.08)',
-              color: isActive ? '#12314d' : '#ffffff',
+              border: isActive ? '1px solid #C9A84C' : '1px solid #dfe3eb',
+              background: isActive ? 'rgba(201,168,76,0.16)' : '#ffffff',
+              color: isActive ? '#12314d' : '#516f90',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
+              gap: 5,
+              fontSize: 12,
               fontFamily: 'inherit',
-              fontWeight: isActive ? 800 : 600,
+              fontWeight: isActive ? 700 : 500,
               whiteSpace: 'nowrap',
               flexShrink: 0,
             }}
@@ -81,12 +81,12 @@ export function CRMBucketSubviewsBar({
             {typeof count === 'number' && (
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 700,
-                  color: isActive ? '#12314d' : '#C9A84C',
-                  background: isActive ? 'rgba(18,49,77,0.12)' : 'rgba(0,0,0,0.25)',
+                  color: isActive ? '#3D5275' : '#7c98b6',
+                  background: isActive ? 'rgba(18,49,77,0.08)' : '#f5f8fa',
                   borderRadius: 6,
-                  padding: '1px 6px',
+                  padding: '0 5px',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >

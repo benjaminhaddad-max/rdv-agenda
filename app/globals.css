@@ -94,12 +94,30 @@ body {
   background: #f5f8fa;
 }
 
-.crm-bucket-subviews-bar {
-  background: #1e3a5f !important;
-  border-bottom: 1px solid #16304f;
+.crm-views-tab-bar {
+  background: #ffffff !important;
 }
-.crm-v2 .crm-bucket-subviews-bar {
-  background: #1e3a5f !important;
+.crm-view-tab {
+  border-radius: 999px !important;
+}
+.crm-view-tab.is-active {
+  background: #C9A84C !important;
+  border-color: #b8963e !important;
+  box-shadow: 0 1px 4px rgba(18, 49, 77, 0.18) !important;
+}
+.crm-v2-skin .crm-view-tab.is-active,
+.crm-v2-skin .crm-view-tab.is-active span,
+.crm-v2-skin .crm-view-tab.is-active svg {
+  color: #12314d !important;
+}
+
+.crm-bucket-subviews-bar {
+  background: #eef1f6 !important;
+  border-bottom: 1px solid #dfe3eb;
+}
+.crm-v2 .crm-bucket-subviews-bar,
+.crm-v2-skin .crm-bucket-subviews-bar {
+  background: #eef1f6 !important;
 }
 
 /* ── Formes arrondies (boutons pill, inputs doux) ─────────────────────── */
