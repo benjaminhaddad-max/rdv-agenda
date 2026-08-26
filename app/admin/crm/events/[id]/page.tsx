@@ -265,7 +265,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       background: crmV2.goldSoft,
                     }}
                   >
-                    {data.type.short}
+                    {EVENT_TYPES[typeEdit].short}
                   </span>
                   <span
                     style={{
