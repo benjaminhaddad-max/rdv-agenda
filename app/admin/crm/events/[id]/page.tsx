@@ -16,7 +16,22 @@ import {
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
-import { BRAND_CONFIG, type EventBrand } from '@/lib/events-studio/config'
+import {
+  BRAND_CONFIG,
+  EVENT_TYPES,
+  brandEventTypes,
+  eventTypeOf,
+  type EventBrand,
+  type EventTypeId,
+} from '@/lib/events-studio/config'
+
+const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
+
+function currentTypeId(ev: { event_type?: string | null; brand?: string | null; zoom_join_url?: string | null }): EventTypeId {
+  const id = eventTypeOf(ev).id
+  if (id === 'jpo' || id === 'salon' || id === 'webinaire') return id
+  return 'salon'
+}
 
 type Detail = {
   event: {
@@ -72,6 +87,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [locationEdit, setLocationEdit] = useState('')
   const [capacityEdit, setCapacityEdit] = useState('')
   const [staffNeededEdit, setStaffNeededEdit] = useState('')
+  const [typeEdit, setTypeEdit] = useState<EventTypeId>('salon')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -84,6 +100,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setLocationEdit(json.event?.location || '')
       setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
       setStaffNeededEdit(json.staff_needed != null ? String(json.staff_needed) : '')
+      setTypeEdit(currentTypeId(json.event || {}))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -118,19 +135,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   async function savePlaces() {
     setBusy(true)
     try {
+      const typeCfg = EVENT_TYPES[typeEdit]
+      const body: Record<string, unknown> = {
+        event_type: typeEdit,
+        location: locationEdit,
+        max_capacity: capacityEdit.trim() === '' ? null : parseInt(capacityEdit, 10),
+      }
+      if (typeCfg.staff) {
+        body.staff_needed = staffNeededEdit.trim() === '' ? null : parseInt(staffNeededEdit, 10)
+      }
       const res = await fetch(`/api/events-studio/events/${id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: locationEdit,
-          max_capacity: capacityEdit.trim() === '' ? null : parseInt(capacityEdit, 10),
-          staff_needed: staffNeededEdit.trim() === '' ? null : parseInt(staffNeededEdit, 10),
-        }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
-      setToast('Lieu, places et staff enregistrés')
+      setToast('Type, lieu, places et staff enregistrés')
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -166,6 +188,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const brand = (ev?.brand || 'diploma') as EventBrand
   const crmForm = data?.forms?.find((f) => f.form_type === 'crm' || f.public_url)
   const cap = data?.capacity
+  const typeOptions = brandEventTypes(brand).length
+    ? EDITABLE_TYPES.filter((t) => brandEventTypes(brand).includes(t) || t === typeEdit)
+    : EDITABLE_TYPES
+  const showStaffEdit = EVENT_TYPES[typeEdit].staff
   const inputStyle: CSSProperties = {
     width: '100%',
     padding: '10px 12px',
@@ -291,7 +317,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
 
-            {!data.type.comms && (
+            {!EVENT_TYPES[typeEdit].comms && (
               <div
                 style={{
                   marginBottom: 14,
@@ -303,13 +329,36 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   color: crmV2.text,
                 }}
               >
-                Salon — collecte CRM uniquement, aucune communication email/SMS à la publication.
+                {EVENT_TYPES[typeEdit].label} — collecte CRM uniquement, aucune communication email/SMS à
+                la publication.
               </div>
             )}
 
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>Lieu, places leads & staff</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>Type, lieu, places leads & staff</div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: showStaffEdit ? '160px 1fr 140px 140px' : '160px 1fr 140px',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                    Type
+                  </label>
+                  <select
+                    style={inputStyle}
+                    value={typeEdit}
+                    onChange={(e) => setTypeEdit(e.target.value as EventTypeId)}
+                  >
+                    {typeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {EVENT_TYPES[t].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
                     Adresse / lieu
@@ -334,19 +383,21 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     placeholder="Illimité"
                   />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                    Staff nécessaires
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    style={inputStyle}
-                    value={staffNeededEdit}
-                    onChange={(e) => setStaffNeededEdit(e.target.value)}
-                    placeholder="Ex: 4"
-                  />
-                </div>
+                {showStaffEdit && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                      Staff nécessaires
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      style={inputStyle}
+                      value={staffNeededEdit}
+                      onChange={(e) => setStaffNeededEdit(e.target.value)}
+                      placeholder="Ex: 4"
+                    />
+                  </div>
+                )}
               </div>
               <div
                 style={{

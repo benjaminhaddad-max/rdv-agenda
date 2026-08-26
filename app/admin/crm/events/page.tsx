@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import {
   CalendarDays,
@@ -16,7 +16,7 @@ import {
   Users,
 } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
-import EventsAgendaCalendar, { EVENT_BRAND_COLORS } from '@/components/crm/EventsAgendaCalendar'
+import EventsAgendaCalendar, { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
@@ -26,6 +26,7 @@ import {
   eventTypeOf,
   planningPublicUrl,
   type EventBrand,
+  type EventTypeId,
 } from '@/lib/events-studio/config'
 import { staffPayForEvent } from '@/lib/events-studio/event-meta'
 
@@ -48,6 +49,23 @@ type EventRow = {
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
 const DATE_END_RE = /\[date_end=(\d{4}-\d{2}-\d{2})\]/
+const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
+
+const inputStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '11px 12px',
+  borderRadius: crmV2.radius,
+  border: `1px solid ${crmV2.border}`,
+  fontSize: 14,
+  background: crmV2.bg,
+}
+
+function currentTypeId(ev: EventRow): EventTypeId {
+  const id = eventTypeOf(ev).id
+  if (id === 'jpo' || id === 'salon' || id === 'webinaire') return id
+  return 'salon'
+}
 
 function formatWhen(iso: string, end?: string | null) {
   const d = new Date(iso)
@@ -101,6 +119,7 @@ export default function EventsListPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState('')
+  const [typeDraft, setTypeDraft] = useState<EventTypeId>('salon')
   const [savingId, setSavingId] = useState<string | null>(null)
   const planningYear = new Date().getFullYear()
   const planningUrl = planningPublicUrl(planningYear)
@@ -139,20 +158,23 @@ export default function EventsListPage() {
 
   const types = useMemo(() => brandEventTypes(brand), [brand])
 
-  async function saveStaffNeeded(ev: EventRow) {
+  async function saveEventSettings(ev: EventRow) {
     setSavingId(ev.id)
     try {
+      const draftType = EVENT_TYPES[typeDraft]
+      const body: Record<string, unknown> = { event_type: typeDraft }
+      if (draftType.staff) {
+        body.staff_needed = staffDraft.trim() === '' ? null : parseInt(staffDraft, 10)
+      }
       const res = await fetch(`/api/events-studio/events/${ev.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          staff_needed: staffDraft.trim() === '' ? null : parseInt(staffDraft, 10),
-        }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
-      setToast('Besoin staff enregistré')
+      setToast('Événement mis à jour')
       setTimeout(() => setToast(null), 2000)
       await load()
     } catch (e) {
@@ -169,15 +191,17 @@ export default function EventsListPage() {
     }
     setExpandedId(ev.id)
     setStaffDraft(ev.staff_needed != null ? String(ev.staff_needed) : '')
+    setTypeDraft(currentTypeId(ev))
   }
 
   function renderEventCard(ev: EventRow, muted = false) {
-    const type = eventTypeOf(ev)
+    const typeId = currentTypeId(ev)
+    const typeColor = EVENT_TYPE_COLORS[typeId] || EVENT_TYPE_COLORS.autre
     const st = statusStyle(ev.status)
-    const brandColor = EVENT_BRAND_COLORS[brand]
     const open = expandedId === ev.id
     const pay = staffPayForEvent(ev)
-    const showStaff = type.staff
+    const showStaffDraft = EVENT_TYPES[typeDraft].staff
+    const showStaff = EVENT_TYPES[typeId].staff
 
     return (
       <CrmV2Card
@@ -185,7 +209,7 @@ export default function EventsListPage() {
         style={{
           padding: 0,
           overflow: 'hidden',
-          borderLeft: `4px solid ${brandColor.solid}`,
+          borderLeft: `4px solid ${typeColor.solid}`,
           opacity: muted ? 0.75 : 1,
         }}
       >
@@ -214,11 +238,11 @@ export default function EventsListPage() {
                   fontWeight: 600,
                   padding: '3px 9px',
                   borderRadius: crmV2.radiusPill,
-                  background: crmV2.goldSoft,
-                  color: crmV2.text,
+                  background: typeColor.soft,
+                  color: typeColor.text,
                 }}
               >
-                {type.short}
+                {typeColor.label}
               </span>
               <span
                 style={{
@@ -282,15 +306,41 @@ export default function EventsListPage() {
             }}
           >
             <div style={{ paddingTop: 14, display: 'grid', gap: 12 }}>
-              {showStaff && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 10,
-                    alignItems: 'end',
-                  }}
-                >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: showStaffDraft ? '1fr 1fr auto' : '1fr auto',
+                  gap: 10,
+                  alignItems: 'end',
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: crmV2.textMuted,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Type d&apos;événement
+                  </label>
+                  <select
+                    value={typeDraft}
+                    onChange={(e) => setTypeDraft(e.target.value as EventTypeId)}
+                    style={inputStyle}
+                  >
+                    {(types.length ? EDITABLE_TYPES.filter((t) => types.includes(t) || t === typeDraft) : EDITABLE_TYPES).map(
+                      (t) => (
+                        <option key={t} value={t}>
+                          {EVENT_TYPES[t].label}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
+                {showStaffDraft && (
                   <div>
                     <label
                       style={{
@@ -301,7 +351,7 @@ export default function EventsListPage() {
                         marginBottom: 6,
                       }}
                     >
-                      Personnes staff nécessaires
+                      Staff nécessaires
                     </label>
                     <input
                       type="number"
@@ -309,28 +359,22 @@ export default function EventsListPage() {
                       value={staffDraft}
                       onChange={(e) => setStaffDraft(e.target.value)}
                       placeholder="Ex: 4"
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        padding: '11px 12px',
-                        borderRadius: crmV2.radius,
-                        border: `1px solid ${crmV2.border}`,
-                        fontSize: 14,
-                        background: crmV2.bg,
-                      }}
+                      style={inputStyle}
                     />
-                    <div style={{ marginTop: 6, fontSize: 12, color: crmV2.textFaint }}>
-                      Affiché sur le planning staff : places restantes
-                      {pay ? ` · tarif ${pay.label}` : ''}.
-                    </div>
                   </div>
-                  <CrmV2Button
-                    variant="gold"
-                    disabled={savingId === ev.id}
-                    onClick={() => saveStaffNeeded(ev)}
-                  >
-                    <Save size={14} /> {savingId === ev.id ? '…' : 'Enregistrer'}
-                  </CrmV2Button>
+                )}
+                <CrmV2Button
+                  variant="gold"
+                  disabled={savingId === ev.id}
+                  onClick={() => saveEventSettings(ev)}
+                >
+                  <Save size={14} /> {savingId === ev.id ? '…' : 'Enregistrer'}
+                </CrmV2Button>
+              </div>
+              {showStaffDraft && (
+                <div style={{ fontSize: 12, color: crmV2.textFaint }}>
+                  Planning staff : places restantes
+                  {pay ? ` · tarif ${pay.label}` : ''}.
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

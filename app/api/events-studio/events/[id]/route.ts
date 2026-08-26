@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
-import { eventHasComms, eventTypeOf } from '@/lib/events-studio/config'
+import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
 import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
 import { createServiceClient } from '@/lib/supabase'
 
@@ -117,6 +117,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         ? body.description
         : (patch.description ?? current.description)
     patch.description = setStaffNeededInDescription(baseDesc, Number.isFinite(n as number) ? (n as number) : null)
+  }
+  if (typeof body.event_type === 'string') {
+    const id = body.event_type as EventTypeId
+    if (id === 'jpo' || id === 'salon' || id === 'webinaire') {
+      patch.event_type = id
+      patch.article = EVENT_TYPES[id].article
+    }
   }
 
   if (Object.keys(patch).length === 0) {
