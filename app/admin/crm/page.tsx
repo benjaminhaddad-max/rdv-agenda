@@ -25,7 +25,7 @@ import {
 import {
   type CRMSavedView,
   CRM_DEFAULT_VIEWS, loadCRMViews, viewToParams,
-  persistViewCreate, persistViewUpdate, persistViewDelete,
+  persistViewCreate, persistViewUpdate, persistAdminViewLayout,
 } from '@/lib/crm-views'
 import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
@@ -44,6 +44,7 @@ import {
   parseAttributionParentId,
 } from '@/lib/crm-attribution-buckets'
 import { CRMBucketSubviewsBar } from '@/components/crm/CRMBucketSubviews'
+import { CRMManageViewsModal } from '@/components/crm/CRMManageViewsModal'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -181,6 +182,8 @@ export default function CRMPage() {
   const [newViewName, setNewViewName] = useState('')
   const [draggedViewId, setDraggedViewId] = useState<string | null>(null)
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null)
+  /** Ids du catalogue affichés dans la barre d'onglets de CET admin. */
+  const [layoutViewIds, setLayoutViewIds] = useState<string[]>([])
 
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
@@ -456,10 +459,17 @@ export default function CRMPage() {
     () => new Set(crmViews.filter(v => (v.name ?? '').toLowerCase().includes('linova')).map(v => v.id)),
     [crmViews],
   )
-  const topLevelViews = useMemo(
-    () => crmViews.filter(v => !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id)),
+  const catalogTopLevelViews = useMemo(
+    () => crmViews.filter(v => !v.isDefault && !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id)),
     [crmViews],
   )
+  const topLevelViews = useMemo(() => {
+    const defaults = crmViews.filter(v => v.isDefault)
+    if (!viewsLoaded) return defaults
+    const byId = new Map(catalogTopLevelViews.map(v => [v.id, v]))
+    const pinned = layoutViewIds.map(id => byId.get(id)).filter((v): v is CRMSavedView => !!v)
+    return [...defaults, ...pinned]
+  }, [crmViews, catalogTopLevelViews, layoutViewIds, viewsLoaded])
   const activeBucketId = useMemo(() => {
     const v = crmViews.find(x => x.id === activeViewId)
     if (!v) return null
@@ -511,24 +521,25 @@ export default function CRMPage() {
 
   // ── Charger les vues sauvegardées ─────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/crm/views')
-      .then(r => r.json())
-      .then((rows: Array<{
-        id: string
-        name: string
-        filter_groups: unknown
-        preset_flags: unknown
-        position: number
-        parent_id?: string | null
-        kind?: 'view' | 'bucket' | 'subview'
-      }>) => {
+    let cancelled = false
+    Promise.all([
+      fetch('/api/crm/views').then(r => r.json()),
+      fetch('/api/crm/views/layout').then(r => r.ok ? r.json() : { view_ids: null }).catch(() => ({ view_ids: null })),
+    ])
+      .then(([rows, layout]: [unknown, { view_ids?: string[] | null }]) => {
+        if (cancelled) return
         if (!Array.isArray(rows) || rows.length === 0) { setViewsLoaded(true); return }
-        const dbViews: CRMSavedView[] = rows.map(r => {
+        const dbViews: CRMSavedView[] = (rows as Array<{
+          id: string
+          name: string
+          filter_groups: unknown
+          preset_flags: unknown
+          parent_id?: string | null
+          kind?: 'view' | 'bucket' | 'subview'
+        }>).map(r => {
           const rawGroups = (r.filter_groups as CRMFilterGroup[]) ?? []
           const nameLower = (r.name || '').toLowerCase()
-          // Vue LINOVA impose explicitement les 2 forms cibles.
           const shouldForceLinova = nameLower.includes('linova')
-          // Vue Edumove : tous les forms dont le nom contient "edumove".
           const shouldForceEdumove = nameLower.includes('edumove')
           const groups = shouldForceLinova
             ? buildLinovaGroups()
@@ -536,7 +547,6 @@ export default function CRMPage() {
               ? buildEdumoveGroups()
               : rawGroups
 
-          // Persiste la correction en base pour eviter tout drift futur.
           if (shouldForceLinova && !isLinovaGroups(rawGroups)) {
             void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
               method: 'PATCH',
@@ -563,9 +573,15 @@ export default function CRMPage() {
           }
         })
         setCrmViews([...CRM_DEFAULT_VIEWS, ...dbViews])
+        const catalogIds = dbViews
+          .filter(v => !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id))
+          .map(v => v.id)
+        const fromApi = Array.isArray(layout?.view_ids) ? layout.view_ids.filter(id => typeof id === 'string') : null
+        setLayoutViewIds(fromApi ?? catalogIds)
         setViewsLoaded(true)
       })
-      .catch(() => setViewsLoaded(true))
+      .catch(() => { if (!cancelled) setViewsLoaded(true) })
+    return () => { cancelled = true }
   }, [])
 
   // Au chargement, restaure la vue depuis ?view_id=... (si présente).
@@ -1472,23 +1488,30 @@ export default function CRMPage() {
     const position = customViews.length
     setCrmViews(prev => [...prev, newView])
     persistViewCreate(newView, position)
+    const nextLayout = [...layoutViewIds, id]
+    setLayoutViewIds(nextLayout)
+    void persistAdminViewLayout(nextLayout)
     syncViewIdInUrl(id, 'push')
     setActiveViewId(id)
     setCreatingView(false)
     setNewViewName('')
   }
 
-  function deleteCRMView(viewId: string) {
-    const updated = crmViews.filter(v =>
-      v.id !== viewId &&
-      v.parentId !== viewId &&
-      parseAttributionParentId(v.id) !== viewId,
-    )
-    setCrmViews(updated)
-    persistViewDelete(viewId)
+  function unpinCRMView(viewId: string) {
+    const nextLayout = layoutViewIds.filter(id => id !== viewId)
+    setLayoutViewIds(nextLayout)
+    void persistAdminViewLayout(nextLayout)
     if (activeViewId === viewId || parseAttributionParentId(activeViewId) === viewId) {
-      applyCRMView(updated[0])
+      const nextPinned = catalogTopLevelViews.find(v => nextLayout.includes(v.id))
+      applyCRMView(nextPinned ?? CRM_DEFAULT_VIEWS[0])
     }
+  }
+
+  function pinCRMView(viewId: string) {
+    if (layoutViewIds.includes(viewId)) return
+    const nextLayout = [...layoutViewIds, viewId]
+    setLayoutViewIds(nextLayout)
+    void persistAdminViewLayout(nextLayout)
   }
 
   function renameCRMView(viewId: string, newName: string) {
@@ -1508,28 +1531,15 @@ export default function CRMPage() {
 
   function reorderCRMViews(fromId: string, toId: string) {
     if (fromId === toId) return
-    const fromView = crmViews.find(v => v.id === fromId)
-    const toView = crmViews.find(v => v.id === toId)
-    if (!fromView || !toView || fromView.isDefault || toView.isDefault) return
+    const fromIdx = layoutViewIds.indexOf(fromId)
+    const toIdx = layoutViewIds.indexOf(toId)
+    if (fromIdx < 0 || toIdx < 0) return
 
-    const isTopLevel = (v: CRMSavedView) =>
-      !v.parentId && v.kind !== 'subview' && !isAttributionSubViewId(v.id)
-    const customViews = crmViews.filter(v => !v.isDefault && isTopLevel(v))
-    const fromIdx = customViews.findIndex(v => v.id === fromId)
-    const toIdx = customViews.findIndex(v => v.id === toId)
-    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
-
-    const reordered = [...customViews]
-    const [moved] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, moved)
-
-    const defaults = crmViews.filter(v => v.isDefault)
-    const nested = crmViews.filter(v => !v.isDefault && !isTopLevel(v))
-    setCrmViews([...defaults, ...reordered, ...nested])
-
-    reordered.forEach((v, i) => {
-      void persistViewUpdate(v.id, { position: i })
-    })
+    const next = [...layoutViewIds]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    setLayoutViewIds(next)
+    void persistAdminViewLayout(next)
   }
 
   // ── Filter group CRUD ──────────────────────────────────────────────────────
@@ -2134,7 +2144,7 @@ export default function CRMPage() {
           const isActive = activeViewId === view.id || (isBucket && activeBucketId === view.id)
           const isRenaming = renamingViewId === view.id
           const Icon = isBucket ? Layers : view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
-          const isDraggable = !view.isDefault && !isRenaming && !isBucket
+          const isDraggable = !view.isDefault && !isRenaming
           const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
 
           return (
@@ -2242,10 +2252,11 @@ export default function CRMPage() {
                 </span>
               )}
 
-              {/* Delete button */}
+              {/* Retirer de MON affichage — le catalogue reste intact */}
               {!view.isDefault && isActive && !isRenaming && (
                 <button
-                  onClick={e => { e.stopPropagation(); deleteCRMView(view.id) }}
+                  onClick={e => { e.stopPropagation(); unpinCRMView(view.id) }}
+                  title="Retirer de mes onglets"
                   style={{
                     background: 'none', border: 'none', padding: 0,
                     color: '#3D5275', cursor: 'pointer', display: 'flex', marginLeft: 2,
@@ -2399,7 +2410,7 @@ export default function CRMPage() {
               </button>
             )}
 
-            {crmViews.filter(v => !v.isDefault).length > 0 && (
+            {catalogTopLevelViews.length > 0 && (
               <button
                 onClick={() => setManageViewsOpen(true)}
                 style={{
@@ -3200,89 +3211,17 @@ export default function CRMPage() {
 
       {/* ── Manage Views Modal ──────────────────────────────────────────────── */}
       {manageViewsOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setManageViewsOpen(false)}
-        >
-          <div
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 14, width: 420, maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#0F1F3D' }}>Gérer les vues</span>
-              <button onClick={() => setManageViewsOpen(false)} style={{ background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', display: 'flex', padding: 4 }}>
-                <X size={16} />
-              </button>
-            </div>
-            {/* Body */}
-            <div style={{ overflow: 'auto', padding: '12px 16px', flex: 1 }}>
-              {crmViews.filter(v => !v.isDefault).length === 0 ? (
-                <p style={{ color: '#3D5275', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucune vue personnalisée</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {crmViews.filter(v => !v.isDefault).map(view => {
-                    const isRenaming = renamingViewId === view.id
-                    const ruleCount = view.groups.reduce((s, g) => s + g.rules.length, 0)
-                    const nested = !!view.parentId || isAttributionSubViewId(view.id)
-                    return (
-                      <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 12px', marginLeft: nested ? 18 : 0 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {isRenaming ? (
-                            <input
-                              autoFocus
-                              defaultValue={view.name}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') { renameCRMView(view.id, (e.target as HTMLInputElement).value); }
-                                if (e.key === 'Escape') setRenamingViewId(null)
-                              }}
-                              onBlur={e => renameCRMView(view.id, e.target.value)}
-                              style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C', borderRadius: 5, padding: '3px 8px', color: '#C9A84C', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', width: '100%' }}
-                            />
-                          ) : (
-                            <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#0F1F3D' }}>{nested ? `↳ ${view.name}` : view.name}</span>
-                              {ruleCount > 0 && (
-                                <span style={{ marginLeft: 8, fontSize: 11, color: '#0F1F3D' }}>{ruleCount} filtre{ruleCount > 1 ? 's' : ''}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => { setRenamingViewId(view.id); setRenameValue(view.name) }}
-                          title="Renommer"
-                          style={{ background: 'none', border: 'none', color: '#0F1F3D', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
-                        >
-                          <Pen size={13} />
-                        </button>
-                        <button
-                          onClick={() => { deleteCRMView(view.id); if (crmViews.filter(v => !v.isDefault).length <= 1) setManageViewsOpen(false) }}
-                          title="Supprimer"
-                          style={{ background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: 4 }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#3D5275')}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-            {/* Footer */}
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #e5ddc8' }}>
-              <button
-                onClick={() => setManageViewsOpen(false)}
-                style={{ width: '100%', padding: '9px', background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, color: '#4cabdb', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
+        <CRMManageViewsModal
+          catalogViews={catalogTopLevelViews}
+          layoutViewIds={layoutViewIds}
+          renamingViewId={renamingViewId}
+          onClose={() => setManageViewsOpen(false)}
+          onRenameStart={(id, name) => { setRenamingViewId(id); setRenameValue(name) }}
+          onRenameCommit={(id, name) => renameCRMView(id, name)}
+          onRenameCancel={() => setRenamingViewId(null)}
+          onPin={pinCRMView}
+          onUnpin={unpinCRMView}
+        />
       )}
 
       {/* ── Export CSV Modal ──────────────────────────────────────────────── */}

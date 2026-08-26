@@ -171,3 +171,12 @@ export async function persistViewUpdate(
 export async function persistViewDelete(id: string) {
   await fetch(`/api/crm/views/${id}`, { method: 'DELETE' })
 }
+
+/** Onglets visibles de l'admin courant (le catalogue des vues reste global). */
+export async function persistAdminViewLayout(viewIds: string[]) {
+  await fetch('/api/crm/views/layout', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ view_ids: viewIds }),
+  })
+}
