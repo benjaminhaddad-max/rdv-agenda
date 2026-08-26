@@ -33,6 +33,53 @@ export function humanDescription(description: string | null | undefined): string
     .trim()
 }
 
+/** Libellé dates + horaires (gère les multi-jours via [date_end=…]). */
+export function formatEventSchedule(ev: {
+  event_date: string
+  event_time_end?: string | null
+  description?: string | null
+}): string {
+  const start = new Date(ev.event_date)
+  const startKey = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  const endKey = parseDateEnd(ev.description)
+  const startTime = start.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Paris',
+  })
+  const timePart = ev.event_time_end ? `${startTime}–${ev.event_time_end}` : startTime
+
+  if (endKey && endKey > startKey) {
+    const end = new Date(`${endKey}T12:00:00`)
+    const sameMonth =
+      start.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris', month: 'numeric', year: 'numeric' }) ===
+      end.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris', month: 'numeric', year: 'numeric' })
+    const startDay = start.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      ...(sameMonth ? {} : { month: 'short' }),
+      timeZone: 'Europe/Paris',
+    })
+    const endDay = end.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Europe/Paris',
+    })
+    return `${startDay} → ${endDay} · ${timePart}`
+  }
+
+  const date = start.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Europe/Paris',
+  })
+  return `${date} · ${timePart}`
+}
+
 /** Rémunération staff Diploma (affichage planning). */
 export const STAFF_PAY = {
   half_day: {

@@ -16,13 +16,8 @@ import {
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
-import {
-  BRAND_CONFIG,
-  EVENT_TYPES,
-  eventTypeOf,
-  type EventBrand,
-  type EventTypeId,
-} from '@/lib/events-studio/config'
+import { BRAND_CONFIG, EVENT_TYPES, eventTypeOf, type EventBrand, type EventTypeId } from '@/lib/events-studio/config'
+import { formatEventSchedule } from '@/lib/events-studio/event-meta'
 
 const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
 
@@ -306,9 +301,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   )}
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted }}>
-                  {BRAND_CONFIG[brand]?.name || brand} ·{' '}
-                  {new Date(ev.event_date).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}
-                  {ev.event_time_end ? ` – ${ev.event_time_end}` : ''}
+                  {BRAND_CONFIG[brand]?.name || brand} · {formatEventSchedule(ev)}
                   {ev.location ? ` · ${ev.location}` : ''}
                 </div>
               </div>

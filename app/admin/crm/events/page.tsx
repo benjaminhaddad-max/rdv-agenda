@@ -28,7 +28,7 @@ import {
   type EventBrand,
   type EventTypeId,
 } from '@/lib/events-studio/config'
-import { staffPayForEvent } from '@/lib/events-studio/event-meta'
+import { formatEventSchedule, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 type EventRow = {
   id: string
@@ -65,23 +65,6 @@ function currentTypeId(ev: EventRow): EventTypeId {
   const id = eventTypeOf(ev).id
   if (id === 'jpo' || id === 'salon' || id === 'webinaire') return id
   return 'salon'
-}
-
-function formatWhen(iso: string, end?: string | null) {
-  const d = new Date(iso)
-  const date = d.toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Europe/Paris',
-  })
-  const start = d.toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Paris',
-  })
-  return end ? `${date} · ${start}–${end}` : `${date} · ${start}`
 }
 
 function statusStyle(status: string): { bg: string; color: string; label: string } {
@@ -277,7 +260,7 @@ export default function EventsListPage() {
               )}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
-              {formatWhen(ev.event_date, ev.event_time_end)}
+              {formatEventSchedule(ev)}
               {ev.location ? (
                 <>
                   <br />
