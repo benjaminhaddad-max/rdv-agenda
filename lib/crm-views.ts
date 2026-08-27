@@ -6,6 +6,7 @@
  */
 
 import type { CRMFilterGroup } from './crm-constants'
+import { DIPLOMA_SANTE_CRM_VIEW_ID } from './diploma-sante-crm-view'
 
 export interface CRMSavedView {
   id: string
@@ -28,7 +29,7 @@ export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
 ]
 
 /** Vues globales admin exposées aux télépros (filtres serveur via view_id). */
-export const TELEPRO_SHARED_VIEW_IDS = ['v_recalif_2026'] as const
+export const TELEPRO_SHARED_VIEW_IDS = ['v_recalif_2026', DIPLOMA_SANTE_CRM_VIEW_ID] as const
 
 export function loadCRMViews(): CRMSavedView[] {
   return CRM_DEFAULT_VIEWS

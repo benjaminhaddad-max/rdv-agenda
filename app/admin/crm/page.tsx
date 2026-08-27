@@ -38,6 +38,11 @@ import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { buildEdumoveGroups, isEdumoveGroups } from '@/lib/edumove-crm-view'
 import {
+  isDiplomaSanteView,
+  buildDiplomaSanteGroups,
+  isDiplomaSanteGroups,
+} from '@/lib/diploma-sante-crm-view'
+import {
   inferViewKind,
   isAttributionBucketId,
   isAttributionSubViewId,
@@ -541,11 +546,14 @@ export default function CRMPage() {
           const nameLower = (r.name || '').toLowerCase()
           const shouldForceLinova = nameLower.includes('linova')
           const shouldForceEdumove = nameLower.includes('edumove')
+          const shouldForceDiploma = isDiplomaSanteView(r.id, r.name)
           const groups = shouldForceLinova
             ? buildLinovaGroups()
             : shouldForceEdumove
               ? buildEdumoveGroups()
-              : rawGroups
+              : shouldForceDiploma
+                ? buildDiplomaSanteGroups()
+                : rawGroups
 
           if (shouldForceLinova && !isLinovaGroups(rawGroups)) {
             void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
@@ -555,6 +563,13 @@ export default function CRMPage() {
             }).catch(() => {})
           }
           if (shouldForceEdumove && !isEdumoveGroups(rawGroups)) {
+            void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filter_groups: groups }),
+            }).catch(() => {})
+          }
+          if (shouldForceDiploma && !isDiplomaSanteGroups(rawGroups)) {
             void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -1289,7 +1304,7 @@ export default function CRMPage() {
     // "Tous les leads" doit aussi se rafraîchir automatiquement pour afficher
     // les nouveaux formulaires sans action manuelle.
     const isAllLeadsView = activeViewId === 'all'
-    return isAllLeadsView || activeName.includes('linova') || activeName.includes('edumove') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
+    return isAllLeadsView || activeName.includes('linova') || activeName.includes('edumove') || activeName.includes('candidature diploma') || source === 'meta_lead_ads' || customFilterParam.includes('"meta_lead_ads"')
   }, [crmViews, activeViewId, source, customFilterParam])
 
   // Rafraichit la liste en continu pour refléter les leads Meta quasi en temps réel.
