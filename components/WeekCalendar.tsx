@@ -8,6 +8,7 @@ import StatusBadge, { AppointmentStatus } from './StatusBadge'
 import AppointmentModal from './AppointmentModal'
 import CloserNewRdvModal from './CloserNewRdvModal'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { parseExtraParticipants } from '@/lib/appointment-participants'
 
 type Appointment = {
   id: string
@@ -1473,7 +1474,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       {/* AppointmentModal (consultation/édition) */}
       {selectedAppointment && (
         <AppointmentModal
-          appointment={selectedAppointment}
+          appointment={{
+            ...selectedAppointment,
+            extra_participants: parseExtraParticipants(selectedAppointment.extra_participants),
+          }}
           onClose={() => setSelectedAppointment(null)}
           adminMode={adminMode}
           canAssign={allowAssign}

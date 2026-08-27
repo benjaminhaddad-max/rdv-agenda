@@ -23,6 +23,7 @@ import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } fro
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { validateEmailDomain } from '@/lib/email-validation'
+import { parseExtraParticipants } from '@/lib/appointment-participants'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -2732,7 +2733,7 @@ export default function TeleproClient({
             notes: selectedHistRdv.notes ?? null,
             meeting_type: selectedHistRdv.meeting_type,
             meeting_link: selectedHistRdv.meeting_link,
-            extra_participants: selectedHistRdv.extra_participants,
+            extra_participants: parseExtraParticipants(selectedHistRdv.extra_participants),
             report_summary: selectedHistRdv.report_summary,
             report_telepro_advice: selectedHistRdv.report_telepro_advice,
             users: selectedHistRdv.rdv_users || undefined,

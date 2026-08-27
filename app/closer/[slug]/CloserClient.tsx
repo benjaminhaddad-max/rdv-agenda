@@ -19,6 +19,7 @@ import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
+import { parseExtraParticipants } from '@/lib/appointment-participants'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -1511,6 +1512,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
             ...selectedHistRdv,
             status: selectedHistRdv.status as AppointmentStatus,
             users: selectedHistRdv.users || undefined,
+            extra_participants: parseExtraParticipants(selectedHistRdv.extra_participants),
           }}
           onClose={() => setSelectedHistRdv(null)}
           onUpdate={(updated) => {
