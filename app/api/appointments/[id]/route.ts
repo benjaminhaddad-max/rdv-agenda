@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
-import { sendBookingConfirmationEmail, sendMeetingModeChangeEmail } from '@/lib/email-reminders'
+import {
+  sendBookingConfirmationEmail,
+  sendMeetingModeChangeEmail,
+  sendVisioParticipantInviteEmail,
+  reminderTargetFromAppointment,
+} from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { syncAppointmentRecapToContactActivity } from '@/lib/appointment-recap-activity'
 import { syncAppointmentParentInfoToContact } from '@/lib/appointment-parent-sync'
 import { isValidCampus } from '@/lib/campus'
-import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
+import { addMeetAttendees, createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 import { fetchAppointmentEnriched } from '@/lib/appointment-display'
+import {
+  extraParticipantEmails,
+  isValidParticipantEmail,
+  loadExtraParticipants,
+  normalizeParticipantEmail,
+  saveExtraParticipants,
+  type ExtraParticipant,
+} from '@/lib/appointment-participants'
 
 // PATCH /api/appointments/:id — Mise à jour statut OU assignation à un closer
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -127,8 +140,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (appointment.prospect_email) {
       try {
+        const extras = await loadExtraParticipants(db, id)
         const emailResult = await sendBookingConfirmationEmail(
-          { prospectEmail: appointment.prospect_email, emailParent: appointment.email_parent || null },
+          { ...reminderTargetFromAppointment(appointment), extraEmails: extraParticipantEmails(extras) },
           firstName,
           dateStr,
           appointment.meeting_type || null,
@@ -369,12 +383,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
 
       if (isGoogleMeetConfigured()) {
+        const extras = await loadExtraParticipants(db, id)
         const meet = await createMeetEvent({
           summary: `RDV Diploma Santé — ${appointment.prospect_name}`,
           startAtIso: new Date(appointment.start_at).toISOString(),
           endAtIso: new Date(appointment.end_at).toISOString(),
           prospectEmail: appointment.prospect_email || null,
           closerEmail,
+          extraEmails: extraParticipantEmails(extras),
           description: appointment.formation_type ? `Formation : ${appointment.formation_type}` : null,
         })
         if (meet) {
@@ -442,8 +458,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (appointment.prospect_email) {
       try {
+        const extras = await loadExtraParticipants(db, id)
         const emailResult = await sendMeetingModeChangeEmail(
-          { prospectEmail: appointment.prospect_email, emailParent: appointment.email_parent || null },
+          { ...reminderTargetFromAppointment(appointment), extraEmails: extraParticipantEmails(extras) },
           firstName,
           dateStr,
           newMeetingType,
@@ -460,6 +477,79 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: finalRow } = await fetchAppointmentEnriched(db, id)
     return NextResponse.json(finalRow ?? updated)
+  }
+
+  // === CAS 2f : AJOUT D'UN PARTICIPANT VISIO ===
+  if (body.add_participant !== undefined) {
+    if (appointment.status === 'annule') {
+      return NextResponse.json({ error: 'Impossible de modifier un RDV annulé' }, { status: 400 })
+    }
+    if (appointment.meeting_type !== 'visio') {
+      return NextResponse.json({ error: 'Un participant supplémentaire ne peut être ajouté que sur un RDV visio' }, { status: 400 })
+    }
+    if (!appointment.meeting_link) {
+      return NextResponse.json({ error: 'Ce RDV visio n\'a pas encore de lien' }, { status: 400 })
+    }
+
+    const raw = body.add_participant as { email?: unknown; name?: unknown }
+    const email = typeof raw?.email === 'string' ? normalizeParticipantEmail(raw.email) : ''
+    const name = typeof raw?.name === 'string' && raw.name.trim() ? raw.name.trim() : null
+    if (!email || !isValidParticipantEmail(email)) {
+      return NextResponse.json({ error: 'Email du participant invalide' }, { status: 400 })
+    }
+
+    const existing = await loadExtraParticipants(db, id)
+    const blocked = new Set<string>([
+      ...existing.map(p => p.email),
+      normalizeParticipantEmail(appointment.prospect_email || ''),
+      normalizeParticipantEmail(appointment.email_parent || ''),
+    ].filter(Boolean))
+
+    if (blocked.has(email)) {
+      return NextResponse.json({ error: 'Cette personne est déjà invitée à ce rendez-vous' }, { status: 409 })
+    }
+    if (existing.length >= 10) {
+      return NextResponse.json({ error: 'Nombre maximum de participants atteint' }, { status: 400 })
+    }
+
+    const participant: ExtraParticipant = {
+      email,
+      name,
+      invited_at: new Date().toISOString(),
+    }
+    const nextParticipants = [...existing, participant]
+
+    const saved = await saveExtraParticipants(db, id, nextParticipants)
+    if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 500 })
+
+    if (appointment.google_event_id) {
+      try {
+        await addMeetAttendees(appointment.google_event_id, [email])
+      } catch (e) {
+        console.error('[appointments PATCH participant] Meet attendees failed:', e)
+      }
+    }
+
+    const dateStr = formatParis(new Date(appointment.start_at))
+    const firstName = (name || email.split('@')[0] || 'bonjour').trim().split(/\s+/)[0]
+    try {
+      const emailResult = await sendVisioParticipantInviteEmail(
+        email,
+        firstName,
+        dateStr,
+        appointment.meeting_link,
+        id,
+        appointment.prospect_name,
+      )
+      if (!emailResult.ok) {
+        console.error('[appointments PATCH participant] Invite email failed:', emailResult.error)
+      }
+    } catch (e) {
+      console.error('[appointments PATCH participant] Invite email exception:', e)
+    }
+
+    const { data: finalRow } = await fetchAppointmentEnriched(db, id)
+    return NextResponse.json({ ...(finalRow ?? { id }), extra_participants: nextParticipants })
   }
 
   // === CAS 2 : MISE À JOUR STATUT ===

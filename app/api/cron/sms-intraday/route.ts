@@ -15,7 +15,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build1hSms, build5minSms } from '@/lib/smsfactor'
-import { sendVisio1hEmail, sendVisio5minEmail } from '@/lib/email-reminders'
+import { sendVisio1hEmail, sendVisio5minEmail, reminderTargetFromAppointment } from '@/lib/email-reminders'
+import { extraParticipantEmails, loadExtraParticipantsByIds } from '@/lib/appointment-participants'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -54,6 +55,11 @@ export async function GET(req: NextRequest) {
     .gte('start_at', win5minStart.toISOString())
     .lte('start_at', win5minEnd.toISOString())
 
+  const extrasById = await loadExtraParticipantsByIds(
+    db,
+    [...(appts1h ?? []), ...(appts5min ?? [])].map(a => a.id),
+  )
+
   const results: { id: string; name: string; type: '1h' | '5min'; status: 'sent' | 'skipped' | 'error'; reason?: string }[] = []
 
   // Envoyer 1h
@@ -69,7 +75,10 @@ export async function GET(req: NextRequest) {
     if (smsResult.ok) {
       if (appt.prospect_email && appt.meeting_link) {
         const emailResult = await sendVisio1hEmail(
-          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          {
+            ...reminderTargetFromAppointment(appt),
+            extraEmails: extraParticipantEmails(extrasById.get(appt.id)),
+          },
           firstName,
           heureStr,
           appt.meeting_link,
@@ -95,7 +104,10 @@ export async function GET(req: NextRequest) {
     if (smsResult.ok) {
       if (appt.prospect_email && appt.meeting_link) {
         const emailResult = await sendVisio5minEmail(
-          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          {
+            ...reminderTargetFromAppointment(appt),
+            extraEmails: extraParticipantEmails(extrasById.get(appt.id)),
+          },
           firstName,
           appt.meeting_link,
           appt.id,

@@ -15,6 +15,7 @@
 import { sendBrevoEmail } from '@/lib/brevo'
 import { buildConfirmUrl } from '@/lib/confirm-link'
 import { personalizeVisioUrl } from '@/lib/visio-url'
+import { extraParticipantEmails } from '@/lib/appointment-participants'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -162,9 +163,22 @@ function getMeetingPrepItems(meetingType: string | null, meetingLink?: string | 
   ]
 }
 
-interface ReminderTarget {
+export interface ReminderTarget {
   prospectEmail: string
   emailParent?: string | null
+  extraEmails?: string[] | null
+}
+
+export function reminderTargetFromAppointment(appt: {
+  prospect_email?: string | null
+  email_parent?: string | null
+  extra_participants?: unknown
+}): ReminderTarget {
+  return {
+    prospectEmail: appt.prospect_email || '',
+    emailParent: appt.email_parent || null,
+    extraEmails: extraParticipantEmails(appt.extra_participants),
+  }
 }
 
 export interface ReminderResult {
@@ -671,6 +685,56 @@ export async function sendMeetingModeChangeEmail(
   })
 }
 
+export async function sendVisioParticipantInviteEmail(
+  participantEmail: string,
+  participantFirstName: string,
+  dateStr: string,
+  meetingLink: string,
+  apptId: string,
+  prospectName: string,
+): Promise<ReminderResult> {
+  const studentLink = personalizeVisioUrl(meetingLink, participantFirstName)
+  const visioBlock = `
+    ${sectionTitle('LIEN DE VISIO')}
+    <table cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate">
+      <tr>
+        <td style="background:#12314d;border-radius:6px">
+          <a href="${studentLink}" style="display:inline-block;padding:13px 26px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;letter-spacing:0.2px">
+            Rejoindre la visioconférence&nbsp;&nbsp;→
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 22px;font-size:16px;color:#5b6b7a;line-height:1.6">
+      Lien direct&nbsp;: <a href="${studentLink}" style="color:#5b6b7a;text-decoration:underline;word-break:break-all">${studentLink}</a>
+    </p>
+  `
+
+  const content = `
+    <p style="margin:0 0 14px">Bonjour <strong>${participantFirstName}</strong>,</p>
+    <p style="margin:0 0 14px">
+      Vous avez été ajouté(e) au rendez-vous en visioconférence de <strong>${prospectName}</strong> avec Diploma Santé.
+    </p>
+
+    ${rdvBox(dateStr, 'En visioconférence')}
+    ${visioBlock}
+
+    <p style="margin:0 0 6px">
+      Conservez cet email : le bouton ci-dessus vous permettra de rejoindre la visio à l&rsquo;heure prévue.
+    </p>
+  `
+
+  return sendReminderEmail({
+    target: { prospectEmail: participantEmail },
+    subject: `Invitation visio Diploma Santé — ${dateStr}`,
+    html: emailLayout(content, {
+      heroTitle: 'Vous êtes invité(e) à une visio',
+      heroSubtitle: 'Retrouvez ici le lien pour rejoindre le rendez-vous.',
+    }),
+    tag: `reminder:participant:${apptId}`,
+  })
+}
+
 // ─── Helper interne ─────────────────────────────────────────────────────────
 async function sendReminderEmail(opts: {
   target: ReminderTarget
@@ -682,11 +746,19 @@ async function sendReminderEmail(opts: {
   if (!target.prospectEmail) {
     return { ok: false, error: 'Pas d\'email prospect' }
   }
-  // Destinataires : prospect + parent si renseigne (cc-style mais en `to`
-  // pour simplifier le tracking Brevo)
-  const to: Array<{ email: string }> = [{ email: target.prospectEmail }]
-  if (target.emailParent && target.emailParent !== target.prospectEmail) {
-    to.push({ email: target.emailParent })
+  const seen = new Set<string>()
+  const to: Array<{ email: string }> = []
+  const push = (email?: string | null) => {
+    const e = (email || '').trim().toLowerCase()
+    if (!e || seen.has(e)) return
+    seen.add(e)
+    to.push({ email: e })
+  }
+  push(target.prospectEmail)
+  push(target.emailParent)
+  for (const extra of target.extraEmails || []) push(extra)
+  if (to.length === 0) {
+    return { ok: false, error: 'Pas d\'email destinataire' }
   }
   try {
     const res = await sendBrevoEmail({

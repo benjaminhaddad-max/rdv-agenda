@@ -64,6 +64,7 @@ type MyAppointment = {
   formation_type?: string | null
   meeting_type?: string | null
   meeting_link?: string | null
+  extra_participants?: unknown
   report_summary?: string | null
   report_telepro_advice?: string | null
   hubspot_contact_id?: string | null
@@ -2731,6 +2732,7 @@ export default function TeleproClient({
             notes: selectedHistRdv.notes ?? null,
             meeting_type: selectedHistRdv.meeting_type,
             meeting_link: selectedHistRdv.meeting_link,
+            extra_participants: selectedHistRdv.extra_participants,
             report_summary: selectedHistRdv.report_summary,
             report_telepro_advice: selectedHistRdv.report_telepro_advice,
             users: selectedHistRdv.rdv_users || undefined,

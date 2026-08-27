@@ -14,7 +14,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { sendSms, build24hRelanceSms } from '@/lib/smsfactor'
-import { send24hRelanceEmail } from '@/lib/email-reminders'
+import { send24hRelanceEmail, reminderTargetFromAppointment } from '@/lib/email-reminders'
+import { extraParticipantEmails, loadExtraParticipantsByIds } from '@/lib/appointment-participants'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { makeConfirmToken } from '@/lib/confirm-link'
@@ -49,6 +50,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ sent: 0, message: 'Aucun RDV dans la fenêtre 24h' })
   }
 
+  const extrasById = await loadExtraParticipantsByIds(db, appointments.map(a => a.id))
+
   const results: { id: string; name: string; status: 'sent' | 'skipped' | 'error'; reason?: string }[] = []
 
   for (const appt of appointments) {
@@ -79,7 +82,10 @@ export async function GET(req: NextRequest) {
     if (smsResult.ok) {
       if (appt.prospect_email) {
         const emailResult = await send24hRelanceEmail(
-          { prospectEmail: appt.prospect_email, emailParent: appt.email_parent || null },
+          {
+            ...reminderTargetFromAppointment(appt),
+            extraEmails: extraParticipantEmails(extrasById.get(appt.id)),
+          },
           firstName,
           dateStr,
           appt.meeting_type,

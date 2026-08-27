@@ -46,6 +46,7 @@ type HistRdv = {
   formation_type: string | null
   meeting_type: string | null
   meeting_link: string | null
+  extra_participants?: unknown
   classe_actuelle: string | null
   departement: string | null
   telepro: { id: string; name: string } | null

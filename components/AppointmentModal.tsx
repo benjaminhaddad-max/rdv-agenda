@@ -8,7 +8,9 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 import MeetingModeSwitcher from './MeetingModeSwitcher'
+import VisioParticipantsBlock from './VisioParticipantsBlock'
 import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
+import type { ExtraParticipant } from '@/lib/appointment-participants'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
 
@@ -44,6 +46,7 @@ type Appointment = {
   sms_confirmed_at?: string | null
   email_parent?: string | null
   phone_parent?: string | null
+  extra_participants?: ExtraParticipant[] | null
 }
 
 const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
@@ -769,6 +772,14 @@ export default function AppointmentModal({
                   onUpdated={(updated) => onUpdate(updated)}
                 />
               </div>
+            )}
+            {appointment.meeting_type === 'visio' && appointment.meeting_link && status !== 'annule' && (
+              <VisioParticipantsBlock
+                appointmentId={appointment.id}
+                extraParticipants={appointment.extra_participants}
+                disabled={saving}
+                onUpdated={(updated) => onUpdate({ id: appointment.id, ...updated })}
+              />
             )}
             {appointment.classe_actuelle && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>

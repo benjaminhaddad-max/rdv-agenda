@@ -44,6 +44,18 @@ function getPrivateKey(): string {
   return (process.env.GOOGLE_SA_PRIVATE_KEY || '').replace(/\\n/g, '\n')
 }
 
+function getCalendarClient() {
+  const organizer = process.env.GOOGLE_MEET_ORGANIZER as string
+  const auth = new google.auth.JWT({
+    email: process.env.GOOGLE_SA_CLIENT_EMAIL,
+    key: getPrivateKey(),
+    scopes: SCOPES,
+    // Impersonation du compte organisateur via délégation domaine.
+    subject: organizer,
+  })
+  return google.calendar({ version: 'v3', auth })
+}
+
 export interface CreateMeetEventInput {
   /** Titre de l'événement (ex. "RDV Diploma Santé — Jean Dupont"). */
   summary: string
@@ -55,6 +67,8 @@ export interface CreateMeetEventInput {
   prospectEmail?: string | null
   /** Email du closer (optionnel — ajouté en invité, sans notification). */
   closerEmail?: string | null
+  /** Invités supplémentaires (optionnel — sans notification Google). */
+  extraEmails?: string[] | null
   /** Description libre (optionnel). */
   description?: string | null
 }
@@ -79,24 +93,20 @@ export async function createMeetEvent(
     return null
   }
 
-  const organizer = process.env.GOOGLE_MEET_ORGANIZER as string
-
   try {
-    const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_SA_CLIENT_EMAIL,
-      key: getPrivateKey(),
-      scopes: SCOPES,
-      // Impersonation du compte organisateur via délégation domaine.
-      subject: organizer,
-    })
-
-    const calendar = google.calendar({ version: 'v3', auth })
+    const calendar = getCalendarClient()
 
     const attendees: { email: string }[] = []
-    if (input.prospectEmail) attendees.push({ email: input.prospectEmail })
-    if (input.closerEmail && input.closerEmail !== input.prospectEmail) {
-      attendees.push({ email: input.closerEmail })
+    const seen = new Set<string>()
+    const pushAttendee = (email?: string | null) => {
+      const e = (email || '').trim().toLowerCase()
+      if (!e || seen.has(e)) return
+      seen.add(e)
+      attendees.push({ email: e })
     }
+    pushAttendee(input.prospectEmail)
+    pushAttendee(input.closerEmail)
+    for (const extra of input.extraEmails || []) pushAttendee(extra)
 
     const requestId = `rdv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
@@ -138,5 +148,45 @@ export async function createMeetEvent(
   } catch (e) {
     console.error('[google-meet] Échec création événement Meet:', e)
     return null
+  }
+}
+
+/**
+ * Ajoute des invités à un événement Meet existant, sans email Google
+ * (`sendUpdates: 'none'`). Best-effort : ne doit pas faire échouer le RDV.
+ */
+export async function addMeetAttendees(
+  eventId: string,
+  emails: string[],
+): Promise<boolean> {
+  if (!isGoogleMeetConfigured() || !eventId) return false
+  const toAdd = [...new Set(emails.map(e => e.trim().toLowerCase()).filter(Boolean))]
+  if (toAdd.length === 0) return false
+
+  try {
+    const calendar = getCalendarClient()
+    const existing = await calendar.events.get({
+      calendarId: 'primary',
+      eventId,
+    })
+    const current = existing.data.attendees || []
+    const have = new Set(
+      current.map(a => (a.email || '').trim().toLowerCase()).filter(Boolean),
+    )
+    const newcomers = toAdd.filter(email => !have.has(email))
+    if (newcomers.length === 0) return true
+
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      sendUpdates: 'none',
+      requestBody: {
+        attendees: [...current, ...newcomers.map(email => ({ email }))],
+      },
+    })
+    return true
+  } catch (e) {
+    console.error('[google-meet] Échec ajout participants Meet:', e)
+    return false
   }
 }

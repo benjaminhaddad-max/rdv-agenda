@@ -25,6 +25,7 @@ type Appointment = {
   notes: string | null
   meeting_type?: string | null
   meeting_link?: string | null
+  extra_participants?: unknown
   report_summary?: string | null
   report_telepro_advice?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
