@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf, planningPublicUrl } from '@/lib/events-studio/config'
-import { humanDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
+import { formatEventSchedule, publicStaffDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 function enrichPlanningEvents(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,7 +15,8 @@ function enrichPlanningEvents(
     const pay = staffPayForEvent(e)
     return {
       ...e,
-      description_public: humanDescription(e.description),
+      description_public: publicStaffDescription(e.description),
+      schedule_label: formatEventSchedule(e),
       type,
       staff_count: staffCount,
       staff_needed: staffNeeded,
@@ -87,10 +88,8 @@ export async function GET(req: NextRequest) {
       public_url: planningPublicUrl(year, req.nextUrl.origin),
       events,
       pay_rules: {
-        intro:
-          'Rémunération : salons journée complète = 120 € · demi-journée (après-midi) et JPO = 60 €.',
+        intro: 'Rémunération : salons = 120 € / jour · JPO (après-midi) = 60 €.',
         salon_full_day: '120 € / jour',
-        half_day: '60 € / demi-journée',
         jpo: '60 € / après-midi',
       },
       totals: {

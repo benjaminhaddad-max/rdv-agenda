@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
-import { humanDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
+import { formatEventSchedule, parseDateEnd, publicStaffDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 /**
  * GET /api/events-studio/planning-public?year=2026
@@ -50,10 +50,8 @@ export async function GET(req: NextRequest) {
     {
       year,
       pay_rules: {
-        intro:
-          'Rémunération : salons journée complète = 120 € · demi-journée (après-midi) et JPO = 60 €.',
+        intro: 'Rémunération : salons = 120 € / jour · JPO (après-midi) = 60 €.',
         salon_full_day: '120 € / jour',
-        half_day: '60 € / demi-journée',
         jpo: '60 € / après-midi',
       },
       events: events.map((e) => {
@@ -61,13 +59,16 @@ export async function GET(req: NextRequest) {
         const staffNeeded = parseStaffNeeded(e.description)
         const staffCount = staffCounts[e.id] || 0
         const pay = staffPayForEvent(e)
+        const dateEnd = parseDateEnd(e.description)
         return {
           id: e.id,
           name: e.name,
           event_date: e.event_date,
           event_time_end: e.event_time_end,
+          date_end: dateEnd,
+          schedule_label: formatEventSchedule(e),
           location: e.location,
-          description: humanDescription(e.description),
+          description: publicStaffDescription(e.description) || null,
           type: { id: type.id, short: type.short, label: type.label },
           staff_count: staffCount,
           staff_needed: staffNeeded,

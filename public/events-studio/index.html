@@ -1097,7 +1097,7 @@
       <h1 style="font-family:'DM Serif Display',Georgia,serif;font-size:28px;color:#FFF;margin:0 0 10px;line-height:1.2;">Où serez-vous présents ?</h1>
       <p style="font-size:15px;color:rgba(255,255,255,0.65);max-width:520px;margin:0 auto;line-height:1.55;">Cochez les JPO et salons auxquels vous pouvez participer. Pour chaque événement : lieu, horaires et <strong style="color:#FFF;">nombre de places staff restantes</strong>.</p>
       <div style="max-width:520px;margin:18px auto 0;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.08);border:1px solid rgba(194,171,130,0.35);text-align:left;">
-        <p style="margin:0;font-size:13px;color:#F0E9DC;line-height:1.55;"><strong style="color:#C2AB82;">Rémunération</strong><br>Salons journée complète : <strong>120 € / jour</strong><br>Demi-journée (après-midi) et JPO : <strong>60 €</strong></p>
+        <p style="margin:0;font-size:13px;color:#F0E9DC;line-height:1.55;"><strong style="color:#C2AB82;">Rémunération</strong><br>Salons : <strong>120 € / jour</strong><br>JPO (après-midi) : <strong>60 €</strong></p>
       </div>
     </div>
     <div style="max-width:720px;margin:-28px auto 40px;padding:0 16px;">
@@ -3252,9 +3252,12 @@ async function loadPlanningPublic(brand, yearParam) {
 
     container.innerHTML = planningPublicEvents.map(e => {
       const t = e.type || { id: 'salon', short: 'Salon' };
-      const d = new Date(e.event_date);
-      const dateLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      const startT = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const schedule = e.schedule_label || (() => {
+        const d = new Date(e.event_date);
+        const dateLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const startT = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        return `${dateLabel} · ${startT}${e.event_time_end ? ' – ' + e.event_time_end : ''}`;
+      })();
       const full = !!e.staff_full;
       const needed = e.staff_needed;
       const remaining = e.staff_remaining;
@@ -3292,7 +3295,7 @@ async function loadPlanningPublic(brand, yearParam) {
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;background:${t.id === 'salon' ? '#EDE9FE' : '#F0E9DC'};color:${t.id === 'salon' ? '#5B21B6' : '#8A7349'};">${esc(t.short)}</span>
         </div>
         <p style="margin:0;font-weight:700;color:#1C2436;font-size:16px;">${esc(e.name)}</p>
-        <p style="margin:6px 0 0;font-size:13px;color:#6B7280;">${dateLabel} · ${startT}${e.event_time_end ? ' – ' + esc(e.event_time_end) : ''}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#6B7280;">${esc(schedule)}</p>
         <p style="margin:4px 0 0;font-size:13px;color:#6B7280;">📍 ${esc(e.location || 'Lieu à confirmer')}</p>
         ${pay}
         ${desc}

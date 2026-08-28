@@ -30,6 +30,20 @@ export function humanDescription(description: string | null | undefined): string
   return (description || '')
     .replace(/\n?\[date_end=\d{4}-\d{2}-\d{2}\]/g, '')
     .replace(/\n?\[staff_needed=\d+\]/g, '')
+    .replace(/\n?\[organizer=[^\]]+\]/gi, '')
+    .trim()
+}
+
+/** Description publique staff : sans budget, taille de stand, ni marqueurs internes. */
+export function publicStaffDescription(description: string | null | undefined): string {
+  return humanDescription(description)
+    .replace(/\s*·\s*Stand\s+\d+\s*m²\s*\/\s*\d+\s*faces?/gi, '')
+    .replace(/\s*·\s*Budget\s*ref\.?\s*[\d\s\u00a0.,]+€/gi, '')
+    .replace(/\s*Stand\s+\d+\s*m²\s*\/\s*\d+\s*faces?/gi, '')
+    .replace(/\s*Budget\s*ref\.?\s*[\d\s\u00a0.,]+€/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s·\s·/g, ' · ')
+    .replace(/^[\s·]+|[\s·]+$/g, '')
     .trim()
 }
 
@@ -141,13 +155,12 @@ export function staffPayForEvent(ev: {
 }): { amount: number; label: string; hint: string } | null {
   const typeId = ev.event_type || 'autre'
   if (typeId === 'jpo') return STAFF_PAY.jpo
-  if (typeId === 'salon') {
-    return isFullDayStaffEvent(ev) ? STAFF_PAY.full_day : STAFF_PAY.half_day
-  }
+  // Règle métier : salons = 120 € / jour (indépendamment des horaires saisis).
+  if (typeId === 'salon') return STAFF_PAY.full_day
   return null
 }
 
-/** @deprecated Préférer staffPayForEvent(ev) pour tenir compte des horaires. */
+/** @deprecated Préférer staffPayForEvent(ev). */
 export function staffPayForType(typeId: string): { amount: number; label: string; hint: string } | null {
   if (typeId === 'salon') return STAFF_PAY.full_day
   if (typeId === 'jpo') return STAFF_PAY.jpo
