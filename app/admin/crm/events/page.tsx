@@ -28,7 +28,7 @@ import {
   type EventBrand,
   type EventTypeId,
 } from '@/lib/events-studio/config'
-import { formatEventSchedule, staffPayForEvent } from '@/lib/events-studio/event-meta'
+import { eventDayCount, formatEventSchedule, multiDayLabel, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 type EventRow = {
   id: string
@@ -185,6 +185,8 @@ export default function EventsListPage() {
     const pay = staffPayForEvent(ev)
     const showStaffDraft = EVENT_TYPES[typeDraft].staff
     const showStaff = EVENT_TYPES[typeId].staff
+    const dayCount = eventDayCount(ev)
+    const multiLabel = multiDayLabel(dayCount)
 
     return (
       <CrmV2Card
@@ -227,6 +229,23 @@ export default function EventsListPage() {
               >
                 {typeColor.label}
               </span>
+              {multiLabel && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '0.03em',
+                    textTransform: 'uppercase',
+                    padding: '3px 9px',
+                    borderRadius: crmV2.radiusPill,
+                    background: '#FEF3C7',
+                    color: '#92400E',
+                    border: '1px solid #F59E0B',
+                  }}
+                >
+                  {multiLabel}
+                </span>
+              )}
               <span
                 style={{
                   fontSize: 11,

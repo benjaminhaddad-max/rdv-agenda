@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf, planningPublicUrl } from '@/lib/events-studio/config'
-import { formatEventSchedule, publicStaffDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
+import { formatEventSchedule, eventDayCount, multiDayLabel, publicStaffDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
 
 function enrichPlanningEvents(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,10 +13,13 @@ function enrichPlanningEvents(
     const staffNeeded = parseStaffNeeded(e.description)
     const staffCount = staffCounts[e.id] || 0
     const pay = staffPayForEvent(e)
+    const dayCount = eventDayCount(e)
     return {
       ...e,
       description_public: publicStaffDescription(e.description),
       schedule_label: formatEventSchedule(e),
+      day_count: dayCount,
+      multi_day_label: multiDayLabel(dayCount),
       type,
       staff_count: staffCount,
       staff_needed: staffNeeded,

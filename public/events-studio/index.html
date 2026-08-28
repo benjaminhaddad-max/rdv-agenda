@@ -3261,6 +3261,8 @@ async function loadPlanningPublic(brand, yearParam) {
       const full = !!e.staff_full;
       const needed = e.staff_needed;
       const remaining = e.staff_remaining;
+      const dayCount = e.day_count || 1;
+      const isMulti = dayCount > 1;
       let rightBlock = '';
       if (needed != null) {
         if (full) {
@@ -3282,23 +3284,33 @@ async function loadPlanningPublic(brand, yearParam) {
           <p style="margin:0;font-size:13px;font-weight:600;color:#8A7349;line-height:1.3;">Places<br>ouvertes</p>
         </div>`;
       }
+      const multiBadge = isMulti
+        ? `<span style="display:inline-block;font-size:12px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;">${esc(e.multi_day_label || ('Sur ' + dayCount + ' jours'))}</span>`
+        : '';
+      const multiWarn = isMulti
+        ? `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#FFFBEB;border:1px solid #F59E0B;">
+            <p style="margin:0;font-size:13px;font-weight:700;color:#92400E;line-height:1.35;">⚠ ${esc(e.multi_day_warning || ('Engagement sur ' + dayCount + ' jours complets'))}</p>
+          </div>`
+        : '';
       const pay = e.pay_label
         ? `<p style="margin:6px 0 0;font-size:12px;color:#8A7349;font-weight:600;">Rémunération : ${esc(e.pay_label)}</p>`
         : '';
       const desc = e.description
         ? `<p style="margin:6px 0 0;font-size:12px;color:#9CA3AF;">${esc(e.description)}</p>`
         : '';
-      return `<label style="display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border:1.5px solid ${full ? '#FECACA' : '#E5E0D5'};border-radius:14px;cursor:${full ? 'not-allowed' : 'pointer'};opacity:${full ? '0.72' : '1'};background:${full ? '#FFFBFB' : '#FFF'};">
+      return `<label style="display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border:1.5px solid ${full ? '#FECACA' : (isMulti ? '#F59E0B' : '#E5E0D5')};border-radius:14px;cursor:${full ? 'not-allowed' : 'pointer'};opacity:${full ? '0.72' : '1'};background:${full ? '#FFFBFB' : (isMulti ? '#FFFCF5' : '#FFF')};">
       <input type="checkbox" class="plan-event-check" value="${e.id}" ${full ? 'disabled' : ''} style="margin-top:4px;width:18px;height:18px;accent-color:#1C2436;flex-shrink:0;">
       <div style="flex:1;min-width:0;">
-        <div style="margin-bottom:6px;">
+        <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;background:${t.id === 'salon' ? '#EDE9FE' : '#F0E9DC'};color:${t.id === 'salon' ? '#5B21B6' : '#8A7349'};">${esc(t.short)}</span>
+          ${multiBadge}
         </div>
         <p style="margin:0;font-weight:700;color:#1C2436;font-size:16px;">${esc(e.name)}</p>
-        <p style="margin:6px 0 0;font-size:13px;color:#6B7280;">${esc(schedule)}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#6B7280;font-weight:${isMulti ? '600' : '400'};">${esc(schedule)}</p>
         <p style="margin:4px 0 0;font-size:13px;color:#6B7280;">📍 ${esc(e.location || 'Lieu à confirmer')}</p>
         ${pay}
         ${desc}
+        ${multiWarn}
       </div>
       ${rightBlock}
     </label>`;

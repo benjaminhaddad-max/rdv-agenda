@@ -8,6 +8,34 @@ export function parseDateEnd(description: string | null | undefined): string | n
   return m ? m[1] : null
 }
 
+/** Nombre de jours calendaires couverts (inclus), min 1. */
+export function eventDayCount(ev: {
+  event_date: string
+  description?: string | null
+}): number {
+  const start = new Date(ev.event_date)
+  const startKey = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  const endKey = parseDateEnd(ev.description)
+  if (!endKey || endKey <= startKey) return 1
+  const startMs = new Date(`${startKey}T12:00:00`).getTime()
+  const endMs = new Date(`${endKey}T12:00:00`).getTime()
+  const days = Math.round((endMs - startMs) / 86400000) + 1
+  return days > 1 ? days : 1
+}
+
+export function multiDayLabel(dayCount: number): string | null {
+  if (dayCount <= 1) return null
+  return `Sur ${dayCount} jours`
+}
+
+export function multiDayWarning(dayCount: number): string | null {
+  if (dayCount <= 1) return null
+  if (dayCount === 2) {
+    return 'Engagement sur 2 jours complets — pas une seule journée.'
+  }
+  return `Engagement sur ${dayCount} jours complets — pas une seule journée.`
+}
+
 export function parseStaffNeeded(description: string | null | undefined): number | null {
   const m = (description || '').match(STAFF_NEEDED_RE)
   if (!m) return null
@@ -155,8 +183,17 @@ export function staffPayForEvent(ev: {
 }): { amount: number; label: string; hint: string } | null {
   const typeId = ev.event_type || 'autre'
   if (typeId === 'jpo') return STAFF_PAY.jpo
-  // Règle métier : salons = 120 € / jour (indépendamment des horaires saisis).
-  if (typeId === 'salon') return STAFF_PAY.full_day
+  if (typeId === 'salon') {
+    const days = eventDayCount(ev)
+    if (days > 1) {
+      return {
+        amount: STAFF_PAY.full_day.amount * days,
+        label: `120 € / jour × ${days} jours`,
+        hint: `Salon sur ${days} jours : 120 € par jour`,
+      }
+    }
+    return STAFF_PAY.full_day
+  }
   return null
 }
 

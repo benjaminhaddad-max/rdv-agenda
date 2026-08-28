@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventTypeOf } from '@/lib/events-studio/config'
-import { formatEventSchedule, parseDateEnd, publicStaffDescription, parseStaffNeeded, staffPayForEvent } from '@/lib/events-studio/event-meta'
+import {
+  eventDayCount,
+  formatEventSchedule,
+  multiDayLabel,
+  multiDayWarning,
+  parseDateEnd,
+  publicStaffDescription,
+  parseStaffNeeded,
+  staffPayForEvent,
+} from '@/lib/events-studio/event-meta'
 
 /**
  * GET /api/events-studio/planning-public?year=2026
@@ -60,12 +69,16 @@ export async function GET(req: NextRequest) {
         const staffCount = staffCounts[e.id] || 0
         const pay = staffPayForEvent(e)
         const dateEnd = parseDateEnd(e.description)
+        const dayCount = eventDayCount(e)
         return {
           id: e.id,
           name: e.name,
           event_date: e.event_date,
           event_time_end: e.event_time_end,
           date_end: dateEnd,
+          day_count: dayCount,
+          multi_day_label: multiDayLabel(dayCount),
+          multi_day_warning: multiDayWarning(dayCount),
           schedule_label: formatEventSchedule(e),
           location: e.location,
           description: publicStaffDescription(e.description) || null,
