@@ -356,19 +356,25 @@ export async function countRegisteredByEventIds(
     }
     const metaFormIds = [...formIdToName.keys()]
     if (metaFormIds.length > 0) {
+      // Compte les contacts uniques (évite les doublons / rows brutes Meta)
       const { data: metaEvents } = await crmDb
         .from('meta_lead_events')
-        .select('form_id')
+        .select('form_id, contact_id')
         .in('form_id', metaFormIds)
+        .not('contact_id', 'is', null)
         .limit(20000)
-      const byMetaForm: Record<string, number> = {}
+      const uniqueByForm = new Map<string, Set<string>>()
       for (const e of metaEvents || []) {
         const fid = String(e.form_id || '')
-        byMetaForm[fid] = (byMetaForm[fid] || 0) + 1
+        const cid = String(e.contact_id || '')
+        if (!fid || !cid) continue
+        if (!uniqueByForm.has(fid)) uniqueByForm.set(fid, new Set())
+        uniqueByForm.get(fid)!.add(cid)
       }
-      for (const [fid, n] of Object.entries(byMetaForm)) {
+      for (const [fid, set] of uniqueByForm) {
         const name = formIdToName.get(fid)
-        if (!name || !n) continue
+        if (!name) continue
+        const n = set.size
         for (const eid of metaNameToEvents.get(name) || []) {
           formLeadCounts[eid] = (formLeadCounts[eid] || 0) + n
         }
@@ -377,7 +383,10 @@ export async function countRegisteredByEventIds(
   }
 
   for (const id of eventIds) {
-    out[id] = Math.max(regCounts[id] || 0, formLeadCounts[id] || 0)
+    // Après sync, registrations = source de vérité ; sinon leads formulaires (brouillon)
+    const regs = regCounts[id] || 0
+    const leads = formLeadCounts[id] || 0
+    out[id] = regs > 0 ? regs : leads
   }
   return out
 }
