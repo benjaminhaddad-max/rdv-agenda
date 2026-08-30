@@ -1324,11 +1324,37 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               ) : (
                 <CrmV2Card style={{ padding: 18 }}>
                   <div style={{ fontWeight: 600, marginBottom: 8 }}>Zoom / visio</div>
-                  {ev.zoom_join_url ? (
-                    <div style={{ fontSize: 12, color: crmV2.link, wordBreak: 'break-all' }}>{ev.zoom_join_url}</div>
-                  ) : (
-                    <div style={{ fontSize: 13, color: crmV2.textMuted }}>Pas de lien Zoom renseigné.</div>
-                  )}
+                  <input
+                    style={{ ...inputStyle, marginBottom: 10 }}
+                    value={zoomEdit}
+                    onChange={(e) => setZoomEdit(e.target.value)}
+                    placeholder="https://zoom.us/j/…"
+                  />
+                  <CrmV2Button
+                    variant="gold"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true)
+                      try {
+                        const res = await fetch(`/api/events-studio/events/${id}`, {
+                          method: 'PATCH',
+                          credentials: 'include',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ zoom_join_url: zoomEdit.trim() || null }),
+                        })
+                        const json = await res.json()
+                        if (!res.ok) throw new Error(json.error || 'Erreur')
+                        setToast('Lien Zoom enregistré')
+                        await load()
+                      } catch (e) {
+                        setToast(e instanceof Error ? e.message : 'Erreur')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                  >
+                    <Save size={14} /> Enregistrer le lien Zoom
+                  </CrmV2Button>
                 </CrmV2Card>
               )}
             </div>
