@@ -4,8 +4,9 @@ import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
 
 /**
- * Proxy interne Events Studio → formulaires CRM.
+ * Proxy interne Events Studio / CRM → formulaires CRM + Meta Lead Ads.
  * Auth : session CRM (cookie).
+ * Format aligné Studio : { id, name, formType: 'crm' | 'meta', slug?, status? }
  */
 
 export async function GET() {
@@ -15,18 +16,61 @@ export async function GET() {
   }
 
   const db = createServiceClient()
-  const { data, error } = await db
-    .from('forms')
-    .select('id, slug, name, status')
-    .order('name', { ascending: true })
 
-  if (error) {
-    return NextResponse.json({ error: error.message, forms: [] }, { status: 500 })
+  const [crmRes, metaRes] = await Promise.all([
+    db.from('forms').select('id, slug, name, status').order('name', { ascending: true }),
+    db
+      .from('meta_lead_forms')
+      .select('form_id, name, status, leads_count')
+      .not('name', 'is', null)
+      .order('name', { ascending: true })
+      .limit(5000),
+  ])
+
+  if (crmRes.error) {
+    return NextResponse.json({ error: crmRes.error.message, forms: [] }, { status: 500 })
   }
 
-  const forms = (data ?? []).filter((f) => f.status === 'published')
+  const crmForms = (crmRes.data ?? [])
+    .filter((f) => f.status === 'published')
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      slug: f.slug,
+      status: f.status,
+      formType: 'crm' as const,
+    }))
+
+  // Dedup Meta par nom (Studio lie via meta:nom)
+  const seenMeta = new Set<string>()
+  const metaForms: Array<{
+    id: string
+    name: string
+    formType: 'meta'
+    status: string | null
+    leads_count?: number
+  }> = []
+
+  for (const row of metaRes.data ?? []) {
+    const name = (row.name || '').trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seenMeta.has(key)) continue
+    seenMeta.add(key)
+    metaForms.push({
+      id: `meta:${name}`,
+      name,
+      formType: 'meta',
+      status: row.status,
+      leads_count: row.leads_count ?? 0,
+    })
+  }
+
+  // Meta en premier (comme Studio), puis CRM
+  const forms = [...metaForms, ...crmForms]
+
   return NextResponse.json(
-    { forms },
+    { forms, meta_count: metaForms.length, crm_count: crmForms.length },
     { headers: { 'Cache-Control': 'private, max-age=60' } },
   )
 }

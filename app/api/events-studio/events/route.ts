@@ -8,6 +8,7 @@ import {
   type EventBrand,
   type EventTypeId,
 } from '@/lib/events-studio/config'
+import { buildDefaultCustomEmails, buildDefaultCustomSms } from '@/lib/events-studio/comms-defaults'
 import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
 import { parseStaffNeeded } from '@/lib/events-studio/event-meta'
 
@@ -101,13 +102,25 @@ export async function POST(req: NextRequest) {
   const article =
     (typeof body.article === 'string' && body.article) || typeCfg.article || 'la'
 
+  const eventDateIso = buildEventDate(date, timeStart)
+  const commsEv = {
+    name,
+    article,
+    event_date: eventDateIso,
+    event_time_end: timeEnd,
+    location,
+    zoom_join_url: isWebinar ? zoom : null,
+    event_type: eventType,
+    brand,
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: any = {
     name,
     article,
     description: body.description?.trim() || null,
     brief: noComms ? null : body.brief?.trim() || null,
-    event_date: buildEventDate(date, timeStart),
+    event_date: eventDateIso,
     event_time_end: timeEnd,
     location,
     max_capacity: body.max_capacity ? parseInt(String(body.max_capacity), 10) : null,
@@ -120,8 +133,9 @@ export async function POST(req: NextRequest) {
     sms_push_type: body.sms_push_type != null ? parseInt(String(body.sms_push_type), 10) : 1,
     sms_stop: !!body.sms_stop,
     zoom_join_url: isWebinar ? zoom : null,
-    custom_sms: null,
-    custom_emails: null,
+    // Comme Studio : textes email/SMS préremplis dès la création
+    custom_sms: noComms ? null : buildDefaultCustomSms(commsEv),
+    custom_emails: noComms ? null : buildDefaultCustomEmails(commsEv),
     brand,
     event_type: eventType,
   }

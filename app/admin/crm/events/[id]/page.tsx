@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -18,6 +18,7 @@ import {
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
 import { BRAND_CONFIG, EVENT_TYPES, eventTypeOf, type EventBrand, type EventTypeId } from '@/lib/events-studio/config'
 import { formatEventSchedule } from '@/lib/events-studio/event-meta'
@@ -54,6 +55,7 @@ type Detail = {
     zoom_join_url: string | null
     max_capacity: number | null
     brief?: string | null
+    article?: string | null
     custom_sms?: Record<string, string> | null
     custom_emails?: Record<string, EmailValue> | null
   }
@@ -89,7 +91,14 @@ type Detail = {
   staff_full?: boolean
 }
 
-type CrmFormOption = { id: string; slug: string; name: string; status: string }
+type FormOption = {
+  id: string
+  name: string
+  formType: 'crm' | 'meta'
+  slug?: string
+  status?: string | null
+  leads_count?: number
+}
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -111,10 +120,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [smsStep, setSmsStep] = useState('confirmation')
 
   const [formsPickerOpen, setFormsPickerOpen] = useState(false)
-  const [crmFormOptions, setCrmFormOptions] = useState<CrmFormOption[]>([])
+  const [formOptions, setFormOptions] = useState<FormOption[]>([])
+  const [formSearch, setFormSearch] = useState('')
   const [selectedFormIds, setSelectedFormIds] = useState<Set<string>>(new Set())
   const [metaFormNames, setMetaFormNames] = useState<Map<string, string>>(new Map())
   const [metaInput, setMetaInput] = useState('')
+  const commsBackfilledRef = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -127,9 +138,43 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setLocationEdit(json.event?.location || '')
       setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
       setStaffNeededEdit(json.staff_needed != null ? String(json.staff_needed) : '')
-      setTypeEdit(currentTypeId(json.event || {}))
-      setSmsDraft({ ...(json.event?.custom_sms || {}) })
-      setEmailDraft({ ...(json.event?.custom_emails || {}) })
+      const typeId = currentTypeId(json.event || {})
+      setTypeEdit(typeId)
+
+      // Comme Studio : préremplir avec templates si custom vide
+      const typeCfgLoad = EVENT_TYPES[typeId]
+      if (typeCfgLoad.comms) {
+        const merged = mergeCommsWithDefaults(
+          {
+            name: json.event?.name,
+            article: json.event?.article,
+            event_date: json.event?.event_date,
+            event_time_end: json.event?.event_time_end,
+            location: json.event?.location,
+            zoom_join_url: json.event?.zoom_join_url,
+            event_type: typeId,
+            brand: json.event?.brand,
+          },
+          json.event?.custom_emails,
+          json.event?.custom_sms,
+        )
+        setEmailDraft(merged.emails)
+        setSmsDraft(merged.sms)
+        if (merged.needsPersist && !commsBackfilledRef.current) {
+          commsBackfilledRef.current = true
+          fetch(`/api/events-studio/events/${id}`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custom_sms: merged.sms, custom_emails: merged.emails }),
+          }).catch(() => {
+            /* ignore */
+          })
+        }
+      } else {
+        setSmsDraft({ ...(json.event?.custom_sms || {}) })
+        setEmailDraft({ ...(json.event?.custom_emails || {}) })
+      }
 
       const selected = new Set<string>()
       const metas = new Map<string, string>()
@@ -243,20 +288,46 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   async function openFormsPicker() {
     setFormsPickerOpen(true)
+    setFormSearch('')
     try {
       const res = await fetch('/api/events-studio/crm-forms', { credentials: 'include' })
       const json = await res.json()
-      if (res.ok) setCrmFormOptions(json.forms || [])
+      if (res.ok) {
+        const forms = (json.forms || []) as FormOption[]
+        setFormOptions(
+          forms.map((f) => ({
+            id: f.id,
+            name: f.name,
+            formType: f.formType === 'meta' ? 'meta' : 'crm',
+            slug: f.slug,
+            status: f.status,
+            leads_count: f.leads_count,
+          })),
+        )
+      }
     } catch {
       /* ignore */
     }
   }
 
-  function toggleCrmForm(formId: string) {
+  function toggleForm(formId: string, formType: 'crm' | 'meta', formName: string) {
     setSelectedFormIds((prev) => {
       const next = new Set(prev)
-      if (next.has(formId)) next.delete(formId)
-      else next.add(formId)
+      if (next.has(formId)) {
+        next.delete(formId)
+        if (formType === 'meta') {
+          setMetaFormNames((m) => {
+            const n = new Map(m)
+            n.delete(formId)
+            return n
+          })
+        }
+      } else {
+        next.add(formId)
+        if (formType === 'meta') {
+          setMetaFormNames((m) => new Map(m).set(formId, formName))
+        }
+      }
       return next
     })
   }
@@ -283,12 +354,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           })
           continue
         }
-        const opt = crmFormOptions.find((f) => f.id === formId)
+        const opt = formOptions.find((f) => f.id === formId)
         const existing = data?.forms.find((f) => f.hubspot_form_id === formId)
         forms.push({
           hubspot_form_id: formId,
           form_name: opt?.name || existing?.form_name || formId,
-          form_type: 'crm',
+          form_type: opt?.formType === 'meta' ? 'meta' : 'crm',
         })
       }
       const res = await fetch(`/api/events-studio/events/${id}`, {
@@ -307,6 +378,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setBusy(false)
     }
+  }
+
+  function regenerateComms() {
+    if (!data?.event) return
+    const merged = mergeCommsWithDefaults(
+      {
+        name: data.event.name,
+        article: data.event.article,
+        event_date: data.event.event_date,
+        event_time_end: data.event.event_time_end,
+        location: data.event.location,
+        zoom_join_url: data.event.zoom_join_url,
+        event_type: typeEdit,
+        brand: data.event.brand,
+      },
+      null,
+      null,
+    )
+    setEmailDraft(merged.emails)
+    setSmsDraft(merged.sms)
+    setToast('Communications régénérées (enregistrez pour sauvegarder)')
   }
 
   async function remove() {
@@ -669,61 +761,191 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   }}
                 >
                   <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Choisir les formulaires</div>
-                  <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 8 }}>Formulaires CRM</div>
-                  <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflow: 'auto', marginBottom: 12 }}>
-                    {crmFormOptions.length === 0 ? (
-                      <div style={{ fontSize: 12, color: crmV2.textFaint }}>Aucun formulaire CRM publié.</div>
-                    ) : (
-                      crmFormOptions.map((f) => (
-                        <label
-                          key={f.id}
-                          style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}
+                  <input
+                    style={{ ...inputStyle, marginBottom: 12 }}
+                    value={formSearch}
+                    onChange={(e) => setFormSearch(e.target.value)}
+                    placeholder="Rechercher un formulaire…"
+                  />
+                  {(() => {
+                    const q = formSearch.trim().toLowerCase()
+                    const filtered = formOptions.filter((f) => !q || f.name.toLowerCase().includes(q))
+                    const metaOpts = filtered.filter((f) => f.formType === 'meta')
+                    const crmOpts = filtered.filter((f) => f.formType !== 'meta')
+                    // Manual metas not in API list
+                    const apiMetaIds = new Set(formOptions.filter((f) => f.formType === 'meta').map((f) => f.id))
+                    const manualMetas = [...metaFormNames.entries()].filter(([key]) => !apiMetaIds.has(key))
+                    return (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', letterSpacing: '0.04em', marginBottom: 6 }}>
+                          META LEAD ADS
+                        </div>
+                        <div style={{ display: 'grid', gap: 6, maxHeight: 200, overflow: 'auto', marginBottom: 12 }}>
+                          {metaOpts.length === 0 && manualMetas.length === 0 ? (
+                            <div style={{ fontSize: 12, color: crmV2.textFaint }}>
+                              Aucun formulaire Meta synchronisé. Ajoutez-en un manuellement ci-dessous.
+                            </div>
+                          ) : (
+                            <>
+                              {metaOpts.map((f) => (
+                                <label
+                                  key={f.id}
+                                  style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    alignItems: 'center',
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                    borderLeft: '2px solid #60a5fa',
+                                    paddingLeft: 8,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedFormIds.has(f.id)}
+                                    onChange={() => toggleForm(f.id, 'meta', f.name)}
+                                  />
+                                  <span style={{ flex: 1 }}>{f.name}</span>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      background: 'rgba(37,99,235,0.12)',
+                                      color: '#1d4ed8',
+                                      borderRadius: 999,
+                                      padding: '2px 8px',
+                                    }}
+                                  >
+                                    Meta
+                                  </span>
+                                </label>
+                              ))}
+                              {manualMetas.map(([key, name]) => (
+                                <label
+                                  key={key}
+                                  style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    alignItems: 'center',
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                    borderLeft: '2px solid #60a5fa',
+                                    paddingLeft: 8,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedFormIds.has(key)}
+                                    onChange={() => toggleForm(key, 'meta', name)}
+                                  />
+                                  <span style={{ flex: 1 }}>{name}</span>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      background: 'rgba(37,99,235,0.12)',
+                                      color: '#1d4ed8',
+                                      borderRadius: 999,
+                                      padding: '2px 8px',
+                                    }}
+                                  >
+                                    Meta
+                                  </span>
+                                </label>
+                              ))}
+                            </>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: '#1d4ed8',
+                            marginBottom: 8,
+                            padding: '8px 10px',
+                            background: 'rgba(37,99,235,0.06)',
+                            borderRadius: crmV2.radius,
+                          }}
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedFormIds.has(f.id)}
-                            onChange={() => toggleCrmForm(f.id)}
-                          />
-                          {f.name}
-                        </label>
-                      ))
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 8 }}>Formulaire Meta Ads (nom)</div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <input
-                      style={inputStyle}
-                      value={metaInput}
-                      onChange={(e) => setMetaInput(e.target.value)}
-                      placeholder="Ex: Lead Ads — Salon octobre"
-                    />
-                    <CrmV2Button variant="secondary" onClick={addMetaForm}>
-                      Ajouter
-                    </CrmV2Button>
-                  </div>
-                  {[...metaFormNames.entries()].map(([key, name]) => (
-                    <div key={key} style={{ fontSize: 12, marginBottom: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span style={{ color: '#1d4ed8', fontWeight: 600 }}>Meta</span> {name}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMetaFormNames((prev) => {
-                            const n = new Map(prev)
-                            n.delete(key)
-                            return n
-                          })
-                          setSelectedFormIds((prev) => {
-                            const n = new Set(prev)
-                            n.delete(key)
-                            return n
-                          })
-                        }}
-                        style={{ border: 'none', background: 'transparent', color: crmV2.danger, cursor: 'pointer' }}
-                      >
-                        Retirer
-                      </button>
-                    </div>
-                  ))}
+                          <div style={{ fontWeight: 600, marginBottom: 6 }}>Ajouter un formulaire Meta Lead Ads manuellement</div>
+                          <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 6 }}>
+                            Pour les formulaires Meta pas encore dans la liste (0 soumissions)
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                              style={inputStyle}
+                              value={metaInput}
+                              onChange={(e) => setMetaInput(e.target.value)}
+                              placeholder="Ex: Lead Ads — Salon octobre"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  addMetaForm()
+                                }
+                              }}
+                            />
+                            <CrmV2Button variant="secondary" onClick={addMetaForm}>
+                              Ajouter
+                            </CrmV2Button>
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#4338ca',
+                            letterSpacing: '0.04em',
+                            margin: '12px 0 6px',
+                          }}
+                        >
+                          FORMULAIRES CRM
+                        </div>
+                        <div style={{ display: 'grid', gap: 6, maxHeight: 200, overflow: 'auto', marginBottom: 12 }}>
+                          {crmOpts.length === 0 ? (
+                            <div style={{ fontSize: 12, color: crmV2.textFaint }}>Aucun formulaire CRM publié.</div>
+                          ) : (
+                            crmOpts.map((f) => (
+                              <label
+                                key={f.id}
+                                style={{
+                                  display: 'flex',
+                                  gap: 8,
+                                  alignItems: 'center',
+                                  fontSize: 13,
+                                  cursor: 'pointer',
+                                  borderLeft: '2px solid #a5b4fc',
+                                  paddingLeft: 8,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedFormIds.has(f.id)}
+                                  onChange={() => toggleForm(f.id, 'crm', f.name)}
+                                />
+                                <span style={{ flex: 1 }}>{f.name}</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    background: 'rgba(67,56,202,0.1)',
+                                    color: '#4338ca',
+                                    borderRadius: 999,
+                                    padding: '2px 8px',
+                                  }}
+                                >
+                                  CRM
+                                </span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 8 }}>
+                          {selectedFormIds.size} formulaire(s) sélectionné(s)
+                        </div>
+                      </>
+                    )
+                  })()}
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <CrmV2Button variant="gold" disabled={busy} onClick={saveForms}>
                       <Save size={14} /> Enregistrer les formulaires
@@ -860,9 +1082,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </>
                 )}
 
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <CrmV2Button variant="gold" disabled={busy} onClick={saveComms}>
                     <Save size={14} /> Enregistrer les communications
+                  </CrmV2Button>
+                  <CrmV2Button variant="secondary" disabled={busy} onClick={regenerateComms}>
+                    Régénérer les textes
                   </CrmV2Button>
                 </div>
               </CrmV2Card>
