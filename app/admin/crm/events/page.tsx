@@ -45,6 +45,7 @@ type EventRow = {
   staff_needed?: number | null
   staff_count?: number
   staff_remaining?: number | null
+  registered_count?: number
 }
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
@@ -277,6 +278,22 @@ export default function EventsListPage() {
                   {ev.staff_remaining != null ? ` · ${ev.staff_remaining} rest.` : ''}
                 </span>
               )}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '3px 9px',
+                  borderRadius: crmV2.radiusPill,
+                  background: crmV2.goldSoft,
+                  color: crmV2.text,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Users size={11} />
+                {ev.registered_count ?? 0} inscrit{(ev.registered_count ?? 0) === 1 ? '' : 's'}
+              </span>
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
               {formatEventSchedule(ev)}

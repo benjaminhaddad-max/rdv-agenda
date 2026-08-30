@@ -274,3 +274,110 @@ export async function syncEventRegistrationsFromSources(eventId: string): Promis
     errors,
   }
 }
+
+/**
+ * Compteurs d’inscrits pour une liste d’événements (rapide, pour la page récap).
+ * Prend le max entre registrations Events et leads CRM/Meta liés (évite de sous-compter avant sync).
+ */
+export async function countRegisteredByEventIds(
+  eventIds: string[],
+): Promise<Record<string, number>> {
+  const out: Record<string, number> = {}
+  for (const id of eventIds) out[id] = 0
+  if (eventIds.length === 0) return out
+
+  const eventsDb = createEventsClient()
+  const crmDb = createServiceClient()
+
+  const [{ data: regs }, { data: forms }] = await Promise.all([
+    eventsDb.from('registrations').select('event_id').in('event_id', eventIds).limit(20000),
+    eventsDb
+      .from('event_forms')
+      .select('event_id, hubspot_form_id, form_name, form_type')
+      .in('event_id', eventIds),
+  ])
+
+  const regCounts: Record<string, number> = {}
+  for (const r of regs || []) {
+    if (!r.event_id) continue
+    regCounts[r.event_id] = (regCounts[r.event_id] || 0) + 1
+  }
+
+  const formLeadCounts: Record<string, number> = {}
+  const crmFormToEvents = new Map<string, string[]>()
+  const metaNameToEvents = new Map<string, string[]>()
+
+  for (const f of forms || []) {
+    const eid = f.event_id as string
+    if (!eid) continue
+    const fid = String(f.hubspot_form_id || '')
+    const isMeta = f.form_type === 'meta' || fid.startsWith('meta:')
+    if (isMeta) {
+      const name = f.form_name || fid.replace(/^meta:/, '')
+      if (!name) continue
+      const list = metaNameToEvents.get(name) || []
+      list.push(eid)
+      metaNameToEvents.set(name, list)
+    } else if (fid) {
+      const list = crmFormToEvents.get(fid) || []
+      list.push(eid)
+      crmFormToEvents.set(fid, list)
+    }
+  }
+
+  const crmIds = [...crmFormToEvents.keys()]
+  if (crmIds.length > 0) {
+    const { data: subs } = await crmDb
+      .from('form_submissions')
+      .select('form_id')
+      .in('form_id', crmIds)
+      .limit(20000)
+    const byForm: Record<string, number> = {}
+    for (const s of subs || []) {
+      const fid = String(s.form_id || '')
+      byForm[fid] = (byForm[fid] || 0) + 1
+    }
+    for (const [fid, eids] of crmFormToEvents) {
+      const n = byForm[fid] || 0
+      if (!n) continue
+      for (const eid of eids) formLeadCounts[eid] = (formLeadCounts[eid] || 0) + n
+    }
+  }
+
+  const metaNames = [...metaNameToEvents.keys()]
+  if (metaNames.length > 0) {
+    const { data: metaForms } = await crmDb
+      .from('meta_lead_forms')
+      .select('form_id, name')
+      .in('name', metaNames)
+    const formIdToName = new Map<string, string>()
+    for (const mf of metaForms || []) {
+      if (mf.form_id && mf.name) formIdToName.set(mf.form_id, mf.name)
+    }
+    const metaFormIds = [...formIdToName.keys()]
+    if (metaFormIds.length > 0) {
+      const { data: metaEvents } = await crmDb
+        .from('meta_lead_events')
+        .select('form_id')
+        .in('form_id', metaFormIds)
+        .limit(20000)
+      const byMetaForm: Record<string, number> = {}
+      for (const e of metaEvents || []) {
+        const fid = String(e.form_id || '')
+        byMetaForm[fid] = (byMetaForm[fid] || 0) + 1
+      }
+      for (const [fid, n] of Object.entries(byMetaForm)) {
+        const name = formIdToName.get(fid)
+        if (!name || !n) continue
+        for (const eid of metaNameToEvents.get(name) || []) {
+          formLeadCounts[eid] = (formLeadCounts[eid] || 0) + n
+        }
+      }
+    }
+  }
+
+  for (const id of eventIds) {
+    out[id] = Math.max(regCounts[id] || 0, formLeadCounts[id] || 0)
+  }
+  return out
+}

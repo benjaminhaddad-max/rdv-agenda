@@ -11,6 +11,7 @@ import {
 import { buildDefaultCustomEmails, buildDefaultCustomSms } from '@/lib/events-studio/comms-defaults'
 import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
 import { parseStaffNeeded } from '@/lib/events-studio/event-meta'
+import { countRegisteredByEventIds } from '@/lib/events-studio/sync-attendees'
 
 function buildEventDate(date: string, timeStart: string): string {
   const tmpDate = new Date(`${date}T${timeStart}`)
@@ -38,13 +39,18 @@ export async function GET(req: NextRequest) {
 
   const events = data || []
   const staffCounts: Record<string, number> = {}
+  let registeredCounts: Record<string, number> = {}
   if (events.length > 0) {
     const ids = events.map((e) => e.id)
     // chunk if huge
-    const { data: staffRows } = await db.from('staff_registrations').select('event_id').in('event_id', ids)
+    const [{ data: staffRows }, regMap] = await Promise.all([
+      db.from('staff_registrations').select('event_id').in('event_id', ids),
+      countRegisteredByEventIds(ids),
+    ])
     for (const row of staffRows || []) {
       staffCounts[row.event_id] = (staffCounts[row.event_id] || 0) + 1
     }
+    registeredCounts = regMap
   }
 
   return NextResponse.json({
@@ -56,6 +62,7 @@ export async function GET(req: NextRequest) {
         staff_needed: needed,
         staff_count: count,
         staff_remaining: needed != null ? Math.max(0, needed - count) : null,
+        registered_count: registeredCounts[e.id] || 0,
       }
     }),
   })
