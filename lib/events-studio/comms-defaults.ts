@@ -214,9 +214,9 @@ function webinarBodyNeedsZoomRefresh(
   if (!steps.has(stepId)) return false
   if (/sur place/i.test(text) || mentionsQr(text)) return true
   const zoom = (ev.zoom_join_url || '').trim()
-  if (!zoom) return false
-  // Zoom enregistré mais absent du texte → injecter
-  return !text.includes(zoom)
+  if (zoom) return !text.includes(zoom)
+  // Pas encore de Zoom : le texte doit au moins parler du lien Zoom (pas un mail JPO)
+  return !/zoom|lien de connexion/i.test(text)
 }
 
 /** Fusionne custom existant avec defaults (custom gagne si non vide). */
