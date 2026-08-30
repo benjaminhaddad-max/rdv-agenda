@@ -70,8 +70,13 @@ export async function GET() {
   const forms = [...metaForms, ...crmForms]
 
   return NextResponse.json(
-    { forms, meta_count: metaForms.length, crm_count: crmForms.length },
-    { headers: { 'Cache-Control': 'private, max-age=60' } },
+    {
+      forms,
+      meta_count: metaForms.length,
+      crm_count: crmForms.length,
+      meta_error: metaRes.error?.message || null,
+    },
+    { headers: { 'Cache-Control': 'no-store' } },
   )
 }
 

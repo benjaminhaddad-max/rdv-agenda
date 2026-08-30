@@ -294,23 +294,56 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     setFormsPickerOpen(true)
     setFormSearch('')
     try {
-      const res = await fetch('/api/events-studio/crm-forms', { credentials: 'include' })
-      const json = await res.json()
-      if (res.ok) {
-        const forms = (json.forms || []) as FormOption[]
-        setFormOptions(
-          forms.map((f) => ({
+      const [crmFormsRes, metaPagesRes] = await Promise.all([
+        fetch(`/api/events-studio/crm-forms?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/meta/pages', { credentials: 'include', cache: 'no-store' }).catch(() => null),
+      ])
+      const json = await crmFormsRes.json()
+      const byId = new Map<string, FormOption>()
+
+      if (crmFormsRes.ok) {
+        for (const f of (json.forms || []) as FormOption[]) {
+          const formType = f.formType === 'meta' || String(f.id).startsWith('meta:') ? 'meta' : 'crm'
+          byId.set(f.id, {
             id: f.id,
             name: f.name,
-            formType: f.formType === 'meta' ? 'meta' : 'crm',
+            formType,
             slug: f.slug,
             status: f.status,
             leads_count: f.leads_count,
-          })),
-        )
+          })
+        }
+      }
+
+      // Filet de sécurité : aussi charger depuis /api/meta/pages (même source que Meta Lead Ads)
+      if (metaPagesRes?.ok) {
+        const metaJson = await metaPagesRes.json()
+        for (const f of metaJson.forms || []) {
+          const name = String(f.name || '').trim()
+          if (!name) continue
+          const id = `meta:${name}`
+          if (byId.has(id)) continue
+          byId.set(id, {
+            id,
+            name,
+            formType: 'meta',
+            status: f.status,
+            leads_count: f.leads_count ?? 0,
+          })
+        }
+      }
+
+      const forms = [...byId.values()].sort((a, b) => {
+        if (a.formType !== b.formType) return a.formType === 'meta' ? -1 : 1
+        return a.name.localeCompare(b.name, 'fr')
+      })
+      setFormOptions(forms)
+      const metaN = forms.filter((f) => f.formType === 'meta').length
+      if (metaN === 0) {
+        setToast('Aucun formulaire Meta trouvé — vérifie Meta Lead Ads ou ajoute un nom manuellement')
       }
     } catch {
-      /* ignore */
+      setToast('Erreur chargement des formulaires')
     }
   }
 
@@ -782,7 +815,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     return (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', letterSpacing: '0.04em', marginBottom: 6 }}>
-                          META LEAD ADS
+                          META LEAD ADS — cochez pour lier ({formOptions.filter((f) => f.formType === 'meta').length})
                         </div>
                         <div style={{ display: 'grid', gap: 6, maxHeight: 200, overflow: 'auto', marginBottom: 12 }}>
                           {metaOpts.length === 0 && manualMetas.length === 0 ? (
