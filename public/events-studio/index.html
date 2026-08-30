@@ -3741,7 +3741,7 @@ function pvSmsBody(ev, type) {
   const ti = pvTRP(ev); const vis = !!ev.zoom_join_url;
   const loc = !vis && ev.location ? ' - '+ev.location : '';
   const n = evNom(ev); const p = evPour(ev);
-  return ({'confirmation':`{prenom}, super nouvelle ! Votre inscription ${p} est confirmee ! On a hate de vous retrouver le ${ds} ${ti}${loc}. Ca va etre un moment enrichissant !`,'j-5':`{prenom}, plus que 5 jours avant ${n} ! On a vraiment hate de vous retrouver le ${ds} ${ti}. Ca va etre un super moment !`,'j-3':`{prenom}, J-3 avant ${n} ! Le compte a rebours est lance et on a hate d'y etre ! RDV le ${ds} ${ti}${loc}.`,'j-2':`{prenom}, apres-demain c'est ${n} ! On est impatients de vous accueillir le ${ds} ${ti}${loc}.`,'j-1':`{prenom}, c'est DEMAIN ! On se retrouve ${p} ${ti}${loc}. Toute l'equipe vous attend avec impatience !`,'j-0-matin':`{prenom}, c'est AUJOURD'HUI ! On est ravis de vous retrouver ${p} ${ti}${loc}. A tout de suite !`,'j-0-11h':`{prenom}, ${n} ${vis?'est en cours':"c'est cet apres-midi"} ${ti}. On vous attend !${vis?' Connectez-vous vite !':' Rejoignez-nous !'}`,'j-0-14h':`{prenom}, ${n} ${ti}. ${vis?'Connectez-vous, on vous attend !':'On vous attend sur place, a tout de suite !'}`,'j-0-5min':`{prenom}, ${n} commence dans 5 minutes ! On est prets, et vous ? A tout de suite !`})[type] || `Rappel: ${n} le ${ds}. On a hate de vous retrouver !`;
+  return ({'confirmation':`{prenom}, super nouvelle ! Votre inscription ${p} est confirmee ! On a hate de vous retrouver le ${ds} ${ti}${loc}. Ca va etre un moment enrichissant !`,'j-5':`{prenom}, plus que 5 jours avant ${n} ! On a vraiment hate de vous retrouver le ${ds} ${ti}. Ca va etre un super moment !`,'j-3':`{prenom}, J-3 avant ${n} ! Le compte a rebours est lance et on a hate d'y etre ! RDV le ${ds} ${ti}${loc}.`,'j-2':`{prenom}, apres-demain c'est ${n} ! On est impatients de vous accueillir le ${ds} ${ti}${loc}.`,'j-1':`{prenom}, c'est DEMAIN ! On se retrouve ${p} ${ti}${loc}. Toute l'equipe vous attend avec impatience !`,'j-0-matin':`{prenom}, c'est AUJOURD'HUI ! On est ravis de vous retrouver ${p} ${ti}${loc}. A tout de suite !`,'j-0-11h':`{prenom}, ${n} ${vis?'est en cours':"c'est cet apres-midi"} ${ti}. On vous attend !${vis?' Connectez-vous vite !':' Rejoignez-nous !'}`,'j-0-14h':`{prenom}, ${n} ${ti}. ${vis?'Connectez-vous, on vous attend !':'On vous attend sur place, a tout de suite !'}`,'j-0-10min':`{prenom}, ${n} commence dans 10 minutes ! Rejoignez-nous vite !`,'j-0-5min':`{prenom}, ${n} commence dans 5 minutes ! On est prets, et vous ? A tout de suite !`})[type] || `Rappel: ${n} le ${ds}. On a hate de vous retrouver !`;
 }
 
 function renderPreviews(ev) {
@@ -3913,6 +3913,7 @@ function renderEdumovePreviews(ev) {
     {id:'j-7', lb:'J-7'},
     {id:'j-1', lb:'J-1 (veille)'},
     {id:'j-0-10h', lb:'J-0 ce soir'},
+    {id:'j-0-10min', lb:'10 min avant'},
     {id:'j-0-18h25', lb:'5 min avant'},
   ];
   window._emailTypes = emailTypes;
