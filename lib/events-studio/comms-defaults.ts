@@ -186,6 +186,9 @@ export function defaultSmsBody(ev: CommsEventLike, type: string): string {
     'j-0-5min': vis
       ? `{prenom}, le webinaire commence dans 5 minutes ! ${zoom ? `Rejoignez-nous : ${zoom}` : 'Rejoignez-nous vite !'}`
       : `{prenom}, ${ref} commence dans 5 minutes ! On est prets, et vous ? A tout de suite !`,
+    'j-0-10min': `{prenom}, ${ref} commence dans 10 minutes ! ${
+      zoom ? `Rejoignez-nous : ${zoom}` : 'Préparez-vous, le lien Zoom arrive.'
+    }`,
     'j-7': `{prenom}, ${ref} a lieu dans 7 jours (${ds} a ${ti}). Bloquez la date !`,
     'j-0-10h': `{prenom}, c'est ce soir ! ${ucfirst(ref)} a ${ti}.${zoom ? ` Rejoignez-nous : ${zoom}` : ''}`,
     'j-0-18h25': `{prenom}, ${ref} commence dans 5 min ! Rejoignez-nous vite.${zoom ? ` ${zoom}` : ''}`,
@@ -233,6 +236,7 @@ const WEBINAR_ZOOM_SMS_STEPS = new Set([
   'j-0-matin',
   'j-0-11h',
   'j-0-14h',
+  'j-0-10min',
   'j-0-5min',
   'j-0-10h',
   'j-0-18h25',

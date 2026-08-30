@@ -57,6 +57,7 @@ export function smsStepsFor(ev: {
       { id: 'j-0-matin', label: 'J-0 matin' },
       { id: 'j-0-11h', label: 'J-0 11h' },
       { id: 'j-0-14h', label: 'J-0 14h' },
+      { id: 'j-0-10min', label: '10 min avant' },
       { id: 'j-0-5min', label: '5 min avant' },
     ]
   }
@@ -68,6 +69,7 @@ export function smsStepsFor(ev: {
       { id: 'j-0-matin', label: 'J-0 matin' },
       { id: 'j-0-11h', label: 'J-0 11h' },
       { id: 'j-0-14h', label: 'J-0 14h' },
+      { id: 'j-0-10min', label: '10 min avant' },
       { id: 'j-0-5min', label: '5 min avant' },
     ]
   }
