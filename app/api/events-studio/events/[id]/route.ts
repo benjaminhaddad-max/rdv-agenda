@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
+import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
 import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
 import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
 import { createServiceClient } from '@/lib/supabase'
@@ -18,6 +19,25 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const { data: event, error } = await db.from('events').select('*').eq('id', id).single()
   if (error || !event) {
     return NextResponse.json({ error: error?.message || 'Not found' }, { status: 404 })
+  }
+
+  // Comme Events Studio : si emails/SMS vides, générer + persister les templates
+  if (eventHasComms(event)) {
+    const merged = mergeCommsWithDefaults(event, event.custom_emails, event.custom_sms)
+    if (merged.needsPersist) {
+      const { data: updated } = await db
+        .from('events')
+        .update({ custom_emails: merged.emails, custom_sms: merged.sms })
+        .eq('id', id)
+        .select('*')
+        .single()
+      if (updated) {
+        Object.assign(event, updated)
+      } else {
+        event.custom_emails = merged.emails
+        event.custom_sms = merged.sms
+      }
+    }
   }
 
   const [{ data: forms }, { data: registrations }, { data: staff }] = await Promise.all([

@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { use, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -18,7 +18,7 @@ import {
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
-import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
+import { defaultEmailBody, defaultEmailSubject, defaultSmsBody, mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
 import { BRAND_CONFIG, EVENT_TYPES, eventTypeOf, type EventBrand, type EventTypeId } from '@/lib/events-studio/config'
 import { formatEventSchedule } from '@/lib/events-studio/event-meta'
@@ -125,7 +125,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [selectedFormIds, setSelectedFormIds] = useState<Set<string>>(new Set())
   const [metaFormNames, setMetaFormNames] = useState<Map<string, string>>(new Map())
   const [metaInput, setMetaInput] = useState('')
-  const commsBackfilledRef = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,36 +140,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       const typeId = currentTypeId(json.event || {})
       setTypeEdit(typeId)
 
-      // Comme Studio : préremplir avec templates si custom vide
+      // Toujours fusionner avec les templates Studio (jamais de champs vides)
       const typeCfgLoad = EVENT_TYPES[typeId]
+      const merged = mergeCommsWithDefaults(
+        {
+          name: json.event?.name,
+          article: json.event?.article,
+          event_date: json.event?.event_date,
+          event_time_end: json.event?.event_time_end,
+          location: json.event?.location,
+          zoom_join_url: json.event?.zoom_join_url,
+          event_type: typeId,
+          brand: json.event?.brand,
+        },
+        json.event?.custom_emails,
+        json.event?.custom_sms,
+      )
       if (typeCfgLoad.comms) {
-        const merged = mergeCommsWithDefaults(
-          {
-            name: json.event?.name,
-            article: json.event?.article,
-            event_date: json.event?.event_date,
-            event_time_end: json.event?.event_time_end,
-            location: json.event?.location,
-            zoom_join_url: json.event?.zoom_join_url,
-            event_type: typeId,
-            brand: json.event?.brand,
-          },
-          json.event?.custom_emails,
-          json.event?.custom_sms,
-        )
         setEmailDraft(merged.emails)
         setSmsDraft(merged.sms)
-        if (merged.needsPersist && !commsBackfilledRef.current) {
-          commsBackfilledRef.current = true
-          fetch(`/api/events-studio/events/${id}`, {
-            method: 'PATCH',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ custom_sms: merged.sms, custom_emails: merged.emails }),
-          }).catch(() => {
-            /* ignore */
-          })
-        }
       } else {
         setSmsDraft({ ...(json.event?.custom_sms || {}) })
         setEmailDraft({ ...(json.event?.custom_emails || {}) })
@@ -206,6 +194,28 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     if (!smsSteps.find((s) => s.id === smsStep)) setSmsStep(smsSteps[0]?.id || 'confirmation')
   }, [smsSteps, smsStep])
+
+  const evForDefaults = data?.event
+    ? {
+        name: data.event.name,
+        article: data.event.article,
+        event_date: data.event.event_date,
+        event_time_end: data.event.event_time_end,
+        location: data.event.location,
+        zoom_join_url: data.event.zoom_join_url,
+        event_type: typeEdit,
+        brand: data.event.brand,
+      }
+    : null
+
+  const emailSubjectValue =
+    (emailDraft[emailStep]?.subject || '').trim() ||
+    (evForDefaults ? defaultEmailSubject(evForDefaults, emailStep) : '')
+  const emailBodyValue =
+    (emailDraft[emailStep]?.body || '').trim() ||
+    (evForDefaults ? defaultEmailBody(evForDefaults, emailStep) : '')
+  const smsValue =
+    (smsDraft[smsStep] || '').trim() || (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
 
   async function setStatus(status: 'published' | 'draft') {
     setBusy(true)
@@ -259,24 +269,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   async function saveComms() {
     setBusy(true)
     try {
-      const custom_sms: Record<string, string> = {}
-      for (const [k, v] of Object.entries(smsDraft)) {
-        if (v?.trim()) custom_sms[k] = v.trim()
-      }
-      const custom_emails: Record<string, EmailValue> = {}
-      for (const [k, v] of Object.entries(emailDraft)) {
-        if (v && (v.subject?.trim() || v.body?.trim())) {
-          custom_emails[k] = { subject: v.subject?.trim() || '', body: v.body?.trim() || '' }
-        }
-      }
+      const base = evForDefaults || { event_type: typeEdit }
+      const merged = mergeCommsWithDefaults(base, emailDraft, smsDraft)
       const res = await fetch(`/api/events-studio/events/${id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ custom_sms, custom_emails }),
+        body: JSON.stringify({ custom_sms: merged.sms, custom_emails: merged.emails }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
+      setEmailDraft(merged.emails)
+      setSmsDraft(merged.sms)
       setToast('Communications enregistrées')
       await load()
     } catch (e) {
@@ -1024,7 +1028,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     </label>
                     <input
                       style={{ ...inputStyle, marginBottom: 8 }}
-                      value={emailDraft[emailStep]?.subject || ''}
+                      value={emailSubjectValue}
                       onChange={(e) =>
                         setEmailDraft((prev) => ({
                           ...prev,
@@ -1038,7 +1042,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     </label>
                     <textarea
                       style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }}
-                      value={emailDraft[emailStep]?.body || ''}
+                      value={emailBodyValue}
                       onChange={(e) =>
                         setEmailDraft((prev) => ({
                           ...prev,
@@ -1072,12 +1076,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                     <textarea
                       style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
-                      value={smsDraft[smsStep] || ''}
+                      value={smsValue}
                       onChange={(e) => setSmsDraft((prev) => ({ ...prev, [smsStep]: e.target.value }))}
                       placeholder="Texte SMS (utilisez {prenom} pour personnaliser)"
                     />
                     <div style={{ marginTop: 6, fontSize: 11, color: crmV2.textFaint }}>
-                      {(smsDraft[smsStep] || '').length} caractères
+                      {smsValue.length} caractères
                     </div>
                   </>
                 )}
