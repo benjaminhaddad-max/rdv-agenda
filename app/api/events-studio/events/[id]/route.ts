@@ -5,6 +5,10 @@ import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
 import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
 import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
+import {
+  listEventAttendees,
+  syncEventRegistrationsFromSources,
+} from '@/lib/events-studio/sync-attendees'
 import { createServiceClient } from '@/lib/supabase'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -40,20 +44,32 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     }
   }
 
-  const [{ data: forms }, { data: registrations }, { data: staff }] = await Promise.all([
+  const [{ data: forms }, { data: staff }, attendeesPack] = await Promise.all([
     db.from('event_forms').select('*').eq('event_id', id),
-    db
-      .from('registrations')
-      .select('id, first_name, last_name, email, phone, qr_code, checked_in, created_at')
-      .eq('event_id', id)
-      .order('created_at', { ascending: false })
-      .limit(200),
     db
       .from('staff_registrations')
       .select('*')
       .eq('event_id', id)
       .order('created_at', { ascending: true }),
+    listEventAttendees(id).catch(() => ({
+      attendees: [] as Awaited<ReturnType<typeof listEventAttendees>>['attendees'],
+      counts: { total: 0, crm: 0, meta: 0, events: 0 },
+    })),
   ])
+
+  const attendees = attendeesPack.attendees
+  const attendeeCounts = attendeesPack.counts
+  // Compat UI : registrations = vue unifiée (CRM + Meta + Events)
+  const registrations = attendees.slice(0, 500).map((a, i) => ({
+    id: a.id || `attendee-${i}`,
+    first_name: a.first_name,
+    last_name: a.last_name,
+    email: a.email,
+    phone: a.phone,
+    checked_in: a.checked_in ?? false,
+    created_at: a.created_at,
+    source: a.source,
+  }))
 
   // Enrich CRM forms with public URL
   const crmDb = createServiceClient()
@@ -88,12 +104,29 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const staffNeeded = parseStaffNeeded(event.description)
   const staffCount = (staff || []).length
   const type = eventTypeOf(event)
-  const checkedIn = (registrations || []).filter((r) => r.checked_in).length
+  const checkedIn = registrations.filter((r) => r.checked_in).length
+  const registeredTotal = attendeeCounts.total
+
+  // Aligner le compteur capacité sur tous les inscrits (pas seulement CRM form_submissions)
+  if (capacity) {
+    capacity = {
+      ...capacity,
+      registered_count: registeredTotal,
+      remaining:
+        capacity.max_capacity != null
+          ? Math.max(0, capacity.max_capacity - registeredTotal)
+          : null,
+      is_full:
+        capacity.max_capacity != null ? registeredTotal >= capacity.max_capacity : false,
+    }
+  }
 
   return NextResponse.json({
     event,
     forms: formsEnriched,
-    registrations: registrations || [],
+    registrations,
+    attendees,
+    attendee_counts: attendeeCounts,
     staff: staff || [],
     type,
     capacity,
@@ -105,13 +138,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     scanner_url: type.checkin ? `https://hub.diploma-sante.fr/events-studio/#scan/${id}` : null,
     checkin_stats: type.checkin
       ? {
-          registered: (registrations || []).length,
+          registered: registeredTotal,
           present: checkedIn,
-          absent: Math.max(0, (registrations || []).length - checkedIn),
-          rate:
-            (registrations || []).length > 0
-              ? Math.round((checkedIn / (registrations || []).length) * 100)
-              : 0,
+          absent: Math.max(0, registeredTotal - checkedIn),
+          rate: registeredTotal > 0 ? Math.round((checkedIn / registeredTotal) * 100) : 0,
         }
       : null,
   })
@@ -137,6 +167,27 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     patch.status = body.status
   }
   if (typeof body.zoom_join_url === 'string') patch.zoom_join_url = body.zoom_join_url.trim() || null
+
+  // Webinaire : impossible de publier sans lien Zoom
+  const nextType =
+    typeof body.event_type === 'string' &&
+    (body.event_type === 'jpo' || body.event_type === 'salon' || body.event_type === 'webinaire')
+      ? (body.event_type as EventTypeId)
+      : eventTypeOf(current).id
+  const nextZoom =
+    typeof body.zoom_join_url === 'string'
+      ? body.zoom_join_url.trim() || null
+      : current.zoom_join_url || null
+  if (patch.status === 'published' && nextType === 'webinaire' && !nextZoom) {
+    return NextResponse.json(
+      {
+        error:
+          'Impossible de publier un webinaire sans lien Zoom. Ajoutez le lien Zoom avant de publier.',
+        code: 'ZOOM_REQUIRED',
+      },
+      { status: 400 },
+    )
+  }
   if (body.max_capacity !== undefined) {
     patch.max_capacity = body.max_capacity ? parseInt(String(body.max_capacity), 10) : null
   }
@@ -215,10 +266,23 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
   }
 
-  // Publish side-effect: send confirmations if has comms
+  // Publish : sync Meta/CRM → registrations, puis envoi des confirmations
+  let syncResult: Awaited<ReturnType<typeof syncEventRegistrationsFromSources>> | null = null
+  let sendResult: { success?: boolean; sent?: number; message?: string } | null = null
   if (patch.status === 'published' && eventHasComms(event)) {
     try {
-      await fetch(eventsEdgeUrl('send-pending-confirmations'), {
+      syncResult = await syncEventRegistrationsFromSources(id)
+    } catch (e) {
+      syncResult = {
+        inserted: 0,
+        total: 0,
+        meta: 0,
+        crm: 0,
+        errors: [e instanceof Error ? e.message : 'sync failed'],
+      }
+    }
+    try {
+      const sendRes = await fetch(eventsEdgeUrl('send-pending-confirmations'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,12 +290,17 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         },
         body: JSON.stringify({ event_id: id }),
       })
-    } catch {
-      /* non bloquant */
+      sendResult = (await sendRes.json().catch(() => ({}))) as typeof sendResult
+    } catch (e) {
+      sendResult = {
+        success: false,
+        sent: 0,
+        message: e instanceof Error ? e.message : 'send failed',
+      }
     }
   }
 
-  return NextResponse.json({ event })
+  return NextResponse.json({ event, sync: syncResult, send: sendResult })
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {

@@ -66,10 +66,12 @@ type Detail = {
     first_name: string
     last_name: string
     email: string
-    created_at: string
+    created_at: string | null
     checked_in?: boolean | null
     qr_code?: string | null
+    source?: 'crm' | 'meta' | 'events'
   }>
+  attendee_counts?: { total: number; crm: number; meta: number; events: number }
   staff: Array<{ id: string; first_name: string; last_name: string; email: string }>
   type: { short: string; label: string; staff: boolean; comms: boolean; checkin: boolean }
   staff_url: string | null
@@ -239,6 +241,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }, [evForDefaults, data?.event?.brief, data?.event?.brand, data?.event?.zoom_join_url, emailStep, emailBodyValue, typeEdit])
 
   async function setStatus(status: 'published' | 'draft') {
+    if (status === 'published' && typeEdit === 'webinaire' && !(zoomEdit.trim() || data?.event?.zoom_join_url)) {
+      setToast('Impossible de publier un webinaire sans lien Zoom. Ajoutez le lien Zoom d’abord.')
+      return
+    }
     setBusy(true)
     try {
       const res = await fetch(`/api/events-studio/events/${id}`, {
@@ -249,7 +255,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
-      setToast(status === 'published' ? 'Événement publié' : 'Repassé en brouillon')
+      if (status === 'published') {
+        const sent = json.send?.sent
+        const synced = json.sync?.inserted
+        const total = json.sync?.total
+        const parts = ['Événement publié']
+        if (typeof synced === 'number' && synced > 0) {
+          parts.push(`${synced} inscrit(s) synchronisé(s)`)
+        }
+        if (typeof total === 'number') parts.push(`${total} au total`)
+        if (typeof sent === 'number') {
+          parts.push(sent > 0 ? `${sent} confirmation(s) envoyée(s)` : 'aucune confirmation à envoyer')
+        } else if (json.send?.message) {
+          parts.push(String(json.send.message))
+        }
+        setToast(parts.join(' · '))
+      } else {
+        setToast('Repassé en brouillon')
+      }
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -489,6 +512,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const showComms = typeCfg.comms
   const showCheckin = typeCfg.checkin
   const cap = data?.capacity
+  const hasZoom = Boolean((zoomEdit || ev?.zoom_join_url || '').trim())
+  const zoomBlockPublish = typeEdit === 'webinaire' && !hasZoom
+  const attendeeCounts = data?.attendee_counts
+  const inscriptionTotal = attendeeCounts?.total ?? cap?.registered_count ?? data?.registrations.length ?? 0
   const inputStyle: CSSProperties = {
     width: '100%',
     padding: '10px 12px',
@@ -610,7 +637,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </a>
                 )}
                 {ev.status !== 'published' ? (
-                  <CrmV2Button variant="gold" disabled={busy} onClick={() => setStatus('published')}>
+                  <CrmV2Button
+                    variant="gold"
+                    disabled={busy || zoomBlockPublish}
+                    onClick={() => setStatus('published')}
+                    title={
+                      zoomBlockPublish
+                        ? 'Ajoutez un lien Zoom avant de publier ce webinaire'
+                        : undefined
+                    }
+                  >
                     <Rocket size={14} /> Publier
                   </CrmV2Button>
                 ) : (
@@ -637,6 +673,23 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 }}
               >
                 {typeCfg.label} — collecte CRM uniquement, aucune communication email/SMS à la publication.
+              </div>
+            )}
+
+            {zoomBlockPublish && (
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: '10px 14px',
+                  borderRadius: crmV2.radius,
+                  background: 'rgba(220, 38, 38, 0.08)',
+                  border: '1px solid rgba(220, 38, 38, 0.35)',
+                  fontSize: 13,
+                  color: crmV2.text,
+                }}
+              >
+                Webinaire : ajoutez un lien Zoom ci-dessous avant de pouvoir publier. Sans Zoom, les inscrits
+                ne pourraient pas rejoindre la session ni recevoir le bon lien dans les emails/SMS.
               </div>
             )}
 
@@ -711,12 +764,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               >
                 <div style={{ fontSize: 12, color: crmV2.textMuted }}>
                   {cap
-                    ? `Leads : ${cap.registered_count}${
+                    ? `Inscrits : ${inscriptionTotal}${
                         cap.max_capacity != null
-                          ? ` / ${cap.max_capacity} · ${cap.remaining ?? 0} restante(s)`
+                          ? ` / ${cap.max_capacity} · ${
+                              cap.max_capacity != null
+                                ? Math.max(0, cap.max_capacity - inscriptionTotal)
+                                : 0
+                            } restante(s)`
                           : ' · illimité'
+                      }${
+                        attendeeCounts
+                          ? ` (CRM ${attendeeCounts.crm} · Meta ${attendeeCounts.meta})`
+                          : ''
                       }`
-                    : 'Places leads optionnelles.'}
+                    : attendeeCounts
+                      ? `Inscrits : ${attendeeCounts.total} (CRM ${attendeeCounts.crm} · Meta ${attendeeCounts.meta})`
+                      : 'Places leads optionnelles.'}
                 </div>
                 <CrmV2Button variant="gold" disabled={busy} onClick={savePlaces}>
                   <Save size={14} /> Enregistrer
@@ -1268,36 +1331,57 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <CrmV2Card style={{ padding: 18 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={16} /> Inscriptions ({cap?.registered_count ?? data.registrations.length})
+                  <Users size={16} /> Inscriptions ({inscriptionTotal})
                 </div>
-                {data.registrations.length === 0 && (cap?.registered_count || 0) === 0 ? (
-                  <div style={{ fontSize: 13, color: crmV2.textMuted }}>Pas encore d’inscrits.</div>
-                ) : data.registrations.length === 0 ? (
-                  <div style={{ fontSize: 13, color: crmV2.textMuted }}>
-                    {cap?.registered_count} inscription(s) via le formulaire CRM.
+                {attendeeCounts && inscriptionTotal > 0 && (
+                  <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 10 }}>
+                    CRM {attendeeCounts.crm} · Meta {attendeeCounts.meta}
+                    {attendeeCounts.events > 0 ? ` · Events ${attendeeCounts.events}` : ''}
                   </div>
+                )}
+                {data.registrations.length === 0 ? (
+                  <div style={{ fontSize: 13, color: crmV2.textMuted }}>Pas encore d’inscrits.</div>
                 ) : (
-                  <div style={{ display: 'grid', gap: 6, maxHeight: 260, overflow: 'auto' }}>
-                    {data.registrations.slice(0, 40).map((r) => (
+                  <div style={{ display: 'grid', gap: 6, maxHeight: 360, overflow: 'auto' }}>
+                    {data.registrations.map((r) => (
                       <div
                         key={r.id}
                         style={{ fontSize: 13, borderBottom: `1px solid ${crmV2.border}`, paddingBottom: 6 }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                           <strong>
                             {r.first_name} {r.last_name}
                           </strong>
-                          {showCheckin && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: r.checked_in ? crmV2.success : crmV2.textFaint,
-                              }}
-                            >
-                              {r.checked_in ? 'Présent' : '—'}
-                            </span>
-                          )}
+                          <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {r.source && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  color:
+                                    r.source === 'meta'
+                                      ? '#1877F2'
+                                      : r.source === 'crm'
+                                        ? crmV2.gold
+                                        : crmV2.textFaint,
+                                }}
+                              >
+                                {r.source === 'meta' ? 'Meta' : r.source === 'crm' ? 'CRM' : 'Events'}
+                              </span>
+                            )}
+                            {showCheckin && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: r.checked_in ? crmV2.success : crmV2.textFaint,
+                                }}
+                              >
+                                {r.checked_in ? 'Présent' : '—'}
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <div style={{ fontSize: 11, color: crmV2.textFaint }}>{r.email}</div>
                       </div>
@@ -1323,7 +1407,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </CrmV2Card>
               ) : (
                 <CrmV2Card style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8 }}>Zoom / visio</div>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    Zoom / visio{typeEdit === 'webinaire' ? ' (obligatoire)' : ''}
+                  </div>
+                  {typeEdit === 'webinaire' && !hasZoom && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: crmV2.danger,
+                        marginBottom: 8,
+                        padding: '8px 10px',
+                        borderRadius: crmV2.radius,
+                        background: 'rgba(220, 38, 38, 0.08)',
+                        border: '1px solid rgba(220, 38, 38, 0.25)',
+                      }}
+                    >
+                      Publication bloquée tant qu’aucun lien Zoom n’est enregistré.
+                    </div>
+                  )}
                   <input
                     style={{ ...inputStyle, marginBottom: 10 }}
                     value={zoomEdit}
