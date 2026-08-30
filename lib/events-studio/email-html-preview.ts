@@ -120,7 +120,7 @@ function qrBlk() {
 }
 
 function zoomSoonBlk() {
-  return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Visioconférence Zoom</p><p style="font-size:15px;color:#FFF;margin:0;line-height:1.5;">Le lien de connexion Zoom vous sera communiqué avant le webinaire.<br>Aucun QR code n'est nécessaire.</p></div>`
+  return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Visioconférence Zoom</p><p style="font-size:15px;color:#FFF;margin:0;line-height:1.5;">Le lien de connexion Zoom vous sera communiqué avant le webinaire.</p></div>`
 }
 
 /** Accès : Zoom pour webinaire, QR uniquement pour les événements physiques (JPO). */
@@ -169,7 +169,7 @@ function confEmail(ev: PreviewEvent, customBody: string) {
   const tip = vis
     ? ev.zoom_join_url
       ? 'Gardez le <strong style="color:#1C2436;">lien de connexion</strong> ci-dessus à portée de main pour le jour J.'
-      : 'Le <strong style="color:#1C2436;">lien Zoom</strong> vous sera envoyé avant le webinaire — aucun QR code n\'est nécessaire.'
+      : 'Le <strong style="color:#1C2436;">lien Zoom</strong> vous sera envoyé avant le webinaire.'
     : 'Astuce : faites une <strong style="color:#1C2436;">capture d\'écran</strong> du QR code pour y accéder facilement.'
   const heroSub = customBody.trim()
     ? esc(customBody).replace(/\{prenom\}/g, `<strong style="color:${b.accent};">Jean</strong>`)
