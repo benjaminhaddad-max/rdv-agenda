@@ -383,10 +383,8 @@ export async function countRegisteredByEventIds(
   }
 
   for (const id of eventIds) {
-    // Après sync, registrations = source de vérité ; sinon leads formulaires (brouillon)
-    const regs = regCounts[id] || 0
-    const leads = formLeadCounts[id] || 0
-    out[id] = regs > 0 ? regs : leads
+    // Max entre registrations syncées et leads formulaires (info live avant/après sync)
+    out[id] = Math.max(regCounts[id] || 0, formLeadCounts[id] || 0)
   }
   return out
 }
