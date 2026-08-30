@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     max_capacity: body.max_capacity ? parseInt(String(body.max_capacity), 10) : null,
     status,
     hubspot_property_name: body.hubspot_property_name?.trim() || null,
-    sms_factor_enabled: noComms ? false : !!body.sms_factor_enabled,
+    sms_factor_enabled: noComms ? false : body.sms_factor_enabled !== undefined ? !!body.sms_factor_enabled : true,
     sms_sender:
       body.sms_sender?.trim() ||
       (brand === 'edumove' ? 'EDUMOVE' : brand === 'medibox' ? 'MEDIBOX' : 'DIPLOMA'),
