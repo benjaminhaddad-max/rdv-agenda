@@ -194,6 +194,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     )
   }
 
+  // À la publication : activer les SMS si l’événement a des communications
+  if (patch.status === 'published' && eventHasComms({ ...current, event_type: nextType })) {
+    patch.sms_factor_enabled = true
+  }
+
   // Webinaire : dès qu’un Zoom est enregistré, injecter le lien dans J-1 / Jour J
   const zoomChanged =
     typeof body.zoom_join_url === 'string' &&
