@@ -67,19 +67,32 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const staffNeeded = parseStaffNeeded(event.description)
   const staffCount = (staff || []).length
+  const type = eventTypeOf(event)
+  const checkedIn = (registrations || []).filter((r) => r.checked_in).length
 
   return NextResponse.json({
     event,
     forms: formsEnriched,
     registrations: registrations || [],
     staff: staff || [],
-    type: eventTypeOf(event),
+    type,
     capacity,
     staff_needed: staffNeeded,
     staff_remaining: staffNeeded != null ? Math.max(0, staffNeeded - staffCount) : null,
     staff_full: staffNeeded != null && staffCount >= staffNeeded,
-    staff_url: eventTypeOf(event).staff
-      ? `https://hub.diploma-sante.fr/events-studio/?staff=${id}`
+    staff_url: type.staff ? `https://hub.diploma-sante.fr/events-studio/?staff=${id}` : null,
+    studio_url: `https://hub.diploma-sante.fr/events-studio/#event/${id}`,
+    scanner_url: type.checkin ? `https://hub.diploma-sante.fr/events-studio/#scan/${id}` : null,
+    checkin_stats: type.checkin
+      ? {
+          registered: (registrations || []).length,
+          present: checkedIn,
+          absent: Math.max(0, (registrations || []).length - checkedIn),
+          rate:
+            (registrations || []).length > 0
+              ? Math.round((checkedIn / (registrations || []).length) * 100)
+              : 0,
+        }
       : null,
   })
 }
@@ -119,28 +132,67 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     patch.description = setStaffNeededInDescription(baseDesc, Number.isFinite(n as number) ? (n as number) : null)
   }
   if (typeof body.event_type === 'string') {
-    const id = body.event_type as EventTypeId
-    if (id === 'jpo' || id === 'salon' || id === 'webinaire') {
-      patch.event_type = id
-      patch.article = EVENT_TYPES[id].article
+    const typeId = body.event_type as EventTypeId
+    if (typeId === 'jpo' || typeId === 'salon' || typeId === 'webinaire') {
+      patch.event_type = typeId
+      patch.article = EVENT_TYPES[typeId].article
     }
   }
+  if (body.custom_sms !== undefined) {
+    patch.custom_sms =
+      body.custom_sms && typeof body.custom_sms === 'object' && !Array.isArray(body.custom_sms)
+        ? body.custom_sms
+        : null
+  }
+  if (body.custom_emails !== undefined) {
+    patch.custom_emails =
+      body.custom_emails && typeof body.custom_emails === 'object' && !Array.isArray(body.custom_emails)
+        ? body.custom_emails
+        : null
+  }
 
-  if (Object.keys(patch).length === 0) {
+  const hasFormsUpdate = Array.isArray(body.forms)
+  if (Object.keys(patch).length === 0 && !hasFormsUpdate) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
-  const { data: event, error } = await db.from('events').update(patch).eq('id', id).select().single()
-  if (error) {
-    const needsKey = error.code === '42501' || /row-level security/i.test(error.message || '')
-    return NextResponse.json(
-      {
-        error: needsKey
-          ? 'Écriture Events refusée (RLS). Configurez EVENTS_SUPABASE_SERVICE_ROLE_KEY.'
-          : error.message,
-      },
-      { status: needsKey ? 503 : 500 },
-    )
+  let event = current
+  if (Object.keys(patch).length > 0) {
+    const { data: updated, error } = await db.from('events').update(patch).eq('id', id).select().single()
+    if (error) {
+      const needsKey = error.code === '42501' || /row-level security/i.test(error.message || '')
+      return NextResponse.json(
+        {
+          error: needsKey
+            ? 'Écriture Events refusée (RLS). Configurez EVENTS_SUPABASE_SERVICE_ROLE_KEY.'
+            : error.message,
+        },
+        { status: needsKey ? 503 : 500 },
+      )
+    }
+    event = updated
+  }
+
+  if (hasFormsUpdate) {
+    const forms = (body.forms as Array<{ hubspot_form_id?: string; form_name?: string; form_type?: string }>)
+      .map((f) => ({
+        event_id: id,
+        hubspot_form_id: String(f.hubspot_form_id || '').trim(),
+        form_name: String(f.form_name || f.hubspot_form_id || '').trim() || 'Formulaire',
+        form_type: f.form_type === 'meta' ? 'meta' : 'crm',
+      }))
+      .filter((f) => f.hubspot_form_id)
+
+    const { error: delErr } = await db.from('event_forms').delete().eq('event_id', id)
+    if (delErr) {
+      return NextResponse.json({ error: delErr.message }, { status: 500 })
+    }
+    if (forms.length > 0) {
+      const { error: insErr } = await db.from('event_forms').insert(forms)
+      if (insErr) {
+        return NextResponse.json({ error: insErr.message }, { status: 500 })
+      }
+    }
   }
 
   // Publish side-effect: send confirmations if has comms
