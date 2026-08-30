@@ -1,10 +1,11 @@
 /**
  * GET /api/cron/events-webinar-sms
  *
- * SMS « 10 min avant » pour les webinaires Events (j-0-10min).
+ * SMS « X min avant » pour les webinaires Events (j-0-10min).
  * Planifié toutes les 5 minutes.
  *
- * Fenêtre : démarrage dans [+8 min, +12 min].
+ * Fenêtre : démarrage dans [minutes_before − 2, minutes_before + 3] (défaut 10).
+ * Horaires custom via custom_emails._schedule.j-0-10min.
  * Déduplication via Events.sent_reminders (reminder_type=j-0-10min, channel=sms).
  */
 
@@ -12,9 +13,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { defaultSmsBody } from '@/lib/events-studio/comms-defaults'
-import { sendSms } from '@/lib/smsfactor'
+import { extractCommsSchedule, minutesBeforeForStep } from '@/lib/events-studio/comms-schedule'
+import { sendSms } from '@/lib/smsform'
 
 const REMINDER_TYPE = 'j-0-10min'
+/** Couvre jusqu’à 3 h avant le début (minutes_before max raisonnable). */
+const LOOKAHEAD_MS = 3 * 60 * 60 * 1000
 
 function personalize(template: string, firstName: string): string {
   const prenom = (firstName || '').trim() || 'Bonjour'
@@ -26,18 +30,20 @@ export async function GET(req: NextRequest) {
   if (!cronAuth.ok) return cronAuth.response
 
   const now = Date.now()
-  const winStart = new Date(now + 8 * 60 * 1000).toISOString()
-  const winEnd = new Date(now + 12 * 60 * 1000).toISOString()
+  const horizonEnd = new Date(now + LOOKAHEAD_MS).toISOString()
+  const horizonStart = new Date(now + 1 * 60 * 1000).toISOString()
 
   const db = createEventsClient()
 
   const { data: events, error: evErr } = await db
     .from('events')
-    .select('id, name, article, brand, event_type, event_date, event_time_end, zoom_join_url, custom_sms, sms_sender, sms_push_type, sms_stop, status')
+    .select(
+      'id, name, article, brand, event_type, event_date, event_time_end, zoom_join_url, custom_sms, custom_emails, sms_sender, sms_push_type, sms_stop, status',
+    )
     .eq('status', 'published')
     .eq('event_type', 'webinaire')
-    .gte('event_date', winStart)
-    .lte('event_date', winEnd)
+    .gte('event_date', horizonStart)
+    .lte('event_date', horizonEnd)
 
   if (evErr) {
     return NextResponse.json({ error: evErr.message }, { status: 500 })
@@ -45,9 +51,35 @@ export async function GET(req: NextRequest) {
 
   let sent = 0
   let skipped = 0
-  const details: Array<{ event_id: string; name: string; sent: number; skipped: number }> = []
+  const details: Array<{
+    event_id: string
+    name: string
+    minutes_before: number
+    in_window: boolean
+    sent: number
+    skipped: number
+  }> = []
 
   for (const ev of events || []) {
+    const schedule = extractCommsSchedule(ev.custom_emails)
+    const minutesBefore = minutesBeforeForStep(schedule, REMINDER_TYPE)
+    const eventAt = new Date(ev.event_date).getTime()
+    const sendAt = eventAt - minutesBefore * 60 * 1000
+    // Fenêtre large de ±2.5 min autour de l’instant cible (cron toutes les 5 min)
+    const inWindow = now >= sendAt - 2 * 60 * 1000 && now <= sendAt + 3 * 60 * 1000
+
+    if (!inWindow) {
+      details.push({
+        event_id: ev.id,
+        name: ev.name,
+        minutes_before: minutesBefore,
+        in_window: false,
+        sent: 0,
+        skipped: 0,
+      })
+      continue
+    }
+
     const { data: regs } = await db
       .from('registrations')
       .select('id, first_name, phone, email')
@@ -55,7 +87,14 @@ export async function GET(req: NextRequest) {
       .limit(5000)
 
     if (!regs?.length) {
-      details.push({ event_id: ev.id, name: ev.name, sent: 0, skipped: 0 })
+      details.push({
+        event_id: ev.id,
+        name: ev.name,
+        minutes_before: minutesBefore,
+        in_window: true,
+        sent: 0,
+        skipped: 0,
+      })
       continue
     }
 
@@ -132,12 +171,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    details.push({ event_id: ev.id, name: ev.name, sent: eventSent, skipped: eventSkipped })
+    details.push({
+      event_id: ev.id,
+      name: ev.name,
+      minutes_before: minutesBefore,
+      in_window: true,
+      sent: eventSent,
+      skipped: eventSkipped,
+    })
   }
 
   return NextResponse.json({
     success: true,
-    window: { start: winStart, end: winEnd },
+    horizon: { start: horizonStart, end: horizonEnd },
     events: (events || []).length,
     sent,
     skipped,

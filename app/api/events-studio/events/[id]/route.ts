@@ -3,6 +3,7 @@ import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
+import { attachCommsSchedule, extractCommsSchedule } from '@/lib/events-studio/comms-schedule'
 import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
 import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
 import {
@@ -29,16 +30,20 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if (eventHasComms(event)) {
     const merged = mergeCommsWithDefaults(event, event.custom_emails, event.custom_sms)
     if (merged.needsPersist) {
+      const emailsWithSchedule = attachCommsSchedule(
+        merged.emails,
+        extractCommsSchedule(event.custom_emails),
+      )
       const { data: updated } = await db
         .from('events')
-        .update({ custom_emails: merged.emails, custom_sms: merged.sms })
+        .update({ custom_emails: emailsWithSchedule, custom_sms: merged.sms })
         .eq('id', id)
         .select('*')
         .single()
       if (updated) {
         Object.assign(event, updated)
       } else {
-        event.custom_emails = merged.emails
+        event.custom_emails = emailsWithSchedule
         event.custom_sms = merged.sms
       }
     }
@@ -201,7 +206,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       zoom_join_url: nextZoom,
     }
     const merged = mergeCommsWithDefaults(evForComms, current.custom_emails, current.custom_sms)
-    patch.custom_emails = merged.emails
+    patch.custom_emails = attachCommsSchedule(
+      merged.emails,
+      extractCommsSchedule(current.custom_emails),
+    )
     patch.custom_sms = merged.sms
   }
   if (body.max_capacity !== undefined) {

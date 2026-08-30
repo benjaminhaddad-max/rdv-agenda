@@ -264,7 +264,7 @@ function webinarBodyNeedsZoomRefresh(
  */
 export function mergeCommsWithDefaults(
   ev: CommsEventLike,
-  customEmails?: Record<string, EmailValue | { subject?: string; body?: string }> | null,
+  customEmails?: Record<string, EmailValue | { subject?: string; body?: string } | unknown> | null,
   customSms?: Record<string, string> | null,
   opts?: { applyFixes?: boolean },
 ): { emails: Record<string, EmailValue>; sms: Record<string, string>; needsPersist: boolean } {
@@ -280,10 +280,13 @@ export function mergeCommsWithDefaults(
   let forcedFix = false
 
   for (const [k, v] of Object.entries(customEmails || {})) {
-    if (v && (v.subject?.trim() || v.body?.trim())) {
+    // Horaires d’envoi (_schedule) — gérés à part, pas un template email
+    if (k === '_schedule' || !v || typeof v !== 'object' || Array.isArray(v)) continue
+    const emailVal = v as EmailValue
+    if (emailVal && (emailVal.subject?.trim() || emailVal.body?.trim())) {
       hasAnyCustomEmail = true
-      const body = v.body?.trim() || ''
-      const subject = v.subject?.trim() || ''
+      const body = emailVal.body?.trim() || ''
+      const subject = emailVal.subject?.trim() || ''
       if (
         applyFixes &&
         ((vis && (mentionsQr(body) || mentionsQr(subject))) ||
