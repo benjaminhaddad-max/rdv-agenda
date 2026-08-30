@@ -35,110 +35,168 @@ import { formatEventSchedule } from '@/lib/events-studio/event-meta'
 
 const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
 
-function CommsScheduleEditor({
+function ScheduleRowControls({
+  entry,
   stepId,
+  onChange,
+  inputStyle,
+}: {
+  entry: CommsScheduleEntry
+  stepId: string
+  onChange: (stepId: string, entry: CommsScheduleEntry) => void
+  inputStyle: CSSProperties
+}) {
+  const fieldStyle: CSSProperties = {
+    ...inputStyle,
+    marginTop: 0,
+    padding: '6px 8px',
+    fontSize: 13,
+    fontWeight: 600,
+    background: '#fff',
+    border: `1px solid ${crmV2.goldBorder}`,
+  }
+
+  if (entry.mode === 'immediate') {
+    return <span style={{ fontSize: 12, color: crmV2.textMuted }}>À l’inscription / publication</span>
+  }
+
+  if (entry.mode === 'days_before') {
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: crmV2.textMuted }}>J−</span>
+        <input
+          type="number"
+          min={0}
+          max={30}
+          aria-label="Jours avant"
+          style={{ ...fieldStyle, width: 64 }}
+          value={entry.days}
+          onChange={(e) => {
+            const days = Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0))
+            onChange(stepId, { mode: 'days_before', days, time: entry.time })
+          }}
+        />
+        <span style={{ fontSize: 12, color: crmV2.textMuted }}>à</span>
+        <input
+          type="time"
+          aria-label="Heure Paris"
+          style={{ ...fieldStyle, width: 118 }}
+          value={entry.time}
+          onChange={(e) =>
+            onChange(stepId, { mode: 'days_before', days: entry.days, time: e.target.value || '08:00' })
+          }
+        />
+      </div>
+    )
+  }
+
+  if (entry.mode === 'day_of') {
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: crmV2.textMuted }}>Jour J à</span>
+        <input
+          type="time"
+          aria-label="Heure Paris"
+          style={{ ...fieldStyle, width: 118 }}
+          value={entry.time}
+          onChange={(e) => onChange(stepId, { mode: 'day_of', time: e.target.value || '08:00' })}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input
+        type="number"
+        min={1}
+        max={180}
+        aria-label="Minutes avant"
+        style={{ ...fieldStyle, width: 72 }}
+        value={entry.minutes}
+        onChange={(e) => {
+          const minutes = Math.max(1, Math.min(180, parseInt(e.target.value, 10) || 1))
+          onChange(stepId, { mode: 'minutes_before', minutes })
+        }}
+      />
+      <span style={{ fontSize: 12, color: crmV2.textMuted }}>min avant le début</span>
+    </div>
+  )
+}
+
+function CommsScheduleTable({
+  steps,
   eventDate,
   schedule,
   onChange,
   inputStyle,
 }: {
-  stepId: string
+  steps: Array<{ id: string; label: string }>
   eventDate: string
   schedule: CommsScheduleMap
   onChange: (stepId: string, entry: CommsScheduleEntry) => void
   inputStyle: CSSProperties
 }) {
-  const entry = resolveSchedule(schedule, stepId)
-  const absolute = formatScheduleAbsolute(eventDate, entry)
-
   return (
     <div
       style={{
-        marginTop: 10,
-        marginBottom: 4,
-        padding: '10px 12px',
+        marginBottom: 14,
         borderRadius: crmV2.radius,
-        border: `1px solid ${crmV2.border}`,
-        background: crmV2.bg,
+        border: `1.5px solid ${crmV2.goldBorder}`,
+        background: crmV2.goldSoft,
+        overflow: 'hidden',
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 6 }}>
-        Horaire d’envoi
+      <div
+        style={{
+          padding: '10px 14px',
+          borderBottom: `1px solid ${crmV2.goldBorder}`,
+          fontSize: 13,
+          fontWeight: 700,
+          color: crmV2.text,
+        }}
+      >
+        Horaires d’envoi — modifiez ici, puis enregistrez
       </div>
-      <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 8 }}>
-        {formatScheduleLabel(entry)}
-        {absolute ? (
-          <span style={{ color: crmV2.textFaint }}>
-            {' '}
-            → {absolute}
-          </span>
-        ) : null}
-      </div>
-
-      {entry.mode === 'immediate' ? (
-        <div style={{ fontSize: 11, color: crmV2.textFaint }}>
-          Envoyé automatiquement à l’inscription ou à la publication.
-        </div>
-      ) : null}
-
-      {entry.mode === 'days_before' ? (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <label style={{ fontSize: 11, color: crmV2.textMuted }}>
-            Jours avant
-            <input
-              type="number"
-              min={0}
-              max={30}
-              style={{ ...inputStyle, marginTop: 4, width: 72 }}
-              value={entry.days}
-              onChange={(e) => {
-                const days = Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0))
-                onChange(stepId, { mode: 'days_before', days, time: entry.time })
+      <div style={{ background: '#fff' }}>
+        {steps.map((s, idx) => {
+          const entry = resolveSchedule(schedule, s.id)
+          const absolute = formatScheduleAbsolute(eventDate, entry)
+          return (
+            <div
+              key={s.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(110px, 0.9fr) minmax(180px, 1.2fr) minmax(0, 1.4fr)',
+                gap: 12,
+                alignItems: 'center',
+                padding: '10px 14px',
+                borderTop: idx === 0 ? 'none' : `1px solid ${crmV2.border}`,
               }}
-            />
-          </label>
-          <label style={{ fontSize: 11, color: crmV2.textMuted }}>
-            Heure (Paris)
-            <input
-              type="time"
-              style={{ ...inputStyle, marginTop: 4, width: 120 }}
-              value={entry.time}
-              onChange={(e) =>
-                onChange(stepId, { mode: 'days_before', days: entry.days, time: e.target.value || '08:00' })
-              }
-            />
-          </label>
-        </div>
-      ) : null}
-
-      {entry.mode === 'day_of' ? (
-        <label style={{ fontSize: 11, color: crmV2.textMuted, display: 'inline-block' }}>
-          Heure (Paris)
-          <input
-            type="time"
-            style={{ ...inputStyle, marginTop: 4, width: 120, display: 'block' }}
-            value={entry.time}
-            onChange={(e) => onChange(stepId, { mode: 'day_of', time: e.target.value || '08:00' })}
-          />
-        </label>
-      ) : null}
-
-      {entry.mode === 'minutes_before' ? (
-        <label style={{ fontSize: 11, color: crmV2.textMuted, display: 'inline-block' }}>
-          Minutes avant le début
-          <input
-            type="number"
-            min={1}
-            max={180}
-            style={{ ...inputStyle, marginTop: 4, width: 88, display: 'block' }}
-            value={entry.minutes}
-            onChange={(e) => {
-              const minutes = Math.max(1, Math.min(180, parseInt(e.target.value, 10) || 1))
-              onChange(stepId, { mode: 'minutes_before', minutes })
-            }}
-          />
-        </label>
-      ) : null}
+              className="event-schedule-row"
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{s.label}</div>
+              <ScheduleRowControls
+                entry={entry}
+                stepId={s.id}
+                onChange={onChange}
+                inputStyle={inputStyle}
+              />
+              <div style={{ fontSize: 11, color: crmV2.textMuted, lineHeight: 1.35 }}>
+                {absolute || formatScheduleLabel(entry)}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <style>{`
+        @media (max-width: 720px) {
+          .event-schedule-row {
+            grid-template-columns: 1fr !important;
+            gap: 6px !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
@@ -1265,43 +1323,39 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <CrmV2Button variant={commsTab === 'sms' ? 'gold' : 'secondary'} onClick={() => setCommsTab('sms')}>
                     SMS
                   </CrmV2Button>
-                  <span style={{ fontSize: 12, color: crmV2.textMuted }}>
-                    {commsTab === 'sms'
-                      ? typeEdit === 'webinaire'
-                        ? 'Étapes SMS webinaire : confirmation, rappels, 5 min avant. Horaires modifiables par étape.'
-                        : 'Modifiez textes et horaires SMS, puis enregistrez.'
-                      : 'Modifiez textes et horaires d’envoi, puis enregistrez.'}
-                  </span>
                 </div>
+
+                {ev?.event_date ? (
+                  <CommsScheduleTable
+                    steps={commsTab === 'email' ? emailSteps : smsSteps}
+                    eventDate={ev.event_date}
+                    schedule={scheduleDraft}
+                    onChange={setStepSchedule}
+                    inputStyle={inputStyle}
+                  />
+                ) : null}
 
                 {commsTab === 'email' ? (
                   <>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                      {emailSteps.map((s) => {
-                        const sched = resolveSchedule(scheduleDraft, s.id)
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => setEmailStep(s.id)}
-                            style={{
-                              border: `1px solid ${emailStep === s.id ? crmV2.goldBorder : crmV2.border}`,
-                              background: emailStep === s.id ? crmV2.goldSoft : crmV2.bg,
-                              borderRadius: crmV2.radiusPill,
-                              padding: '5px 10px',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <div>{s.label}</div>
-                            <div style={{ fontSize: 10, fontWeight: 500, color: crmV2.textMuted, marginTop: 2 }}>
-                              {formatScheduleLabel(sched)}
-                            </div>
-                          </button>
-                        )
-                      })}
+                      {emailSteps.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setEmailStep(s.id)}
+                          style={{
+                            border: `1px solid ${emailStep === s.id ? crmV2.goldBorder : crmV2.border}`,
+                            background: emailStep === s.id ? crmV2.goldSoft : crmV2.bg,
+                            borderRadius: crmV2.radiusPill,
+                            padding: '5px 10px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
                     </div>
 
                     <div
@@ -1342,18 +1396,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           }
                           placeholder="Texte du mail (utilisez {prenom})"
                         />
-                        {ev?.event_date ? (
-                          <CommsScheduleEditor
-                            stepId={emailStep}
-                            eventDate={ev.event_date}
-                            schedule={scheduleDraft}
-                            onChange={setStepSchedule}
-                            inputStyle={inputStyle}
-                          />
-                        ) : null}
                         <div style={{ marginTop: 8, fontSize: 11, color: crmV2.textFaint, lineHeight: 1.45 }}>
-                          L’aperçu à droite se met à jour en direct. Cliquez « Enregistrer les communications » pour
-                          garder textes et horaires. « Régénérer » remet les textes par défaut (pas les horaires).
+                          L’aperçu à droite se met à jour en direct. Les horaires se règlent dans le tableau en haut.
+                          « Enregistrer » sauvegarde textes + horaires.
                         </div>
                       </div>
 
@@ -1402,31 +1447,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 ) : (
                   <>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                      {smsSteps.map((s) => {
-                        const sched = resolveSchedule(scheduleDraft, s.id)
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => setSmsStep(s.id)}
-                            style={{
-                              border: `1px solid ${smsStep === s.id ? crmV2.goldBorder : crmV2.border}`,
-                              background: smsStep === s.id ? crmV2.goldSoft : crmV2.bg,
-                              borderRadius: crmV2.radiusPill,
-                              padding: '5px 10px',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <div>{s.label}</div>
-                            <div style={{ fontSize: 10, fontWeight: 500, color: crmV2.textMuted, marginTop: 2 }}>
-                              {formatScheduleLabel(sched)}
-                            </div>
-                          </button>
-                        )
-                      })}
+                      {smsSteps.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSmsStep(s.id)}
+                          style={{
+                            border: `1px solid ${smsStep === s.id ? crmV2.goldBorder : crmV2.border}`,
+                            background: smsStep === s.id ? crmV2.goldSoft : crmV2.bg,
+                            borderRadius: crmV2.radiusPill,
+                            padding: '5px 10px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
                     </div>
                     <textarea
                       style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
@@ -1435,17 +1473,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       placeholder="Texte SMS (utilisez {prenom} pour personnaliser)"
                     />
                     <div style={{ marginTop: 6, fontSize: 11, color: crmV2.textFaint }}>
-                      {smsValue.length} caractères
+                      {smsValue.length} caractères — horaires dans le tableau en haut
                     </div>
-                    {ev?.event_date ? (
-                      <CommsScheduleEditor
-                        stepId={smsStep}
-                        eventDate={ev.event_date}
-                        schedule={scheduleDraft}
-                        onChange={setStepSchedule}
-                        inputStyle={inputStyle}
-                      />
-                    ) : null}
                   </>
                 )}
 
