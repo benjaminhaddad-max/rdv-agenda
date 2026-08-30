@@ -1292,6 +1292,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     >
                       Exp : {brandSender(ev.brand)}
                     </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                        background: ev.sms_factor_enabled ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.12)',
+                        color: crmV2.text,
+                      }}
+                    >
+                      SMS : {ev.sms_factor_enabled ? 'activés' : 'désactivés'}
+                    </span>
                     {data.studio_url && (
                       <a href={data.studio_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                         <CrmV2Button variant="ghost">

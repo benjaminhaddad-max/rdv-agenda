@@ -77,7 +77,7 @@ async function createOneFromDraft(draft: ImportDraftEvent): Promise<{
     max_capacity: null,
     status: 'draft',
     hubspot_property_name: null,
-    sms_factor_enabled: false,
+    sms_factor_enabled: !noComms,
     sms_sender: brand === 'edumove' ? 'EDUMOVE' : brand === 'medibox' ? 'MEDIBOX' : 'DIPLOMA',
     sms_push_type: 1,
     sms_stop: false,

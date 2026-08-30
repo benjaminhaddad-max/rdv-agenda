@@ -553,7 +553,7 @@
             <!-- SMS Factor Toggle -->
             <div class="md:col-span-2 mt-2">
               <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" id="evt-sms-factor" class="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" onchange="toggleSmsConfig()">
+                <input type="checkbox" id="evt-sms-factor" checked class="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" onchange="toggleSmsConfig()">
                 <div>
                   <span class="text-sm font-medium text-gray-700">Activer les SMS (SMS Factor)</span>
                   <p class="text-xs text-gray-400">Envoie un SMS de confirmation + rappels automatiques</p>
@@ -1427,15 +1427,21 @@ function updateFormForType() {
   const aiSection = document.getElementById('evt-comms-ai-section');
   if (aiSection) aiSection.style.display = hideBriefAi ? 'none' : '';
 
-  // Bloc SMS Factor
+  // Bloc SMS Factor — toujours activé pour les types avec communications
   const smsFactorEl = document.getElementById('evt-sms-factor');
-  const smsBlock = smsFactorEl ? smsFactorEl.closest('.md\\:col-span-2') : null;
+  const smsBlock = smsFactorEl ? smsFactorEl.closest('.md\:col-span-2') : null;
   if (smsBlock) {
     smsBlock.style.display = noComms ? 'none' : '';
-    if (noComms && smsFactorEl) {
-      smsFactorEl.checked = false;
-      const smsConfig = document.getElementById('sms-config');
-      if (smsConfig) smsConfig.classList.add('hidden');
+    if (smsFactorEl) {
+      if (noComms) {
+        smsFactorEl.checked = false;
+        const smsConfig = document.getElementById('sms-config');
+        if (smsConfig) smsConfig.classList.add('hidden');
+      } else {
+        smsFactorEl.checked = true;
+        const smsConfig = document.getElementById('sms-config');
+        if (smsConfig) smsConfig.classList.remove('hidden');
+      }
     }
   }
 
@@ -2189,8 +2195,8 @@ function resetEventForm() {
   document.getElementById('evt-capacity').value = '';
   document.getElementById('evt-status').value = 'draft';
   document.getElementById('evt-hubspot-prop').value = '';
-  document.getElementById('evt-sms-factor').checked = false;
-  document.getElementById('sms-config').classList.add('hidden');
+  document.getElementById('evt-sms-factor').checked = true;
+  document.getElementById('sms-config').classList.remove('hidden');
   document.getElementById('evt-sms-sender').value = 'DIPLOMA';
   document.getElementById('evt-sms-push-type').value = '1';
   document.getElementById('evt-sms-stop').checked = false;
@@ -2396,7 +2402,7 @@ async function saveEvent() {
   const capacity = document.getElementById('evt-capacity').value;
   const status = document.getElementById('evt-status').value;
   const hubspotProp = isEdumoveWebinar ? '' : document.getElementById('evt-hubspot-prop').value.trim();
-  const smsFactorEnabled = noComms ? false : document.getElementById('evt-sms-factor').checked;
+  const smsFactorEnabled = !noComms; // toujours actif si communications
   const smsSender = document.getElementById('evt-sms-sender').value.trim()
     || (brand === 'edumove' ? 'EDUMOVE' : brand === 'medibox' ? 'MEDIBOX' : 'DIPLOMA');
   const smsPushType = parseInt(document.getElementById('evt-sms-push-type').value);

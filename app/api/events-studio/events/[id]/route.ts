@@ -194,8 +194,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     )
   }
 
-  // À la publication : activer les SMS si l’événement a des communications
-  if (patch.status === 'published' && eventHasComms({ ...current, event_type: nextType })) {
+  // Communications (JPO / webinaire) : SMS Factor toujours actif
+  if (eventHasComms({ ...current, event_type: nextType, ...patch })) {
     patch.sms_factor_enabled = true
   }
 
