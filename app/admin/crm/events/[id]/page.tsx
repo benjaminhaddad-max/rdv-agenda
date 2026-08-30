@@ -21,6 +21,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import { defaultEmailBody, defaultEmailSubject, defaultSmsBody, mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
 import { BRAND_CONFIG, EVENT_TYPES, eventTypeOf, type EventBrand, type EventTypeId } from '@/lib/events-studio/config'
+import { brandSender, buildEmailHtmlPreview } from '@/lib/events-studio/email-html-preview'
 import { formatEventSchedule } from '@/lib/events-studio/event-meta'
 
 const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
@@ -111,6 +112,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [locationEdit, setLocationEdit] = useState('')
   const [capacityEdit, setCapacityEdit] = useState('')
   const [staffNeededEdit, setStaffNeededEdit] = useState('')
+  const [zoomEdit, setZoomEdit] = useState('')
   const [typeEdit, setTypeEdit] = useState<EventTypeId>('salon')
 
   const [smsDraft, setSmsDraft] = useState<Record<string, string>>({})
@@ -137,6 +139,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setLocationEdit(json.event?.location || '')
       setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
       setStaffNeededEdit(json.staff_needed != null ? String(json.staff_needed) : '')
+      setZoomEdit(json.event?.zoom_join_url || '')
       const typeId = currentTypeId(json.event || {})
       setTypeEdit(typeId)
 
@@ -216,6 +219,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     (evForDefaults ? defaultEmailBody(evForDefaults, emailStep) : '')
   const smsValue =
     (smsDraft[smsStep] || '').trim() || (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
+
+  const emailHtmlPreview = useMemo(() => {
+    if (!evForDefaults) return ''
+    const brand = (data?.event?.brand || 'diploma') as EventBrand
+    const zoom =
+      data?.event?.zoom_join_url ||
+      (typeEdit === 'webinaire' ? BRAND_CONFIG[brand]?.defaultZoom || null : null)
+    return buildEmailHtmlPreview(
+      {
+        ...evForDefaults,
+        zoom_join_url: zoom || evForDefaults.zoom_join_url,
+        brief: data?.event?.brief,
+        brand,
+      },
+      emailStep,
+      emailBodyValue,
+    )
+  }, [evForDefaults, data?.event?.brief, data?.event?.brand, data?.event?.zoom_join_url, emailStep, emailBodyValue, typeEdit])
 
   async function setStatus(status: 'published' | 'draft') {
     setBusy(true)
@@ -1002,13 +1023,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Mail size={16} /> Communications (email & SMS)
                   </div>
-                  {data.studio_url && (
-                    <a href={data.studio_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                      <CrmV2Button variant="ghost">
-                        <ExternalLink size={14} /> Prévisualisation HTML Studio
-                      </CrmV2Button>
-                    </a>
-                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                        background: crmV2.goldSoft,
+                        color: crmV2.text,
+                      }}
+                    >
+                      Exp : {brandSender(ev.brand)}
+                    </span>
+                    {data.studio_url && (
+                      <a href={data.studio_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                        <CrmV2Button variant="ghost">
+                          <ExternalLink size={14} /> Ouvrir dans Studio
+                        </CrmV2Button>
+                      </a>
+                    )}
+                  </div>
                 </div>
                 {ev.brief && (
                   <div
@@ -1056,34 +1091,91 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         </button>
                       ))}
                     </div>
-                    <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                      Objet
-                    </label>
-                    <input
-                      style={{ ...inputStyle, marginBottom: 8 }}
-                      value={emailSubjectValue}
-                      onChange={(e) =>
-                        setEmailDraft((prev) => ({
-                          ...prev,
-                          [emailStep]: { ...prev[emailStep], subject: e.target.value },
-                        }))
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
+                        gap: 16,
+                        alignItems: 'start',
+                      }}
+                      className="event-comms-grid"
+                    >
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                          Objet
+                        </label>
+                        <input
+                          style={{ ...inputStyle, marginBottom: 8 }}
+                          value={emailSubjectValue}
+                          onChange={(e) =>
+                            setEmailDraft((prev) => ({
+                              ...prev,
+                              [emailStep]: { ...prev[emailStep], subject: e.target.value },
+                            }))
+                          }
+                          placeholder="Objet de l'email"
+                        />
+                        <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                          Intro (texte) — intégrée dans le HTML
+                        </label>
+                        <textarea
+                          style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
+                          value={emailBodyValue}
+                          onChange={(e) =>
+                            setEmailDraft((prev) => ({
+                              ...prev,
+                              [emailStep]: { ...prev[emailStep], body: e.target.value },
+                            }))
+                          }
+                          placeholder="Texte d’intro du mail (utilisez {prenom})"
+                        />
+                        <div style={{ marginTop: 8, fontSize: 11, color: crmV2.textFaint, lineHeight: 1.45 }}>
+                          Le mail complet inclut logo, en-tête, détails, brief, Zoom/QR et pied de page — comme dans Events Studio.
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 6,
+                          }}
+                        >
+                          <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>
+                            Aperçu HTML — {emailSteps.find((s) => s.id === emailStep)?.label || emailStep}
+                          </div>
+                          <div style={{ fontSize: 11, color: crmV2.textFaint }}>Objet : {emailSubjectValue}</div>
+                        </div>
+                        <div
+                          style={{
+                            border: `1px solid ${crmV2.border}`,
+                            borderRadius: crmV2.radius,
+                            overflow: 'hidden',
+                            background: '#F5F2EC',
+                            minHeight: 420,
+                          }}
+                        >
+                          <iframe
+                            title="Aperçu email HTML"
+                            srcDoc={emailHtmlPreview}
+                            style={{
+                              width: '100%',
+                              height: 520,
+                              border: 'none',
+                              background: '#F5F2EC',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <style>{`
+                      @media (max-width: 900px) {
+                        .event-comms-grid { grid-template-columns: 1fr !important; }
                       }
-                      placeholder="Objet de l'email"
-                    />
-                    <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                      Corps (texte)
-                    </label>
-                    <textarea
-                      style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }}
-                      value={emailBodyValue}
-                      onChange={(e) =>
-                        setEmailDraft((prev) => ({
-                          ...prev,
-                          [emailStep]: { ...prev[emailStep], body: e.target.value },
-                        }))
-                      }
-                      placeholder="Contenu de l'email…"
-                    />
+                    `}</style>
                   </>
                 ) : (
                   <>
