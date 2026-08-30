@@ -3,7 +3,7 @@
  * (public/events-studio/index.html : pvWrap / pvConfEmail / pvEmail).
  */
 
-import { defaultEmailBody, type CommsEventLike } from './comms-defaults'
+import { defaultEmailBody, evAvant, evName, evPour, evRef, type CommsEventLike } from './comms-defaults'
 import { eventUsesVisio, type EventBrand } from './config'
 
 type BrandTheme = {
@@ -59,24 +59,6 @@ function esc(str: string) {
     .replace(/"/g, '&quot;')
 }
 
-function ucfirst(s: string) {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
-}
-
-function evName(ev: PreviewEvent) {
-  return ev.name || ''
-}
-
-function evNom(ev: PreviewEvent) {
-  const a = ev.article || 'le'
-  const sep = a === "l'" ? '' : ' '
-  return a + sep + evName(ev)
-}
-
-function evPour(ev: PreviewEvent) {
-  return 'pour ' + evNom(ev)
-}
-
 function brandOf(ev: PreviewEvent): BrandTheme {
   const id = (ev.brand || 'diploma') as EventBrand
   return BRAND_THEME[id] || BRAND_THEME.diploma
@@ -100,15 +82,14 @@ function startTime(ev: PreviewEvent) {
 
 function dateLong(ev: PreviewEvent) {
   if (!ev.event_date) return ''
-  return ucfirst(
-    new Date(ev.event_date).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'Europe/Paris',
-    }),
-  )
+  const s = new Date(ev.event_date).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Europe/Paris',
+  })
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 }
 
 function visioBtn(url: string) {
@@ -203,12 +184,12 @@ function reminderEmail(ev: PreviewEvent, type: string, customBody: string) {
   )}</p>`
   const heroes: Record<string, [string, string]> = {
     'j-5': [
-      `Plus que <em style="font-style:italic;color:${b.accent};">5 jours</em><br>avant ${esc(evNom(ev))} !`,
+      `Plus que <em style="font-style:italic;color:${b.accent};">5 jours</em><br>${esc(evAvant(ev))} !`,
       `Nous avons hâte de vous retrouver !`,
     ],
     'j-3': [
       `<em style="font-style:italic;color:${b.accent};">J-3</em> — Préparez-vous !`,
-      `Plus que 3 jours avant ${esc(evNom(ev))} !`,
+      `Plus que 3 jours ${esc(evAvant(ev))} !`,
     ],
     'j-2': [
       `<em style="font-style:italic;color:${b.accent};">Après-demain,</em><br>c'est le jour J !`,
@@ -221,7 +202,7 @@ function reminderEmail(ev: PreviewEvent, type: string, customBody: string) {
     'j-0-matin': [`C'est <em style="font-style:italic;color:${b.accent};">aujourd'hui</em> !`, `Le grand jour est arrivé !`],
     'j-7': [
       `Plus qu'<em style="font-style:italic;color:${b.accent};">une semaine</em> !`,
-      `Le webinaire approche.`,
+      `${esc(evRef(ev, true))} approche.`,
     ],
     'j-0-10h': [`C'est <em style="font-style:italic;color:${b.accent};">ce soir</em> !`, `On vous attend.`],
     'j-0-18h25': [`Dans <em style="font-style:italic;color:${b.accent};">5 minutes</em> !`, `Rejoignez-nous.`],

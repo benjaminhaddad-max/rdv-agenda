@@ -314,7 +314,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     setBusy(true)
     try {
       const base = evForDefaults || { event_type: typeEdit }
-      const merged = mergeCommsWithDefaults(base, emailDraft, smsDraft)
+      // Sauvegarde les textes tels que modifiés (sans écraser les edits)
+      const merged = mergeCommsWithDefaults(base, emailDraft, smsDraft, { applyFixes: false })
       const res = await fetch(`/api/events-studio/events/${id}`, {
         method: 'PATCH',
         credentials: 'include',
@@ -325,7 +326,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       if (!res.ok) throw new Error(json.error || 'Erreur')
       setEmailDraft(merged.emails)
       setSmsDraft(merged.sms)
-      setToast('Communications enregistrées')
+      setToast('Communications enregistrées — vos textes sont sauvegardés')
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -1123,13 +1124,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     {ev.brief}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <CrmV2Button variant={commsTab === 'email' ? 'gold' : 'secondary'} onClick={() => setCommsTab('email')}>
                     Emails
                   </CrmV2Button>
                   <CrmV2Button variant={commsTab === 'sms' ? 'gold' : 'secondary'} onClick={() => setCommsTab('sms')}>
                     SMS
                   </CrmV2Button>
+                  <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+                    Modifiez librement les textes ci-dessous, puis enregistrez.
+                  </span>
                 </div>
 
                 {commsTab === 'email' ? (
@@ -1166,7 +1170,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     >
                       <div>
                         <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                          Objet
+                          Objet (modifiable)
                         </label>
                         <input
                           style={{ ...inputStyle, marginBottom: 8 }}
@@ -1180,7 +1184,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           placeholder="Objet de l'email"
                         />
                         <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-                          Intro (texte) — intégrée dans le HTML
+                          Texte du mail (modifiable) — utilisez {'{prenom}'}
                         </label>
                         <textarea
                           style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
@@ -1191,10 +1195,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                               [emailStep]: { ...prev[emailStep], body: e.target.value },
                             }))
                           }
-                          placeholder="Texte d’intro du mail (utilisez {prenom})"
+                          placeholder="Texte du mail (utilisez {prenom})"
                         />
                         <div style={{ marginTop: 8, fontSize: 11, color: crmV2.textFaint, lineHeight: 1.45 }}>
-                          Le mail complet inclut logo, en-tête, détails, brief, Zoom/QR et pied de page — comme dans Events Studio.
+                          L’aperçu à droite se met à jour en direct. Cliquez « Enregistrer les communications » pour
+                          garder vos modifications. « Régénérer » remet les textes par défaut (webinaire = formulations
+                          naturelles + Zoom).
                         </div>
                       </div>
 

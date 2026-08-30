@@ -3655,7 +3655,18 @@ function evNom(ev, maj) {
   const art = maj ? ucfirst(a) : a;
   return art + sep + evName(ev);
 }
-function evPour(ev) { return 'pour ' + evNom(ev); }
+function evRef(ev, maj) {
+  const name = evName(ev);
+  if (!name) return maj ? "L'événement" : "l'événement";
+  const isVisio = (ev.event_type === 'webinaire') || ev.brand === 'edumove' || !!ev.zoom_join_url;
+  if (isVisio) {
+    if (/^webinaire\b/i.test(name)) return (maj ? 'Le' : 'le') + ' ' + name;
+    return (maj ? 'Le' : 'le') + ' webinaire « ' + name + ' »';
+  }
+  return evNom(ev, maj);
+}
+function evPour(ev) { return 'pour ' + evRef(ev); }
+function evAvant(ev) { return 'avant ' + evRef(ev); }
 function evDe(ev) {
   const n = evName(ev);
   const a = ev.article || 'le';
@@ -4063,7 +4074,7 @@ function pvEmail(ev, type, customBody) {
   function introP(text) { return `<p style="font-size:16px;line-height:1.7;color:#3D4B5C;margin:0 0 24px;">${esc(text).replace(/\{prenom\}/g,'<strong style="color:#1C2436;">'+fn+'</strong>')}</p>`; }
   const body = (customBody||'').trim() ? customBody : pvEmailBody(ev, type);
   const p = introP(body);
-  const heroes = {'j-5':[`Plus que <em style="font-style:italic;color:#C2AB82;">5 jours</em><br>avant ${evNom(ev)} !`,`Nous avons h\u00e2te de vous retrouver !`],'j-3':[`<em style="font-style:italic;color:#C2AB82;">J-3</em> \u2014 Pr\u00e9parez-vous !`,`Plus que 3 jours avant ${evNom(ev)} !`],'j-2':[`<em style="font-style:italic;color:#C2AB82;">Apr\u00e8s-demain,</em><br>c'est le jour J !`,`Le compte \u00e0 rebours est lanc\u00e9 !`],'j-1':[`<em style="font-style:italic;color:#C2AB82;">C'est demain !</em><br>On vous attend`,`Rendez-vous demain ${evPour(ev)} !`],'j-0-matin':[`C'est <em style="font-style:italic;color:#C2AB82;">aujourd'hui</em> !`,`Le grand jour est arriv\u00e9 !`]};
+  const heroes = {'j-5':[`Plus que <em style="font-style:italic;color:#C2AB82;">5 jours</em><br>${evAvant(ev)} !`,`Nous avons h\u00e2te de vous retrouver !`],'j-3':[`<em style="font-style:italic;color:#C2AB82;">J-3</em> \u2014 Pr\u00e9parez-vous !`,`Plus que 3 jours ${evAvant(ev)} !`],'j-2':[`<em style="font-style:italic;color:#C2AB82;">Apr\u00e8s-demain,</em><br>c'est le jour J !`,`Le compte \u00e0 rebours est lanc\u00e9 !`],'j-1':[`<em style="font-style:italic;color:#C2AB82;">C'est demain !</em><br>On vous attend`,`Rendez-vous demain ${evPour(ev)} !`],'j-0-matin':[`C'est <em style="font-style:italic;color:#C2AB82;">aujourd'hui</em> !`,`Le grand jour est arriv\u00e9 !`]};
   const [heroT, heroS] = heroes[type] || [`Rappel \u2014 ${ev.name}`,`Petit rappel !`];
   let extra = '';
   if (type==='j-3') { const lI = vis ? 'En visioconf\u00e9rence.' : (ev.location||'\u00c0 confirmer'); extra = `<h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:#1C2436;margin:0 0 20px;padding-bottom:14px;border-bottom:1.5px solid #EAE8E3;">Infos pratiques</h2><p style="font-size:15px;color:#3D4B5C;margin:0 0 8px;"><strong style="color:#1C2436;">\ud83d\udcc5 Date :</strong> ${ds} ${pvTR(ev).toLowerCase()}</p><p style="font-size:15px;color:#3D4B5C;margin:0 0 8px;"><strong style="color:#1C2436;">\ud83d\udccd ${vis?'Connexion':'Lieu'} :</strong> ${lI}</p><p style="font-size:15px;color:#3D4B5C;margin:0 0 24px;"><strong style="color:#1C2436;">\u23f0 Conseil :</strong> Soyez pr\u00eat(e) 15 minutes en avance pour profiter pleinement de l'\u00e9v\u00e9nement.</p>`; }
