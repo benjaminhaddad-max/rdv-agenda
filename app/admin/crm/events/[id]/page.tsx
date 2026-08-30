@@ -1130,9 +1130,28 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </CrmV2Button>
                   <CrmV2Button variant={commsTab === 'sms' ? 'gold' : 'secondary'} onClick={() => setCommsTab('sms')}>
                     SMS
+                    {typeEdit === 'webinaire' ? (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: crmV2.radiusPill,
+                          background: commsTab === 'sms' ? 'rgba(255,255,255,0.25)' : crmV2.goldSoft,
+                          color: crmV2.text,
+                        }}
+                      >
+                        +10 min
+                      </span>
+                    ) : null}
                   </CrmV2Button>
                   <span style={{ fontSize: 12, color: crmV2.textMuted }}>
-                    Modifiez librement les textes ci-dessous, puis enregistrez.
+                    {commsTab === 'sms'
+                      ? typeEdit === 'webinaire'
+                        ? 'Étapes SMS webinaire : confirmation, rappels, 10 min avant, 5 min avant.'
+                        : 'Modifiez librement les textes SMS, puis enregistrez.'
+                      : 'Modifiez librement les textes ci-dessous, puis enregistrez.'}
                   </span>
                 </div>
 
