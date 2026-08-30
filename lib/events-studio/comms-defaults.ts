@@ -3,6 +3,7 @@
  * (public/events-studio/index.html : pvEmailSubject / pvEmailBody / pvSmsBody).
  */
 
+import { eventUsesVisio } from './config'
 import { emailStepsFor, smsStepsFor } from './comms-steps'
 
 export type CommsEventLike = {
@@ -79,14 +80,18 @@ export function defaultEmailSubject(ev: CommsEventLike, type: string): string {
 }
 
 export function defaultEmailBody(ev: CommsEventLike, type: string): string {
-  const vis = !!ev.zoom_join_url
+  const vis = eventUsesVisio(ev)
   const n = evNom(ev)
   const N = evNom(ev, true)
   const p = evPour(ev)
   const map: Record<string, string> = {
-    confirmation: `Merci pour votre inscription ! Nous avons hâte de vous accueillir. ${
-      vis ? 'Le lien de connexion' : 'Votre QR code personnel'
-    } se trouve ci-dessous.`,
+    confirmation: vis
+      ? `Merci pour votre inscription ! Nous avons hâte de vous accueillir. ${
+          ev.zoom_join_url
+            ? 'Le lien de connexion se trouve ci-dessous.'
+            : 'Vous recevrez le lien Zoom avant le webinaire.'
+        }`
+      : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Votre QR code personnel se trouve ci-dessous.`,
     'j-5': `Bonjour {prenom}, ${N} approche à grands pas et nous sommes impatients de vous y accueillir !`,
     'j-3': `Bonjour {prenom}, ${N} est dans 3 jours et nous avons hâte de partager ce moment avec vous !`,
     'j-2': `Bonjour {prenom}, c'est après-demain et nous avons vraiment hâte de vous retrouver ${p} !`,
@@ -102,25 +107,46 @@ export function defaultEmailBody(ev: CommsEventLike, type: string): string {
 export function defaultSmsBody(ev: CommsEventLike, type: string): string {
   const ds = dateLong(ev)
   const ti = timeRangePlain(ev)
-  const vis = !!ev.zoom_join_url
+  const vis = eventUsesVisio(ev)
   const loc = !vis && ev.location ? ' - ' + ev.location : ''
+  const zoom = ev.zoom_join_url || ''
   const n = evNom(ev)
   const p = evPour(ev)
   const map: Record<string, string> = {
-    confirmation: `{prenom}, super nouvelle ! Votre inscription ${p} est confirmee ! On a hate de vous retrouver le ${ds} ${ti}${loc}. Ca va etre un moment enrichissant !`,
+    confirmation: vis
+      ? `{prenom}, votre inscription au webinaire "${evName(ev)}" est confirmee ! RDV le ${ds} ${ti}. ${
+          zoom ? `Lien Zoom : ${zoom}` : 'Vous recevrez le lien Zoom avant le webinaire.'
+        }`
+      : `{prenom}, super nouvelle ! Votre inscription ${p} est confirmee ! On a hate de vous retrouver le ${ds} ${ti}${loc}. Ca va etre un moment enrichissant !`,
     'j-5': `{prenom}, plus que 5 jours avant ${n} ! On a vraiment hate de vous retrouver le ${ds} ${ti}. Ca va etre un super moment !`,
     'j-3': `{prenom}, J-3 avant ${n} ! Le compte a rebours est lance et on a hate d'y etre ! RDV le ${ds} ${ti}${loc}.`,
     'j-2': `{prenom}, apres-demain c'est ${n} ! On est impatients de vous accueillir le ${ds} ${ti}${loc}.`,
-    'j-1': `{prenom}, c'est DEMAIN ! On se retrouve ${p} ${ti}${loc}. Toute l'equipe vous attend avec impatience !`,
-    'j-0-matin': `{prenom}, c'est AUJOURD'HUI ! On est ravis de vous retrouver ${p} ${ti}${loc}. A tout de suite !`,
+    'j-1': vis
+      ? `{prenom}, c'est DEMAIN ! Webinaire "${evName(ev)}" ${ti}. ${
+          zoom ? `Lien Zoom : ${zoom}` : 'Le lien Zoom vous sera envoye demain.'
+        }`
+      : `{prenom}, c'est DEMAIN ! On se retrouve ${p} ${ti}${loc}. Toute l'equipe vous attend avec impatience !`,
+    'j-0-matin': vis
+      ? `{prenom}, c'est AUJOURD'HUI ! Webinaire "${evName(ev)}" ${ti}. ${
+          zoom ? `Rejoignez-nous : ${zoom}` : 'Le lien Zoom arrive dans les prochains messages.'
+        }`
+      : `{prenom}, c'est AUJOURD'HUI ! On est ravis de vous retrouver ${p} ${ti}${loc}. A tout de suite !`,
     'j-0-11h': `{prenom}, ${n} ${vis ? 'est en cours' : "c'est cet apres-midi"} ${ti}. On vous attend !${
-      vis ? ' Connectez-vous vite !' : ' Rejoignez-nous !'
+      vis ? (zoom ? ` ${zoom}` : ' Connectez-vous vite !') : ' Rejoignez-nous !'
     }`,
-    'j-0-14h': `{prenom}, ${n} ${ti}. ${vis ? 'Connectez-vous, on vous attend !' : 'On vous attend sur place, a tout de suite !'}`,
-    'j-0-5min': `{prenom}, ${n} commence dans 5 minutes ! On est prets, et vous ? A tout de suite !`,
+    'j-0-14h': `{prenom}, ${n} ${ti}. ${
+      vis
+        ? zoom
+          ? `Connectez-vous : ${zoom}`
+          : 'Connectez-vous, on vous attend !'
+        : 'On vous attend sur place, a tout de suite !'
+    }`,
+    'j-0-5min': vis
+      ? `{prenom}, le webinaire commence dans 5 minutes ! ${zoom ? `Rejoignez-nous : ${zoom}` : 'Rejoignez-nous vite !'}`
+      : `{prenom}, ${n} commence dans 5 minutes ! On est prets, et vous ? A tout de suite !`,
     'j-7': `{prenom}, le webinaire "${evName(ev)}" a lieu dans 7 jours (${ds} a ${ti}). Bloquez la date !`,
-    'j-0-10h': `{prenom}, c'est ce soir ! ${n} a ${ti}.`,
-    'j-0-18h25': `{prenom}, ${n} commence dans 5 min ! Rejoignez-nous vite.`,
+    'j-0-10h': `{prenom}, c'est ce soir ! ${n} a ${ti}.${zoom ? ` Rejoignez-nous : ${zoom}` : ''}`,
+    'j-0-18h25': `{prenom}, ${n} commence dans 5 min ! Rejoignez-nous vite.${zoom ? ` ${zoom}` : ''}`,
   }
   return map[type] || `Rappel: ${n} le ${ds}. On a hate de vous retrouver !`
 }
@@ -144,6 +170,10 @@ export function buildDefaultCustomSms(ev: CommsEventLike): Record<string, string
   return out
 }
 
+function mentionsQr(text: string | null | undefined): boolean {
+  return /qr\s*code/i.test(String(text || ''))
+}
+
 /** Fusionne custom existant avec defaults (custom gagne si non vide). */
 export function mergeCommsWithDefaults(
   ev: CommsEventLike,
@@ -154,23 +184,39 @@ export function mergeCommsWithDefaults(
   const defaultsSms = buildDefaultCustomSms(ev)
   const emails: Record<string, EmailValue> = { ...defaultsEmails }
   const sms: Record<string, string> = { ...defaultsSms }
+  const vis = eventUsesVisio(ev)
 
   let hasAnyCustomEmail = false
   let hasAnyCustomSms = false
+  let forcedFix = false
 
   for (const [k, v] of Object.entries(customEmails || {})) {
     if (v && (v.subject?.trim() || v.body?.trim())) {
       hasAnyCustomEmail = true
+      // Webinaire : jamais de texte QR (templates générés sans Zoom avant correction)
+      if (vis && (mentionsQr(v.body) || mentionsQr(v.subject))) {
+        emails[k] = defaultsEmails[k] || {
+          subject: v.subject?.trim() || '',
+          body: defaultEmailBody(ev, k),
+        }
+        forcedFix = true
+        continue
+      }
       emails[k] = { subject: v.subject?.trim() || '', body: v.body?.trim() || '' }
     }
   }
   for (const [k, v] of Object.entries(customSms || {})) {
     if (v?.trim()) {
       hasAnyCustomSms = true
+      if (vis && mentionsQr(v)) {
+        sms[k] = defaultsSms[k] || defaultSmsBody(ev, k)
+        forcedFix = true
+        continue
+      }
       sms[k] = v.trim()
     }
   }
 
-  const needsPersist = !hasAnyCustomEmail || !hasAnyCustomSms
+  const needsPersist = !hasAnyCustomEmail || !hasAnyCustomSms || forcedFix
   return { emails, sms, needsPersist }
 }

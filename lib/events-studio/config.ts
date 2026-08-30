@@ -136,6 +136,24 @@ export function eventTypeOf(ev: { event_type?: string | null; brand?: string | n
   return isWebinarEvent(ev) ? EVENT_TYPES.webinaire : EVENT_TYPES.autre
 }
 
+/** Visio / webinaire : jamais de QR code (contrairement aux JPO physiques). */
+export function eventUsesVisio(ev: {
+  event_type?: string | null
+  brand?: string | null
+  zoom_join_url?: string | null
+}): boolean {
+  return isWebinarEvent(ev) || !!ev.zoom_join_url
+}
+
+/** QR check-in : uniquement si le type d’événement le prévoit (JPO, pas webinaire/salon). */
+export function eventUsesQrCheckin(ev: {
+  event_type?: string | null
+  brand?: string | null
+  zoom_join_url?: string | null
+}): boolean {
+  return !!eventTypeOf(ev).checkin
+}
+
 export function staffPublicUrl(eventId: string, origin = 'https://hub.diploma-sante.fr'): string {
   return `${origin}/events-studio/?staff=${eventId}`
 }

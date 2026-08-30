@@ -4,7 +4,7 @@
  */
 
 import { defaultEmailBody, type CommsEventLike } from './comms-defaults'
-import type { EventBrand } from './config'
+import { eventUsesVisio, type EventBrand } from './config'
 
 type BrandTheme = {
   name: string
@@ -119,8 +119,16 @@ function qrBlk() {
   return `<div style="background:#F5F2EC;border-radius:16px;padding:32px;text-align:center;margin:28px auto;max-width:360px;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;margin:0 0 20px;font-weight:700;">Votre QR Code</p><div style="width:220px;height:220px;margin:0 auto;border-radius:12px;border:3px solid #1C2436;background:#fff;display:flex;align-items:center;justify-content:center;color:#9A9A9A;font-size:13px;">QR code personnel</div><div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,#C2AB82,transparent);margin:20px auto;"></div><p style="font-size:14px;color:#3D4B5C;margin:0;">Présentez ce QR code <strong style="color:#1C2436;">à l'entrée</strong></p></div>`
 }
 
+function zoomSoonBlk() {
+  return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Visioconférence Zoom</p><p style="font-size:15px;color:#FFF;margin:0;line-height:1.5;">Le lien de connexion Zoom vous sera communiqué avant le webinaire.<br>Aucun QR code n'est nécessaire.</p></div>`
+}
+
+/** Accès : Zoom pour webinaire, QR uniquement pour les événements physiques (JPO). */
 function accessBlock(ev: PreviewEvent) {
-  return ev.zoom_join_url ? visioBtn(ev.zoom_join_url) : qrBlk()
+  if (eventUsesVisio(ev)) {
+    return ev.zoom_join_url ? visioBtn(ev.zoom_join_url) : zoomSoonBlk()
+  }
+  return qrBlk()
 }
 
 function briefBlock(ev: PreviewEvent, accent: string) {
@@ -142,7 +150,7 @@ function briefBlock(ev: PreviewEvent, accent: string) {
 }
 
 function detailTbl(ev: PreviewEvent, accent: string, dark: string) {
-  const vis = !!ev.zoom_join_url
+  const vis = eventUsesVisio(ev)
   const loc = vis ? 'Visioconférence' : ev.location || 'À confirmer'
   return `<h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:${dark};margin:0 0 20px;padding-bottom:14px;border-bottom:1.5px solid #EAE8E3;">Détails</h2><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td style="padding:8px 16px 8px 0;vertical-align:top;width:50%;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:${accent};margin:0 0 4px;font-weight:700;">Événement</p><p style="font-size:16px;color:${dark};margin:0;font-weight:700;">${esc(evName(ev))}</p></td><td style="padding:8px 0 8px 16px;vertical-align:top;width:50%;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:${accent};margin:0 0 4px;font-weight:700;">Date</p><p style="font-size:16px;color:${dark};margin:0;font-weight:700;">${dateLong(ev)}<br>${timeRange(ev)}</p></td></tr><tr><td style="padding:8px 16px 8px 0;vertical-align:top;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:${accent};margin:0 0 4px;font-weight:700;">Lieu</p><p style="font-size:16px;color:${dark};margin:0;font-weight:700;">${esc(loc)}</p></td><td style="padding:8px 0 8px 16px;vertical-align:top;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:${accent};margin:0 0 4px;font-weight:700;">Participant</p><p style="font-size:16px;color:${dark};margin:0;font-weight:700;">Jean Dupont</p></td></tr></table>`
 }
@@ -157,15 +165,21 @@ function wrap(ev: PreviewEvent, heroT: string, heroS: string, body: string, acce
 
 function confEmail(ev: PreviewEvent, customBody: string) {
   const b = brandOf(ev)
-  const vis = !!ev.zoom_join_url
+  const vis = eventUsesVisio(ev)
   const tip = vis
-    ? 'Gardez le <strong style="color:#1C2436;">lien de connexion</strong> ci-dessus à portée de main pour le jour J.'
+    ? ev.zoom_join_url
+      ? 'Gardez le <strong style="color:#1C2436;">lien de connexion</strong> ci-dessus à portée de main pour le jour J.'
+      : 'Le <strong style="color:#1C2436;">lien Zoom</strong> vous sera envoyé avant le webinaire — aucun QR code n\'est nécessaire.'
     : 'Astuce : faites une <strong style="color:#1C2436;">capture d\'écran</strong> du QR code pour y accéder facilement.'
   const heroSub = customBody.trim()
     ? esc(customBody).replace(/\{prenom\}/g, `<strong style="color:${b.accent};">Jean</strong>`)
-    : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. ${
-        vis ? 'Le lien de connexion' : 'Votre QR code personnel'
-      } se trouve ci-dessous.`
+    : vis
+      ? `Merci pour votre inscription ! Nous avons hâte de vous accueillir. ${
+          ev.zoom_join_url
+            ? 'Le lien de connexion se trouve ci-dessous.'
+            : 'Vous recevrez le lien Zoom avant le webinaire.'
+        }`
+      : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Votre QR code personnel se trouve ci-dessous.`
   // access is embedded in body for confirmation (Studio behavior)
   return wrap(
     ev,
@@ -178,7 +192,7 @@ function confEmail(ev: PreviewEvent, customBody: string) {
 
 function reminderEmail(ev: PreviewEvent, type: string, customBody: string) {
   const b = brandOf(ev)
-  const vis = !!ev.zoom_join_url
+  const vis = eventUsesVisio(ev)
   const loc = vis ? 'Visioconférence' : ev.location || 'À confirmer'
   const ds = dateLong(ev)
   const sT = startTime(ev)

@@ -3705,8 +3705,14 @@ function pvEmailSubject(ev, type) {
   return ({'confirmation':`Inscription confirm\u00e9e \u2014 ${name}`,'j-5':`J-5 \u2014 ${N} approche !`,'j-3':`J-3 \u2014 Pr\u00e9parez-vous ${evPour(ev)}`,'j-2':`Apr\u00e8s-demain, c'est ${n} !`,'j-1':`C'est DEMAIN \u2014 ${name}`,'j-0-matin':`C'est AUJOURD'HUI \u2014 ${name} !`})[type] || `Rappel \u2014 ${name}`;
 }
 function pvEmailBody(ev, type) {
-  const vis = !!ev.zoom_join_url; const n = evNom(ev); const N = evNom(ev, true); const p = evPour(ev);
-  return ({'confirmation':`Merci pour votre inscription ! Nous avons h\u00e2te de vous accueillir. ${vis?'Le lien de connexion':'Votre QR code personnel'} se trouve ci-dessous.`,'j-5':`Bonjour {prenom}, ${N} approche \u00e0 grands pas et nous sommes impatients de vous y accueillir !`,'j-3':`Bonjour {prenom}, ${N} est dans 3 jours et nous avons h\u00e2te de partager ce moment avec vous !`,'j-2':`Bonjour {prenom}, c'est apr\u00e8s-demain et nous avons vraiment h\u00e2te de vous retrouver ${p} !`,'j-1':`Bonjour {prenom}, c'est demain ! Toute l'\u00e9quipe Diploma Sant\u00e9 a h\u00e2te de vous accueillir ${p}.`,'j-0-matin':`C'est le jour J ! Nous sommes ravis de vous retrouver ${p}.`})[type] || `Rappel ${p}. Nous avons h\u00e2te de vous y voir !`;
+  const vis = (ev.event_type === 'webinaire') || ev.brand === 'edumove' || !!ev.zoom_join_url;
+  const n = evNom(ev); const N = evNom(ev, true); const p = evPour(ev);
+  const conf = vis
+    ? (ev.zoom_join_url
+        ? `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Le lien de connexion se trouve ci-dessous.`
+        : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Vous recevrez le lien Zoom avant le webinaire.`)
+    : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Votre QR code personnel se trouve ci-dessous.`;
+  return ({'confirmation':conf,'j-5':`Bonjour {prenom}, ${N} approche \u00e0 grands pas et nous sommes impatients de vous y accueillir !`,'j-3':`Bonjour {prenom}, ${N} est dans 3 jours et nous avons hâte de partager ce moment avec vous !`,'j-2':`Bonjour {prenom}, c'est apr\u00e8s-demain et nous avons vraiment hâte de vous retrouver ${p} !`,'j-1':`Bonjour {prenom}, c'est demain ! Toute l'\u00e9quipe Diploma Sant\u00e9 a hâte de vous accueillir ${p}.`,'j-0-matin':`C'est le jour J ! Nous sommes ravis de vous retrouver ${p}.`})[type] || `Rappel ${p}. Nous avons hâte de vous y voir !`;
 }
 function pvSmsBody(ev, type) {
   const d = new Date(ev.event_date); const ds = d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
@@ -3741,7 +3747,7 @@ function renderPreviews(ev) {
     renderEdumovePreviews(ev);
     return;
   }
-  const vis = !!ev.zoom_join_url;
+  const vis = isWebinarEvent(ev) || !!ev.zoom_join_url;
   const emailTypes = vis
     ? [{id:'confirmation',lb:'Confirmation'},{id:'j-3',lb:'J-3'},{id:'j-1',lb:'J-1'},{id:'j-0-matin',lb:'Jour J'}]
     : [{id:'confirmation',lb:'Confirmation'},{id:'j-5',lb:'J-5'},{id:'j-3',lb:'J-3'},{id:'j-2',lb:'J-2'},{id:'j-1',lb:'J-1'}];
@@ -3843,7 +3849,15 @@ function pvQrBlk() {
   const url = `${SUPABASE_URL}/functions/v1/qr-image?code=PREVIEW123`;
   return `<div style="background:#F5F2EC;border-radius:16px;padding:32px;text-align:center;margin:28px auto;max-width:360px;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;margin:0 0 20px;font-weight:700;">Votre QR Code</p><img src="${url}" alt="QR" width="260" height="260" style="display:block;margin:0 auto;width:260px;height:260px;border-radius:12px;border:3px solid #1C2436;"><div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,#C2AB82,transparent);margin:20px auto;"></div><p style="font-size:14px;color:#3D4B5C;margin:0;">Pr\u00e9sentez ce QR code <strong style="color:#1C2436;">\u00e0 l'entr\u00e9e</strong></p></div>`;
 }
-function pvAccess(ev) { return ev.zoom_join_url ? pvVisioBtn(ev.zoom_join_url) : pvQrBlk(); }
+function pvAccess(ev) {
+  // Webinaire / visio : jamais de QR (même sans Zoom encore renseigné)
+  const isVisio = (ev.event_type === 'webinaire') || ev.brand === 'edumove' || !!ev.zoom_join_url;
+  if (isVisio) {
+    if (ev.zoom_join_url) return pvVisioBtn(ev.zoom_join_url);
+    return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Visioconférence Zoom</p><p style="font-size:15px;color:#FFF;margin:0;line-height:1.5;">Le lien de connexion Zoom vous sera communiqué avant le webinaire.<br>Aucun QR code n'est nécessaire.</p></div>`;
+  }
+  return pvQrBlk();
+}
 
 // ============================================================
 // EDUMOVE EMAIL TEMPLATES (preview)
@@ -4007,14 +4021,24 @@ function pvBrief(ev) {
 function pvDetailTbl(ev) {
   const d = new Date(ev.event_date);
   const ds = ucfirst(d.toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
-  const vis = !!ev.zoom_join_url; const loc = vis ? 'Visioconf\u00e9rence' : (ev.location||'\u00c0 confirmer');
+  const vis = isWebinarEvent(ev) || !!ev.zoom_join_url; const loc = vis ? 'Visioconf\u00e9rence' : (ev.location||'\u00c0 confirmer');
   return `<h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:#1C2436;margin:0 0 20px;padding-bottom:14px;border-bottom:1.5px solid #EAE8E3;">D\u00e9tails</h2><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td style="padding:8px 16px 8px 0;vertical-align:top;width:50%;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#C2AB82;margin:0 0 4px;font-weight:700;">\u00c9v\u00e9nement</p><p style="font-size:16px;color:#1C2436;margin:0;font-weight:700;">${ev.name}</p></td><td style="padding:8px 0 8px 16px;vertical-align:top;width:50%;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#C2AB82;margin:0 0 4px;font-weight:700;">Date</p><p style="font-size:16px;color:#1C2436;margin:0;font-weight:700;">${ds}<br>${pvTR(ev)}</p></td></tr><tr><td style="padding:8px 16px 8px 0;vertical-align:top;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#C2AB82;margin:0 0 4px;font-weight:700;">Lieu</p><p style="font-size:16px;color:#1C2436;margin:0;font-weight:700;">${loc}</p></td><td style="padding:8px 0 8px 16px;vertical-align:top;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#C2AB82;margin:0 0 4px;font-weight:700;">Participant</p><p style="font-size:16px;color:#1C2436;margin:0;font-weight:700;">Jean Dupont</p></td></tr></table>`;
 }
 
 function pvConfEmail(ev, customBody) {
-  const vis = !!ev.zoom_join_url; const access = pvAccess(ev);
-  const tip = vis ? 'Gardez le <strong style="color:#1C2436;">lien de connexion</strong> ci-dessus \u00e0 port\u00e9e de main pour le jour J.' : 'Astuce : faites une <strong style="color:#1C2436;">capture d\'\u00e9cran</strong> du QR code pour y acc\u00e9der facilement.';
-  const heroSub = (customBody||'').trim() ? esc(customBody).replace(/\{prenom\}/g,'<strong style="color:#C2AB82;">Jean</strong>') : `Merci pour votre inscription ! Nous avons h\u00e2te de vous accueillir. ${vis?'Le lien de connexion':'Votre QR code personnel'} se trouve ci-dessous.`;
+  const vis = isWebinarEvent(ev) || !!ev.zoom_join_url; const access = pvAccess(ev);
+  const tip = vis
+    ? (ev.zoom_join_url
+        ? 'Gardez le <strong style="color:#1C2436;">lien de connexion</strong> ci-dessus \u00e0 port\u00e9e de main pour le jour J.'
+        : 'Le <strong style="color:#1C2436;">lien Zoom</strong> vous sera envoy\u00e9 avant le webinaire \u2014 aucun QR code n\'est n\u00e9cessaire.')
+    : 'Astuce : faites une <strong style="color:#1C2436;">capture d\'\u00e9cran</strong> du QR code pour y acc\u00e9der facilement.';
+  const heroSub = (customBody||'').trim()
+    ? esc(customBody).replace(/\{prenom\}/g,'<strong style="color:#C2AB82;">Jean</strong>')
+    : (vis
+        ? (ev.zoom_join_url
+            ? `Merci pour votre inscription ! Nous avons h\u00e2te de vous accueillir. Le lien de connexion se trouve ci-dessous.`
+            : `Merci pour votre inscription ! Nous avons h\u00e2te de vous accueillir. Vous recevrez le lien Zoom avant le webinaire.`)
+        : `Merci pour votre inscription ! Nous avons h\u00e2te de vous accueillir. Votre QR code personnel se trouve ci-dessous.`);
   return pvWrap('<em style="font-style:italic;color:#C2AB82;">Votre inscription</em><br>est confirm\u00e9e !', heroSub,
     `${pvDetailTbl(ev)}${pvBrief(ev)}${access}<div style="background:#F5F2EC;border-left:4px solid #C2AB82;border-radius:0 12px 12px 0;padding:20px 24px;"><p style="font-size:15px;line-height:1.7;color:#3D4B5C;margin:0;font-style:italic;">${tip}</p></div>`, '');
 }
@@ -4022,7 +4046,7 @@ function pvConfEmail(ev, customBody) {
 function pvEmail(ev, type, customBody) {
   const d = new Date(ev.event_date);
   const ds = ucfirst(d.toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
-  const vis = !!ev.zoom_join_url; const loc = vis ? 'Visioconf\u00e9rence' : (ev.location||'\u00c0 confirmer');
+  const vis = isWebinarEvent(ev) || !!ev.zoom_join_url; const loc = vis ? 'Visioconf\u00e9rence' : (ev.location||'\u00c0 confirmer');
   const access = pvAccess(ev); const fn = 'Jean'; const brief = pvBrief(ev);
   const sT = d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   function introP(text) { return `<p style="font-size:16px;line-height:1.7;color:#3D4B5C;margin:0 0 24px;">${esc(text).replace(/\{prenom\}/g,'<strong style="color:#1C2436;">'+fn+'</strong>')}</p>`; }
