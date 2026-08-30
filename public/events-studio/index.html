@@ -3707,12 +3707,23 @@ function pvEmailSubject(ev, type) {
 function pvEmailBody(ev, type) {
   const vis = (ev.event_type === 'webinaire') || ev.brand === 'edumove' || !!ev.zoom_join_url;
   const n = evNom(ev); const N = evNom(ev, true); const p = evPour(ev);
+  const zoom = (ev.zoom_join_url || '').trim();
   const conf = vis
-    ? (ev.zoom_join_url
+    ? (zoom
         ? `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Le lien de connexion se trouve ci-dessous.`
-        : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Vous recevrez le lien Zoom avant le webinaire.`)
+        : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Vous recevrez le lien Zoom avant le webinaire (mails J-1 et jour J).`)
     : `Merci pour votre inscription ! Nous avons hâte de vous accueillir. Votre QR code personnel se trouve ci-dessous.`;
-  return ({'confirmation':conf,'j-5':`Bonjour {prenom}, ${N} approche \u00e0 grands pas et nous sommes impatients de vous y accueillir !`,'j-3':`Bonjour {prenom}, ${N} est dans 3 jours et nous avons hâte de partager ce moment avec vous !`,'j-2':`Bonjour {prenom}, c'est apr\u00e8s-demain et nous avons vraiment hâte de vous retrouver ${p} !`,'j-1':`Bonjour {prenom}, c'est demain ! Toute l'\u00e9quipe Diploma Sant\u00e9 a hâte de vous accueillir ${p}.`,'j-0-matin':`C'est le jour J ! Nous sommes ravis de vous retrouver ${p}.`})[type] || `Rappel ${p}. Nous avons hâte de vous y voir !`;
+  const j1 = vis
+    ? (zoom
+        ? `Bonjour {prenom}, c'est demain ! Toute l'équipe a hâte de vous retrouver ${p}. Voici le lien Zoom pour vous connecter : ${zoom}`
+        : `Bonjour {prenom}, c'est demain ! Toute l'équipe a hâte de vous retrouver ${p}. Le lien Zoom se trouve ci-dessous.`)
+    : `Bonjour {prenom}, c'est demain ! Toute l'équipe Diploma Santé a hâte de vous accueillir ${p}.`;
+  const j0 = vis
+    ? (zoom
+        ? `C'est le jour J ! Nous sommes ravis de vous retrouver ${p}. Rejoignez le webinaire Zoom : ${zoom}`
+        : `C'est le jour J ! Nous sommes ravis de vous retrouver ${p}. Le lien Zoom se trouve ci-dessous.`)
+    : `C'est le jour J ! Nous sommes ravis de vous retrouver ${p}.`;
+  return ({'confirmation':conf,'j-5':`Bonjour {prenom}, ${N} approche \u00e0 grands pas et nous sommes impatients de vous y accueillir !`,'j-3':`Bonjour {prenom}, ${N} est dans 3 jours et nous avons hâte de partager ce moment avec vous !`,'j-2':`Bonjour {prenom}, c'est apr\u00e8s-demain et nous avons vraiment hâte de vous retrouver ${p} !`,'j-1':j1,'j-0-matin':j0})[type] || `Rappel ${p}. Nous avons hâte de vous y voir !`;
 }
 function pvSmsBody(ev, type) {
   const d = new Date(ev.event_date); const ds = d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'});

@@ -242,7 +242,11 @@ function reminderEmail(ev: PreviewEvent, type: string, customBody: string) {
     extra = `<div style="background:linear-gradient(135deg,${b.accent},#D4C49E);border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;"><p style="font-size:14px;text-transform:uppercase;letter-spacing:1.5px;color:${b.dark};margin:0 0 8px;font-weight:700;">Aujourd'hui</p><p style="font-size:22px;color:${b.dark};margin:0;font-weight:700;font-family:'DM Serif Display',Georgia,serif;">${timeRange(ev)}${!vis && ev.location ? ' — ' + esc(ev.location) : ''}</p></div>`
   }
   const details = type === 'j-5' || type === 'j-7' ? detailTbl(ev, b.accent, b.dark) : ''
-  return wrap(ev, heroT, heroS, `${p}${briefBlock(ev, b.accent)}${extra}${details}`, accessBlock(ev))
+  // Webinaire J-1 / Jour J : toujours afficher le bloc Zoom (ou « à venir »)
+  const forceZoomAccess =
+    vis && (type === 'j-1' || type.startsWith('j-0-') || type === 'confirmation' || type === 'j-3')
+  const access = forceZoomAccess || !vis ? accessBlock(ev) : ''
+  return wrap(ev, heroT, heroS, `${p}${briefBlock(ev, b.accent)}${extra}${details}`, access)
 }
 
 /** HTML complet du mail envoyé (comme Events Studio). */

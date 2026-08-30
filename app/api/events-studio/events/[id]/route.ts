@@ -188,6 +188,22 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       { status: 400 },
     )
   }
+
+  // Webinaire : dès qu’un Zoom est enregistré, injecter le lien dans J-1 / Jour J
+  const zoomChanged =
+    typeof body.zoom_join_url === 'string' &&
+    (body.zoom_join_url.trim() || null) !== (current.zoom_join_url || null)
+  if (zoomChanged && nextType === 'webinaire' && nextZoom) {
+    const evForComms = {
+      ...current,
+      ...patch,
+      event_type: nextType,
+      zoom_join_url: nextZoom,
+    }
+    const merged = mergeCommsWithDefaults(evForComms, current.custom_emails, current.custom_sms)
+    patch.custom_emails = merged.emails
+    patch.custom_sms = merged.sms
+  }
   if (body.max_capacity !== undefined) {
     patch.max_capacity = body.max_capacity ? parseInt(String(body.max_capacity), 10) : null
   }
