@@ -234,6 +234,7 @@ type Detail = {
     article?: string | null
     custom_sms?: Record<string, string> | null
     custom_emails?: Record<string, EmailValue> | null
+    sms_factor_enabled?: boolean | null
   }
   forms: FormRow[]
   registrations: Array<{
