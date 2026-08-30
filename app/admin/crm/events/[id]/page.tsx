@@ -1601,6 +1601,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           </span>
                         </div>
                         <div style={{ fontSize: 11, color: crmV2.textFaint }}>{r.email}</div>
+                        {r.created_at ? (
+                          <div style={{ fontSize: 11, color: crmV2.textMuted, marginTop: 2 }}>
+                            Inscrit le{' '}
+                            {new Date(r.created_at).toLocaleString('fr-FR', {
+                              timeZone: 'Europe/Paris',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
