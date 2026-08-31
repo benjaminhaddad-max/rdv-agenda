@@ -10,6 +10,7 @@ import {
   listEventAttendees,
   syncEventRegistrationsFromSources,
 } from '@/lib/events-studio/sync-attendees'
+import { getEventPerfStats } from '@/lib/events-studio/event-perf-stats'
 import { createServiceClient } from '@/lib/supabase'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -64,6 +65,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const attendees = attendeesPack.attendees
   const attendeeCounts = attendeesPack.counts
+  const perfStats = await getEventPerfStats(id, attendees).catch(() => null)
   // Compat UI : registrations = vue unifiée (CRM + Meta + Events)
   const registrations = attendees.slice(0, 500).map((a, i) => ({
     id: a.id || `attendee-${i}`,
@@ -132,6 +134,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     registrations,
     attendees,
     attendee_counts: attendeeCounts,
+    perf_stats: perfStats,
     staff: staff || [],
     type,
     capacity,

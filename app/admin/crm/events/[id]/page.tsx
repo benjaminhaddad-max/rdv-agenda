@@ -207,6 +207,120 @@ function currentTypeId(ev: { event_type?: string | null; brand?: string | null; 
   return 'salon'
 }
 
+const PERF_COLORS = ['#C2AB82', '#1C2436', '#0DBDA5', '#3B82F6', '#A855F7', '#F59E0B', '#EF4444', '#14B8A6', '#EC4899', '#64748B']
+
+function PerfBarList({
+  items,
+  emptyLabel,
+}: {
+  items: Array<{ label: string; count: number; pct: number }>
+  emptyLabel: string
+}) {
+  if (!items.length) {
+    return <div style={{ fontSize: 13, color: crmV2.textMuted }}>{emptyLabel}</div>
+  }
+  const max = Math.max(1, ...items.map((i) => i.count))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {items.slice(0, 12).map((b, idx) => (
+        <div key={b.label}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, marginBottom: 4 }}>
+            <span style={{ color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {b.label}
+            </span>
+            <span style={{ color: crmV2.textMuted, flexShrink: 0, fontWeight: 600 }}>
+              {b.count} · {b.pct}%
+            </span>
+          </div>
+          <div style={{ height: 9, background: crmV2.bgMuted, borderRadius: 999, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${(b.count / max) * 100}%`,
+                height: '100%',
+                background: PERF_COLORS[idx % PERF_COLORS.length],
+                borderRadius: 999,
+                transition: 'width .35s ease',
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PerfNoveltyDonut({
+  newCount,
+  existingCount,
+  newPct,
+  existingPct,
+}: {
+  newCount: number
+  existingCount: number
+  newPct: number
+  existingPct: number
+}) {
+  const total = newCount + existingCount
+  if (total === 0) {
+    return <div style={{ fontSize: 13, color: crmV2.textMuted }}>Pas assez de données contacts.</div>
+  }
+  const R = 42
+  const C = 2 * Math.PI * R
+  const existingLen = (existingCount / total) * C
+  const newLen = (newCount / total) * C
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+      <svg width="120" height="120" viewBox="0 0 120 120" aria-hidden>
+        <circle cx="60" cy="60" r={R} fill="none" stroke={crmV2.bgMuted} strokeWidth="14" />
+        <circle
+          cx="60"
+          cy="60"
+          r={R}
+          fill="none"
+          stroke="#1C2436"
+          strokeWidth="14"
+          strokeDasharray={`${existingLen} ${C - existingLen}`}
+          strokeDashoffset={C * 0.25}
+          strokeLinecap="butt"
+        />
+        <circle
+          cx="60"
+          cy="60"
+          r={R}
+          fill="none"
+          stroke="#C2AB82"
+          strokeWidth="14"
+          strokeDasharray={`${newLen} ${C - newLen}`}
+          strokeDashoffset={C * 0.25 - existingLen}
+          strokeLinecap="butt"
+        />
+        <text x="60" y="56" textAnchor="middle" fontSize="18" fontWeight="700" fill={crmV2.text}>
+          {total}
+        </text>
+        <text x="60" y="72" textAnchor="middle" fontSize="10" fill={crmV2.textMuted}>
+          classés
+        </text>
+      </svg>
+      <div style={{ display: 'grid', gap: 10, fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: '#C2AB82' }} />
+          <span style={{ color: crmV2.text }}>
+            Nouveaux CRM <strong>{newPct}%</strong>
+          </span>
+          <span style={{ color: crmV2.textMuted }}>({newCount})</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: '#1C2436' }} />
+          <span style={{ color: crmV2.text }}>
+            Déjà en CRM <strong>{existingPct}%</strong>
+          </span>
+          <span style={{ color: crmV2.textMuted }}>({existingCount})</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type EmailValue = { subject?: string; body?: string }
 type FormRow = {
   id?: string
@@ -268,6 +382,19 @@ type Detail = {
   staff_needed?: number | null
   staff_remaining?: number | null
   staff_full?: boolean
+  perf_stats?: {
+    total: number
+    matched_contacts: number
+    by_zone: Array<{ key: string; label: string; count: number; pct: number }>
+    by_classe: Array<{ key: string; label: string; count: number; pct: number }>
+    novelty: {
+      new_count: number
+      existing_count: number
+      unknown_count: number
+      new_pct: number
+      existing_pct: number
+    }
+  } | null
 }
 
 type FormOption = {
@@ -980,6 +1107,82 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </CrmV2Button>
               </div>
             </CrmV2Card>
+
+            {/* ——— Performances leads ——— */}
+            {data.perf_stats && data.perf_stats.total > 0 && (
+              <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600 }}>Performances leads</div>
+                  <div style={{ fontSize: 12, color: crmV2.textMuted }}>
+                    {data.perf_stats.total} inscrits · {data.perf_stats.matched_contacts} matchés CRM
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: 16,
+                  }}
+                  className="event-perf-grid"
+                >
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: crmV2.radius,
+                      border: `1px solid ${crmV2.border}`,
+                      background: crmV2.bg,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: crmV2.text }}>
+                      Par zone
+                    </div>
+                    <PerfBarList items={data.perf_stats.by_zone} emptyLabel="Aucune zone renseignée." />
+                  </div>
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: crmV2.radius,
+                      border: `1px solid ${crmV2.border}`,
+                      background: crmV2.bg,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: crmV2.text }}>
+                      Par classe actuelle
+                    </div>
+                    <PerfBarList items={data.perf_stats.by_classe} emptyLabel="Aucune classe renseignée." />
+                  </div>
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: crmV2.radius,
+                      border: `1px solid ${crmV2.border}`,
+                      background: crmV2.bg,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: crmV2.text }}>
+                      Nouveaux vs déjà en CRM
+                    </div>
+                    <PerfNoveltyDonut
+                      newCount={data.perf_stats.novelty.new_count}
+                      existingCount={data.perf_stats.novelty.existing_count}
+                      newPct={data.perf_stats.novelty.new_pct}
+                      existingPct={data.perf_stats.novelty.existing_pct}
+                    />
+                    {data.perf_stats.novelty.unknown_count > 0 && (
+                      <div style={{ marginTop: 10, fontSize: 11, color: crmV2.textFaint }}>
+                        {data.perf_stats.novelty.unknown_count} non classés (contact CRM introuvable ou dates
+                        manquantes)
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <style>{`
+                  @media (max-width: 980px) {
+                    .event-perf-grid { grid-template-columns: 1fr !important; }
+                  }
+                `}</style>
+              </CrmV2Card>
+            )}
 
             {/* ——— Formulaires CRM + Meta ——— */}
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
