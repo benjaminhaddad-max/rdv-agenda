@@ -593,6 +593,14 @@ export async function POST(req: Request, { params }: Params) {
       .then(() => {}, () => {})
   })
 
+  // 7b. Événement publié lié à ce form → sync + confirmations email/SMS
+  try {
+    const { notifyLinkedEventsAfterCrmForm } = await import('@/lib/events-studio/notify-event-comms')
+    await notifyLinkedEventsAfterCrmForm(form.id)
+  } catch (e) {
+    logger.error('forms-submit-event-comms', e, { form_id: form.id, submission_id: submission.id })
+  }
+
   // 8. Déclenche les workflows liés à ce form (trigger_type='form_submitted')
   if (contactId) {
     try {

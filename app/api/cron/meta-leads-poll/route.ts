@@ -15,6 +15,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { fetchFormLeads, processMetaLead, syncPageLeadFormsToDb, type MetaLead } from '@/lib/meta'
 import { logger } from '@/lib/logger'
 import { requireCronSecret } from '@/lib/api-auth'
+import { notifyLinkedEventsAfterMetaLead } from '@/lib/events-studio/notify-event-comms'
 
 export const maxDuration = 300
 
@@ -136,7 +137,20 @@ export async function GET(req: NextRequest) {
             processed_at: new Date().toISOString(),
           })
           if (result.error) errors++
-          else processed++
+          else {
+            processed++
+            try {
+              await notifyLinkedEventsAfterMetaLead({
+                metaFormId: lead.form_id || form.form_id,
+                formName: form.name ?? null,
+              })
+            } catch (e) {
+              logger.error('meta-leads-poll-event-comms', e, {
+                leadgen_id: lead.id,
+                form_id: form.form_id,
+              })
+            }
+          }
         } catch (e) {
           errors++
           logger.error('meta-leads-poll-process', e, { leadgen_id: lead.id, form_id: form.form_id })

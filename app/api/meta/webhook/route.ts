@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import { fetchLeadById, processMetaLead, type MetaLead } from '@/lib/meta'
 import { logger } from '@/lib/logger'
+import { notifyLinkedEventsAfterMetaLead } from '@/lib/events-studio/notify-event-comms'
 
 /**
  * GET /api/meta/webhook — vérification du webhook par Meta (challenge response)
@@ -136,6 +137,19 @@ export async function POST(req: NextRequest) {
           leadgen_id: leadgenId, page_id: pageId, form_id: lead.form_id,
           field_data: lead.field_data,
         })
+      } else {
+        // Événement publié lié → sync inscriptions + confirmations email/SMS
+        try {
+          await notifyLinkedEventsAfterMetaLead({
+            metaFormId: lead.form_id || v.form_id || null,
+            formName: formMeta?.name || null,
+          })
+        } catch (e) {
+          logger.error('meta-webhook-event-comms', e, {
+            leadgen_id: leadgenId,
+            form_id: lead.form_id || v.form_id,
+          })
+        }
       }
 
       // Enregistre l'event
