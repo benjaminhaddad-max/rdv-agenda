@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
 import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
-import { mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
+import {
+  buildDefaultCustomEmails,
+  buildDefaultCustomSms,
+  mergeCommsWithDefaults,
+  type EmailValue,
+} from '@/lib/events-studio/comms-defaults'
 import { attachCommsSchedule, extractCommsSchedule } from '@/lib/events-studio/comms-schedule'
 import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
-import { parseStaffNeeded, setStaffNeededInDescription } from '@/lib/events-studio/event-meta'
+import {
+  buildEventDate,
+  parseStaffNeeded,
+  setStaffNeededInDescription,
+} from '@/lib/events-studio/event-meta'
 import {
   listEventAttendees,
   syncEventRegistrationsFromSources,
@@ -176,6 +185,34 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
   if (typeof body.zoom_join_url === 'string') patch.zoom_join_url = body.zoom_join_url.trim() || null
 
+  // Date / horaires (même shape que la création : date + time_start + time_end)
+  const hasDate = typeof body.date === 'string' && body.date.trim()
+  const hasTimeStart = typeof body.time_start === 'string' && body.time_start.trim()
+  const hasTimeEnd = typeof body.time_end === 'string' && body.time_end.trim()
+  if (hasDate || hasTimeStart) {
+    if (!hasDate || !hasTimeStart) {
+      return NextResponse.json(
+        { error: 'Date et heure de début sont obligatoires ensemble' },
+        { status: 400 },
+      )
+    }
+    try {
+      patch.event_date = buildEventDate(body.date.trim(), body.time_start.trim())
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Date / heure invalides' },
+        { status: 400 },
+      )
+    }
+  }
+  if (hasTimeEnd) {
+    const te = body.time_end.trim()
+    if (!/^\d{1,2}:\d{2}$/.test(te)) {
+      return NextResponse.json({ error: 'Heure de fin invalide (HH:MM)' }, { status: 400 })
+    }
+    patch.event_time_end = te
+  }
+
   // Webinaire : impossible de publier sans lien Zoom
   const nextType =
     typeof body.event_type === 'string' &&
@@ -206,19 +243,53 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const zoomChanged =
     typeof body.zoom_join_url === 'string' &&
     (body.zoom_join_url.trim() || null) !== (current.zoom_join_url || null)
-  if (zoomChanged && nextType === 'webinaire' && nextZoom) {
+  const scheduleChanged =
+    (typeof patch.event_date === 'string' && patch.event_date !== current.event_date) ||
+    (typeof patch.event_time_end === 'string' && patch.event_time_end !== current.event_time_end)
+
+  if ((zoomChanged && nextType === 'webinaire' && nextZoom) || scheduleChanged) {
     const evForComms = {
       ...current,
       ...patch,
       event_type: nextType,
       zoom_join_url: nextZoom,
     }
-    const merged = mergeCommsWithDefaults(evForComms, current.custom_emails, current.custom_sms)
-    patch.custom_emails = attachCommsSchedule(
-      merged.emails,
-      extractCommsSchedule(current.custom_emails),
-    )
-    patch.custom_sms = merged.sms
+    if (scheduleChanged && eventHasComms(evForComms)) {
+      // Rafraîchir les textes encore au défaut (date/heure embarquées) ; garder les customs.
+      const oldDefaultsEmails = buildDefaultCustomEmails({ ...current, event_type: nextType })
+      const oldDefaultsSms = buildDefaultCustomSms({ ...current, event_type: nextType })
+      const newDefaultsEmails = buildDefaultCustomEmails(evForComms)
+      const newDefaultsSms = buildDefaultCustomSms(evForComms)
+      const emails: Record<string, EmailValue> = { ...newDefaultsEmails }
+      for (const [k, v] of Object.entries(current.custom_emails || {})) {
+        if (k === '_schedule' || !v || typeof v !== 'object' || Array.isArray(v)) continue
+        const cur = v as EmailValue
+        const subject = (cur.subject || '').trim()
+        const bodyText = (cur.body || '').trim()
+        const old = oldDefaultsEmails[k]
+        const stillDefault =
+          (!subject || subject === (old?.subject || '').trim()) &&
+          (!bodyText || bodyText === (old?.body || '').trim())
+        emails[k] = stillDefault
+          ? newDefaultsEmails[k] || { subject, body: bodyText }
+          : { subject: subject || newDefaultsEmails[k]?.subject || '', body: bodyText || newDefaultsEmails[k]?.body || '' }
+      }
+      const sms: Record<string, string> = { ...newDefaultsSms }
+      for (const [k, v] of Object.entries(current.custom_sms || {})) {
+        const cur = String(v || '').trim()
+        const old = (oldDefaultsSms[k] || '').trim()
+        sms[k] = !cur || cur === old ? newDefaultsSms[k] || cur : cur
+      }
+      patch.custom_emails = attachCommsSchedule(emails, extractCommsSchedule(current.custom_emails))
+      patch.custom_sms = sms
+    } else {
+      const merged = mergeCommsWithDefaults(evForComms, current.custom_emails, current.custom_sms)
+      patch.custom_emails = attachCommsSchedule(
+        merged.emails,
+        extractCommsSchedule(current.custom_emails),
+      )
+      patch.custom_sms = merged.sms
+    }
   }
   if (body.max_capacity !== undefined) {
     patch.max_capacity = body.max_capacity ? parseInt(String(body.max_capacity), 10) : null

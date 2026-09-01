@@ -31,7 +31,7 @@ import {
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
 import { BRAND_CONFIG, EVENT_TYPES, eventTypeOf, type EventBrand, type EventTypeId } from '@/lib/events-studio/config'
 import { brandSender, buildEmailHtmlPreview } from '@/lib/events-studio/email-html-preview'
-import { formatEventSchedule } from '@/lib/events-studio/event-meta'
+import { formatEventSchedule, parisDateFromIso, parisTimeFromIso } from '@/lib/events-studio/event-meta'
 
 const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
 
@@ -417,6 +417,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [locationEdit, setLocationEdit] = useState('')
   const [capacityEdit, setCapacityEdit] = useState('')
   const [staffNeededEdit, setStaffNeededEdit] = useState('')
+  const [dateEdit, setDateEdit] = useState('')
+  const [timeStartEdit, setTimeStartEdit] = useState('')
+  const [timeEndEdit, setTimeEndEdit] = useState('')
   const [zoomEdit, setZoomEdit] = useState('')
   const [typeEdit, setTypeEdit] = useState<EventTypeId>('salon')
 
@@ -445,6 +448,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setLocationEdit(json.event?.location || '')
       setCapacityEdit(json.event?.max_capacity != null ? String(json.event.max_capacity) : '')
       setStaffNeededEdit(json.staff_needed != null ? String(json.staff_needed) : '')
+      const evDate = json.event?.event_date ? String(json.event.event_date) : ''
+      setDateEdit(evDate ? parisDateFromIso(evDate) : '')
+      setTimeStartEdit(evDate ? parisTimeFromIso(evDate) : '')
+      setTimeEndEdit(json.event?.event_time_end || '')
       setZoomEdit(json.event?.zoom_join_url || '')
       const typeId = currentTypeId(json.event || {})
       setTypeEdit(typeId)
@@ -587,12 +594,23 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function savePlaces() {
+    if (!dateEdit.trim() || !timeStartEdit.trim()) {
+      setToast('Date et heure de début obligatoires')
+      return
+    }
+    if (!timeEndEdit.trim()) {
+      setToast('Heure de fin obligatoire')
+      return
+    }
     setBusy(true)
     try {
       const typeCfg = EVENT_TYPES[typeEdit]
       const body: Record<string, unknown> = {
         event_type: typeEdit,
         location: locationEdit,
+        date: dateEdit.trim(),
+        time_start: timeStartEdit.trim(),
+        time_end: timeEndEdit.trim(),
         max_capacity: capacityEdit.trim() === '' ? null : parseInt(capacityEdit, 10),
       }
       if (typeCfg.staff) {
@@ -606,7 +624,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erreur')
-      setToast('Type, lieu, places et staff enregistrés')
+      setToast('Type, date, horaires, lieu, places et staff enregistrés')
       await load()
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Erreur')
@@ -1015,12 +1033,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             )}
 
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>Type, lieu, places leads & staff</div>
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>Type, date, horaires, lieu, places & staff</div>
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: showStaffEdit ? '160px 1fr 140px 140px' : '160px 1fr 140px',
+                  gridTemplateColumns: '160px 150px 110px 110px',
                   gap: 12,
+                  marginBottom: 12,
                 }}
               >
                 <div>
@@ -1033,6 +1052,41 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Date</label>
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={dateEdit}
+                    onChange={(e) => setDateEdit(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Début</label>
+                  <input
+                    type="time"
+                    style={inputStyle}
+                    value={timeStartEdit}
+                    onChange={(e) => setTimeStartEdit(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Fin</label>
+                  <input
+                    type="time"
+                    style={inputStyle}
+                    value={timeEndEdit}
+                    onChange={(e) => setTimeEndEdit(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: showStaffEdit ? '1fr 140px 140px' : '1fr 140px',
+                  gap: 12,
+                }}
+              >
                 <div>
                   <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
                     Adresse / lieu

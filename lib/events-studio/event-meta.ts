@@ -122,6 +122,50 @@ export function formatEventSchedule(ev: {
   return `${date} · ${timePart}`
 }
 
+/** Date calendaire Europe/Paris (YYYY-MM-DD) depuis un ISO. */
+export function parisDateFromIso(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+}
+
+/** Heure Europe/Paris (HH:MM) depuis un ISO. */
+export function parisTimeFromIso(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso))
+}
+
+/**
+ * Instant ISO pour une date + heure murale Europe/Paris.
+ * (évite le piège getTimezoneOffset() du serveur UTC).
+ */
+export function buildEventDate(date: string, timeStart: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error('Date invalide (YYYY-MM-DD)')
+  }
+  if (!/^\d{1,2}:\d{2}$/.test(timeStart)) {
+    throw new Error('Heure invalide (HH:MM)')
+  }
+  const [hh, mm] = timeStart.split(':').map((x) => parseInt(x, 10))
+  const [ty, tmo, td] = date.split('-').map((x) => parseInt(x, 10))
+  let guess = Date.UTC(ty, tmo - 1, td, hh, mm, 0)
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(guess)
+    const ymd = parisDateFromIso(d.toISOString())
+    const hm = parisTimeFromIso(d.toISOString())
+    const [ph, pm] = hm.split(':').map((x) => parseInt(x, 10))
+    const [py, pmo, pd] = ymd.split('-').map((x) => parseInt(x, 10))
+    const desired = Date.UTC(ty, tmo - 1, td, hh, mm)
+    const asParis = Date.UTC(py, pmo - 1, pd, ph, pm)
+    const delta = desired - asParis
+    if (delta === 0) break
+    guess += delta
+  }
+  return new Date(guess).toISOString()
+}
+
 /** Rémunération staff Diploma (affichage planning). */
 export const STAFF_PAY = {
   half_day: {
