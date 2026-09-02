@@ -3,6 +3,16 @@ import { createEventsClient } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import { eventTypeOf } from '@/lib/events-studio/config'
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 /**
  * GET /api/events-studio/salons-public?brand=diploma
  * Liste publique des salons publiés (choix du lieu + places restantes).
@@ -20,7 +30,7 @@ export async function GET(req: NextRequest) {
     .gte('event_date', nowIso)
     .order('event_date', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
 
   const salons = (data || []).filter((e) => eventTypeOf(e).id === 'salon')
 
@@ -59,6 +69,7 @@ export async function GET(req: NextRequest) {
     { brand, salons: items },
     {
       headers: {
+        ...CORS_HEADERS,
         'Cache-Control': 'public, max-age=15, s-maxage=15, stale-while-revalidate=60',
       },
     },

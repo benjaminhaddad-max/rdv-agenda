@@ -12,10 +12,13 @@ Scope : **marque Diploma Santé uniquement** (folder CRM `Diploma Santé`).
 
 Sur Diploma Santé, il y a **deux systèmes distincts**. Ne pas les mélanger.
 
+Doc **événements** (JPO / salons / webinaires) : [`api-events-diploma-sante.md`](./api-events-diploma-sante.md).
+
 | Famille | Rôle | Système | Endpoint principal |
 |---|---|---|---|
 | **A. Formulaires lead** | Capturer un prospect (candidature, brochure, guide…) | Builder CRM `/api/forms/{slug}` | `POST /api/forms/{slug}/submit` |
 | **B. Prise de RDV** | Réserver un créneau d’info (calendrier + form) | Widget booking dédié | `POST /api/appointments` |
+| **C. Événements** | Lister JPO / salons / webinaires + inscription | Events CRM | `GET /api/events-studio/events-public` |
 
 ```mermaid
 flowchart TB
