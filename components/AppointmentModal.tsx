@@ -10,6 +10,7 @@ import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 import MeetingModeSwitcher from './MeetingModeSwitcher'
 import VisioParticipantsBlock from './VisioParticipantsBlock'
 import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
+import { presentielCampusLabel } from '@/lib/campus'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
@@ -227,6 +228,9 @@ export default function AppointmentModal({
   const isNonAssigne = status === 'non_assigne'
 
   const meetingInfo = appointment.meeting_type ? MEETING_TYPE_LABEL[appointment.meeting_type] : null
+  const campusLabel = appointment.meeting_type === 'presentiel'
+    ? presentielCampusLabel(appointment.meeting_link)
+    : null
 
   const reportFilled = reportSummary.trim().length > 0 && reportTelepro.trim().length > 0
   // Rapport déjà sauvegardé en base (pas besoin de le re-remplir pour changer de statut)
@@ -685,9 +689,16 @@ export default function AppointmentModal({
               </div>
             )}
             {meetingInfo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: '#4a6070' }}>
+                <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0, marginTop: 3 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span style={{ color: meetingInfo.color, fontWeight: 600 }}>{meetingInfo.label}</span>
+                {campusLabel && (
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>
+                    — {campusLabel}
+                  </span>
+                )}
                 {appointment.meeting_type === 'visio' && appointment.meeting_link && (() => {
                   const rawLink = appointment.meeting_link
                   const isGoogle = isGoogleMeetLink(rawLink)
@@ -763,6 +774,7 @@ export default function AppointmentModal({
                     </>
                   )
                 })()}
+                </div>
                 <MeetingModeSwitcher
                   appointmentId={appointment.id}
                   meetingType={appointment.meeting_type}
@@ -771,6 +783,7 @@ export default function AppointmentModal({
                   disabled={saving}
                   onUpdated={(updated) => onUpdate(updated)}
                 />
+                </div>
               </div>
             )}
             {appointment.meeting_type === 'visio' && appointment.meeting_link && status !== 'annule' && (

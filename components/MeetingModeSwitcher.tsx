@@ -18,7 +18,6 @@ type Props = {
 export default function MeetingModeSwitcher({
   appointmentId,
   meetingType,
-  meetingLink,
   status,
   disabled,
   onUpdated,
@@ -87,12 +86,6 @@ export default function MeetingModeSwitcher({
 
   return (
     <div style={{ marginTop: 4 }}>
-      {current === 'presentiel' && meetingLink && !/^https?:\/\//i.test(meetingLink) && (
-        <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 8 }}>
-          Campus : <strong style={{ color: '#0f172a' }}>{meetingLink}</strong>
-        </div>
-      )}
-
       {showCampusPicker ? (
         <div style={{
           background: '#f7f4ee', border: '1px solid #e5ddc8',

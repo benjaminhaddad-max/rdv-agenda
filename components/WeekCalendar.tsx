@@ -9,6 +9,7 @@ import AppointmentModal from './AppointmentModal'
 import CloserNewRdvModal from './CloserNewRdvModal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
+import { campusShortLabel } from '@/lib/campus'
 
 type Appointment = {
   id: string
@@ -528,6 +529,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             {format(new Date(appt.start_at), 'HH:mm')}
           </span>
           {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
+          {appt.meeting_type === 'presentiel' && <span style={{ marginRight: 2 }}>📍</span>}
           {displayName}
         </div>
         {niveau && (
@@ -573,6 +575,26 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
             </a>
           )
         })()}
+        {appt.meeting_type === 'presentiel' && campusShortLabel(appt.meeting_link) && (
+          <div
+            title={appt.meeting_link || undefined}
+            style={{
+              marginTop: isDay ? 5 : 2,
+              padding: isDay ? '2px 8px' : '1px 5px',
+              borderRadius: 4,
+              background: 'rgba(201,168,76,0.15)',
+              color: '#8a6d1f',
+              fontSize: badgeSize,
+              fontWeight: 700,
+              lineHeight: 1.4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            📍 {campusShortLabel(appt.meeting_link)}
+          </div>
+        )}
       </div>
     )
   }
@@ -1412,7 +1434,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                       {format(new Date(appt.start_at), 'HH:mm')}
                       {' – '}
                       {format(new Date(appt.end_at), 'HH:mm')}
-                      {appt.meeting_type === 'visio' ? ' · 📹' : ''}
+                      {appt.meeting_type === 'visio' ? ' · 📹' : appt.meeting_type === 'presentiel' ? ' · 📍' : ''}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', marginTop: 2 }}>
                       {shortProspectName(appt.prospect_name)}
@@ -1464,6 +1486,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                         </div>
                       )
                     })()}
+                    {appt.meeting_type === 'presentiel' && campusShortLabel(appt.meeting_link) && (
+                      <div style={{ fontSize: 12, color: '#8a6d1f', fontWeight: 600, marginTop: 6 }}>
+                        📍 {appt.meeting_link}
+                      </div>
+                    )}
                   </div>
                 ))}
             </div>

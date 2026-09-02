@@ -8,6 +8,7 @@ import { formatParis } from '@/lib/date-paris'
 import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
 import { createMeetEvent, isGoogleMeetConfigured } from '@/lib/google-meet'
 import { APPOINTMENT_LIST_SELECT, enrichAppointmentsTelepro } from '@/lib/appointment-display'
+import { CAMPUS_OPTIONS, isValidCampus } from '@/lib/campus'
 
 const QUEUE_ALERT_EMAIL = 'pascal@diploma-sante.fr'
 
@@ -352,6 +353,9 @@ export async function POST(req: NextRequest) {
         console.error('[appointments POST] Génération lien Meet échouée — fallback lien client')
       }
     }
+  } else if (meeting_type === 'presentiel') {
+    const campus = String(meeting_link || '').trim()
+    finalMeetingLink = isValidCampus(campus) ? campus : CAMPUS_OPTIONS[0]
   }
 
   // Créer le RDV en DB

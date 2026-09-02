@@ -221,6 +221,9 @@ function TeleproRdvModal({
                     : rdv.meeting_type === 'telephone' ? <PhoneCall size={14} style={{ color: meetingColor, flexShrink: 0 }} />
                     : <MapPin size={14} style={{ color: meetingColor, flexShrink: 0 }} />}
                   <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
+                  {rdv.meeting_type === 'presentiel' && rdv.meeting_link && !/^https?:\/\//i.test(rdv.meeting_link) && (
+                    <span style={{ color: '#0e1e35', fontWeight: 600 }}>— {rdv.meeting_link}</span>
+                  )}
                   {rdv.meeting_type === 'visio' && rdv.meeting_link && (
                     <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
                       style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>

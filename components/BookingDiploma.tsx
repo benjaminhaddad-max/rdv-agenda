@@ -20,6 +20,7 @@ import { fr } from 'date-fns/locale'
 import {
   Clock, Globe2, ChevronLeft, ChevronRight, ArrowLeft, CalendarDays, CheckCircle2, MapPin, Video,
 } from 'lucide-react'
+import { CAMPUS_OPTIONS, type CampusOption } from '@/lib/campus'
 
 // ─── Réglages faciles à modifier ──────────────────────────────────────────────
 const EVENT_TITLE = "Rendez-vous d'information - Diploma Santé"
@@ -28,7 +29,6 @@ const EVENT_DURATION_MIN = 30
 const EVENT_DESCRIPTION =
   'Nous sommes ravis de pouvoir échanger avec vous sur votre parcours et nos préparations. ' +
   'Merci de vous munir de vos bulletins de première et terminale !'
-const ADRESSE_PRESENTIEL = '100 quai de la Rapée 75012 Paris'
 const SLOT_START_HOUR = 9
 const SLOT_END_HOUR = 22
 
@@ -61,7 +61,13 @@ const BORDER = '#e2ecf5'
 
 type Step = 'date' | 'form' | 'success'
 type Slot = { start: string; end: string }
-type Lieu = 'presentiel' | 'visio'
+type Lieu = 'visio' | CampusOption
+
+const LIEU_OPTIONS: { key: Lieu; meetingType: 'presentiel' | 'visio'; label: string }[] = [
+  { key: CAMPUS_OPTIONS[0], meetingType: 'presentiel', label: CAMPUS_OPTIONS[0] },
+  { key: CAMPUS_OPTIONS[1], meetingType: 'presentiel', label: CAMPUS_OPTIONS[1] },
+  { key: 'visio', meetingType: 'visio', label: 'En visioconférence' },
+]
 
 export type BookingUtm = {
   utm_source?: string | null
@@ -195,7 +201,7 @@ export default function BookingDiploma({
   }
 
   async function submit() {
-    if (!formValid || !selectedSlot) {
+    if (!formValid || !selectedSlot || !lieu) {
       setError('Veuillez remplir tous les champs obligatoires.')
       return
     }
@@ -210,7 +216,8 @@ export default function BookingDiploma({
       utm?.ref && `ref=${utm.ref}`,
     ].filter(Boolean)
     const trackingNote = utmParts.length > 0 ? `[Tracking: ${utmParts.join(' | ')}]` : ''
-    const lieuNote = lieu === 'presentiel' ? `Lieu : ${ADRESSE_PRESENTIEL}` : 'Lieu : Visioconférence'
+    const isPresentiel = lieu !== 'visio'
+    const lieuNote = isPresentiel ? `Lieu : ${lieu}` : 'Lieu : Visioconférence'
     const notes = [lieuNote, trackingNote].filter(Boolean).join(' — ')
 
     try {
@@ -228,7 +235,8 @@ export default function BookingDiploma({
           end_at: selectedSlot.end,
           source: 'prospect',
           formation_type: formation,
-          meeting_type: lieu,
+          meeting_type: isPresentiel ? 'presentiel' : 'visio',
+          meeting_link: isPresentiel ? lieu : null,
           departement: departement.trim(),
           classe_actuelle: classe,
           call_notes: notes || null,
@@ -544,10 +552,7 @@ export default function BookingDiploma({
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Lieu *</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {([
-                    { key: 'presentiel' as Lieu, label: ADRESSE_PRESENTIEL, icon: <MapPin size={18} style={{ color: GOLD }} /> },
-                    { key: 'visio' as Lieu, label: 'En visioconférence', icon: <Video size={18} style={{ color: BLUE }} /> },
-                  ]).map(opt => (
+                  {LIEU_OPTIONS.map(opt => (
                     <label
                       key={opt.key}
                       style={{
@@ -565,7 +570,9 @@ export default function BookingDiploma({
                         onChange={() => setLieu(opt.key)}
                         style={{ width: 17, height: 17, accentColor: NAVY, cursor: 'pointer' }}
                       />
-                      {opt.icon}
+                      {opt.meetingType === 'visio'
+                        ? <Video size={18} style={{ color: BLUE, flexShrink: 0 }} />
+                        : <MapPin size={18} style={{ color: GOLD, flexShrink: 0 }} />}
                       {opt.label}
                     </label>
                   ))}
@@ -708,8 +715,8 @@ export default function BookingDiploma({
                   {format(new Date(selectedSlot.start), 'EEEE d MMMM yyyy', { locale: fr })}
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  {lieu === 'presentiel'
-                    ? <><MapPin size={16} style={{ color: GOLD, flexShrink: 0 }} /> {ADRESSE_PRESENTIEL}</>
+                  {lieu && lieu !== 'visio'
+                    ? <><MapPin size={16} style={{ color: GOLD, flexShrink: 0 }} /> {lieu}</>
                     : <><Video size={16} style={{ color: BLUE, flexShrink: 0 }} /> En visioconférence — lien envoyé par e-mail et SMS</>}
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
