@@ -1530,9 +1530,12 @@ export default function CRMPage() {
   }
 
   function renameCRMView(viewId: string, newName: string) {
-    const updated = crmViews.map(v => v.id === viewId ? { ...v, name: newName || v.name } : v)
-    setCrmViews(updated)
-    persistViewUpdate(viewId, { name: newName || (crmViews.find(v => v.id === viewId)?.name ?? '') })
+    const current = crmViews.find(v => v.id === viewId)?.name ?? ''
+    const next = newName.trim() || current
+    if (next !== current) {
+      setCrmViews(prev => prev.map(v => v.id === viewId ? { ...v, name: next } : v))
+      persistViewUpdate(viewId, { name: next })
+    }
     setRenamingViewId(null)
   }
 
@@ -2267,24 +2270,39 @@ export default function CRMPage() {
                 </span>
               )}
 
-              {/* Retirer de MON affichage — le catalogue reste intact */}
               {!view.isDefault && isActive && !isRenaming && (
-                <button
-                  onClick={e => { e.stopPropagation(); unpinCRMView(view.id) }}
-                  title="Retirer de mes onglets"
-                  style={{
-                    background: 'none', border: 'none', padding: 0,
-                    color: '#3D5275', cursor: 'pointer', display: 'flex', marginLeft: 2,
-                  }}
-                >
-                  <X size={11} />
-                </button>
+                <>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setRenamingViewId(view.id)
+                      setRenameValue(view.name)
+                    }}
+                    title="Renommer la vue (tous les admins et télépros)"
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      color: '#12314d', cursor: 'pointer', display: 'flex', marginLeft: 2,
+                    }}
+                  >
+                    <Pen size={11} />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); unpinCRMView(view.id) }}
+                    title="Retirer de mes onglets"
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      color: '#3D5275', cursor: 'pointer', display: 'flex',
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                </>
               )}
             </div>
           )
         })}
 
-        {/* HubSpot-style "+" tab to create a new view */}
+        {/* Annuaire : ajouter une vue existante ou en créer une */}
         {creatingView ? (
           <div
             style={{
@@ -2325,8 +2343,8 @@ export default function CRMPage() {
           </div>
         ) : (
           <button
-            onClick={() => { setCreatingView(true); setNewViewName('') }}
-            title="Créer une vue à partir des filtres actuels"
+            onClick={() => setManageViewsOpen(true)}
+            title="Ajouter une vue existante ou en créer une"
             style={{
               padding: '8px 14px',
               background: '#f5f8fa',
@@ -2340,7 +2358,7 @@ export default function CRMPage() {
             onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
             onMouseLeave={e => (e.currentTarget.style.color = '#3D5275')}
           >
-            <Plus size={14} /> Vue
+            <Plus size={14} /> Ajouter
           </button>
         )}
 
@@ -2425,21 +2443,19 @@ export default function CRMPage() {
               </button>
             )}
 
-            {catalogTopLevelViews.length > 0 && (
-              <button
-                onClick={() => setManageViewsOpen(true)}
-                style={{
-                  padding: '7px 10px', background: 'none', border: '1px solid transparent',
-                  borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: 12, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
-              >
-                <SlidersHorizontal size={11} /> Gérer
-              </button>
-            )}
+            <button
+              onClick={() => setManageViewsOpen(true)}
+              style={{
+                padding: '7px 10px', background: 'none', border: '1px solid transparent',
+                borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 12, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
+            >
+              <List size={11} /> Annuaire
+            </button>
 
             {!creatingView && (
               <button
@@ -3229,13 +3245,14 @@ export default function CRMPage() {
         <CRMManageViewsModal
           catalogViews={catalogTopLevelViews}
           layoutViewIds={layoutViewIds}
-          renamingViewId={renamingViewId}
           onClose={() => setManageViewsOpen(false)}
-          onRenameStart={(id, name) => { setRenamingViewId(id); setRenameValue(name) }}
-          onRenameCommit={(id, name) => renameCRMView(id, name)}
-          onRenameCancel={() => setRenamingViewId(null)}
+          onRename={(id, name) => renameCRMView(id, name)}
           onPin={pinCRMView}
           onUnpin={unpinCRMView}
+          onCreate={name => {
+            createCRMView(name)
+            setManageViewsOpen(false)
+          }}
         />
       )}
 

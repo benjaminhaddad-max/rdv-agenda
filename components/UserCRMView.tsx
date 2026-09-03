@@ -8,6 +8,9 @@ import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
+import TeleproAddViewModal, { type CatalogViewOption } from '@/components/crm/TeleproAddViewModal'
+import { persistAdminViewLayout } from '@/lib/crm-views'
+import { isTopLevelCatalogId } from '@/lib/crm-admin-view-layout'
 import {
   CRM_FILTER_FIELDS, opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
@@ -484,6 +487,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
   const [renameValue, setRenameValue]     = useState('')
   const [justSaved, setJustSaved]         = useState(false)
+  const [addViewOpen, setAddViewOpen]     = useState(false)
+  const [catalogViews, setCatalogViews]   = useState<CatalogViewOption[]>([])
+  const [layoutViewIds, setLayoutViewIds] = useState<string[]>([])
 
   // mode='telepro' → filtres CONTACT ; mode='closer' → filtres TRANSACTION
   const isContactsView = mode === 'telepro'
@@ -862,7 +868,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     return JSON.stringify(currentSnapshot) !== JSON.stringify(activeView.snapshot ?? {})
   }, [currentSnapshot, activeView])
 
-  // Charge les vues privées + vues globales partagées (télépro).
+  // Charge les vues privées + le catalogue admin (télépro, lecture seule).
   useEffect(() => {
     let cancelled = false
     const loadViews = async () => {
@@ -872,6 +878,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
         ]
         if (mode === 'telepro') {
           requests.push(fetch('/api/crm/views?scope=contacts&shared=telepro'))
+          requests.push(fetch('/api/crm/views/layout'))
         }
         const responses = await Promise.all(requests)
         if (cancelled) return
@@ -880,8 +887,11 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           ? await responses[0].json() as Array<{ id: string; name: string; filter_groups: unknown }>
           : []
         const sharedRows = mode === 'telepro' && responses[1]?.ok
-          ? await responses[1].json() as Array<{ id: string; name: string }>
+          ? await responses[1].json() as Array<{ id: string; name: string; parent_id?: string | null; kind?: string | null }>
           : []
+        const layoutPayload = mode === 'telepro' && responses[2]?.ok
+          ? await responses[2].json() as { view_ids?: string[] }
+          : { view_ids: [] as string[] }
 
         const privateViews: UserSavedView[] = Array.isArray(privateRows)
           ? privateRows.map(r => ({
@@ -890,15 +900,22 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               snapshot: (r.filter_groups as UserViewSnapshot) ?? {},
             }))
           : []
-        const sharedViews: UserSavedView[] = Array.isArray(sharedRows)
-          ? sharedRows.map(r => ({
-              id: r.id,
-              name: r.name,
-              snapshot: {},
-              isShared: true,
-            }))
+        const catalog: CatalogViewOption[] = Array.isArray(sharedRows)
+          ? sharedRows
+              .filter(r => isTopLevelCatalogId(r.id, r.parent_id, r.kind) && !r.id.startsWith('alayout_'))
+              .map(r => ({ id: r.id, name: r.name }))
           : []
+        const pinnedIds = Array.isArray(layoutPayload?.view_ids)
+          ? layoutPayload.view_ids.filter((id): id is string => typeof id === 'string')
+          : []
+        const catalogById = new Map(catalog.map(v => [v.id, v]))
+        const sharedViews: UserSavedView[] = pinnedIds
+          .map(id => catalogById.get(id))
+          .filter((v): v is CatalogViewOption => !!v)
+          .map(v => ({ id: v.id, name: v.name, snapshot: {}, isShared: true }))
 
+        setCatalogViews(catalog)
+        setLayoutViewIds(pinnedIds)
         setViews([DEFAULT_USER_VIEW, ...sharedViews, ...privateViews])
       } catch {
         // ignore
@@ -966,7 +983,9 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
   }
 
   function renameView(id: string, name: string) {
-    const finalName = name || (views.find(v => v.id === id)?.name ?? '')
+    const view = views.find(v => v.id === id)
+    if (!view || view.isShared || view.isDefault) return
+    const finalName = name.trim() || view.name
     setViews(prev => prev.map(v => (v.id === id ? { ...v, name: finalName } : v)))
     setRenamingViewId(null)
     void fetch(`/api/crm/views/${id}`, {
@@ -976,8 +995,31 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     }).catch(() => {})
   }
 
+  function pinSharedView(id: string) {
+    if (layoutViewIds.includes(id)) return
+    const next = [...layoutViewIds, id]
+    setLayoutViewIds(next)
+    void persistAdminViewLayout(next)
+    const cat = catalogViews.find(v => v.id === id)
+    if (!cat) return
+    setViews(prev => {
+      if (prev.some(v => v.id === id)) return prev
+      const head = prev.filter(v => v.isDefault || v.isShared)
+      const priv = prev.filter(v => !v.isDefault && !v.isShared)
+      return [...head, { id: cat.id, name: cat.name, snapshot: {}, isShared: true }, ...priv]
+    })
+  }
+
+  function unpinSharedView(id: string) {
+    const next = layoutViewIds.filter(x => x !== id)
+    setLayoutViewIds(next)
+    void persistAdminViewLayout(next)
+    setViews(prev => prev.filter(v => v.id !== id))
+    if (activeViewId === id) applyView(DEFAULT_USER_VIEW)
+  }
+
   function saveActiveView() {
-    if (!activeView || activeView.isDefault) return
+    if (!activeView || activeView.isDefault || activeView.isShared) return
     const snapshot = currentSnapshot
     setViews(prev => prev.map(v => (v.id === activeViewId ? { ...v, snapshot } : v)))
     setJustSaved(true)
@@ -1238,10 +1280,14 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                     {view.name}
                   </span>
                 )}
-                {!view.isDefault && !view.isShared && isActive && !isRenaming && (
+                {!view.isDefault && isActive && !isRenaming && (
                   <button
-                    onClick={e => { e.stopPropagation(); deleteView(view.id) }}
-                    title="Supprimer la vue"
+                    onClick={e => {
+                      e.stopPropagation()
+                      if (view.isShared) unpinSharedView(view.id)
+                      else deleteView(view.id)
+                    }}
+                    title={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
                     style={{
                       background: 'none', border: 'none', padding: 0, marginLeft: 2,
                       color: TEXT_DIM, cursor: 'pointer', display: 'flex',
@@ -1305,8 +1351,10 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
             </div>
           ) : (
             <button
-              onClick={() => setCreatingView(true)}
-              title="Enregistrer les filtres actuels comme une nouvelle vue privée"
+              onClick={() => mode === 'telepro' ? setAddViewOpen(true) : setCreatingView(true)}
+              title={mode === 'telepro'
+                ? 'Ajouter une vue existante créée en admin'
+                : 'Enregistrer les filtres actuels comme une nouvelle vue privée'}
               style={{
                 padding: '7px 12px', background: 'none', border: 'none',
                 color: TEXT_DIM, cursor: 'pointer', display: 'flex',
@@ -1314,7 +1362,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                 whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >
-              <Plus size={12} /> Vue
+              <Plus size={12} /> {mode === 'telepro' ? 'Ajouter' : 'Vue'}
             </button>
           )}
         </div>
@@ -1554,7 +1602,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               {justSaved ? <Check size={12} /> : <Save size={12} />}
               {justSaved ? 'Enregistré' : 'Enregistrer la vue'}
             </button>
-          ) : hasActiveFilters && (activeView?.isDefault ?? true) ? (
+          ) : hasActiveFilters && (activeView?.isDefault ?? true) && mode !== 'telepro' ? (
             <button
               onClick={() => { setCreatingView(true); setNewViewName('') }}
               style={{
@@ -1883,6 +1931,15 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           </div>
         )
       })()}
+      {mode === 'telepro' && addViewOpen && (
+        <TeleproAddViewModal
+          catalogViews={catalogViews}
+          layoutViewIds={layoutViewIds}
+          onClose={() => setAddViewOpen(false)}
+          onPin={pinSharedView}
+          onUnpin={unpinSharedView}
+        />
+      )}
     </div>
   )
 }

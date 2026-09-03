@@ -7,12 +7,14 @@ import {
   snapshotCatalogIds,
   upsertAdminViewLayout,
 } from '@/lib/crm-admin-view-layout'
+import { TELEPRO_SHARED_VIEW_IDS } from '@/lib/crm-views'
 
-// GET /api/crm/views/layout — onglets visibles de l'admin courant.
-// Si aucun layout n'existe encore, on fige le catalogue actuel (pour ne rien
-// casser au premier chargement), puis les créations/masquages deviennent perso.
+// GET /api/crm/views/layout — onglets visibles de l'admin ou du télépro courant.
+// Admin sans layout : on fige le catalogue actuel.
+// Télépro sans layout : Recalif / Diploma (comportement historique), puis
+// il ajoute d'autres vues du catalogue sans les modifier.
 export async function GET() {
-  const auth = await requireApiRole(['admin'])
+  const auth = await requireApiRole(['admin', 'telepro'])
   if (!auth.ok) return auth.response
   const db = createServiceClient()
   const layoutId = adminViewLayoutRowId(auth.ctx.appUserId)
@@ -27,7 +29,9 @@ export async function GET() {
     return NextResponse.json({ view_ids: parseLayoutViewIds(row.filter_groups) ?? [] })
   }
 
-  const viewIds = await snapshotCatalogIds(db)
+  const viewIds = auth.ctx.role === 'telepro'
+    ? [...TELEPRO_SHARED_VIEW_IDS]
+    : await snapshotCatalogIds(db)
   const { error } = await upsertAdminViewLayout(db, auth.ctx.appUserId, viewIds)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ view_ids: viewIds })
@@ -35,7 +39,7 @@ export async function GET() {
 
 // PUT /api/crm/views/layout — { view_ids: string[] }
 export async function PUT(req: NextRequest) {
-  const auth = await requireApiRole(['admin'])
+  const auth = await requireApiRole(['admin', 'telepro'])
   if (!auth.ok) return auth.response
   const body = await req.json().catch(() => ({}))
   const viewIds = parseLayoutViewIds(body?.view_ids)

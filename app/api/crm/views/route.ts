@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getApiUserContext } from '@/lib/api-auth'
-import { TELEPRO_SHARED_VIEW_IDS } from '@/lib/crm-views'
 
 // GET /api/crm/views
 //
 //   ?scope=contacts|transactions  (défaut: contacts)
 //   ?owner=me                     → vues PRIVÉES de l'utilisateur courant
-//   ?shared=telepro               → vues globales partagées avec les télépros
+//   ?shared=telepro               → catalogue global admin (lecture seule)
 //   (sans owner)                  → vues GLOBALES admin (owner_id IS NULL)
 //
 // La page admin appelle /api/crm/views sans paramètre → elle continue de ne
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
   if (shared === 'telepro') {
     const ctx = await getApiUserContext()
     if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    query = query.is('owner_id', null).in('id', [...TELEPRO_SHARED_VIEW_IDS])
+    query = query.is('owner_id', null)
   } else if (owner === 'me') {
     const ctx = await getApiUserContext()
     if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
