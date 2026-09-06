@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
-import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
+import { createEventsClient } from '@/lib/events-studio/client'
 import {
   BRAND_CONFIG,
   EVENT_TYPES,
@@ -11,6 +11,7 @@ import {
 import { buildDefaultCustomEmails, buildDefaultCustomSms } from '@/lib/events-studio/comms-defaults'
 import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
 import { parseStaffNeeded } from '@/lib/events-studio/event-meta'
+import { sendEventPendingConfirmations } from '@/lib/events-studio/send-confirmations'
 import { countRegisteredByEventIds } from '@/lib/events-studio/sync-attendees'
 
 function buildEventDate(date: string, timeStart: string): string {
@@ -226,14 +227,7 @@ export async function POST(req: NextRequest) {
   // Publier + confirmations si demandé
   if (status === 'published' && eventHasComms(eventType)) {
     try {
-      await fetch(eventsEdgeUrl('send-pending-confirmations'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getEventsSupabaseKey()}`,
-        },
-        body: JSON.stringify({ event_id: event.id }),
-      })
+      await sendEventPendingConfirmations(event.id)
     } catch {
       /* non bloquant */
     }

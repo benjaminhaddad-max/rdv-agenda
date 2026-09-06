@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCrmUserId } from '@/lib/events-studio/auth'
-import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
+import { createEventsClient } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
 import {
   buildDefaultCustomEmails,
@@ -20,6 +20,7 @@ import {
   syncEventRegistrationsFromSources,
 } from '@/lib/events-studio/sync-attendees'
 import { getEventPerfStats } from '@/lib/events-studio/event-perf-stats'
+import { sendEventPendingConfirmations } from '@/lib/events-studio/send-confirmations'
 import { createServiceClient } from '@/lib/supabase'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -385,15 +386,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       }
     }
     try {
-      const sendRes = await fetch(eventsEdgeUrl('send-pending-confirmations'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getEventsSupabaseKey()}`,
-        },
-        body: JSON.stringify({ event_id: id }),
-      })
-      sendResult = (await sendRes.json().catch(() => ({}))) as typeof sendResult
+      sendResult = await sendEventPendingConfirmations(id)
     } catch (e) {
       sendResult = {
         success: false,

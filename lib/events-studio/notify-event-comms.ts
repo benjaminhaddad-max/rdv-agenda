@@ -1,25 +1,15 @@
 /**
  * Dès qu’un lead Meta/CRM tombe sur un formulaire lié à un événement publié,
- * synchronise Events.registrations et envoie les confirmations manquantes.
+ * synchronise Events.registrations et envoie les confirmations manquantes
+ * (templates plateforme via Brevo / SMS Factor).
  */
 
 import { createServiceClient } from '@/lib/supabase'
-import { createEventsClient, eventsEdgeUrl, getEventsSupabaseKey } from '@/lib/events-studio/client'
+import { createEventsClient } from '@/lib/events-studio/client'
 import { eventHasComms } from '@/lib/events-studio/config'
+import { sendEventPendingConfirmations } from '@/lib/events-studio/send-confirmations'
 import { syncEventRegistrationsFromSources } from '@/lib/events-studio/sync-attendees'
 import { logger } from '@/lib/logger'
-
-async function sendPendingConfirmations(eventId: string): Promise<unknown> {
-  const res = await fetch(eventsEdgeUrl('send-pending-confirmations'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getEventsSupabaseKey()}`,
-    },
-    body: JSON.stringify({ event_id: eventId }),
-  })
-  return res.json().catch(() => ({ status: res.status }))
-}
 
 async function processPublishedEvent(eventId: string): Promise<{
   event_id: string
@@ -48,7 +38,7 @@ async function processPublishedEvent(eventId: string): Promise<{
 
   try {
     const sync = await syncEventRegistrationsFromSources(eventId)
-    const send = await sendPendingConfirmations(eventId)
+    const send = await sendEventPendingConfirmations(eventId)
     return { event_id: eventId, sync, send }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
