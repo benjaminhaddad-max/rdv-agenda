@@ -4,7 +4,7 @@
  */
 
 import { defaultEmailBody, evAvant, evName, evPour, evRef, type CommsEventLike } from './comms-defaults'
-import { eventUsesVisio, type EventBrand } from './config'
+import { EVENTS_SUPABASE_URL_DEFAULT, eventUsesVisio, type EventBrand } from './config'
 
 type BrandTheme = {
   name: string
@@ -96,20 +96,28 @@ function visioBtn(url: string) {
   return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Rejoindre la visioconférence</p><a href="${esc(url)}" style="display:inline-block;background:#FFF;color:#2D8CFF!important;font-size:15px;font-weight:700;padding:14px 32px;border-radius:100px;text-decoration:none;">Rejoindre →</a><p style="font-size:12px;color:rgba(255,255,255,0.6);margin:12px 0 0;word-break:break-all;">${esc(url)}</p></div>`
 }
 
-function qrBlk() {
-  return `<div style="background:#F5F2EC;border-radius:16px;padding:32px;text-align:center;margin:28px auto;max-width:360px;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;margin:0 0 20px;font-weight:700;">Votre QR Code</p><div style="width:220px;height:220px;margin:0 auto;border-radius:12px;border:3px solid #1C2436;background:#fff;display:flex;align-items:center;justify-content:center;color:#9A9A9A;font-size:13px;">QR code personnel</div><div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,#C2AB82,transparent);margin:20px auto;"></div><p style="font-size:14px;color:#3D4B5C;margin:0;">Présentez ce QR code <strong style="color:#1C2436;">à l'entrée</strong></p></div>`
+function qrImageUrl(code: string) {
+  const base = (process.env.EVENTS_SUPABASE_URL || EVENTS_SUPABASE_URL_DEFAULT).replace(/\/$/, '')
+  return `${base}/functions/v1/qr-image?code=${encodeURIComponent(code)}`
+}
+
+/** QR réel (edge qr-image) — code perso ou PREVIEW123 pour l’aperçu CRM. */
+function qrBlk(qrCode?: string | null) {
+  const code = (qrCode || '').trim() || 'PREVIEW123'
+  const url = qrImageUrl(code)
+  return `<div style="background:#F5F2EC;border-radius:16px;padding:32px;text-align:center;margin:28px auto;max-width:360px;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;margin:0 0 20px;font-weight:700;">Votre QR Code</p><img src="${esc(url)}" alt="QR Code" width="260" height="260" style="display:block;margin:0 auto;width:260px;height:260px;border-radius:12px;border:3px solid #1C2436;"><div style="width:48px;height:2px;background:linear-gradient(90deg,transparent,#C2AB82,transparent);margin:20px auto;"></div><p style="font-size:14px;color:#3D4B5C;margin:0;">Présentez ce QR code <strong style="color:#1C2436;">à l'entrée</strong></p></div>`
 }
 
 function zoomSoonBlk() {
   return `<div style="background:linear-gradient(135deg,#2D8CFF,#1A6FD1);border-radius:12px;padding:24px;margin:28px 0;text-align:center;"><p style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.8);margin:0 0 12px;font-weight:700;">Visioconférence Zoom</p><p style="font-size:15px;color:#FFF;margin:0;line-height:1.5;">Le lien de connexion Zoom vous sera communiqué avant le webinaire.</p></div>`
 }
 
-/** Accès : Zoom pour webinaire, QR uniquement pour les événements physiques (JPO). */
-function accessBlock(ev: PreviewEvent) {
+/** Accès : Zoom pour webinaire, QR réel pour les événements physiques (JPO / salon). */
+function accessBlock(ev: PreviewEvent, qrCode?: string | null) {
   if (eventUsesVisio(ev)) {
     return ev.zoom_join_url ? visioBtn(ev.zoom_join_url) : zoomSoonBlk()
   }
-  return qrBlk()
+  return qrBlk(qrCode)
 }
 
 function briefBlock(ev: PreviewEvent, accent: string) {
@@ -144,7 +152,13 @@ function wrap(ev: PreviewEvent, heroT: string, heroS: string, body: string, acce
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:${b.surface};font-family:'DM Sans',Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:${b.surface};"><tr><td align="center" style="padding:24px 16px;"><div style="text-align:center;padding:28px 0 20px;background:#FFF;border-radius:16px 16px 0 0;max-width:640px;margin:0 auto;">${logoBlock}</div><table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;"><tr><td><div style="background:${b.dark};padding:32px 32px 40px;text-align:center;"><h1 style="font-family:'DM Serif Display',Georgia,serif;font-size:28px;line-height:1.2;color:#FFF;margin:0 0 16px;">${heroT}</h1><p style="font-size:16px;line-height:1.65;color:rgba(255,255,255,0.72);max-width:440px;margin:0 auto;">${heroS}</p><div style="width:48px;height:2px;background:linear-gradient(90deg,${b.accent},transparent);margin:28px auto 0;"></div></div></td></tr><tr><td><div style="background:#FFF;padding:36px 32px;">${body}${access}</div></td></tr><tr><td><div style="background:${b.dark};padding:40px 32px;text-align:center;border-radius:0 0 16px 16px;"><h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:#FFF;margin:0 0 12px;">À très bientôt !</h2><p style="font-size:15px;line-height:1.65;color:rgba(255,255,255,0.65);margin:0 0 24px;">Nous avons hâte de vous retrouver. N'hésitez pas à nous contacter !</p><a href="mailto:${b.sender}" style="display:inline-block;background:${b.accent};color:${b.dark}!important;font-size:15px;font-weight:700;padding:14px 32px;border-radius:100px;text-decoration:none;">Nous contacter →</a><p style="margin-top:16px;font-size:11px;color:rgba(255,255,255,0.3);">${esc(b.name)}</p></div></td></tr></table><p style="font-size:11px;color:#9A9A9A;text-align:center;margin:24px 0 0;">© ${new Date().getFullYear()} ${esc(b.name)}</p></td></tr></table></body></html>`
 }
 
-function confEmail(ev: PreviewEvent, customBody: string, prenom: string, participantName: string) {
+function confEmail(
+  ev: PreviewEvent,
+  customBody: string,
+  prenom: string,
+  participantName: string,
+  qrCode?: string | null,
+) {
   const b = brandOf(ev)
   const vis = eventUsesVisio(ev)
   const tip = vis
@@ -166,7 +180,7 @@ function confEmail(ev: PreviewEvent, customBody: string, prenom: string, partici
     ev,
     `<em style="font-style:italic;color:${b.accent};">Votre inscription</em><br>est confirmée !`,
     heroSub,
-    `${detailTbl(ev, b.accent, b.dark, participantName)}${briefBlock(ev, b.accent)}${accessBlock(ev)}<div style="background:#F5F2EC;border-left:4px solid ${b.accent};border-radius:0 12px 12px 0;padding:20px 24px;"><p style="font-size:15px;line-height:1.7;color:#3D4B5C;margin:0;font-style:italic;">${tip}</p></div>`,
+    `${detailTbl(ev, b.accent, b.dark, participantName)}${briefBlock(ev, b.accent)}${accessBlock(ev, qrCode)}<div style="background:#F5F2EC;border-left:4px solid ${b.accent};border-radius:0 12px 12px 0;padding:20px 24px;"><p style="font-size:15px;line-height:1.7;color:#3D4B5C;margin:0;font-style:italic;">${tip}</p></div>`,
     '',
   )
 }
@@ -177,6 +191,7 @@ function reminderEmail(
   customBody: string,
   prenom: string,
   participantName: string,
+  qrCode?: string | null,
 ) {
   const b = brandOf(ev)
   const vis = eventUsesVisio(ev)
@@ -232,7 +247,7 @@ function reminderEmail(
   // Webinaire J-1 / Jour J : toujours afficher le bloc Zoom (ou « à venir »)
   const forceZoomAccess =
     vis && (type === 'j-1' || type.startsWith('j-0-') || type === 'confirmation' || type === 'j-3')
-  const access = forceZoomAccess || !vis ? accessBlock(ev) : ''
+  const access = forceZoomAccess || !vis ? accessBlock(ev, qrCode) : ''
   return wrap(ev, heroT, heroS, `${p}${briefBlock(ev, b.accent)}${extra}${details}`, access)
 }
 
@@ -241,6 +256,8 @@ export type EmailPreviewOpts = {
   prenom?: string
   /** Nom affiché dans le bloc Participant — défaut « Jean Dupont » */
   participantName?: string
+  /** Code QR inscription (image edge qr-image). Aperçu CRM → PREVIEW123. */
+  qrCode?: string | null
 }
 
 /** HTML complet du mail envoyé (comme Events Studio). */
@@ -252,8 +269,9 @@ export function buildEmailHtmlPreview(
 ): string {
   const prenom = (opts?.prenom || 'Jean').trim() || 'Jean'
   const participantName = (opts?.participantName || 'Jean Dupont').trim() || 'Jean Dupont'
-  if (stepId === 'confirmation') return confEmail(ev, customBody, prenom, participantName)
-  return reminderEmail(ev, stepId, customBody, prenom, participantName)
+  const qrCode = opts?.qrCode
+  if (stepId === 'confirmation') return confEmail(ev, customBody, prenom, participantName, qrCode)
+  return reminderEmail(ev, stepId, customBody, prenom, participantName, qrCode)
 }
 
 export function brandSender(brand?: string | null): string {

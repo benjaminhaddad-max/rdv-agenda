@@ -52,6 +52,7 @@ type RegRow = {
   phone: string | null
   first_name: string | null
   last_name: string | null
+  qr_code: string | null
 }
 
 function brandSenderName(brand?: string | null): string {
@@ -110,7 +111,7 @@ async function fetchAllRegistrations(eventId: string): Promise<RegRow[]> {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from('registrations')
-      .select('id, email, phone, first_name, last_name')
+      .select('id, email, phone, first_name, last_name, qr_code')
       .eq('event_id', eventId)
       .range(from, from + 999)
     if (error) throw error
@@ -276,6 +277,7 @@ async function sendStepToRegistrations(params: {
             const html = buildEmailHtmlPreview(previewEv, stepId, customBody, {
               prenom,
               participantName,
+              qrCode: reg.qr_code,
             })
             await sendBrevoEmail({
               sender: { email: senderEmail, name: senderName },
