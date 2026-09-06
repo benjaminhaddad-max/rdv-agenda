@@ -1142,9 +1142,27 @@
 // CONFIG
 // ============================================================
 const SUPABASE_URL = 'https://jhopwqpbaiyjfoggvcaf.supabase.co';
+const CRM_HUB = 'https://hub.diploma-sante.fr';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impob3B3cXBiYWl5amZvZ2d2Y2FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI2OTEsImV4cCI6MjA4ODYyODY5MX0.rz3TJZryPxEf3P5kQgpzQkwN9aF8_F4eo4F03CEYVPs';
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/** Envoi confirmations/rappels via CRM (templates plateforme), pas via les edge stubs. */
+async function crmSendComms(eventId, payload) {
+  const { data: { session } } = await db.auth.getSession();
+  const headers = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+  const base = (location.hostname === 'hub.diploma-sante.fr' || location.hostname === 'localhost')
+    ? ''
+    : CRM_HUB;
+  const res = await fetch(base + '/api/events-studio/events/' + eventId + '/send-comms', {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(payload || { mode: 'confirmations' }),
+  });
+  return res.json().catch(() => ({ success: false, error: 'Réponse invalide' }));
+}
 
 let currentEventId = null;
 let scannerInstance = null;
@@ -2838,14 +2856,9 @@ async function publishEvent() {
     // Send pending confirmations (email + SMS) to registrations that haven't received them yet
     btn.textContent = 'Envoi des confirmations...';
     try {
-      const confRes = await fetch(SUPABASE_URL + '/functions/v1/send-pending-confirmations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: currentEventId })
-      });
-      const confData = await confRes.json();
+      const confData = await crmSendComms(currentEventId, { mode: 'confirmations' });
       if (confData.success) {
-        const sentCount = confData.sent || 0;
+        const sentCount = confData.sent || confData.confirmations?.emails_sent || 0;
         if (sentCount > 0) {
           showToast(`Evenement publie ! ${sentCount} confirmation(s) envoyee(s)`);
         } else {
@@ -3456,12 +3469,7 @@ async function sendTestComms() {
   if (!email) { showToast('Impossible de determiner votre email', 'error'); return; }
   if (!confirm(`Envoyer un email de test (confirmation) a ${email} ?`)) return;
   try {
-    const res = await fetch(SUPABASE_URL + '/functions/v1/send-reminders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ test: true, event_id: currentEventId, test_email: email, type: 'confirmation' })
-    });
-    const data = await res.json();
+    const data = await crmSendComms(currentEventId, { mode: 'confirmations', force_email: true });
     if (data.success || data.sent) {
       showToast(`Email test envoye a ${email} !`);
     } else {
