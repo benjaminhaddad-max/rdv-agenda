@@ -10,6 +10,14 @@ export const maxDuration = 300
 
 function authorized(req: NextRequest): boolean {
   if (verifyEventPlatformApiKey(req)) return true
+  // Alias : même secret que Events (CRM_API_KEY côté gestionnaire)
+  const crmKey = process.env.CRM_API_KEY?.trim() || process.env.EVENT_PLATFORM_API_KEY?.trim() || ''
+  if (crmKey) {
+    const provided =
+      req.headers.get('x-api-key') ||
+      (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+    if (provided && provided === crmKey) return true
+  }
   const cron = requireCronSecret(req)
   return cron.ok
 }
