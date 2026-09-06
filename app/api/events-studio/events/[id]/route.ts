@@ -379,6 +379,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch (e) {
       syncResult = {
         inserted: 0,
+        insertedIds: [],
         total: 0,
         meta: 0,
         crm: 0,

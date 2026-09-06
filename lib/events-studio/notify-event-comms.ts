@@ -7,7 +7,10 @@
 import { createServiceClient } from '@/lib/supabase'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { eventHasComms } from '@/lib/events-studio/config'
-import { sendEventPendingConfirmations } from '@/lib/events-studio/send-confirmations'
+import {
+  clearConfirmationEmailMarks,
+  sendEventPendingConfirmations,
+} from '@/lib/events-studio/send-confirmations'
 import { syncEventRegistrationsFromSources } from '@/lib/events-studio/sync-attendees'
 import { logger } from '@/lib/logger'
 
@@ -38,7 +41,14 @@ async function processPublishedEvent(eventId: string): Promise<{
 
   try {
     const sync = await syncEventRegistrationsFromSources(eventId)
-    const send = await sendEventPendingConfirmations(eventId)
+    // Si l’edge Events a déjà marqué un stub avant nous : on efface pour renvoyer le HTML plateforme
+    const insertedIds = sync.insertedIds || []
+    if (insertedIds.length > 0) {
+      await clearConfirmationEmailMarks(eventId, insertedIds)
+    }
+    const send = await sendEventPendingConfirmations(eventId, {
+      forceEmailRegistrationIds: insertedIds,
+    })
     return { event_id: eventId, sync, send }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

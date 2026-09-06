@@ -208,6 +208,7 @@ export async function listEventAttendees(eventId: string): Promise<{
 /** Insère dans Events.registrations les leads Meta/CRM manquants (pour les envois). */
 export async function syncEventRegistrationsFromSources(eventId: string): Promise<{
   inserted: number
+  insertedIds: string[]
   total: number
   meta: number
   crm: number
@@ -242,6 +243,7 @@ export async function syncEventRegistrationsFromSources(eventId: string): Promis
 
   const toInsert = attendees.filter((a) => a.email && !have.has(a.email.toLowerCase()))
   let inserted = 0
+  const insertedIds: string[] = []
   const errors: string[] = []
 
   for (let i = 0; i < toInsert.length; i += 50) {
@@ -263,11 +265,15 @@ export async function syncEventRegistrationsFromSources(eventId: string): Promis
       errors.push(error.message)
     } else {
       inserted += data?.length || chunk.length
+      for (const row of data || []) {
+        if (row.id) insertedIds.push(row.id)
+      }
     }
   }
 
   return {
     inserted,
+    insertedIds,
     total: counts.total,
     meta: counts.meta,
     crm: counts.crm,
