@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
-import { eventTypeOf } from '@/lib/events-studio/config'
+import {
+  eventTypeOf,
+  parseStaffPlanningEventIds,
+  staffPlanningSetOf,
+} from '@/lib/events-studio/config'
 import {
   eventDayCount,
   formatEventSchedule,
@@ -12,34 +16,67 @@ import {
   staffPayForEvent,
 } from '@/lib/events-studio/event-meta'
 
+function isStaffPlanningEvent(e: { event_type?: string | null; status?: string | null }) {
+  const t = eventTypeOf(e).id
+  return (t === 'jpo' || t === 'salon') && e.status !== 'cancelled'
+}
+
 /**
  * GET /api/events-studio/planning-public?year=2026
- * Planning staff public (sans auth) — JPO + salons Diploma à venir.
+ * GET /api/events-studio/planning-public?set=premiers-presentiels
+ * GET /api/events-studio/planning-public?ids=uuid,uuid
+ * Planning staff public (sans auth) — JPO + salons Diploma.
  */
 export async function GET(req: NextRequest) {
   const yearParam = parseInt(req.nextUrl.searchParams.get('year') || '', 10)
   const year = Number.isFinite(yearParam) ? yearParam : new Date().getFullYear()
-
-  const yearStart = `${year}-01-01T00:00:00+01:00`
-  const yearEnd = `${year + 1}-01-01T00:00:00+01:00`
-  const nowIso = new Date().toISOString()
-  const start = nowIso > yearStart ? nowIso : yearStart
+  const set = staffPlanningSetOf(req.nextUrl.searchParams.get('set'))
+  const requestedIds = set?.eventIds || parseStaffPlanningEventIds(req.nextUrl.searchParams.get('ids'))
 
   const db = createEventsClient()
-  const { data, error } = await db
-    .from('events')
-    .select('id,name,event_date,event_time_end,location,event_type,status,brand,description')
-    .eq('brand', 'diploma')
-    .gte('event_date', start)
-    .lt('event_date', yearEnd)
-    .order('event_date', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  let rows: Array<{
+    id: string
+    name: string
+    event_date: string
+    event_time_end: string | null
+    location: string | null
+    event_type: string | null
+    status: string | null
+    brand: string | null
+    description: string | null
+  }> = []
 
-  const events = (data || []).filter((e) => {
-    const t = eventTypeOf(e).id
-    return (t === 'jpo' || t === 'salon') && e.status !== 'cancelled'
-  })
+  if (requestedIds.length > 0) {
+    const { data, error } = await db
+      .from('events')
+      .select('id,name,event_date,event_time_end,location,event_type,status,brand,description')
+      .eq('brand', 'diploma')
+      .in('id', requestedIds)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    const byId = new Map((data || []).map((e) => [e.id, e]))
+    rows = requestedIds.map((id) => byId.get(id)).filter((e): e is NonNullable<typeof e> => !!e)
+  } else {
+    const yearStart = `${year}-01-01T00:00:00+01:00`
+    const yearEnd = `${year + 1}-01-01T00:00:00+01:00`
+    const nowIso = new Date().toISOString()
+    const start = nowIso > yearStart ? nowIso : yearStart
+
+    const { data, error } = await db
+      .from('events')
+      .select('id,name,event_date,event_time_end,location,event_type,status,brand,description')
+      .eq('brand', 'diploma')
+      .gte('event_date', start)
+      .lt('event_date', yearEnd)
+      .order('event_date', { ascending: true })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    rows = data || []
+  }
+
+  const events = rows.filter(isStaffPlanningEvent)
 
   const staffCounts: Record<string, number> = {}
   if (events.length > 0) {
@@ -58,8 +95,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       year,
+      set: set
+        ? {
+            id: set.id,
+            title: set.title,
+            subtitle: set.subtitle,
+            pay_intro: set.payIntro,
+          }
+        : null,
       pay_rules: {
-        intro: 'Rémunération : salons = 120 € / jour · JPO (après-midi) = 60 €.',
+        intro: set?.payIntro || 'Rémunération : salons = 120 € / jour · JPO (après-midi) = 60 €.',
         salon_full_day: '120 € / jour',
         jpo: '60 € / après-midi',
       },

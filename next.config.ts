@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
         source: "/q/:code",
         destination: "/api/events-studio/qr/:code",
       },
+      {
+        source: "/events-studio",
+        destination: "/events-studio/index.html",
+      },
     ];
   },
 };

@@ -25,6 +25,8 @@ import {
   brandEventTypes,
   eventTypeOf,
   planningPublicUrl,
+  staffPlanningSetPublicUrl,
+  STAFF_PLANNING_SETS,
   type EventBrand,
   type EventTypeId,
 } from '@/lib/events-studio/config'
@@ -107,6 +109,8 @@ export default function EventsListPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const planningYear = new Date().getFullYear()
   const planningUrl = planningPublicUrl(planningYear)
+  const firstPresentielsSet = STAFF_PLANNING_SETS['premiers-presentiels']
+  const firstPresentielsUrl = staffPlanningSetPublicUrl('premiers-presentiels')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -427,6 +431,13 @@ export default function EventsListPage() {
     })
   }
 
+  function copyFirstPresentielsLink() {
+    navigator.clipboard.writeText(firstPresentielsUrl).then(() => {
+      setToast('Lien 19 & 26 septembre copié')
+      setTimeout(() => setToast(null), 2000)
+    })
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
       <MarketingNav title="Événements" />
@@ -537,6 +548,46 @@ export default function EventsListPage() {
                 </div>
               </div>
             </CrmV2Card>
+            {firstPresentielsSet && (
+              <CrmV2Card style={{ padding: 18, marginTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Users size={16} color={crmV2.gold} />
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>Staff — 19 & 26 septembre</span>
+                    </div>
+                    <p style={{ margin: '0 0 10px', fontSize: 12, color: crmV2.textMuted }}>
+                      Lien public limité aux 2 premiers présentiels : Salon des études de médecine (120 € / jour)
+                      et Salon Accès aux Études MMOPK.
+                    </p>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                        color: crmV2.link,
+                        wordBreak: 'break-all',
+                        padding: '8px 10px',
+                        background: crmV2.bgSoft,
+                        borderRadius: crmV2.radius,
+                        border: `1px solid ${crmV2.border}`,
+                      }}
+                    >
+                      {firstPresentielsUrl}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <CrmV2Button variant="gold" onClick={copyFirstPresentielsLink}>
+                      <Copy size={14} /> Copier le lien
+                    </CrmV2Button>
+                    <a href={firstPresentielsUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                      <CrmV2Button variant="secondary">
+                        <ExternalLink size={14} /> Ouvrir
+                      </CrmV2Button>
+                    </a>
+                  </div>
+                </div>
+              </CrmV2Card>
+            )}
           </div>
         )}
 

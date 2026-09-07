@@ -163,4 +163,58 @@ export function planningPublicUrl(year?: number, origin = 'https://hub.diploma-s
   return `${origin}/events-studio/?planning=diploma&year=${y}`
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function parseStaffPlanningEventIds(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const part of raw.split(',')) {
+    const id = part.trim()
+    if (!UUID_RE.test(id) || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
+export type StaffPlanningSet = {
+  id: string
+  title: string
+  subtitle: string
+  payIntro: string
+  path: string
+  eventIds: string[]
+}
+
+/** Liens staff ciblés (sous-ensemble d’événements, pas tout le planning annuel). */
+export const STAFF_PLANNING_SETS: Record<string, StaffPlanningSet> = {
+  'premiers-presentiels': {
+    id: 'premiers-presentiels',
+    title: 'Premiers événements présentiels',
+    subtitle:
+      'Cochez le ou les salons auxquels vous pouvez participer : le 19 septembre (Salon des études de médecine) et le 26 septembre (Salon Accès aux Études MMOPK).',
+    payIntro: 'Rémunération : 120 € / jour pour chaque salon.',
+    path: '/inscription-staff',
+    eventIds: [
+      '76d9911f-00ba-4a68-a598-bd537ae86dd8', // Salon des études de médecine — 19 sept.
+      'f87b4b6c-f905-4dd9-8702-a93e701463ae', // Salon Accès aux Études Médicales / MMOPK — 26 sept.
+    ],
+  },
+}
+
+export function staffPlanningSetOf(id: string | null | undefined): StaffPlanningSet | null {
+  if (!id) return null
+  return STAFF_PLANNING_SETS[id] || null
+}
+
+export function staffPlanningSetPublicUrl(
+  setId: string,
+  origin = 'https://hub.diploma-sante.fr',
+): string {
+  const set = staffPlanningSetOf(setId)
+  if (!set) return planningPublicUrl(undefined, origin)
+  return `${origin}${set.path}`
+}
+
 export const EVENTS_SUPABASE_URL_DEFAULT = 'https://jhopwqpbaiyjfoggvcaf.supabase.co'

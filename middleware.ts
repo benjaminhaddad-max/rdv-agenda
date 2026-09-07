@@ -43,7 +43,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/r/') ||
     pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
     pathname.startsWith('/q/') || // QR courts Events Studio
-    pathname.startsWith('/inscription-salons') // hub public choix salon + places
+    pathname.startsWith('/inscription-salons') || // hub public choix salon + places
+    pathname.startsWith('/inscription-staff') // inscription staff (sous-ensemble d’événements)
   if (isPublicPath) {
     return NextResponse.next()
   }

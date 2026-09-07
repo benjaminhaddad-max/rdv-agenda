@@ -1093,11 +1093,11 @@
       <div style="background:#FFF;border-radius:10px;padding:10px 16px;display:inline-block;margin-bottom:20px;">
         <img src="https://26711031.fs1.hubspotusercontent-eu1.net/hubfs/26711031/logo-diploma-bleu.png" alt="Diploma Santé" style="height:28px;display:block;">
       </div>
-      <p style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#C2AB82;font-weight:700;margin:0 0 10px;">Planning staff <span id="planning-public-year-label"></span></p>
-      <h1 style="font-family:'DM Serif Display',Georgia,serif;font-size:28px;color:#FFF;margin:0 0 10px;line-height:1.2;">Où serez-vous présents ?</h1>
-      <p style="font-size:15px;color:rgba(255,255,255,0.65);max-width:520px;margin:0 auto;line-height:1.55;">Cochez les JPO et salons auxquels vous pouvez participer. Pour chaque événement : lieu, horaires et <strong style="color:#FFF;">nombre de places staff restantes</strong>.</p>
+      <p id="planning-public-kicker" style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#C2AB82;font-weight:700;margin:0 0 10px;">Planning staff <span id="planning-public-year-label"></span></p>
+      <h1 id="planning-public-title" style="font-family:'DM Serif Display',Georgia,serif;font-size:28px;color:#FFF;margin:0 0 10px;line-height:1.2;">Où serez-vous présents ?</h1>
+      <p id="planning-public-subtitle" style="font-size:15px;color:rgba(255,255,255,0.65);max-width:520px;margin:0 auto;line-height:1.55;">Cochez les JPO et salons auxquels vous pouvez participer. Pour chaque événement : lieu, horaires et <strong style="color:#FFF;">nombre de places staff restantes</strong>.</p>
       <div style="max-width:520px;margin:18px auto 0;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.08);border:1px solid rgba(194,171,130,0.35);text-align:left;">
-        <p style="margin:0;font-size:13px;color:#F0E9DC;line-height:1.55;"><strong style="color:#C2AB82;">Rémunération</strong><br>Salons : <strong>120 € / jour</strong><br>JPO (après-midi) : <strong>60 €</strong></p>
+        <p id="planning-public-pay" style="margin:0;font-size:13px;color:#F0E9DC;line-height:1.55;"><strong style="color:#C2AB82;">Rémunération</strong><br>Salons : <strong>120 € / jour</strong><br>JPO (après-midi) : <strong>60 €</strong></p>
       </div>
     </div>
     <div style="max-width:720px;margin:-28px auto 40px;padding:0 16px;">
@@ -3253,19 +3253,46 @@ function renderPlanningAdmin() {
 }
 
 async function loadPlanningPublic(brand, yearParam) {
+  const pageParams = new URLSearchParams(window.location.search);
   const year = parseInt(yearParam || new Date().getFullYear(), 10);
-  document.getElementById('planning-public-year-label').textContent = year;
+  const setId = (pageParams.get('set') || '').trim();
+  const ids = (pageParams.get('ids') || '').trim();
   const container = document.getElementById('planning-public-events');
 
   try {
-    const res = await fetch(`/api/events-studio/planning-public?year=${year}&_=${Date.now()}`, { cache: 'no-store' });
+    const qs = new URLSearchParams({ year: String(year), _: String(Date.now()) });
+    if (setId) qs.set('set', setId);
+    if (ids) qs.set('ids', ids);
+    const res = await fetch(`/api/events-studio/planning-public?${qs}`, { cache: 'no-store' });
     const payload = await res.json();
     if (!res.ok) throw new Error(payload.error || 'Erreur');
 
     planningPublicEvents = payload.events || [];
+    window._planningPublicSet = payload.set || null;
+
+    const kicker = document.getElementById('planning-public-kicker');
+    const title = document.getElementById('planning-public-title');
+    const subtitle = document.getElementById('planning-public-subtitle');
+    const payEl = document.getElementById('planning-public-pay');
+    if (payload.set) {
+      if (kicker) kicker.textContent = 'Inscription staff';
+      if (title) title.textContent = payload.set.title || 'Où serez-vous présents ?';
+      if (subtitle) subtitle.textContent = payload.set.subtitle || '';
+      if (payEl && payload.set.pay_intro) {
+        payEl.innerHTML = '<strong style="color:#C2AB82;">Rémunération</strong><br>' + payload.set.pay_intro.replace(/^Rémunération\s*:\s*/i, '');
+      }
+    } else {
+      if (kicker) kicker.innerHTML = 'Planning staff <span id="planning-public-year-label">' + year + '</span>';
+      if (title) title.textContent = 'Où serez-vous présents ?';
+      if (subtitle) subtitle.innerHTML = 'Cochez les JPO et salons auxquels vous pouvez participer. Pour chaque événement : lieu, horaires et <strong style="color:#FFF;">nombre de places staff restantes</strong>.';
+      if (payEl) payEl.innerHTML = '<strong style="color:#C2AB82;">Rémunération</strong><br>Salons : <strong>120 € / jour</strong><br>JPO (après-midi) : <strong>60 €</strong>';
+    }
 
     if (planningPublicEvents.length === 0) {
-      container.innerHTML = `<p style="color:#8B95A5;text-align:center;font-size:14px;padding:24px 0;">Aucun événement planifié pour ${year} pour le moment.</p>`;
+      const emptyMsg = payload.set
+        ? 'Aucun de ces événements n’est disponible pour le moment.'
+        : `Aucun événement planifié pour ${year} pour le moment.`;
+      container.innerHTML = `<p style="color:#8B95A5;text-align:center;font-size:14px;padding:24px 0;">${emptyMsg}</p>`;
       return;
     }
 
@@ -3383,7 +3410,9 @@ async function submitPlanningPublic() {
         email,
         phone: phone || null,
         role: null,
-        note: 'Inscription via planning annuel'
+        note: window._planningPublicSet
+          ? ('Inscription via ' + (window._planningPublicSet.title || 'planning ciblé'))
+          : 'Inscription via planning annuel'
       };
       let { error } = await db.from('staff_registrations').insert({ ...row, source: 'planning' });
       if (error && /source/.test(error.message || '')) {
