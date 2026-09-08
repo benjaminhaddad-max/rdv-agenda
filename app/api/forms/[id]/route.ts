@@ -54,48 +54,60 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
-  // Si une colonne optionnelle n'existe pas encore (migration non appliquée),
-  // on la retire du patch et on retente — pas de crash.
+  // Colonnes ajoutées par migrations parfois non appliquées en prod.
+  // On les retire une à une (ou toutes d’un coup) et on retente.
+  const optionalColumns = [
+    'folder',
+    'redirect_file_url',
+    'conditional_redirect_enabled',
+    'conditional_redirect_terminale_url',
+    'conditional_redirect_non_terminale_url',
+  ] as const
+
+  const mapFileOntoRedirectUrl = () => {
+    if (!('redirect_file_url' in body) && !('redirect_file_url' in patch)) return
+    const requestedFile = String(body.redirect_file_url ?? patch.redirect_file_url ?? '').trim()
+    const requestedUrl = String(body.redirect_url ?? patch.redirect_url ?? '').trim()
+    if (requestedFile) patch.redirect_url = requestedFile
+    else if (!requestedUrl) patch.redirect_url = null
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any, error: any
-  {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const r = await db.from('forms').update(patch).eq('id', id).select().single()
-    data = r.data; error = r.error
-    const errMsg = String(error?.message || '').toLowerCase()
-    const optionalColumns: Array<'folder' | 'redirect_file_url' | 'conditional_redirect_enabled' | 'conditional_redirect_terminale_url' | 'conditional_redirect_non_terminale_url'> = [
-      'folder',
-      'redirect_file_url',
-      'conditional_redirect_enabled',
-      'conditional_redirect_terminale_url',
-      'conditional_redirect_non_terminale_url',
-    ]
+    data = r.data
+    error = r.error
+    if (!error) break
+
+    const errMsg = String(error.message || '').toLowerCase()
+    const isMissingColumn =
+      errMsg.includes('schema cache') ||
+      errMsg.includes('does not exist') ||
+      errMsg.includes('could not find')
+
+    if (!isMissingColumn) break
+
     let removed = false
-    let missingRedirectFileColumn = false
     for (const col of optionalColumns) {
-      if (errMsg.includes(col)) {
-        if (col === 'redirect_file_url') missingRedirectFileColumn = true
+      if (errMsg.includes(col) && col in patch) {
+        if (col === 'redirect_file_url') mapFileOntoRedirectUrl()
         delete patch[col]
         removed = true
       }
     }
-    // Compatibilité environnement sans colonne redirect_file_url :
-    // on mappe le champ fichier sur redirect_url pour garder le comportement.
-    if (missingRedirectFileColumn && ('redirect_file_url' in body)) {
-      const requestedFile = String(body.redirect_file_url ?? '').trim()
-      const requestedUrl = String(body.redirect_url ?? '').trim()
-      // Si un fichier est fourni, il est prioritaire (même si redirect_url est présent mais vide).
-      // Sinon, on conserve la valeur d'URL classique.
-      if (requestedFile) patch.redirect_url = requestedFile
-      else if (!requestedUrl) patch.redirect_url = null
-    }
-    if (error && removed) {
-      if (Object.keys(patch).length > 0) {
-        const r2 = await db.from('forms').update(patch).eq('id', id).select().single()
-        data = r2.data; error = r2.error
-      } else {
-        // Seules des colonnes optionnelles absentes étaient demandées
-        return NextResponse.json({ error: 'Une colonne optionnelle n\'existe pas encore. Lance les migrations SQL.' }, { status: 400 })
+    if (!removed) {
+      for (const col of optionalColumns) {
+        if (col in patch) {
+          if (col === 'redirect_file_url') mapFileOntoRedirectUrl()
+          delete patch[col]
+          removed = true
+        }
       }
+    }
+    if (!removed) break
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: 'Une colonne optionnelle n\'existe pas encore. Lance les migrations SQL.' }, { status: 400 })
     }
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
