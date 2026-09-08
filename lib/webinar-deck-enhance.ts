@@ -1,79 +1,28 @@
-/** Injecte transitions + mode présentation dans un deck Cloud Design same-origin. */
+/** Mode présentation d’un deck Cloud Design same-origin : rail masqué, plein écran. */
 
 const SHADOW_STYLE_ID = 'wp-deck-motion-shadow'
 const LIGHT_STYLE_ID = 'wp-deck-motion-light'
 
 const SHADOW_CSS = `
-  .overlay { display: none !important; }
-  .rail, .rail-resize, .ctxmenu, .confirm-backdrop { display: none !important; }
-  :host {
-    background: #07131f !important;
-  }
-  .canvas {
-    border-radius: 6px;
-    overflow: hidden;
-    box-shadow:
-      0 0 0 1px rgba(211, 171, 103, 0.22),
-      0 28px 80px rgba(0, 0, 0, 0.48) !important;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    ::slotted(*) {
-      visibility: visible !important;
-      opacity: 0;
-      pointer-events: none;
-      transform: translate3d(var(--wp-out-x, 36px), 10px, 0) scale(0.975);
-      filter: blur(14px);
-      transition:
-        opacity 0.55s cubic-bezier(.22, 1, .36, 1),
-        transform 0.8s cubic-bezier(.16, 1, .3, 1),
-        filter 0.5s ease;
-      z-index: 0;
-    }
-    ::slotted([data-deck-active]) {
-      opacity: 1;
-      pointer-events: auto;
-      transform: none;
-      filter: none;
-      z-index: 2;
-    }
-  }
+  .overlay, .rail, .rail-resize, .ctxmenu, .confirm-backdrop { display: none !important; }
+  .stage { left: 0 !important; }
+  :host { background: #0d2238 !important; }
+  .canvas { box-shadow: none !important; border-radius: 0 !important; }
 `
 
 const LIGHT_CSS = `
-  html, body {
-    background: #07131f !important;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    html[data-wp-dir="fwd"] section[data-deck-active] {
-      animation: wp-in-fwd 0.78s cubic-bezier(.16, 1, .3, 1) both;
-    }
-    html[data-wp-dir="back"] section[data-deck-active] {
-      animation: wp-in-back 0.78s cubic-bezier(.16, 1, .3, 1) both;
-    }
-  }
-  @keyframes wp-in-fwd {
-    0% {
-      clip-path: inset(0 18% 0 0);
-      filter: saturate(0.7);
-    }
-    100% {
-      clip-path: inset(0 0 0 0);
-      filter: none;
-    }
-  }
-  @keyframes wp-in-back {
-    0% {
-      clip-path: inset(0 0 0 18%);
-      filter: saturate(0.7);
-    }
-    100% {
-      clip-path: inset(0 0 0 0);
-      filter: none;
-    }
-  }
+  html, body { background: #0d2238 !important; }
 `
 
-function stageEl(doc: Document): (HTMLElement & { next?: () => void; prev?: () => void }) | null {
+type DeckStageEl = HTMLElement & {
+  next?: () => void
+  prev?: () => void
+  _presenting?: boolean
+  _syncRailHidden?: () => void
+  _fit?: () => void
+}
+
+function stageEl(doc: Document): DeckStageEl | null {
   return doc.querySelector('deck-stage')
 }
 
@@ -120,6 +69,14 @@ function bindExitKeys(win: Window) {
   }, true)
 }
 
+function enterPresenting(stage: DeckStageEl, win: Window) {
+  try { stage.setAttribute('no-rail', '') } catch { /* ignore */ }
+  try { stage._presenting = true } catch { /* ignore */ }
+  try { stage._syncRailHidden?.() } catch { /* ignore */ }
+  try { stage._fit?.() } catch { /* ignore */ }
+  try { win.postMessage({ __omelette_presenting: true }, '*') } catch { /* ignore */ }
+}
+
 export function enhanceHtmlDeck(iframe: HTMLIFrameElement): () => void {
   let cancelled = false
   let tries = 0
@@ -137,7 +94,6 @@ export function enhanceHtmlDeck(iframe: HTMLIFrameElement): () => void {
         return
       }
 
-      doc.documentElement.setAttribute('data-wp-dir', 'fwd')
       injectStyle(doc, LIGHT_STYLE_ID, LIGHT_CSS)
       bindExitKeys(win)
 
@@ -151,16 +107,13 @@ export function enhanceHtmlDeck(iframe: HTMLIFrameElement): () => void {
 
       wired = true
       injectStyle(shadow, SHADOW_STYLE_ID, SHADOW_CSS)
-      try { win.postMessage({ __omelette_presenting: true }, '*') } catch { /* ignore */ }
+      enterPresenting(stage, win)
       try { iframe.focus() } catch { /* ignore */ }
 
       const syncDir = (force = false) => {
         const slides = Array.from(doc.querySelectorAll('section[data-screen-label], deck-stage > section, x-import > section'))
         const found = slides.findIndex(s => s.hasAttribute('data-deck-active'))
         const idx = found < 0 ? lastIndex : found
-        const dir = idx >= lastIndex ? 'fwd' : 'back'
-        doc.documentElement.setAttribute('data-wp-dir', dir)
-        stage.style.setProperty('--wp-out-x', dir === 'fwd' ? '-42px' : '42px')
         if (force || idx !== lastIndex) {
           try {
             win.parent.postMessage({
