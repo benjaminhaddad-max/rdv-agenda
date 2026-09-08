@@ -487,7 +487,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             crmProperties={crmProperties}
           />
         )}
-        {tab === 'settings' && <SettingsTab form={form} update={update} onSaveNotifyEmails={saveNotifyEmails} />}
+        {tab === 'settings' && <SettingsTab form={form} formId={id} update={update} onSaveNotifyEmails={saveNotifyEmails} />}
         {tab === 'embed' && <EmbedTab form={form} />}
         {tab === 'submissions' && <SubmissionsTab formId={id} fields={form.fields} />}
       </div>
@@ -957,8 +957,9 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
 }
 
 // ─── Tab Réglages ────────────────────────────────────────────────────────
-function SettingsTab({ form, update, onSaveNotifyEmails }: {
+function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
   form: FormData
+  formId: string
   update: (p: Partial<FormData>) => void
   onSaveNotifyEmails: (emails: string[]) => Promise<boolean>
 }) {
@@ -990,7 +991,7 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
     }
     setPdfUploading(true)
     try {
-      const signRes = await fetch(`/api/forms/${form.id}/file`, {
+      const signRes = await fetch(`/api/forms/${formId}/file`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ fileName: file.name, size: file.size }),
@@ -1006,7 +1007,7 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
       })
       if (!putRes.ok) throw new Error('Impossible d’envoyer le PDF')
 
-      const confirmRes = await fetch(`/api/forms/${form.id}/file`, {
+      const confirmRes = await fetch(`/api/forms/${formId}/file`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: sign.path }),
@@ -1026,7 +1027,7 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
     setPdfError(null)
     setPdfUploading(true)
     try {
-      const res = await fetch(`/api/forms/${form.id}/file`, { method: 'DELETE' })
+      const res = await fetch(`/api/forms/${formId}/file`, { method: 'DELETE' })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || 'Suppression impossible')

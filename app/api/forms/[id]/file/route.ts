@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { requireApiRole } from '@/lib/api-auth'
+import { requireApiUser } from '@/lib/api-auth'
 import { invalidatePublicFormCache } from '@/lib/public-forms'
 import {
   FORM_PDF_MAX_BYTES,
   fileNameFromUrl,
   isFormStoragePath,
   isPdfFile,
+  looksLikeFileUrl,
   sanitizeDownloadFilename,
 } from '@/lib/form-downloads'
 import {
@@ -18,7 +19,15 @@ import {
 
 type Params = { params: Promise<{ id: string }> }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+type FormRow = {
+  id: string
+  slug: string
+  name: string | null
+  status: string
+  redirect_file_url: string | null
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -30,30 +39,36 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
 
-async function loadForm(idOrSlug: string) {
+async function loadForm(idOrSlug: string): Promise<FormRow | null> {
   const db = createServiceClient()
-  const query = UUID_RE.test(idOrSlug)
-    ? db.from('forms').select('id, slug, name, status, redirect_file_url').eq('id', idOrSlug).maybeSingle()
-    : db.from('forms').select('id, slug, name, status, redirect_file_url').eq('slug', idOrSlug).maybeSingle()
-  const { data, error } = await query
+  const key = UUID_RE.test(idOrSlug) ? 'id' : 'slug'
+  const { data, error } = await db.from('forms').select('*').eq(key, idOrSlug).maybeSingle()
   if (error || !data) return null
-  return data as {
-    id: string
-    slug: string
-    name: string | null
-    status: string
-    redirect_file_url: string | null
+  const row = data as Record<string, unknown>
+  const fileUrl = String(row.redirect_file_url ?? '').trim()
+  const redirectUrl = String(row.redirect_url ?? '').trim()
+  return {
+    id: String(row.id || ''),
+    slug: String(row.slug || ''),
+    name: (row.name as string | null) ?? null,
+    status: String(row.status || ''),
+    redirect_file_url: fileUrl || (looksLikeFileUrl(redirectUrl) ? redirectUrl : null),
   }
 }
 
-async function attachPdfPath(form: { id: string; slug: string; redirect_file_url: string | null }, path: string) {
+async function attachPdfPath(form: FormRow, path: string) {
   const previous = String(form.redirect_file_url || '').trim()
   const db = createServiceClient()
   const { error } = await db
     .from('forms')
     .update({ redirect_file_url: path })
     .eq('id', form.id)
-  if (error) throw new Error(error.message)
+  if (error && String(error.message || '').toLowerCase().includes('redirect_file_url')) {
+    const r2 = await db.from('forms').update({ redirect_url: path }).eq('id', form.id)
+    if (r2.error) throw new Error(r2.error.message)
+  } else if (error) {
+    throw new Error(error.message)
+  }
 
   if (previous && isFormStoragePath(previous) && previous !== path) {
     await deleteFormPdf(previous).catch(() => {})
@@ -106,15 +121,12 @@ export async function GET(req: Request, { params }: Params) {
 
 /** POST admin — prépare l’upload (signed URL) ou confirme le PDF. */
 export async function POST(req: Request, { params }: Params) {
-  const auth = await requireApiRole(['admin', 'manager'])
+  const auth = await requireApiUser()
   if (!auth.ok) return auth.response
 
   const { id } = await params
-  if (!UUID_RE.test(id)) {
-    return NextResponse.json({ error: 'Formulaire introuvable' }, { status: 404 })
-  }
-
-  const form = await loadForm(id)
+  const formId = String(id || '').trim()
+  const form = await loadForm(formId)
   if (!form) return NextResponse.json({ error: 'Formulaire introuvable' }, { status: 404 })
 
   const body = await req.json().catch(() => ({})) as { fileName?: string; size?: number; path?: string }
@@ -171,15 +183,11 @@ export async function POST(req: Request, { params }: Params) {
 
 /** DELETE admin — retire le PDF associé. */
 export async function DELETE(_req: Request, { params }: Params) {
-  const auth = await requireApiRole(['admin', 'manager'])
+  const auth = await requireApiUser()
   if (!auth.ok) return auth.response
 
   const { id } = await params
-  if (!UUID_RE.test(id)) {
-    return NextResponse.json({ error: 'Formulaire introuvable' }, { status: 404 })
-  }
-
-  const form = await loadForm(id)
+  const form = await loadForm(String(id || '').trim())
   if (!form) return NextResponse.json({ error: 'Formulaire introuvable' }, { status: 404 })
 
   const previous = String(form.redirect_file_url || '').trim()
@@ -188,7 +196,12 @@ export async function DELETE(_req: Request, { params }: Params) {
     .from('forms')
     .update({ redirect_file_url: null })
     .eq('id', form.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error && String(error.message || '').toLowerCase().includes('redirect_file_url')) {
+    const r2 = await db.from('forms').update({ redirect_url: null }).eq('id', form.id)
+    if (r2.error) return NextResponse.json({ error: r2.error.message }, { status: 500 })
+  } else if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   if (previous && isFormStoragePath(previous)) {
     await deleteFormPdf(previous).catch(() => {})
