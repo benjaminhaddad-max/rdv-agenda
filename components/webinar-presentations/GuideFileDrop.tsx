@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { FileUp, Loader2, Upload } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { extractGuideInBrowser } from '@/lib/webinar-guide-extract-browser'
 
 export default function GuideFileDrop({
   onExtracted,
@@ -19,18 +20,16 @@ export default function GuideFileDrop({
     setBusy(true)
     setError(null)
     try {
-      const body = new FormData()
-      body.append('file', file)
-      const res = await fetch('/api/webinar-presentations/extract-guide', {
-        method: 'POST',
-        body,
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Lecture impossible')
-      setFilename(file.name)
-      onExtracted(String(data.text || ''), file.name)
+      const extracted = await extractGuideInBrowser(file)
+      setFilename(extracted.filename)
+      onExtracted(extracted.text, extracted.filename)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erreur')
+      const raw = e instanceof Error ? e.message : 'Erreur'
+      if (/is not valid JSON|Unexpected token|Failed to fetch|Load failed/i.test(raw)) {
+        setError('Impossible de lire ce fichier. Essaie un Word (.docx) ou un PDF plus léger.')
+      } else {
+        setError(raw)
+      }
     } finally {
       setBusy(false)
     }
@@ -79,7 +78,7 @@ export default function GuideFileDrop({
           {busy ? 'Lecture du guide…' : 'Dépose ton guide ici, ou clique pour l’uploader'}
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted }}>
-          PDF, Word (.docx) ou fichier texte — max 15 Mo
+          PDF, Word (.docx) ou texte — lu dans le navigateur, max 40 Mo
         </div>
         {filename && (
           <div style={{
