@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { invalidatePublicFormCache } from '@/lib/public-forms'
+import {
+  hasFormExtraValues,
+  loadFormExtraSettings,
+  mergeFormWithExtra,
+  pickFormExtraFromBody,
+  saveFormExtraSettings,
+} from '@/lib/form-extra-settings'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -20,8 +27,9 @@ export async function GET(_req: Request, { params }: Params) {
 
   if (formRes.error) return NextResponse.json({ error: formRes.error.message }, { status: 404 })
 
+  const extra = await loadFormExtraSettings(db, id)
   return NextResponse.json({
-    ...formRes.data,
+    ...mergeFormWithExtra((formRes.data || {}) as Record<string, unknown>, extra),
     fields: fieldsRes.data ?? [],
   })
 }
@@ -107,13 +115,36 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (!removed) break
     if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: 'Une colonne optionnelle n\'existe pas encore. Lance les migrations SQL.' }, { status: 400 })
+      error = null
+      break
     }
   }
+
+  const extraPatch = pickFormExtraFromBody(body as Record<string, unknown>)
+  if (hasFormExtraValues(extraPatch)) {
+    try {
+      await saveFormExtraSettings(db, id, extraPatch)
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Impossible d’enregistrer les réglages de redirection' },
+        { status: 500 },
+      )
+    }
+  }
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (!data) {
+    const r = await db.from('forms').select('*').eq('id', id).single()
+    if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 })
+    data = r.data
+  }
+
+  const extra = await loadFormExtraSettings(db, id)
+  const merged = mergeFormWithExtra((data || {}) as Record<string, unknown>, extra)
   if (oldSlug) await invalidatePublicFormCache(oldSlug)
-  if (data?.slug) await invalidatePublicFormCache(String(data.slug))
-  return NextResponse.json(data)
+  if (merged.slug) await invalidatePublicFormCache(String(merged.slug))
+  return NextResponse.json(merged)
 }
 
 // DELETE /api/forms/[id] — supprime le formulaire (+ champs + soumissions via CASCADE)

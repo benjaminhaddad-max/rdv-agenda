@@ -378,7 +378,9 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             success_message: form.success_message,
             redirect_url: form.redirect_url,
             redirect_file_url: form.redirect_file_url ?? null,
-            conditional_redirect_enabled: form.conditional_redirect_enabled ?? null,
+            ...(typeof form.conditional_redirect_enabled === 'boolean'
+              ? { conditional_redirect_enabled: form.conditional_redirect_enabled }
+              : {}),
             conditional_redirect_terminale_url: form.conditional_redirect_terminale_url ?? null,
             conditional_redirect_non_terminale_url: form.conditional_redirect_non_terminale_url ?? null,
             primary_color: form.primary_color,
@@ -408,8 +410,14 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
           body: JSON.stringify({ fields: form.fields }),
         }),
       ])
-      if (!formRes.ok) alert('Erreur sauvegarde formulaire : ' + (await formRes.json()).error)
-      if (!fieldsRes.ok) alert('Erreur sauvegarde champs : ' + (await fieldsRes.json()).error)
+      if (!formRes.ok) {
+        alert('Erreur sauvegarde formulaire : ' + (await formRes.json()).error)
+        return
+      }
+      if (!fieldsRes.ok) {
+        alert('Erreur sauvegarde champs : ' + (await fieldsRes.json()).error)
+        return
+      }
       setDirty(false)
     } finally { setSaving(false) }
   }

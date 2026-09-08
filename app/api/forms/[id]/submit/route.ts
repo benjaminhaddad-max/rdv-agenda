@@ -12,6 +12,7 @@ import {
 } from '@/lib/form-submit-guard'
 import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
 import { deriveSiteUrl } from '@/lib/site-url'
+import { loadFormExtraSettings, mergeFormWithExtra } from '@/lib/form-extra-settings'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -284,6 +285,9 @@ export async function POST(req: Request, { params }: Params) {
   if (fErr || !form) {
     return NextResponse.json({ error: 'Formulaire introuvable ou non publié' }, { status: 404, headers: CORS_HEADERS })
   }
+
+  const extra = await loadFormExtraSettings(db, String(form.id))
+  Object.assign(form, mergeFormWithExtra(form as Record<string, unknown>, extra))
 
   // Capacité salon (si formulaire lié à un événement Events)
   try {
