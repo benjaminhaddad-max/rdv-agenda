@@ -396,14 +396,29 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
           btn.textContent = origLabel;
           return;
         }
-        if (res.body.redirect_url) { location.href = res.body.redirect_url; return; }
+        if (res.body.download_url) {
+          try {
+            var a = document.createElement('a');
+            a.href = res.body.download_url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            if (res.body.download_filename) a.setAttribute('download', res.body.download_filename);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          } catch (e) {}
+        } else if (res.body.redirect_url) { location.href = res.body.redirect_url; return; }
         var success = document.createElement('div');
         success.className = 'diploma-form__success';
+        var downloadBtn = res.body.download_url
+          ? '<a class="diploma-form__download" href="' + escapeHtml(res.body.download_url) + '" target="_blank" rel="noopener">' + 'Télécharger le PDF' + '</a>'
+          : '';
         success.innerHTML =
           '<div class="diploma-form__success-card">' +
             '<div class="diploma-form__success-bar"></div>' +
             '<div class="diploma-form__success-title">Message envoyé</div>' +
             '<div class="diploma-form__success-text">' + escapeHtml(res.body.success_message || 'Merci, votre demande a bien été prise en compte.') + '</div>' +
+            downloadBtn +
           '</div>';
         formEl.replaceWith(success);
       })
@@ -506,6 +521,7 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       scope + ' .diploma-form__success-bar{width:64px;height:4px;border-radius:999px;background:' + c.primary + ';margin:0 auto 12px;}',
       scope + ' .diploma-form__success-title{font-size:24px;font-weight:800;line-height:1.15;margin-bottom:8px;}',
       scope + ' .diploma-form__success-text{font-size:16px;line-height:1.45;opacity:0.9;}',
+      scope + ' .diploma-form__download{display:inline-block;margin-top:16px;padding:10px 18px;border-radius:999px;background:' + (c.submitBg || c.primary) + ';color:' + (c.submitText || '#ffffff') + ';font-weight:700;font-size:14px;text-decoration:none;}',
     ].join('\\n');
     document.head.appendChild(s);
   }

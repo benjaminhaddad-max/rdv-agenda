@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, useRef } from 'react'
 import {
   FileText, ChevronLeft, Save, Eye, Code, Inbox, Settings, Plus,
   Type, Mail, Phone, AlignLeft, List, Check, CheckSquare, Calendar,
   Hash, EyeOff, GripVertical, Trash2, Copy, X, ExternalLink, Globe,
-  Search,
+  Search, Upload,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import { fileNameFromUrl, isFormStoragePath } from '@/lib/form-downloads'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface FormData {
@@ -962,6 +963,9 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
   onSaveNotifyEmails: (emails: string[]) => Promise<boolean>
 }) {
   const [notifySaveStatus, setNotifySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [pdfUploading, setPdfUploading] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const persistNotifyEmails = async () => {
     setNotifySaveStatus('saving')
@@ -972,6 +976,68 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
 
   const conditionalDefaultEnabled = isDiplomaConditionalRedirectEligible(form)
   const conditionalEnabled = form.conditional_redirect_enabled ?? conditionalDefaultEnabled
+  const pdfName = form.redirect_file_url ? fileNameFromUrl(form.redirect_file_url) : null
+
+  const uploadPdf = async (file: File) => {
+    setPdfError(null)
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setPdfError('Seuls les fichiers PDF sont acceptés.')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPdfError('Le PDF ne doit pas dépasser 10 Mo.')
+      return
+    }
+    setPdfUploading(true)
+    try {
+      const signRes = await fetch(`/api/forms/${form.id}/file`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, size: file.size }),
+      })
+      const sign = await signRes.json().catch(() => ({}))
+      if (!signRes.ok) throw new Error(sign.error || 'Upload impossible')
+      if (!sign.signed_url || !sign.path) throw new Error('Upload impossible')
+
+      const putRes = await fetch(sign.signed_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'false' },
+        body: file,
+      })
+      if (!putRes.ok) throw new Error('Impossible d’envoyer le PDF')
+
+      const confirmRes = await fetch(`/api/forms/${form.id}/file`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path: sign.path }),
+      })
+      const confirm = await confirmRes.json().catch(() => ({}))
+      if (!confirmRes.ok) throw new Error(confirm.error || 'Upload impossible')
+      update({ redirect_file_url: confirm.url || sign.path })
+    } catch (e) {
+      setPdfError(e instanceof Error ? e.message : 'Upload impossible')
+    } finally {
+      setPdfUploading(false)
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
+    }
+  }
+
+  const removePdf = async () => {
+    setPdfError(null)
+    setPdfUploading(true)
+    try {
+      const res = await fetch(`/api/forms/${form.id}/file`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || 'Suppression impossible')
+      }
+      update({ redirect_file_url: null })
+    } catch (e) {
+      setPdfError(e instanceof Error ? e.message : 'Suppression impossible')
+    } finally {
+      setPdfUploading(false)
+    }
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 1000 }}>
@@ -1247,10 +1313,89 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
         </label>
       </Card>
 
+      <div style={{ gridColumn: '1 / -1' }}>
       <Card title="Après soumission">
         <Field label="Message de succès">
           <textarea value={form.success_message || ''} onChange={e => update({ success_message: e.target.value })} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Merci, nous vous recontactons rapidement !" />
         </Field>
+        <Field label="Objectif : téléchargement d’un PDF">
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            hidden
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) void uploadPdf(file)
+            }}
+          />
+          {pdfName ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
+              padding: '10px 12px',
+            }}>
+              <FileText size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfName}</div>
+                <div style={{ fontSize: 11, color: '#516f90' }}>Téléchargé automatiquement après envoi</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => pdfInputRef.current?.click()}
+                disabled={pdfUploading}
+                style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: '#0e1e35' }}
+              >
+                Remplacer
+              </button>
+              <button
+                type="button"
+                onClick={() => void removePdf()}
+                disabled={pdfUploading}
+                title="Retirer le PDF"
+                style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px', color: '#ef4444', cursor: 'pointer' }}
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => pdfInputRef.current?.click()}
+              disabled={pdfUploading}
+              style={{
+                width: '100%', background: '#f7f4ee', border: '1px dashed #c9b896',
+                borderRadius: 8, padding: '14px 12px', color: '#0e1e35', fontSize: 13,
+                cursor: pdfUploading ? 'default' : 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', gap: 8, fontFamily: 'inherit', fontWeight: 600,
+              }}
+            >
+              {pdfUploading ? 'Envoi du PDF…' : <><Upload size={14} /> Ajouter un PDF</>}
+            </button>
+          )}
+          {pdfError && <div style={{ marginTop: 6, fontSize: 12, color: '#dc2626' }}>{pdfError}</div>}
+          <div style={{ marginTop: 8, fontSize: 11, color: '#516f90' }}>
+            PDF jusqu’à 10 Mo. Après soumission, le fichier se télécharge et le message de succès s’affiche.
+          </div>
+        </Field>
+        {isFormStoragePath(form.redirect_file_url) ? null : (
+          <Field label="Ou coller l’URL d’un PDF déjà en ligne">
+            <input
+              value={form.redirect_file_url || ''}
+              onChange={e => {
+                const v = e.target.value.trim()
+                update({ redirect_file_url: v || null })
+              }}
+              placeholder="https://diploma-sante.fr/brochure.pdf"
+              style={inputStyle}
+            />
+          </Field>
+        )}
+        {conditionalEnabled && !!form.redirect_file_url && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
+            La redirection conditionnelle est activée : elle est prioritaire sur le téléchargement du PDF. Désactive-la ci-dessous pour que le PDF se télécharge.
+          </div>
+        )}
         <Field label="URL de redirection (optionnel)">
           <input
             value={form.redirect_url || ''}
@@ -1258,16 +1403,8 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
             placeholder="https://diploma-sante.fr/merci"
             style={inputStyle}
           />
-        </Field>
-        <Field label="Fichier de redirection (PDF, optionnel)">
-          <input
-            value={form.redirect_file_url || ''}
-            onChange={e => update({ redirect_file_url: e.target.value })}
-            placeholder="https://diploma-sante.fr/brochure.pdf ou /brochures/brochure.pdf"
-            style={inputStyle}
-          />
           <div style={{ marginTop: 4, fontSize: 11, color: '#516f90' }}>
-            Si le fichier est renseigné, il sera prioritaire sur l&apos;URL.
+            Ignorée si un PDF est renseigné.
           </div>
         </Field>
         <div style={{ borderTop: '1px solid #e5edf5', margin: '12px 0' }} />
@@ -1301,6 +1438,7 @@ function SettingsTab({ form, update, onSaveNotifyEmails }: {
           />
         </Field>
       </Card>
+      </div>
 
       <Card title="Traitement des soumissions">
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#0e1e35', marginBottom: 10, cursor: 'pointer' }}>

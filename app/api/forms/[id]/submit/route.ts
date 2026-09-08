@@ -10,6 +10,8 @@ import {
   checkFormSubmitGuard,
   validateFormContactIdentity,
 } from '@/lib/form-submit-guard'
+import { fileNameFromUrl } from '@/lib/form-downloads'
+import { deriveSiteUrl } from '@/lib/site-url'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -79,10 +81,11 @@ function resolveClasseActuelleValue(data: Record<string, unknown>, fields: Array
   return ''
 }
 
-function resolveRedirectTarget(
+function resolvePostSubmitTarget(
   form: {
     folder?: string | null
     name?: string | null
+    slug?: string | null
     redirect_file_url?: string | null
     redirect_url?: string | null
     conditional_redirect_enabled?: boolean | null
@@ -91,7 +94,8 @@ function resolveRedirectTarget(
   },
   data: Record<string, unknown>,
   fields: Array<{ field_key?: string; crm_field?: string | null }>,
-): string | null {
+  origin: string,
+): { redirect_url: string | null; download_url: string | null; download_filename: string | null } {
   const conditionalEnabled = typeof form.conditional_redirect_enabled === 'boolean'
     ? form.conditional_redirect_enabled
     : isDiplomaConditionalRedirectEligible(form)
@@ -101,13 +105,23 @@ function resolveRedirectTarget(
     const isTerminale = normalizeForMatch(classeRaw).includes('terminale')
     const terminaleTarget = String(form.conditional_redirect_terminale_url || '').trim() || DEFAULT_TERMINALE_REDIRECT
     const nonTerminaleTarget = String(form.conditional_redirect_non_terminale_url || '').trim() || DEFAULT_NON_TERMINALE_REDIRECT
-    return isTerminale ? terminaleTarget : nonTerminaleTarget
+    return { redirect_url: isTerminale ? terminaleTarget : nonTerminaleTarget, download_url: null, download_filename: null }
   }
 
   const fileTarget = String(form.redirect_file_url || '').trim()
-  if (fileTarget) return fileTarget
+  if (fileTarget) {
+    const slug = String(form.slug || '').trim()
+    const download_url = slug
+      ? `${origin}/api/forms/${encodeURIComponent(slug)}/file`
+      : fileTarget
+    return {
+      redirect_url: null,
+      download_url,
+      download_filename: fileNameFromUrl(fileTarget),
+    }
+  }
   const urlTarget = String(form.redirect_url || '').trim()
-  return urlTarget || null
+  return { redirect_url: urlTarget || null, download_url: null, download_filename: null }
 }
 // Pré-flight CORS
 export async function OPTIONS() {
@@ -667,11 +681,20 @@ export async function POST(req: Request, { params }: Params) {
     })
   }
 
+  const postSubmit = resolvePostSubmitTarget(
+    form,
+    data,
+    (fields || []) as Array<{ field_key?: string; crm_field?: string | null }>,
+    deriveSiteUrl(req),
+  )
+
   return NextResponse.json(
     {
       ok: true,
       submission_id: submission.id,
-      redirect_url: resolveRedirectTarget(form, data, (fields || []) as Array<{ field_key?: string; crm_field?: string | null }>),
+      redirect_url: postSubmit.redirect_url,
+      download_url: postSubmit.download_url,
+      download_filename: postSubmit.download_filename,
       success_message: form.success_message || 'Merci, votre message a bien été envoyé !',
     },
     { status: 200, headers: CORS_HEADERS }

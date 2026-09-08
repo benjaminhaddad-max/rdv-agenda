@@ -12,6 +12,18 @@ type PublicFormWithCapacity = PublicForm & {
   } | null
 }
 
+function triggerBrowserDownload(url: string, filename?: string | null) {
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  if (filename) a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
 function buildInitialValues(nextForm: PublicForm): Record<string, string> {
   const initial: Record<string, string> = {}
   for (const f of nextForm.fields) {
@@ -45,6 +57,8 @@ export default function FormRenderer({
   const [hp, setHp] = useState('') // honeypot
   const [contactToken, setContactToken] = useState<string | null>(null)
   const [hiddenFieldKeys, setHiddenFieldKeys] = useState<Set<string>>(new Set())
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
+  const [downloadFilename, setDownloadFilename] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const successRef = useRef<HTMLDivElement>(null)
 
@@ -172,6 +186,13 @@ export default function FormRenderer({
         return
       }
 
+      if (data.download_url) {
+        triggerBrowserDownload(data.download_url, data.download_filename)
+        setDownloadUrl(data.download_url)
+        setDownloadFilename(data.download_filename || 'document.pdf')
+        setSuccess(true)
+        return
+      }
       if (data.redirect_url) {
         window.location.href = data.redirect_url
         return
@@ -227,6 +248,27 @@ export default function FormRenderer({
               <p style={{ margin: 0, fontSize: 16, opacity: 0.9, lineHeight: 1.45 }}>
                 {form.success_message || 'Merci, votre demande a bien été prise en compte.'}
               </p>
+              {downloadUrl && (
+                <a
+                  href={downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={downloadFilename || undefined}
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 16,
+                    padding: '10px 18px',
+                    borderRadius: 999,
+                    background: primary,
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    textDecoration: 'none',
+                  }}
+                >
+                  Télécharger le PDF
+                </a>
+              )}
             </div>
           </div>
         </div>
