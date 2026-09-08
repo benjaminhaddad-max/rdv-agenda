@@ -7,13 +7,13 @@ import { Mail } from 'lucide-react'
 
 const LINKS = [
   { href: '/admin/crm/campaigns', label: 'Campagnes' },
+  { href: '/admin/crm/campaigns/webinars', label: 'Présentation webinaire' },
   { href: '/admin/crm/campaigns/programs', label: 'Programmes' },
   { href: '/admin/crm/campaigns/brands', label: 'Marques' },
   { href: '/admin/crm/campaigns/marketing-lists', label: 'Listes marketing' },
   { href: '/admin/crm/email-templates', label: 'Templates' },
   { href: '/admin/crm/campaigns/segments', label: 'Segments CRM' },
   { href: '/admin/crm/events', label: 'Événements' },
-  { href: '/admin/crm/campaigns/webinars', label: 'Présentations' },
 ]
 
 export default function MarketingNav({ title }: { title?: string }) {

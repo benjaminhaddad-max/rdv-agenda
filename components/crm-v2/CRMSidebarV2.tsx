@@ -66,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Marketing',
     items: [
       { key: 'campaigns', label: 'Campagnes', href: '/admin/crm-v2/campaigns', icon: Mail },
+      { key: 'webinars', label: 'Présentation webinaire', href: '/admin/crm-v2/campaigns/webinars', icon: Presentation },
       { key: 'programs', label: 'Programmes', href: '/admin/crm-v2/campaigns/programs', icon: Repeat2 },
       { key: 'mkt-lists', label: 'Listes marketing', href: '/admin/crm-v2/campaigns/marketing-lists', icon: List },
       { key: 'brands', label: 'Marques', href: '/admin/crm-v2/campaigns/brands', icon: Palette },
@@ -77,7 +78,6 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm-v2/ads-dashboard', icon: BarChart3 },
       { key: 'sms-factor', label: 'SMS Factor', href: '/admin/crm-v2/sms-factor', icon: MessageSquare },
       { key: 'events', label: 'Événements', href: '/admin/crm-v2/events', icon: CalendarDays },
-      { key: 'webinars', label: 'Présentations', href: '/admin/crm-v2/campaigns/webinars', icon: Presentation },
     ],
   },
   {

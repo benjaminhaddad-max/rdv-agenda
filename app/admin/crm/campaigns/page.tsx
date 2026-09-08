@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Mail, Plus, Search, Send, Clock, Pause, Check, AlertTriangle, Archive,
-  Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3, Repeat2, List, Palette,
+  Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3, Repeat2, List, Palette, Presentation,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
@@ -134,6 +134,9 @@ export default function CampaignsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <a href="/admin/crm/campaigns/webinars" style={{ background: '#C9A84C', border: '1px solid #C9A84C', borderRadius: 8, padding: '5px 12px', color: '#0e1e35', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
+            <Presentation size={12} /> Présentation webinaire
+          </a>
           <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
             <Repeat2 size={12} /> Programmes J1–Jn
           </a>
