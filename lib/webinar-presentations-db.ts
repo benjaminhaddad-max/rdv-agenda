@@ -7,6 +7,7 @@ import {
   type WebinarPresentationFeedback,
   type WebinarSlide,
 } from '@/lib/webinar-presentations'
+import { builtinDeckById, mergeBuiltinHtmlDecks } from '@/lib/webinar-html-decks'
 
 const SETTINGS_KEY = 'webinar_presentations_store'
 
@@ -100,16 +101,18 @@ export async function listPresentations(): Promise<PresentationListItem[]> {
         counts[row.presentation_id] = (counts[row.presentation_id] || 0) + 1
       }
     }
-    return (data || []).map(row => ({
+    return mergeBuiltinHtmlDecks((data || []).map(row => ({
       ...hydratePresentation(row as WebinarPresentation),
       open_feedback: counts[row.id] || 0,
-    }))
+    })))
   }
 
   const store = await readStore(db)
-  return [...store.presentations]
-    .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
-    .map(p => ({ ...hydratePresentation(p), open_feedback: openCount(store.feedback, p.id) }))
+  return mergeBuiltinHtmlDecks(
+    [...store.presentations]
+      .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
+      .map(p => ({ ...hydratePresentation(p), open_feedback: openCount(store.feedback, p.id) })),
+  )
 }
 
 export async function getPresentation(id: string): Promise<PresentationDetail | null> {
@@ -121,7 +124,10 @@ export async function getPresentation(id: string): Promise<PresentationDetail | 
       .eq('id', id)
       .maybeSingle()
     if (error) throw new Error(error.message)
-    if (!data) return null
+    if (!data) {
+      const builtin = builtinDeckById(id)
+      return builtin ? { ...builtin, feedback: [] } : null
+    }
     const { data: feedback, error: fbErr } = await db
       .from('webinar_presentation_feedback')
       .select('*')
@@ -133,7 +139,10 @@ export async function getPresentation(id: string): Promise<PresentationDetail | 
 
   const store = await readStore(db)
   const p = store.presentations.find(x => x.id === id)
-  if (!p) return null
+  if (!p) {
+    const builtin = builtinDeckById(id)
+    return builtin ? { ...builtin, feedback: [] } : null
+  }
   return {
     ...hydratePresentation(p),
     feedback: store.feedback

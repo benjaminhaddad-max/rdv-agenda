@@ -24,6 +24,29 @@ export function SlideCanvas({
   const titleSize = compact ? 18 : slide.layout === 'title' ? 56 : 40
   const bodySize = compact ? 12 : 22
 
+  if (slide.layout === 'html') {
+    return (
+      <div style={{
+        width: '100%',
+        height: '100%',
+        background: '#0d2238',
+        color: '#fff',
+        fontFamily: 'Matter, system-ui, sans-serif',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        <div style={{ height: compact ? 4 : 8, background: 'linear-gradient(90deg,#4fabdb 0%,#d3ab67 42%,rgba(211,171,103,0) 100%)' }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: compact ? 16 : 48, gap: compact ? 8 : 18 }}>
+          <div style={{ fontSize: compact ? 9 : 13, letterSpacing: 2, fontWeight: 700, color: '#d3ab67' }}>WEBINAIRE · CHARTE DIPLOMA</div>
+          <div style={{ fontSize: compact ? 16 : 42, fontWeight: 800, lineHeight: 1.1 }}>{slide.title}</div>
+          {slide.subtitle && <div style={{ fontSize: compact ? 11 : 18, color: '#a3cceb' }}>{slide.subtitle}</div>}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       style={{

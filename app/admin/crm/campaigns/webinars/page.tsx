@@ -9,6 +9,7 @@ import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   PRESENTATION_STATUSES,
   getDeckTheme,
+  htmlDeckSrc,
   normalizeSlides,
   type PresentationStatus,
   type WebinarPresentation,
@@ -83,6 +84,7 @@ export default function WebinarPresentationsPage() {
               const theme = getDeckTheme(row.brand)
               const st = PRESENTATION_STATUSES[row.status as PresentationStatus] || PRESENTATION_STATUSES.draft
               const slides = normalizeSlides(row.slides)
+              const htmlSrc = htmlDeckSrc(slides)
               const dateLabel = row.webinar_date
                 ? new Date(row.webinar_date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
                 : null
@@ -108,7 +110,7 @@ export default function WebinarPresentationsPage() {
                         <div style={{ marginTop: 4, fontSize: 13, color: crmV2.textMuted }}>{row.subtitle}</div>
                       )}
                       <div style={{ marginTop: 14, display: 'flex', gap: 12, fontSize: 12, color: crmV2.textFaint }}>
-                        <span>{slides.length} slides</span>
+                        <span>{htmlSrc ? '23 slides · HTML Diploma' : `${slides.length} slides`}</span>
                         {dateLabel && <span>{dateLabel}</span>}
                         {(row.open_feedback || 0) > 0 && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#b45309', fontWeight: 700 }}>

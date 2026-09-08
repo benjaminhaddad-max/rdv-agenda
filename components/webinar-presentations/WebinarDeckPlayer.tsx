@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, StickyNote, Grid3X3, X } from 'lucide-react'
-import { getDeckTheme, revealStepsFor, type WebinarSlide } from '@/lib/webinar-presentations'
+import { htmlDeckSrc, getDeckTheme, revealStepsFor, type WebinarSlide } from '@/lib/webinar-presentations'
 import { SlideCanvas } from './SlideCanvas'
 
 export default function WebinarDeckPlayer({
@@ -16,6 +16,7 @@ export default function WebinarDeckPlayer({
   slides: WebinarSlide[]
   onExit: () => void
 }) {
+  const htmlSrc = htmlDeckSrc(slides)
   const theme = getDeckTheme(brand)
   const [index, setIndex] = useState(0)
   const [step, setStep] = useState(1)
@@ -100,6 +101,12 @@ export default function WebinarDeckPlayer({
     document.addEventListener('fullscreenchange', onFs)
     return () => document.removeEventListener('fullscreenchange', onFs)
   }, [])
+
+  if (htmlSrc) {
+    return (
+      <HtmlDeckFrame src={htmlSrc} title={title} onExit={onExit} />
+    )
+  }
 
   if (!slide) {
     return (
@@ -261,6 +268,50 @@ export default function WebinarDeckPlayer({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onExit: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onExit()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onExit])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: '#0d2238' }}>
+      <iframe
+        src={src}
+        title={title}
+        style={{ width: '100%', height: '100%', border: 'none', background: '#0d2238' }}
+      />
+      <button
+        type="button"
+        onClick={onExit}
+        style={{
+          position: 'fixed',
+          top: 14,
+          left: 14,
+          zIndex: 81,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'rgba(13,34,56,0.88)',
+          border: '1px solid rgba(211,171,103,0.45)',
+          color: '#d3ab67',
+          borderRadius: 999,
+          padding: '8px 14px',
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'inherit',
+        }}
+      >
+        <X size={14} /> Quitter
+      </button>
     </div>
   )
 }

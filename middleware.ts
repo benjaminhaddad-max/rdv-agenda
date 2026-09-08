@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   // Skip static files & Next.js internals
   if (
     pathname.startsWith('/_next/') ||
-    /\.(ico|svg|png|jpg|jpeg|gif|webp|css|js|woff2?|ttf|eot|otf|pdf|txt|xml)$/.test(pathname)
+    /\.(ico|svg|png|jpg|jpeg|gif|webp|css|js|woff2?|ttf|eot|otf|pdf|txt|xml|html)$/.test(pathname)
   ) {
     return NextResponse.next()
   }
@@ -44,7 +44,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
     pathname.startsWith('/q/') || // QR courts Events Studio
     pathname.startsWith('/inscription-salons') || // hub public choix salon + places
-    pathname.startsWith('/inscription-staff') // inscription staff (sous-ensemble d’événements)
+    pathname.startsWith('/inscription-staff') || // inscription staff (sous-ensemble d’événements)
+    pathname.startsWith('/webinars/') // decks HTML webinaires (Cloud Design)
   if (isPublicPath) {
     return NextResponse.next()
   }

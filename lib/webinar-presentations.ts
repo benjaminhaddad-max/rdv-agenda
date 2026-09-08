@@ -10,6 +10,7 @@ export type SlideLayout =
   | 'cards'
   | 'quiz'
   | 'cta'
+  | 'html'
 
 export interface WebinarSlideCard {
   title: string
@@ -104,17 +105,25 @@ export interface DeckTheme {
 const FALLBACK_THEME: DeckTheme = {
   slug: 'diploma',
   name: 'Diploma Santé',
-  bg: '#0b1730',
+  bg: '#0d2238',
   bgAlt: '#12314d',
   primary: '#12314d',
-  accent: '#C9A84C',
-  text: '#f7f4ee',
-  muted: 'rgba(247,244,238,0.72)',
-  card: 'rgba(255,255,255,0.08)',
+  accent: '#d3ab67',
+  text: '#ffffff',
+  muted: 'rgba(255,255,255,0.55)',
+  card: '#f4f7fa',
 }
 
 const THEME_OVERRIDES: Record<string, Partial<DeckTheme>> = {
-  diploma: FALLBACK_THEME,
+  diploma: {
+    bg: '#0d2238',
+    bgAlt: '#12314d',
+    primary: '#12314d',
+    accent: '#d3ab67',
+    text: '#ffffff',
+    muted: 'rgba(255,255,255,0.55)',
+    card: '#f4f7fa',
+  },
   hermione: {
     bg: '#1a0628',
     bgAlt: '#551077',
@@ -205,8 +214,13 @@ export function closingSlide(): WebinarSlide {
 }
 
 const SLIDE_LAYOUTS: SlideLayout[] = [
-  'title', 'section', 'bullets', 'split', 'quote', 'stats', 'cards', 'quiz', 'cta',
+  'title', 'section', 'bullets', 'split', 'quote', 'stats', 'cards', 'quiz', 'cta', 'html',
 ]
+
+export function htmlDeckSrc(slides: WebinarSlide[]): string | null {
+  const hit = slides.find(s => s.layout === 'html' && s.body)
+  return hit?.body || null
+}
 
 export function normalizeSlides(raw: unknown): WebinarSlide[] {
   if (!Array.isArray(raw)) return []

@@ -14,6 +14,7 @@ import {
   PRESENTATION_STATUSES,
   WEBINAR_BRANDS,
   getDeckTheme,
+  htmlDeckSrc,
   newSlideId,
   type FeedbackStatus,
   type PresentationStatus,
@@ -189,6 +190,7 @@ export default function WebinarPresentationDetailPage() {
   const theme = getDeckTheme(data.brand)
   const slide = data.slides[selected] || data.slides[0]
   const presented = !!data.presented_at || data.status === 'presented' || data.status === 'needs_revision'
+  const htmlSrc = htmlDeckSrc(data.slides)
 
   return (
     <div>
@@ -208,14 +210,16 @@ export default function WebinarPresentationDetailPage() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: theme.primary }}>{theme.name}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: st.bg, color: st.color }}>{st.label}</span>
-                <span style={{ fontSize: 12, color: crmV2.textFaint }}>{data.slides.length} slides</span>
+                <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · HTML Diploma' : `${data.slides.length} slides`}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <CrmV2Button onClick={() => patch({ slides: data.slides, brief: data.brief, source_guide: data.source_guide, title: data.title, subtitle: data.subtitle, brand: data.brand, webinar_date: data.webinar_date }, 'Sauvegardé')} disabled={saving}>
-                <Save size={14} /> Sauver
-              </CrmV2Button>
-              {!presented && (
+              {!htmlSrc && (
+                <CrmV2Button onClick={() => patch({ slides: data.slides, brief: data.brief, source_guide: data.source_guide, title: data.title, subtitle: data.subtitle, brand: data.brand, webinar_date: data.webinar_date }, 'Sauvegardé')} disabled={saving}>
+                  <Save size={14} /> Sauver
+                </CrmV2Button>
+              )}
+              {!htmlSrc && !presented && (
                 <CrmV2Button onClick={async () => {
                   await patch({ action: 'mark_presented' }, 'Marquée comme présentée')
                   setTab('feedback')
@@ -226,9 +230,11 @@ export default function WebinarPresentationDetailPage() {
               <CrmV2Button variant="gold" onClick={() => router.push(`/admin/crm/campaigns/webinars/${id}/present`)}>
                 <Play size={14} /> Présenter
               </CrmV2Button>
-              <CrmV2Button onClick={remove} style={{ color: crmV2.danger }}>
-                <Trash2 size={14} />
-              </CrmV2Button>
+              {!htmlSrc && (
+                <CrmV2Button onClick={remove} style={{ color: crmV2.danger }}>
+                  <Trash2 size={14} />
+                </CrmV2Button>
+              )}
             </div>
           </div>
 
@@ -242,7 +248,20 @@ export default function WebinarPresentationDetailPage() {
             ]}
           />
 
-          {tab === 'slides' && slide && (
+          {tab === 'slides' && htmlSrc && (
+            <CrmV2Card style={{ marginTop: 16, overflow: 'hidden', background: '#0d2238' }}>
+              <div style={{ padding: '12px 16px', color: '#d3ab67', fontSize: 13, fontWeight: 700 }}>
+                Deck Cloud Design — charte Diploma, HTML à la lettre
+              </div>
+              <iframe
+                src={htmlSrc}
+                title={data.title}
+                style={{ width: '100%', height: '72vh', border: 'none', background: '#0d2238', display: 'block' }}
+              />
+            </CrmV2Card>
+          )}
+
+          {tab === 'slides' && slide && !htmlSrc && (
             <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(280px, 1fr) 320px', gap: 14, marginTop: 16, overflowX: 'auto' }}>
               <CrmV2Card style={{ padding: 10, maxHeight: '72vh', overflow: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
