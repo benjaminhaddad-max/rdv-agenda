@@ -17,6 +17,8 @@ const LIGHT_CSS = `
 type DeckStageEl = HTMLElement & {
   next?: () => void
   prev?: () => void
+  goTo?: (i: number) => void
+  _advance?: (dir: number, reason?: string) => void
   _presenting?: boolean
   _syncRailHidden?: () => void
   _fit?: () => void
@@ -47,11 +49,22 @@ function injectStyle(root: ParentNode, id: string, css: string) {
 }
 
 export function htmlDeckNav(iframe: HTMLIFrameElement, delta: number) {
-  const doc = iframe.contentDocument
-  if (!doc) return
-  const stage = stageEl(doc)
-  if (delta > 0) stage?.next?.()
-  else stage?.prev?.()
+  try {
+    const doc = iframe.contentDocument
+    if (!doc) return
+    const stage = stageEl(doc)
+    if (!stage) return
+    if (delta > 0) {
+      if (typeof stage.next === 'function') stage.next()
+      else stage._advance?.(1, 'keyboard')
+    } else if (typeof stage.prev === 'function') {
+      stage.prev()
+    } else {
+      stage._advance?.(-1, 'keyboard')
+    }
+  } catch {
+    /* iframe pas encore prêt */
+  }
 }
 
 function bindExitKeys(win: Window) {
