@@ -77,14 +77,24 @@ function stageEl(doc: Document): (HTMLElement & { next?: () => void; prev?: () =
   return doc.querySelector('deck-stage')
 }
 
-function injectStyle(root: Document | ShadowRoot, id: string, css: string) {
-  if (root.querySelector(`#${id}`)) return
-  const doc = root instanceof Document ? root : root.ownerDocument
-  const style = doc.createElement('style')
-  style.id = id
-  style.textContent = css
-  if (root instanceof Document) (root.head || root.documentElement).appendChild(style)
-  else root.appendChild(style)
+function injectStyle(root: ParentNode, id: string, css: string) {
+  try {
+    if (root.querySelector(`#${id}`)) return
+    const isDocument = (root as Node).nodeType === 9
+    const doc = isDocument ? root as Document : (root as ShadowRoot).ownerDocument
+    if (!doc?.createElement) return
+    const style = doc.createElement('style')
+    style.id = id
+    style.textContent = css
+    if (isDocument) {
+      const htmlDoc = root as Document
+      ;(htmlDoc.head || htmlDoc.documentElement).appendChild(style)
+    } else {
+      root.appendChild(style)
+    }
+  } catch {
+    /* iframe / shadow parfois inaccessibles */
+  }
 }
 
 export function htmlDeckNav(iframe: HTMLIFrameElement, delta: number) {
@@ -119,49 +129,55 @@ export function enhanceHtmlDeck(iframe: HTMLIFrameElement): () => void {
 
   const tick = () => {
     if (cancelled || wired) return
-    const doc = iframe.contentDocument
-    const win = iframe.contentWindow
-    if (!doc || !win || !doc.body) {
-      if (tries++ < 80) window.setTimeout(tick, 80)
-      return
-    }
-
-    doc.documentElement.setAttribute('data-wp-dir', 'fwd')
-    injectStyle(doc, LIGHT_STYLE_ID, LIGHT_CSS)
-    bindExitKeys(win)
-
-    const stage = stageEl(doc)
-    const shadow = stage?.shadowRoot
-    if (!stage || !shadow) {
-      void win.customElements?.whenDefined('deck-stage').then(() => { if (!cancelled) tick() })
-      if (tries++ < 80) window.setTimeout(tick, 80)
-      return
-    }
-
-    wired = true
-    injectStyle(shadow, SHADOW_STYLE_ID, SHADOW_CSS)
-    win.postMessage({ __omelette_presenting: true }, '*')
-    try { iframe.focus() } catch { /* ignore */ }
-
-    const syncDir = (force = false) => {
-      const slides = Array.from(doc.querySelectorAll('section[data-screen-label], deck-stage > section, x-import > section'))
-      const found = slides.findIndex(s => s.hasAttribute('data-deck-active'))
-      const idx = found < 0 ? lastIndex : found
-      const dir = idx >= lastIndex ? 'fwd' : 'back'
-      doc.documentElement.setAttribute('data-wp-dir', dir)
-      stage.style.setProperty('--wp-out-x', dir === 'fwd' ? '-42px' : '42px')
-      if (force || idx !== lastIndex) {
-        win.parent.postMessage({
-          slideIndexChanged: idx,
-          deckTotal: slides.length,
-        }, '*')
-        lastIndex = idx
+    try {
+      const doc = iframe.contentDocument
+      const win = iframe.contentWindow
+      if (!doc || !win || !doc.body) {
+        if (tries++ < 80) window.setTimeout(tick, 80)
+        return
       }
-    }
 
-    observer = new MutationObserver(() => syncDir())
-    observer.observe(stage, { attributes: true, subtree: true, attributeFilter: ['data-deck-active'] })
-    syncDir(true)
+      doc.documentElement.setAttribute('data-wp-dir', 'fwd')
+      injectStyle(doc, LIGHT_STYLE_ID, LIGHT_CSS)
+      bindExitKeys(win)
+
+      const stage = stageEl(doc)
+      const shadow = stage?.shadowRoot
+      if (!stage || !shadow) {
+        void win.customElements?.whenDefined('deck-stage').then(() => { if (!cancelled) tick() }).catch(() => {})
+        if (tries++ < 80) window.setTimeout(tick, 80)
+        return
+      }
+
+      wired = true
+      injectStyle(shadow, SHADOW_STYLE_ID, SHADOW_CSS)
+      try { win.postMessage({ __omelette_presenting: true }, '*') } catch { /* ignore */ }
+      try { iframe.focus() } catch { /* ignore */ }
+
+      const syncDir = (force = false) => {
+        const slides = Array.from(doc.querySelectorAll('section[data-screen-label], deck-stage > section, x-import > section'))
+        const found = slides.findIndex(s => s.hasAttribute('data-deck-active'))
+        const idx = found < 0 ? lastIndex : found
+        const dir = idx >= lastIndex ? 'fwd' : 'back'
+        doc.documentElement.setAttribute('data-wp-dir', dir)
+        stage.style.setProperty('--wp-out-x', dir === 'fwd' ? '-42px' : '42px')
+        if (force || idx !== lastIndex) {
+          try {
+            win.parent.postMessage({
+              slideIndexChanged: idx,
+              deckTotal: slides.length,
+            }, '*')
+          } catch { /* ignore */ }
+          lastIndex = idx
+        }
+      }
+
+      observer = new MutationObserver(() => syncDir())
+      observer.observe(stage, { attributes: true, subtree: true, attributeFilter: ['data-deck-active'] })
+      syncDir(true)
+    } catch {
+      if (tries++ < 80) window.setTimeout(tick, 80)
+    }
   }
 
   tick()

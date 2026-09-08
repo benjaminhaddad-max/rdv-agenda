@@ -5,7 +5,20 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2, StickyNote, Grid3X3, X
 import { htmlDeckSrc, getDeckTheme, revealStepsFor, type WebinarSlide } from '@/lib/webinar-presentations'
 import { enhanceHtmlDeck, htmlDeckNav } from '@/lib/webinar-deck-enhance'
 import { SlideCanvas } from './SlideCanvas'
-import './webinar-present.css'
+
+function enterFullscreen() {
+  try {
+    const p = document.documentElement.requestFullscreen?.()
+    if (p) void p.catch(() => {})
+  } catch { /* ignore */ }
+}
+
+function leaveFullscreen() {
+  try {
+    const p = document.exitFullscreen?.()
+    if (p) void p.catch(() => {})
+  } catch { /* ignore */ }
+}
 
 export default function WebinarDeckPlayer({
   title,
@@ -109,10 +122,10 @@ function NativeDeckPlayer({
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.()
+      enterFullscreen()
       setFullscreen(true)
     } else {
-      document.exitFullscreen?.()
+      leaveFullscreen()
       setFullscreen(false)
     }
   }
@@ -285,12 +298,18 @@ function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onE
     bumpUi()
   }, [bumpUi])
 
+  useEffect(() => {
+    setSweepOn(false)
+    const id = requestAnimationFrame(() => setSweepOn(true))
+    return () => cancelAnimationFrame(id)
+  }, [index])
+
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.()
+      enterFullscreen()
       setFullscreen(true)
     } else {
-      document.exitFullscreen?.()
+      leaveFullscreen()
       setFullscreen(false)
     }
   }
@@ -298,32 +317,35 @@ function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onE
   useEffect(() => {
     const iframe = iframeRef.current
     if (!iframe) return
-    return enhanceHtmlDeck(iframe)
+    try {
+      return enhanceHtmlDeck(iframe)
+    } catch {
+      return undefined
+    }
   }, [src])
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      const d = e.data
-      if (d?.webinarPresent === 'exit') onExit()
-      if (d?.webinarPresent === 'fullscreen') toggleFullscreen()
-      if (typeof d?.slideIndexChanged === 'number') {
-        const nextIndex = d.slideIndexChanged
-        setIndex(prev => {
-          if (prev !== nextIndex) {
-            queueMicrotask(() => {
-              setSweepOn(false)
-              requestAnimationFrame(() => setSweepOn(true))
-              bumpUi()
-            })
+      try {
+        const d = e.data
+        if (!d || typeof d !== 'object') return
+        const payload = d as { webinarPresent?: string; slideIndexChanged?: number; deckTotal?: number }
+        if (payload.webinarPresent === 'exit') onExit()
+        if (payload.webinarPresent === 'fullscreen') toggleFullscreen()
+        if (typeof payload.slideIndexChanged === 'number' && Number.isFinite(payload.slideIndexChanged)) {
+          const nextIndex = payload.slideIndexChanged
+          setIndex(prev => prev === nextIndex ? prev : nextIndex)
+          if (typeof payload.deckTotal === 'number' && Number.isFinite(payload.deckTotal) && payload.deckTotal > 0) {
+            setTotal(payload.deckTotal)
           }
-          return nextIndex
-        })
-        if (typeof d.deckTotal === 'number' && d.deckTotal > 0) setTotal(d.deckTotal)
+        }
+      } catch {
+        /* messages du deck parfois mal formés */
       }
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [onExit, bumpUi])
+  }, [onExit])
 
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement)
@@ -437,7 +459,7 @@ function Chrome({
   onNotes: () => void
   onFullscreen: () => void
 }) {
-  const dots = Math.min(total, 24)
+  const dots = Math.min(24, Math.max(0, Number.isFinite(total) ? Math.floor(total) : 0))
   return (
     <div className="webinar-present-chrome">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
