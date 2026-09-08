@@ -23,15 +23,26 @@ export default function PresentWebinarPage() {
 
   if (error) {
     return (
-      <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#b91c1c' }}>
+      <div style={{ position: 'fixed', inset: 0, background: '#050d16', display: 'grid', placeItems: 'center', color: '#f87171' }}>
         {error}
       </div>
     )
   }
   if (!data) {
     return (
-      <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#516f90' }}>
-        Chargement du deck…
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#050d16',
+        display: 'grid',
+        placeItems: 'center',
+        color: '#d3ab67',
+        letterSpacing: '0.22em',
+        textTransform: 'uppercase',
+        fontSize: 12,
+        fontWeight: 700,
+      }}>
+        Diploma Santé
       </div>
     )
   }
