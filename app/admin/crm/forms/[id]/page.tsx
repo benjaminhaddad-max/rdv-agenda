@@ -1392,9 +1392,9 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
             />
           </Field>
         )}
-        {conditionalEnabled && !!form.redirect_file_url && (
-          <div style={{ marginBottom: 12, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
-            La redirection conditionnelle est activée : elle est prioritaire sur le téléchargement du PDF. Désactive-la ci-dessous pour que le PDF se télécharge.
+        {!!form.redirect_file_url && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 10px' }}>
+            Un PDF est défini : il se téléchargera après envoi. La redirection vers une page de remerciement est ignorée.
           </div>
         )}
         <Field label="URL de redirection (optionnel)">

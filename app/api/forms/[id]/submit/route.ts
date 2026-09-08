@@ -10,7 +10,7 @@ import {
   checkFormSubmitGuard,
   validateFormContactIdentity,
 } from '@/lib/form-submit-guard'
-import { fileNameFromUrl } from '@/lib/form-downloads'
+import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
 import { deriveSiteUrl } from '@/lib/site-url'
 
 type Params = { params: Promise<{ id: string }> }
@@ -81,6 +81,17 @@ function resolveClasseActuelleValue(data: Record<string, unknown>, fields: Array
   return ''
 }
 
+function resolveFileTarget(form: {
+  redirect_file_url?: string | null
+  redirect_url?: string | null
+}): string {
+  const fromFile = String(form.redirect_file_url || '').trim()
+  if (fromFile) return fromFile
+  const fromUrl = String(form.redirect_url || '').trim()
+  if (looksLikeFileUrl(fromUrl)) return fromUrl
+  return ''
+}
+
 function resolvePostSubmitTarget(
   form: {
     folder?: string | null
@@ -96,6 +107,19 @@ function resolvePostSubmitTarget(
   fields: Array<{ field_key?: string; crm_field?: string | null }>,
   origin: string,
 ): { redirect_url: string | null; download_url: string | null; download_filename: string | null } {
+  const fileTarget = resolveFileTarget(form)
+  if (fileTarget) {
+    const slug = String(form.slug || '').trim()
+    const download_url = slug
+      ? `${origin}/api/forms/${encodeURIComponent(slug)}/file`
+      : fileTarget
+    return {
+      redirect_url: null,
+      download_url,
+      download_filename: fileNameFromUrl(fileTarget),
+    }
+  }
+
   const conditionalEnabled = typeof form.conditional_redirect_enabled === 'boolean'
     ? form.conditional_redirect_enabled
     : isDiplomaConditionalRedirectEligible(form)
@@ -108,18 +132,6 @@ function resolvePostSubmitTarget(
     return { redirect_url: isTerminale ? terminaleTarget : nonTerminaleTarget, download_url: null, download_filename: null }
   }
 
-  const fileTarget = String(form.redirect_file_url || '').trim()
-  if (fileTarget) {
-    const slug = String(form.slug || '').trim()
-    const download_url = slug
-      ? `${origin}/api/forms/${encodeURIComponent(slug)}/file`
-      : fileTarget
-    return {
-      redirect_url: null,
-      download_url,
-      download_filename: fileNameFromUrl(fileTarget),
-    }
-  }
   const urlTarget = String(form.redirect_url || '').trim()
   return { redirect_url: urlTarget || null, download_url: null, download_filename: null }
 }
