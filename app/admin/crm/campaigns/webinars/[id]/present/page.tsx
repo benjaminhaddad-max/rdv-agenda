@@ -3,7 +3,21 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import WebinarDeckPlayer from '@/components/webinar-presentations/WebinarDeckPlayer'
+import { builtinDeckById } from '@/lib/webinar-html-decks'
 import { normalizeSlides, type WebinarPresentation } from '@/lib/webinar-presentations'
+
+function idFromParams(params: ReturnType<typeof useParams>): string {
+  const raw = params?.id
+  if (Array.isArray(raw) && raw[0]) return String(raw[0])
+  if (typeof raw === 'string' && raw) return raw
+  return ''
+}
+
+function idFromLocation(): string {
+  if (typeof window === 'undefined') return ''
+  const m = window.location.pathname.match(/\/webinars\/([^/?#]+)\/present/)
+  return m?.[1] || ''
+}
 
 class PresentBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -39,35 +53,51 @@ class PresentBoundary extends Component<{ children: ReactNode }, { failed: boole
 
 export default function PresentWebinarPage() {
   const params = useParams()
-  const idRaw = params?.id
-  const id = Array.isArray(idRaw) ? idRaw[0] : (typeof idRaw === 'string' ? idRaw : '')
   const router = useRouter()
-  const [data, setData] = useState<WebinarPresentation | null>(null)
+  const id = idFromParams(params) || idFromLocation()
+  const builtin = id ? builtinDeckById(id) : null
+  const [data, setData] = useState<WebinarPresentation | null>(builtin)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!id) return
-    fetch(`/api/webinar-presentations/${id}`)
+    const currentId = idFromParams(params) || idFromLocation()
+    const local = currentId ? builtinDeckById(currentId) : null
+    if (local) {
+      setData(local)
+      return
+    }
+    if (!currentId) {
+      setError('Présentation introuvable')
+      return
+    }
+    let cancelled = false
+    fetch(`/api/webinar-presentations/${currentId}`)
       .then(async r => {
         const d = await r.json()
         if (!r.ok) throw new Error(d.error || 'Erreur')
-        setData({ ...d, slides: normalizeSlides(d.slides) })
+        if (!cancelled) setData({ ...d, slides: normalizeSlides(d.slides) })
       })
-      .catch(e => setError(e instanceof Error ? e.message : 'Erreur'))
-  }, [id])
+      .catch(e => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Erreur')
+      })
+    return () => { cancelled = true }
+  }, [params])
 
-  if (error) {
+  const deck = data || builtin
+
+  if (error && !deck) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#050d16', display: 'grid', placeItems: 'center', color: '#f87171' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: '#050d16', display: 'grid', placeItems: 'center', color: '#f87171' }}>
         {error}
       </div>
     )
   }
-  if (!data) {
+  if (!deck) {
     return (
       <div style={{
         position: 'fixed',
         inset: 0,
+        zIndex: 4000,
         background: '#050d16',
         display: 'grid',
         placeItems: 'center',
@@ -85,10 +115,10 @@ export default function PresentWebinarPage() {
   return (
     <PresentBoundary>
       <WebinarDeckPlayer
-        title={data.title}
-        brand={data.brand}
-        slides={data.slides}
-        onExit={() => router.push(`/admin/crm/campaigns/webinars/${id}`)}
+        title={deck.title}
+        brand={deck.brand}
+        slides={deck.slides}
+        onExit={() => router.push(`/admin/crm/campaigns/webinars/${deck.id}`)}
       />
     </PresentBoundary>
   )

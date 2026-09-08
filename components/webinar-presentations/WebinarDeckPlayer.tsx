@@ -65,7 +65,6 @@ function NativeDeckPlayer({
   const [quizChoice, setQuizChoice] = useState<number | null>(null)
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd')
   const [sweepOn, setSweepOn] = useState(false)
-  const [live, setLive] = useState(false)
   const [showUi, setShowUi] = useState(true)
   const idleRef = useRef<number | null>(null)
 
@@ -81,8 +80,6 @@ function NativeDeckPlayer({
 
   useEffect(() => {
     bumpUi()
-    const t = window.setTimeout(() => setLive(true), 80)
-    return () => window.clearTimeout(t)
   }, [bumpUi])
 
   const goTo = useCallback((i: number, nextDir?: 'fwd' | 'back') => {
@@ -181,8 +178,7 @@ function NativeDeckPlayer({
       onTouchStart={bumpUi}
     >
       <div className="webinar-present-ambient" />
-      <Curtain />
-      <div className={`webinar-present-frame${live ? ' is-live' : ''}`}>
+      <div className="webinar-present-frame is-live">
         <div
           className="webinar-present-stage"
           role="presentation"
@@ -280,11 +276,11 @@ function NativeDeckPlayer({
 
 function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onExit: () => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [live, setLive] = useState(false)
   const [index, setIndex] = useState(0)
   const [total, setTotal] = useState(23)
   const [sweepOn, setSweepOn] = useState(false)
   const [showUi, setShowUi] = useState(true)
+  const [showCurtain, setShowCurtain] = useState(true)
   const [fullscreen, setFullscreen] = useState(false)
   const idleRef = useRef<number | null>(null)
 
@@ -296,6 +292,8 @@ function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onE
 
   useEffect(() => {
     bumpUi()
+    const hide = window.setTimeout(() => setShowCurtain(false), 800)
+    return () => window.clearTimeout(hide)
   }, [bumpUi])
 
   useEffect(() => {
@@ -375,17 +373,19 @@ function HtmlDeckFrame({ src, title, onExit }: { src: string; title: string; onE
       className={`webinar-present${showUi ? ' wp-show-ui' : ''}`}
       onMouseMove={bumpUi}
       onTouchStart={bumpUi}
+      style={{ position: 'fixed', inset: 0, zIndex: 4000, background: '#050d16' }}
     >
       <div className="webinar-present-ambient" />
-      <Curtain />
-      <div className={`webinar-present-frame${live ? ' is-live' : ''}`}>
+      {showCurtain && <Curtain />}
+      <div className="webinar-present-frame is-live">
         <iframe
           ref={iframeRef}
           src={src}
           title={title}
           className="webinar-present-iframe"
+          style={{ width: '100%', height: '100%', border: 'none', background: '#0d2238' }}
           onLoad={() => {
-            setLive(true)
+            setShowCurtain(false)
             try { iframeRef.current?.focus() } catch { /* ignore */ }
           }}
         />
