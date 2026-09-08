@@ -158,13 +158,21 @@ export default function CRMSidebarV2() {
     localStorage.setItem('crm-v2-sidebar-collapsed', String(next))
   }
 
+  const navHrefs = NAV_SECTIONS.flatMap(s => s.items.map(i => i.href.split('?')[0]))
+
   const isActive = (href: string) => {
     // Liens d'ouverture de panneau : pas d'état actif (évite le double highlight avec Agenda)
     if (href.includes('?open=')) return false
     const pathOnly = href.split('?')[0]
     if (pathOnly === '/admin/crm-v2') return pathname === '/admin/crm-v2'
     if (pathOnly === '/telepro') return pathname.startsWith('/telepro')
-    return pathname.startsWith(pathOnly)
+    const nestedHit = navHrefs.some(other =>
+      other !== pathOnly &&
+      other.startsWith(pathOnly + '/') &&
+      (pathname === other || pathname.startsWith(other + '/'))
+    )
+    if (nestedHit) return false
+    return pathname === pathOnly || pathname.startsWith(pathOnly + '/')
   }
 
   const width = isMobile ? 0 : (collapsed ? 60 : 240)
@@ -214,14 +222,6 @@ export default function CRMSidebarV2() {
                   {!collapsed && (
                     <>
                       <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
-                      {item.key === 'webinars' && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, color: NAVY.goldText,
-                          background: NAVY.goldBg, borderRadius: 999, padding: '1px 6px',
-                        }}>
-                          nouveau
-                        </span>
-                      )}
                       {item.external && (
                         <ExternalLink size={11} style={{ color: NAVY.faint, flexShrink: 0, opacity: 0.7 }} />
                       )}
@@ -278,21 +278,6 @@ export default function CRMSidebarV2() {
                   <X size={20} />
                 </button>
               </div>
-              <a
-                href="/admin/crm-v2/campaigns/webinars"
-                onClick={() => setMobileMenuOpen(false)}
-                style={{
-                  ...linkStyle(isActive('/admin/crm-v2/campaigns/webinars')),
-                  margin: '10px 8px 0',
-                  background: NAVY.goldBg,
-                  color: NAVY.goldText,
-                  border: '1px solid rgba(201, 168, 76, 0.45)',
-                  fontWeight: 700,
-                }}
-              >
-                <Presentation size={16} strokeWidth={2} style={{ color: NAVY.goldIcon, flexShrink: 0 }} />
-                <span style={{ flex: 1 }}>Présentation</span>
-              </a>
               {renderNav(() => setMobileMenuOpen(false))}
             </div>
           </div>
@@ -372,22 +357,6 @@ export default function CRMSidebarV2() {
             />
           )}
         </div>
-
-        <a
-          href="/admin/crm-v2/campaigns/webinars"
-          title="Présentation"
-          style={{
-            ...linkStyle(isActive('/admin/crm-v2/campaigns/webinars'), collapsed),
-            margin: collapsed ? '8px 8px 0' : '10px 8px 0',
-            background: NAVY.goldBg,
-            color: NAVY.goldText,
-            border: '1px solid rgba(201, 168, 76, 0.45)',
-            fontWeight: 700,
-          }}
-        >
-          <Presentation size={16} strokeWidth={2} style={{ color: NAVY.goldIcon, flexShrink: 0 }} />
-          {!collapsed && <span style={{ flex: 1, whiteSpace: 'nowrap' }}>Présentation</span>}
-        </a>
 
         {renderNav()}
 

@@ -6,8 +6,8 @@ import LogoutButton from '@/components/LogoutButton'
 import { Mail } from 'lucide-react'
 
 const LINKS = [
-  { href: '/admin/crm/campaigns/webinars', label: 'Présentation', featured: true },
   { href: '/admin/crm/campaigns', label: 'Campagnes' },
+  { href: '/admin/crm/campaigns/webinars', label: 'Présentation' },
   { href: '/admin/crm/campaigns/programs', label: 'Programmes' },
   { href: '/admin/crm/campaigns/brands', label: 'Marques' },
   { href: '/admin/crm/campaigns/marketing-lists', label: 'Listes marketing' },
@@ -36,7 +36,6 @@ export default function MarketingNav({ title }: { title?: string }) {
             (pathNorm === other.href || pathNorm.startsWith(other.href + '/'))
           )
           const active = !nestedHit && (pathNorm === l.href || pathNorm.startsWith(l.href + '/'))
-          const featured = 'featured' in l && l.featured
           return (
             <Link
               key={l.href}
@@ -46,10 +45,10 @@ export default function MarketingNav({ title }: { title?: string }) {
                 padding: '4px 10px',
                 borderRadius: 6,
                 textDecoration: 'none',
-                fontWeight: featured ? 700 : 500,
-                border: featured || active ? '1px solid #C9A84C' : '1px solid #e5ddc8',
-                background: active ? '#0e1e35' : featured ? '#C9A84C' : '#fff',
-                color: active ? '#fff' : featured ? '#0e1e35' : '#4a6070',
+                fontWeight: active ? 600 : 500,
+                border: active ? '1px solid #C9A84C' : '1px solid #e5ddc8',
+                background: active ? '#0e1e35' : '#fff',
+                color: active ? '#fff' : '#4a6070',
               }}
             >
               {l.label}
