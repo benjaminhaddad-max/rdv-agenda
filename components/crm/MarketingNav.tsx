@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/admin/crm/email-templates', label: 'Templates' },
   { href: '/admin/crm/campaigns/segments', label: 'Segments CRM' },
   { href: '/admin/crm/events', label: 'Événements' },
+  { href: '/admin/crm/campaigns/webinars', label: 'Présentations' },
 ]
 
 export default function MarketingNav({ title }: { title?: string }) {
@@ -29,7 +30,12 @@ export default function MarketingNav({ title }: { title?: string }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {LINKS.map(l => {
-          const active = pathNorm === l.href || pathNorm.startsWith(l.href + '/')
+          const nestedHit = LINKS.some(other =>
+            other.href !== l.href &&
+            other.href.startsWith(l.href + '/') &&
+            (pathNorm === other.href || pathNorm.startsWith(other.href + '/'))
+          )
+          const active = !nestedHit && (pathNorm === l.href || pathNorm.startsWith(l.href + '/'))
           return (
             <Link
               key={l.href}

@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -34,6 +34,7 @@ const READY = new Set([
   'campaigns', 'programs', 'mkt-lists', 'brands', 'segments', 'templates',
   'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'sms-factor', 'events',
   'alternance', 'reports', 'telepro-rdv-report', 'dashboard', 'errors',
+  'webinars',
 ])
 
 const NAV_SECTIONS: NavSection[] = [
@@ -76,6 +77,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm-v2/ads-dashboard', icon: BarChart3 },
       { key: 'sms-factor', label: 'SMS Factor', href: '/admin/crm-v2/sms-factor', icon: MessageSquare },
       { key: 'events', label: 'Événements', href: '/admin/crm-v2/events', icon: CalendarDays },
+      { key: 'webinars', label: 'Présentations', href: '/admin/crm-v2/campaigns/webinars', icon: Presentation },
     ],
   },
   {
