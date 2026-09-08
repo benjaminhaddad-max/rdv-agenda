@@ -43,8 +43,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Marketing',
     items: [
+      { key: 'webinars',  label: 'Présentation', href: '/admin/crm/campaigns/webinars', icon: Presentation },
       { key: 'campaigns', label: 'Campagnes',     href: '/admin/crm/campaigns',       icon: Mail },
-      { key: 'webinars',  label: 'Présentation webinaire', href: '/admin/crm/campaigns/webinars', icon: Presentation },
       { key: 'programs',  label: 'Programmes',    href: '/admin/crm/campaigns/programs', icon: Repeat2 },
       { key: 'mkt-lists', label: 'Listes marketing', href: '/admin/crm/campaigns/marketing-lists', icon: List },
       { key: 'brands',    label: 'Marques',       href: '/admin/crm/campaigns/brands', icon: Palette },
@@ -144,9 +144,16 @@ export default function CRMSidebar() {
     }
   }
 
+  const navHrefs = NAV_SECTIONS.flatMap(s => s.items.map(i => i.href.split('?')[0]))
   const isActive = (href: string): boolean => {
     if (href === '/admin/crm') return pathname === '/admin/crm'
-    return pathname.startsWith(href)
+    const nestedHit = navHrefs.some(other =>
+      other !== href &&
+      other.startsWith(href + '/') &&
+      (pathname === other || pathname.startsWith(other + '/'))
+    )
+    if (nestedHit) return false
+    return pathname === href || pathname.startsWith(href + '/')
   }
 
   const width = isMobile ? 0 : (collapsed ? 60 : 232)

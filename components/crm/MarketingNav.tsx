@@ -6,8 +6,8 @@ import LogoutButton from '@/components/LogoutButton'
 import { Mail } from 'lucide-react'
 
 const LINKS = [
+  { href: '/admin/crm/campaigns/webinars', label: 'Présentation', featured: true },
   { href: '/admin/crm/campaigns', label: 'Campagnes' },
-  { href: '/admin/crm/campaigns/webinars', label: 'Présentation webinaire' },
   { href: '/admin/crm/campaigns/programs', label: 'Programmes' },
   { href: '/admin/crm/campaigns/brands', label: 'Marques' },
   { href: '/admin/crm/campaigns/marketing-lists', label: 'Listes marketing' },
@@ -21,7 +21,7 @@ export default function MarketingNav({ title }: { title?: string }) {
   const pathNorm = path.replace(/^\/admin\/crm-v2/, '/admin/crm')
 
   return (
-    <div style={{ padding: '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#0e1e35' }}>
+    <div style={{ padding: '8px 20px', minHeight: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#0e1e35', gap: 12, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12 }}>← CRM</a>
         <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
@@ -36,6 +36,7 @@ export default function MarketingNav({ title }: { title?: string }) {
             (pathNorm === other.href || pathNorm.startsWith(other.href + '/'))
           )
           const active = !nestedHit && (pathNorm === l.href || pathNorm.startsWith(l.href + '/'))
+          const featured = 'featured' in l && l.featured
           return (
             <Link
               key={l.href}
@@ -45,9 +46,10 @@ export default function MarketingNav({ title }: { title?: string }) {
                 padding: '4px 10px',
                 borderRadius: 6,
                 textDecoration: 'none',
-                border: '1px solid #e5ddc8',
-                background: active ? '#0e1e35' : '#fff',
-                color: active ? '#fff' : '#4a6070',
+                fontWeight: featured ? 700 : 500,
+                border: featured || active ? '1px solid #C9A84C' : '1px solid #e5ddc8',
+                background: active ? '#0e1e35' : featured ? '#C9A84C' : '#fff',
+                color: active ? '#fff' : featured ? '#0e1e35' : '#4a6070',
               }}
             >
               {l.label}

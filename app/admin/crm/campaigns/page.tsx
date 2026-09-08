@@ -122,8 +122,8 @@ export default function CampaignsPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ padding: '0 20px', minHeight: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
           <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             ← Retour CRM
           </a>
@@ -133,9 +133,9 @@ export default function CampaignsPage() {
             <span style={{ fontSize: 14, fontWeight: 600 }}>Campagnes Email</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <a href="/admin/crm/campaigns/webinars" style={{ background: '#C9A84C', border: '1px solid #C9A84C', borderRadius: 8, padding: '5px 12px', color: '#0e1e35', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
-            <Presentation size={12} /> Présentation webinaire
+            <Presentation size={12} /> Présentation
           </a>
           <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
             <Repeat2 size={12} /> Programmes J1–Jn
@@ -154,6 +154,22 @@ export default function CampaignsPage() {
           </a>
           <LogoutButton />
         </div>
+      </div>
+
+      {/* Accès présentation webinaire */}
+      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
+        <a href="/admin/crm/campaigns/webinars" style={{
+          display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none',
+          background: 'linear-gradient(90deg, rgba(201,168,76,0.18), rgba(201,168,76,0.05))',
+          border: '1px solid #C9A84C', borderRadius: 12, padding: '14px 18px',
+        }}>
+          <Presentation size={22} style={{ color: '#C9A84C', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35' }}>Présentation webinaire</div>
+            <div style={{ fontSize: 13, color: '#4a6070', marginTop: 2 }}>Créer un deck interactif à partir d’un guide PDF ou Word</div>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', background: '#C9A84C', borderRadius: 8, padding: '6px 12px' }}>Ouvrir</span>
+        </a>
       </div>
 
       {/* Stats */}
