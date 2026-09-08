@@ -6,6 +6,7 @@ import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { WEBINAR_BRANDS, getDeckTheme } from '@/lib/webinar-presentations'
+import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
 
 export default function NewWebinarPresentationPage() {
   const router = useRouter()
@@ -54,7 +55,7 @@ export default function NewWebinarPresentationPage() {
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
           <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: crmV2.text }}>Nouvelle présentation</h1>
           <p style={{ margin: '0 0 22px', color: crmV2.textMuted, fontSize: 14 }}>
-            Colle le guide du webinaire : les slides interactives sont générées automatiquement. Tu pourras ensuite présenter et laisser des retours pour qu’on affine.
+            Uploade le guide du webinaire (PDF ou Word). Les slides interactives sont générées à partir du fichier. Tu pourras ensuite présenter et laisser des retours pour qu’on affine.
           </p>
 
           <CrmV2Card style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -85,15 +86,23 @@ export default function NewWebinarPresentationPage() {
                 style={{ ...inputStyle, resize: 'vertical', minHeight: 110 }}
               />
             </Field>
-            <Field label="Guide source" hint="Colle ici le déroulé / le document du webinaire. On le transforme en slides.">
-              <textarea
-                value={guide}
-                onChange={e => setGuide(e.target.value)}
-                rows={14}
-                placeholder={'# Titre\n\n## Contexte\n- Point 1\n- Point 2\n\n## Ce qu’il faut retenir\n…'}
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 240, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}
-              />
-            </Field>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 6 }}>Guide du webinaire</div>
+              <GuideFileDrop onExtracted={(text) => setGuide(text)} />
+              {guide.trim() && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6 }}>
+                    Texte extrait ({guide.trim().length.toLocaleString('fr-FR')} caractères) — tu peux le corriger
+                  </div>
+                  <textarea
+                    value={guide}
+                    onChange={e => setGuide(e.target.value)}
+                    rows={10}
+                    style={{ ...inputStyle, resize: 'vertical', minHeight: 160, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}
+                  />
+                </div>
+              )}
+            </div>
             {error && <div style={{ color: crmV2.danger, fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <CrmV2Button onClick={() => router.push('/admin/crm/campaigns/webinars')}>Annuler</CrmV2Button>

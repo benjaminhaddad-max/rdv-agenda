@@ -26,12 +26,14 @@
     "livekit-client": "^2.7.0",
     "livekit-server-sdk": "^2.9.0",
     "lucide-react": "^0.577.0",
+    "mammoth": "^1.12.2",
     "next": "16.1.6",
     "nodemailer": "^9.0.1",
     "pdf-lib": "^1.17.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-email-editor": "^1.8.0"
+    "react-email-editor": "^1.8.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

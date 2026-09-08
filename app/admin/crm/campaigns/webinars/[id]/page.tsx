@@ -9,6 +9,7 @@ import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { SlideCanvas } from '@/components/webinar-presentations/SlideCanvas'
+import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
 import {
   PRESENTATION_STATUSES,
   WEBINAR_BRANDS,
@@ -404,15 +405,17 @@ export default function WebinarPresentationDetailPage() {
                 </div>
               </CrmV2Card>
               <CrmV2Card style={{ padding: 18 }}>
-                <Field label="Guide source">
+                <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text, marginBottom: 8 }}>Guide source</div>
+                <GuideFileDrop onExtracted={(text) => setData({ ...data, source_guide: text })} />
+                <div style={{ marginTop: 12 }}>
                   <textarea
                     value={data.source_guide || ''}
                     onChange={e => setData({ ...data, source_guide: e.target.value })}
-                    rows={16}
-                    placeholder="Colle ici le déroulé du webinaire."
+                    rows={12}
+                    placeholder="Ou colle ici le déroulé du webinaire."
                     style={{ ...inputStyle, resize: 'vertical', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}
                   />
-                </Field>
+                </div>
                 <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                   <CrmV2Button
                     variant="gold"
