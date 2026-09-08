@@ -10,6 +10,7 @@ import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/c
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { SlideCanvas } from '@/components/webinar-presentations/SlideCanvas'
 import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
+import { HtmlDeckPreview } from '@/components/webinar-presentations/HtmlDeckPreview'
 import {
   PRESENTATION_STATUSES,
   WEBINAR_BRANDS,
@@ -196,8 +197,8 @@ export default function WebinarPresentationDetailPage() {
     <div>
       <MarketingNav title={data.title} />
       <CrmV2Page style={{ padding: 24 }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+        <div style={{ maxWidth: 1220, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18 }}>
             <div>
               <button
                 type="button"
@@ -206,11 +207,16 @@ export default function WebinarPresentationDetailPage() {
               >
                 <ArrowLeft size={14} /> Toutes les présentations
               </button>
-              <h1 style={{ margin: '8px 0 4px', fontSize: 22, fontWeight: 800, color: crmV2.text }}>{data.title}</h1>
+              <h1 style={{ margin: '8px 0 6px', fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: crmV2.text }}>{data.title}</h1>
+              {data.subtitle && (
+                <p style={{ margin: '0 0 10px', fontSize: 14, color: crmV2.textMuted, lineHeight: 1.45, maxWidth: 720 }}>
+                  {data.subtitle}
+                </p>
+              )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: theme.primary }}>{theme.name}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: st.bg, color: st.color }}>{st.label}</span>
-                <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · HTML Diploma' : `${data.slides.length} slides`}</span>
+                <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · 45 min' : `${data.slides.length} slides`}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -249,16 +255,11 @@ export default function WebinarPresentationDetailPage() {
           />
 
           {tab === 'slides' && htmlSrc && (
-            <CrmV2Card style={{ marginTop: 16, overflow: 'hidden', background: '#0d2238' }}>
-              <div style={{ padding: '12px 16px', color: '#d3ab67', fontSize: 13, fontWeight: 700 }}>
-                Deck Cloud Design — charte Diploma, HTML à la lettre
-              </div>
-              <iframe
-                src={htmlSrc}
-                title={data.title}
-                style={{ width: '100%', height: '72vh', border: 'none', background: '#0d2238', display: 'block' }}
-              />
-            </CrmV2Card>
+            <HtmlDeckPreview
+              src={htmlSrc}
+              title={data.title}
+              presentHref={`/admin/crm/campaigns/webinars/${id}/present`}
+            />
           )}
 
           {tab === 'slides' && slide && !htmlSrc && (
