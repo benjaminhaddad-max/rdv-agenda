@@ -51,7 +51,7 @@ export async function extractGuideFromFile(file: {
   } else {
     const pdf = await getDocumentProxy(file.bytes)
     const extracted = await extractText(pdf, { mergePages: true })
-    text = typeof extracted.text === 'string' ? extracted.text : extracted.text.join('\n\n')
+    text = extracted.text
   }
 
   text = cleanGuideText(text)
