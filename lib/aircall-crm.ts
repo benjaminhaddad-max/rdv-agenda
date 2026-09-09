@@ -11,6 +11,7 @@ import {
   type AircallContactInput,
 } from '@/lib/aircall'
 import { aircallPhoneVariants, phoneDigits, toE164French } from '@/lib/phone-e164'
+import { getAircallUserMap } from '@/lib/settings'
 import { deriveSiteUrl } from '@/lib/site-url'
 import { logger } from '@/lib/logger'
 
@@ -288,7 +289,10 @@ export async function persistAircallCallsBatch(
   const valid = calls.filter(c => Number(c.id) > 0)
   if (valid.length === 0) return { imported: 0, failed: 0 }
 
-  const { data: agents } = await db.from('rdv_users').select('id, email')
+  const [{ data: agents }, userMap] = await Promise.all([
+    db.from('rdv_users').select('id, email'),
+    getAircallUserMap(),
+  ])
   const byEmail = new Map<string, string>()
   for (const u of agents ?? []) {
     const email = String((u as { email?: string | null }).email || '').trim().toLowerCase()
@@ -298,6 +302,7 @@ export async function persistAircallCallsBatch(
   const rows = valid.map(call => {
     const classified = classifyAircallCall(call)
     const email = call.user?.email?.trim().toLowerCase() || null
+    const mappedId = call.user?.id ? userMap.get(call.user.id) : undefined
     return {
       aircall_call_id: call.id,
       started_at: toIso(call.started_at ?? call.ended_at),
@@ -312,7 +317,7 @@ export async function persistAircallCallsBatch(
       aircall_user_id: call.user?.id ?? null,
       agent_email: email,
       agent_name: call.user?.name ?? null,
-      rdv_user_id: email ? byEmail.get(email) ?? null : null,
+      rdv_user_id: mappedId || (email ? byEmail.get(email) ?? null : null),
       raw_digits: call.raw_digits ?? null,
       recording_url: safeHttpUrl(call.recording),
       missed_call_reason: call.missed_call_reason ?? null,
@@ -371,7 +376,19 @@ export async function handleAircallCallEnded(
   if (!call.id) return { matched: false, contact_id: null }
 
   const contact = await findCrmContactByPhone(db, call.raw_digits)
-  const agent = await mapAircallAgentToRdvUser(db, call.user?.email)
+  const userMap = await getAircallUserMap()
+  const mappedId = call.user?.id ? userMap.get(call.user.id) : undefined
+  let agent = await mapAircallAgentToRdvUser(db, call.user?.email)
+  if (mappedId && mappedId !== agent?.id) {
+    const { data: mapped } = await db
+      .from('rdv_users')
+      .select('id, hubspot_owner_id')
+      .eq('id', mappedId)
+      .maybeSingle()
+    if (mapped?.id) {
+      agent = { id: mapped.id, hubspot_owner_id: mapped.hubspot_owner_id ?? null }
+    }
+  }
   const classified = classifyAircallCall(call)
 
   const persisted = await upsertAircallCall(db, call, {
@@ -458,5 +475,19 @@ export async function handleAircallCallEnded(
     status: classified.status,
     direction: classified.direction,
     persisted: persisted.ok,
+  }
+}
+
+/** Applique la liaison manuelle Aircall → CRM sur les appels déjà importés. */
+export async function applyAircallUserMapToCalls(
+  db: SupabaseClient,
+  map: Map<number, string>,
+): Promise<void> {
+  for (const [aircallUserId, rdvUserId] of map) {
+    const { error } = await db
+      .from('aircall_calls')
+      .update({ rdv_user_id: rdvUserId, updated_at: new Date().toISOString() })
+      .eq('aircall_user_id', aircallUserId)
+    if (error) logger.warn('aircall-user-map-apply', error.message, { aircallUserId })
   }
 }

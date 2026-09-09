@@ -74,6 +74,22 @@ export async function getAircallTrackedUserIds(): Promise<number[]> {
     .filter(n => Number.isInteger(n) && n > 0)
 }
 
+/** Liaison manuelle compte Aircall → utilisateur CRM (quand les emails diffèrent). */
+export function parseAircallUserMap(raw: unknown): Map<number, string> {
+  const map = new Map<number, string>()
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return map
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = Number(k)
+    const uuid = String(v ?? '').trim()
+    if (Number.isInteger(id) && id > 0 && uuid) map.set(id, uuid)
+  }
+  return map
+}
+
+export async function getAircallUserMap(): Promise<Map<number, string>> {
+  return parseAircallUserMap(await getRawSetting('aircall_user_map'))
+}
+
 /**
  * Met à jour un setting et invalide le cache.
  */

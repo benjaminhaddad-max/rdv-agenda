@@ -13,6 +13,7 @@ type PeriodMode = 'week' | 'day' | 'month' | 'custom'
 
 type AircallNumber = { id: number; name: string | null; digits: string | null; open?: boolean | null }
 type AircallAgent = { id: number; name: string | null; email: string | null }
+type CrmUser = { id: string; name: string; role: string | null; email: string | null }
 
 function parisToday(): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -514,6 +515,8 @@ function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean
 function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [numbers, setNumbers] = useState<AircallNumber[]>([])
   const [aircallUsers, setAircallUsers] = useState<AircallAgent[]>([])
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([])
+  const [userMap, setUserMap] = useState<Record<string, string>>({})
   const [selected, setSelected] = useState<number[]>([])
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
@@ -535,6 +538,8 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
           setSelected(json.tracked_ids ?? [])
           setAircallUsers(json.users ?? [])
           setSelectedUsers(json.tracked_user_ids ?? [])
+          setCrmUsers(json.crm_users ?? [])
+          setUserMap(json.user_map ?? {})
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Erreur')
@@ -556,7 +561,7 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
     setSaving(true)
     setError(null)
     try {
-      const [linesRes, usersRes] = await Promise.all([
+      const [linesRes, usersRes, mapRes] = await Promise.all([
         fetch('/api/crm/settings', {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
@@ -567,8 +572,14 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ key: 'aircall_tracked_user_ids', value: selectedUsers }),
         }),
+        fetch('/api/crm/aircall/map', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ map: userMap }),
+        }),
       ])
-      if (!linesRes.ok || !usersRes.ok) throw new Error('Enregistrement impossible')
+      if (!linesRes.ok || !usersRes.ok || !mapRes.ok) throw new Error('Enregistrement impossible')
+      setProgress('Enregistré — les appels sont rattachés aux comptes CRM.')
       onSaved()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
@@ -677,7 +688,7 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
 
           <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#0e1e35' }}>Utilisateurs Aircall</p>
           <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4a6070' }}>
-            Coche seulement les télépros / commerciaux. Les autres comptes Aircall n’entrent pas dans le rapport.
+            Coche les télépros / commerciaux, puis dis à qui ils correspondent dans le CRM si l’email Aircall n’est pas le même.
           </p>
           {aircallUsers.length === 0 ? (
             <div style={{ color: '#4a6070', fontSize: 13, marginBottom: 16 }}>Aucun utilisateur Aircall disponible.</div>
@@ -691,23 +702,49 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
                 />
                 Tout cocher / décocher
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8, marginBottom: 14 }}>
                 {aircallUsers.map(u => (
-                  <label
+                  <div
                     key={u.id}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+                      display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13,
                       padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8,
                       background: selectedUsers.includes(u.id) ? 'rgba(204,172,113,0.12)' : '#faf8f4',
-                      cursor: 'pointer',
                     }}
                   >
-                    <input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={() => toggleUser(u.id)} />
-                    <span>
-                      <span style={{ fontWeight: 600 }}>{u.name || `User ${u.id}`}</span>
-                      {u.email && <span style={{ color: '#4a6070', marginLeft: 6 }}>{u.email}</span>}
-                    </span>
-                  </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={() => toggleUser(u.id)} />
+                      <span>
+                        <span style={{ fontWeight: 600 }}>{u.name || `User ${u.id}`}</span>
+                        {u.email && <span style={{ color: '#4a6070', marginLeft: 6 }}>{u.email}</span>}
+                      </span>
+                    </label>
+                    <select
+                      value={userMap[String(u.id)] || ''}
+                      onChange={e => {
+                        const v = e.target.value
+                        setUserMap(cur => {
+                          const next = { ...cur }
+                          if (v) next[String(u.id)] = v
+                          else delete next[String(u.id)]
+                          return next
+                        })
+                      }}
+                      style={{
+                        ...dateInputStyle,
+                        padding: '5px 8px',
+                        fontSize: 12,
+                        width: '100%',
+                      }}
+                    >
+                      <option value="">CRM : non lié</option>
+                      {crmUsers.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.role ? ` (${c.role})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
               </div>
             </>

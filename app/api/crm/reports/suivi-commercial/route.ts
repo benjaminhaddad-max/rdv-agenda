@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
-import { getAircallTrackedLineIds, getAircallTrackedUserIds } from '@/lib/settings'
+import { getAircallTrackedLineIds, getAircallTrackedUserIds, getAircallUserMap } from '@/lib/settings'
 import {
   addParisDays,
   eachParisDate,
@@ -88,6 +88,7 @@ async function buildReport(req: NextRequest, startedAt: number) {
 
   const trackedLineIds = await getAircallTrackedLineIds()
   const trackedUserIds = await getAircallTrackedUserIds()
+  const aircallUserMap = await getAircallUserMap()
   const needsLines = trackedLineIds.length === 0
   const needsUsers = trackedUserIds.length === 0
 
@@ -166,11 +167,18 @@ async function buildReport(req: NextRequest, startedAt: number) {
     prevRdv.set(id, (prevRdv.get(id) ?? 0) + 1)
   }
 
+  const resolveCallAgentId = (call: CallRow): string | null => {
+    if (call.rdv_user_id && agents.has(call.rdv_user_id)) return call.rdv_user_id
+    if (call.aircall_user_id) {
+      const mapped = aircallUserMap.get(call.aircall_user_id)
+      if (mapped && agents.has(mapped)) return mapped
+    }
+    return null
+  }
+
   const prevCallsByAgent = new Map<string, number>()
   for (const call of prevCalls) {
-    const key = call.rdv_user_id && agents.has(call.rdv_user_id)
-      ? call.rdv_user_id
-      : unmappedKey(call)
+    const key = resolveCallAgentId(call) ?? unmappedKey(call)
     if (call.direction === 'outbound') {
       prevCallsByAgent.set(key, (prevCallsByAgent.get(key) ?? 0) + 1)
     }
@@ -178,8 +186,9 @@ async function buildReport(req: NextRequest, startedAt: number) {
 
   for (const call of currentCalls) {
     let agent: AgentMetrics | undefined
-    if (call.rdv_user_id && agents.has(call.rdv_user_id)) {
-      agent = agents.get(call.rdv_user_id)
+    const mappedId = resolveCallAgentId(call)
+    if (mappedId) {
+      agent = agents.get(mappedId)
     } else if (!needsUsers) {
       const key = unmappedKey(call)
       agent = agents.get(key)

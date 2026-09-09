@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireApiRole } from '@/lib/api-auth'
+import { createServiceClient } from '@/lib/supabase'
 import { isAircallEnabled, listAircallNumbers, listAircallUsers } from '@/lib/aircall'
-import { getAircallTrackedLineIds, getAircallTrackedUserIds } from '@/lib/settings'
+import { getAircallTrackedLineIds, getAircallTrackedUserIds, getAircallUserMap } from '@/lib/settings'
 
 /**
  * GET /api/crm/aircall/numbers
@@ -11,15 +12,26 @@ export async function GET() {
   const authz = await requireApiRole(['admin'])
   if (!authz.ok) return authz.response
 
-  const [trackedIds, trackedUserIds] = await Promise.all([
+  const [trackedIds, trackedUserIds, userMap] = await Promise.all([
     getAircallTrackedLineIds(),
     getAircallTrackedUserIds(),
+    getAircallUserMap(),
   ])
+  const db = createServiceClient()
+  const { data: crmUsers } = await db
+    .from('rdv_users')
+    .select('id, name, role, email')
+    .in('role', ['telepro', 'closer'])
+    .order('name')
+  const userMapObj: Record<string, string> = {}
+  for (const [id, uuid] of userMap) userMapObj[String(id)] = uuid
 
   if (!isAircallEnabled()) {
     return NextResponse.json({
       numbers: [],
       users: [],
+      crm_users: crmUsers ?? [],
+      user_map: userMapObj,
       tracked_ids: trackedIds,
       tracked_user_ids: trackedUserIds,
       error: 'Aircall non configuré (AIRCALL_API_ID / AIRCALL_API_TOKEN)',
@@ -32,6 +44,8 @@ export async function GET() {
       {
         numbers: [],
         users: [],
+        crm_users: crmUsers ?? [],
+        user_map: userMapObj,
         tracked_ids: trackedIds,
         tracked_user_ids: trackedUserIds,
         error: listed.error,
@@ -54,6 +68,8 @@ export async function GET() {
           email: u.email,
         }))
       : [],
+    crm_users: crmUsers ?? [],
+    user_map: userMapObj,
     tracked_ids: trackedIds,
     tracked_user_ids: trackedUserIds,
     error: users.ok ? undefined : users.error,
