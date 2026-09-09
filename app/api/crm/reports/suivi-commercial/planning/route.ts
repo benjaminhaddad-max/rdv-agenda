@@ -7,7 +7,10 @@ import {
   mergeWeekSlots,
   outboundCallCount,
   parisHmUtc,
+  planningRoster,
   planningWeekStart,
+  plannedHours,
+  replacePeople,
   savePlanningStore,
   slotsInWeek,
   type PlanningSlot,
@@ -27,13 +30,14 @@ export async function GET(req: NextRequest) {
   const weekStart = planningWeekStart(weekParam)
 
   const db = createServiceClient()
-  const [{ data: users, error: usersErr }, store] = await Promise.all([
+  const [{ data: usersRaw, error: usersErr }, store] = await Promise.all([
     db.from('rdv_users').select('id, name, email').eq('role', 'telepro').order('name'),
     loadPlanningStore(db),
   ])
   if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })
 
-  const telepros = (users ?? []) as Array<{ id: string; name: string; email: string | null }>
+  const users = (usersRaw ?? []) as Array<{ id: string; name: string; email: string | null }>
+  const { roster, available } = planningRoster(store, users)
   const slots = slotsInWeek(store.slots, weekStart)
   const { start, end } = parisRangeUtcBounds(weekStart, addParisDays(weekStart, 6))
   const counts = new Map<string, number>()
@@ -58,7 +62,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     week_start: weekStart,
     director_email: store.director_email,
-    telepros,
+    roster_configured: store.people.length > 0,
+    telepros: roster.map(tp => ({
+      ...tp,
+      planned_hours: plannedHours(slots.filter(s => s.user_id === tp.id)),
+    })),
+    available,
     slots: decorated,
   })
 }
@@ -67,7 +76,7 @@ export async function PUT(req: NextRequest) {
   const authz = await requireApiRole(['admin'])
   if (!authz.ok) return authz.response
 
-  let body: { week?: string; slots?: unknown }
+  let body: { week?: string; slots?: unknown; people?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -81,12 +90,14 @@ export async function PUT(req: NextRequest) {
   try {
     const store = await loadPlanningStore(db)
     store.slots = mergeWeekSlots(store.slots, weekStart, incoming)
+    if (body.people !== undefined) store.people = replacePeople(body.people)
     await savePlanningStore(db, store)
 
     return NextResponse.json({
       ok: true,
       week_start: weekStart,
       saved: slotsInWeek(store.slots, weekStart).length,
+      people: store.people.length,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

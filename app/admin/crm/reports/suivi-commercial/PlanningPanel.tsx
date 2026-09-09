@@ -1,9 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 
-type Telepro = { id: string; name: string; email: string | null }
+type Contract = 'full' | 'part' | 'alternant'
+type Telepro = {
+  id: string
+  name: string
+  email: string | null
+  contract: Contract
+  min_hours: number
+}
+type Available = { id: string; name: string }
 type Slot = {
   id: string
   user_id: string
@@ -16,6 +24,11 @@ type Slot = {
 }
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+const CONTRACTS: Array<{ value: Contract; label: string; hours: number }> = [
+  { value: 'full', label: 'Temps plein', hours: 35 },
+  { value: 'part', label: 'Temps partiel', hours: 12 },
+  { value: 'alternant', label: 'Alternant', hours: 21 },
+]
 
 function addDays(key: string, days: number): string {
   const [y, m, d] = key.split('-').map(Number)
@@ -37,6 +50,28 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
+function slotHours(start: string, end: string): number {
+  const hm = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return (h || 0) * 60 + (m || 0)
+  }
+  const mins = hm(end) - hm(start)
+  return mins > 0 ? mins / 60 : 0
+}
+
+function plannedHours(slots: Slot[]): number {
+  return Math.round(slots.reduce((acc, s) => acc + slotHours(s.start, s.end), 0) * 10) / 10
+}
+
+function formatHours(h: number): string {
+  if (!Number.isFinite(h) || h <= 0) return '0h'
+  const rounded = Math.round(h * 60) / 60
+  if (rounded % 1 === 0) return `${rounded}h`
+  const hInt = Math.floor(rounded)
+  const m = Math.round((rounded - hInt) * 60)
+  return `${hInt}h${String(m).padStart(2, '0')}`
+}
+
 export default function PlanningPanel({
   weekStart: initialWeek,
   onClose,
@@ -46,11 +81,13 @@ export default function PlanningPanel({
 }) {
   const [weekStart, setWeekStart] = useState(initialWeek)
   const [telepros, setTelepros] = useState<Telepro[]>([])
+  const [available, setAvailable] = useState<Available[]>([])
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
+  const [addId, setAddId] = useState('')
 
   const days = useMemo(() => DAYS.map((label, i) => ({ label, date: addDays(weekStart, i) })), [weekStart])
 
@@ -61,7 +98,14 @@ export default function PlanningPanel({
       const res = await fetch(`/api/crm/reports/suivi-commercial/planning?week=${weekStart}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
-      setTelepros(json.telepros ?? [])
+      setTelepros((json.telepros ?? []).map((t: Telepro) => ({
+        id: t.id,
+        name: t.name,
+        email: t.email ?? null,
+        contract: t.contract === 'part' || t.contract === 'alternant' ? t.contract : 'full',
+        min_hours: Number(t.min_hours) > 0 ? Number(t.min_hours) : 35,
+      })))
+      setAvailable(json.available ?? [])
       setSlots(json.slots ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
@@ -90,6 +134,33 @@ export default function PlanningPanel({
     setOk(null)
   }
 
+  const updatePerson = (id: string, patch: Partial<Telepro>) => {
+    setTelepros(cur => cur.map(t => t.id === id ? { ...t, ...patch } : t))
+    setOk(null)
+  }
+
+  const setContract = (id: string, contract: Contract) => {
+    const hours = CONTRACTS.find(c => c.value === contract)?.hours ?? 35
+    updatePerson(id, { contract, min_hours: hours })
+  }
+
+  const removeTelepro = (id: string) => {
+    const row = telepros.find(t => t.id === id)
+    setTelepros(cur => cur.filter(t => t.id !== id))
+    setSlots(cur => cur.filter(s => s.user_id !== id))
+    if (row) setAvailable(cur => [...cur, { id: row.id, name: row.name }].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
+    setOk(null)
+  }
+
+  const addTelepro = (id: string) => {
+    const row = available.find(t => t.id === id)
+    if (!row) return
+    setAvailable(cur => cur.filter(t => t.id !== id))
+    setTelepros(cur => [...cur, { id: row.id, name: row.name, email: null, contract: 'full', min_hours: 35 }])
+    setAddId('')
+    setOk(null)
+  }
+
   const save = async () => {
     setSaving(true)
     setError(null)
@@ -101,11 +172,12 @@ export default function PlanningPanel({
         body: JSON.stringify({
           week: weekStart,
           slots: slots.map(s => ({ user_id: s.user_id, date: s.date, start: s.start, end: s.end })),
+          people: telepros.map(t => ({ user_id: t.id, contract: t.contract, min_hours: t.min_hours })),
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Enregistrement impossible')
-      setOk(`${json.saved} créneau${json.saved > 1 ? 'x' : ''} enregistré${json.saved > 1 ? 's' : ''}`)
+      setOk(`${json.saved} créneau${json.saved > 1 ? 'x' : ''} · ${telepros.length} télépro${telepros.length > 1 ? 's' : ''}`)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur')
@@ -122,13 +194,16 @@ export default function PlanningPanel({
       const res = await fetch(`/api/crm/reports/suivi-commercial/planning?week=${prev}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
-      const copied: Slot[] = (json.slots ?? []).map((s: Slot) => ({
-        id: newId(),
-        user_id: s.user_id,
-        date: addDays(s.date, 7),
-        start: s.start,
-        end: s.end,
-      }))
+      const keep = new Set(telepros.map(t => t.id))
+      const copied: Slot[] = (json.slots ?? [])
+        .filter((s: Slot) => keep.has(s.user_id))
+        .map((s: Slot) => ({
+          id: newId(),
+          user_id: s.user_id,
+          date: addDays(s.date, 7),
+          start: s.start,
+          end: s.end,
+        }))
       setSlots(copied)
       setOk('Semaine précédente recopiée — pense à Enregistrer')
     } catch (e) {
@@ -149,7 +224,7 @@ export default function PlanningPanel({
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>Planning des télépros</div>
           <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
-            En début de semaine, indique qui est en ligne et à quelles heures. Si un créneau se termine sans aucun appel sortant, Pascal reçoit un mail.
+            Contrat → minimum d’heures (plein 35 h, partiel 12 h, alternant 21 h — modifiable). Si un créneau se termine sans appel sortant, Pascal reçoit un mail.
           </div>
         </div>
         <button onClick={onClose} style={btn}>Fermer</button>
@@ -172,6 +247,21 @@ export default function PlanningPanel({
         <button onClick={save} disabled={saving} style={{ ...btn, fontWeight: 700, color: '#C9A84C' }}>
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
+        {available.length > 0 && (
+          <select
+            value={addId}
+            onChange={e => {
+              const id = e.target.value
+              if (id) addTelepro(id)
+            }}
+            style={{ ...btn, color: '#0e1e35' }}
+          >
+            <option value="">+ Ajouter un télépro</option>
+            {available.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {error && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{error}</div>}
@@ -181,7 +271,7 @@ export default function PlanningPanel({
         <div style={{ color: '#4a6070', fontSize: 13 }}>Chargement…</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 860 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 980 }}>
             <thead>
               <tr>
                 <th style={thStyle}>Télépro</th>
@@ -193,40 +283,86 @@ export default function PlanningPanel({
               </tr>
             </thead>
             <tbody>
-              {telepros.map(tp => (
-                <tr key={tp.id} style={{ borderTop: '1px solid #f0ebe0', verticalAlign: 'top' }}>
-                  <td style={{ padding: '10px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{tp.name}</td>
-                  {days.map(d => {
-                    const cell = slotsFor(tp.id, d.date)
-                    return (
-                      <td key={d.date} style={{ padding: '8px 6px' }}>
-                        {cell.map(s => {
-                          const missed = s.ended && (s.outbound_calls ?? 0) === 0
-                          const okSlot = s.ended && (s.outbound_calls ?? 0) > 0
-                          return (
-                            <div key={s.id} style={{
-                              display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4,
-                              background: missed ? '#fef2f2' : okSlot ? '#f0fdf4' : '#faf8f4',
-                              border: '1px solid #eee6d6', borderRadius: 6, padding: '4px 4px',
-                            }}>
-                              <input type="time" value={s.start} onChange={e => updateSlot(s.id, { start: e.target.value })} style={timeStyle} />
-                              <span style={{ color: '#a89e8a' }}>–</span>
-                              <input type="time" value={s.end} onChange={e => updateSlot(s.id, { end: e.target.value })} style={timeStyle} />
-                              <button type="button" onClick={() => removeSlot(s.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a89e8a', fontSize: 14, lineHeight: 1 }} title="Retirer">×</button>
-                            </div>
-                          )
-                        })}
-                        <button type="button" onClick={() => addSlot(tp.id, d.date)} style={{ ...btn, padding: '3px 8px', fontSize: 11 }}>
-                          + créneau
+              {telepros.map(tp => {
+                const hours = plannedHours(slots.filter(s => s.user_id === tp.id))
+                const okHours = hours + 0.05 >= tp.min_hours
+                return (
+                  <tr key={tp.id} style={{ borderTop: '1px solid #f0ebe0', verticalAlign: 'top' }}>
+                    <td style={{ padding: '10px 8px', whiteSpace: 'nowrap', minWidth: 210 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontWeight: 600 }}>{tp.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeTelepro(tp.id)}
+                          title="Retirer du planning"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a89e8a', padding: 2, display: 'flex' }}
+                        >
+                          <Trash2 size={13} />
                         </button>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
+                      </div>
+                      <select
+                        value={tp.contract}
+                        onChange={e => setContract(tp.id, e.target.value as Contract)}
+                        style={selectStyle}
+                      >
+                        {CONTRACTS.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={48}
+                          step={0.5}
+                          value={tp.min_hours}
+                          onChange={e => updatePerson(tp.id, { min_hours: Math.max(0.5, Number(e.target.value) || 0) })}
+                          style={hoursInputStyle}
+                        />
+                        <span style={{ color: '#4a6070', fontSize: 11 }}>h min</span>
+                      </div>
+                      <div style={{
+                        marginTop: 4, fontSize: 11, fontWeight: 600,
+                        color: okHours ? '#16a34a' : '#dc2626',
+                      }}>
+                        {formatHours(hours)} / {formatHours(tp.min_hours)}
+                        {okHours ? ' · OK' : ' · sous le minimum'}
+                      </div>
+                    </td>
+                    {days.map(d => {
+                      const cell = slotsFor(tp.id, d.date)
+                      return (
+                        <td key={d.date} style={{ padding: '8px 6px' }}>
+                          {cell.map(s => {
+                            const missed = s.ended && (s.outbound_calls ?? 0) === 0
+                            const okSlot = s.ended && (s.outbound_calls ?? 0) > 0
+                            return (
+                              <div key={s.id} style={{
+                                display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4,
+                                background: missed ? '#fef2f2' : okSlot ? '#f0fdf4' : '#faf8f4',
+                                border: '1px solid #eee6d6', borderRadius: 6, padding: '4px 4px',
+                              }}>
+                                <input type="time" value={s.start} onChange={e => updateSlot(s.id, { start: e.target.value })} style={timeStyle} />
+                                <span style={{ color: '#a89e8a' }}>–</span>
+                                <input type="time" value={s.end} onChange={e => updateSlot(s.id, { end: e.target.value })} style={timeStyle} />
+                                <button type="button" onClick={() => removeSlot(s.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a89e8a', fontSize: 14, lineHeight: 1 }} title="Retirer">×</button>
+                              </div>
+                            )
+                          })}
+                          <button type="button" onClick={() => addSlot(tp.id, d.date)} style={{ ...btn, padding: '3px 8px', fontSize: 11 }}>
+                            + créneau
+                          </button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
               {telepros.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#4a6070' }}>Aucun télépro</td>
+                  <td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#4a6070' }}>
+                    Aucun télépro dans le planning. Ajoute-les avec le menu ci-dessus.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -245,4 +381,14 @@ const thStyle: CSSProperties = {
 const timeStyle: CSSProperties = {
   border: '1px solid #e5ddc8', borderRadius: 4, fontSize: 11, padding: '2px 4px',
   fontFamily: 'inherit', width: 78, background: '#fff', color: '#0e1e35',
+}
+
+const selectStyle: CSSProperties = {
+  marginTop: 6, width: '100%', border: '1px solid #e5ddc8', borderRadius: 6,
+  fontSize: 11, padding: '4px 6px', fontFamily: 'inherit', background: '#fff', color: '#0e1e35',
+}
+
+const hoursInputStyle: CSSProperties = {
+  width: 56, border: '1px solid #e5ddc8', borderRadius: 6, fontSize: 11,
+  padding: '3px 6px', fontFamily: 'inherit', background: '#fff', color: '#0e1e35',
 }

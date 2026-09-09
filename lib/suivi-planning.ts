@@ -11,6 +11,20 @@ export const ALERT_GRACE_MIN = 20
 /** Don't alert for slots older than this. */
 export const ALERT_LOOKBACK_HOURS = 36
 
+export type PlanningContract = 'full' | 'part' | 'alternant'
+
+export const CONTRACT_LABELS: Record<PlanningContract, string> = {
+  full: 'Temps plein',
+  part: 'Temps partiel',
+  alternant: 'Alternant',
+}
+
+export const DEFAULT_MIN_HOURS: Record<PlanningContract, number> = {
+  full: 35,
+  part: 12,
+  alternant: 21,
+}
+
 export type PlanningSlot = {
   id: string
   user_id: string
@@ -20,9 +34,16 @@ export type PlanningSlot = {
   alerted_at: string | null
 }
 
+export type PlanningPerson = {
+  user_id: string
+  contract: PlanningContract
+  min_hours: number
+}
+
 export type PlanningStore = {
   director_email: string
   slots: PlanningSlot[]
+  people: PlanningPerson[]
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -42,7 +63,7 @@ export function planningWeekStart(dateKey: string): string {
 }
 
 export function emptyPlanningStore(): PlanningStore {
-  return { director_email: DEFAULT_DIRECTOR_EMAIL, slots: [] }
+  return { director_email: DEFAULT_DIRECTOR_EMAIL, slots: [], people: [] }
 }
 
 export function parsePlanningStore(raw: unknown): PlanningStore {
@@ -56,7 +77,119 @@ export function parsePlanningStore(raw: unknown): PlanningStore {
     const slot = normalizeSlot(item)
     if (slot) store.slots.push(slot)
   }
+  const seen = new Set<string>()
+  const people = Array.isArray(obj.people) ? obj.people : []
+  for (const item of people) {
+    const person = normalizePerson(item)
+    if (!person || seen.has(person.user_id)) continue
+    seen.add(person.user_id)
+    store.people.push(person)
+  }
   return store
+}
+
+export function normalizeContract(raw: unknown): PlanningContract {
+  const v = String(raw ?? '').trim()
+  if (v === 'part' || v === 'alternant' || v === 'full') return v
+  return 'full'
+}
+
+export function defaultMinHours(contract: PlanningContract): number {
+  return DEFAULT_MIN_HOURS[contract]
+}
+
+export function normalizePerson(raw: unknown): PlanningPerson | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const user_id = String(o.user_id ?? '').trim()
+  if (!user_id) return null
+  const contract = normalizeContract(o.contract)
+  const hours = Number(o.min_hours)
+  const min_hours = Number.isFinite(hours) && hours > 0
+    ? Math.round(hours * 2) / 2
+    : defaultMinHours(contract)
+  return { user_id, contract, min_hours: Math.min(48, min_hours) }
+}
+
+export function defaultPerson(userId: string): PlanningPerson {
+  return { user_id: userId, contract: 'full', min_hours: defaultMinHours('full') }
+}
+
+export type CrmTelepro = { id: string; name: string; email: string | null }
+
+export type PlanningRosterRow = CrmTelepro & {
+  contract: PlanningContract
+  min_hours: number
+}
+
+export function planningRoster(
+  store: PlanningStore,
+  users: CrmTelepro[],
+): { roster: PlanningRosterRow[]; available: CrmTelepro[] } {
+  const byId = new Map(users.map(u => [u.id, u]))
+  if (store.people.length === 0) {
+    return {
+      roster: users.map(u => {
+        const person = defaultPerson(u.id)
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          contract: person.contract,
+          min_hours: person.min_hours,
+        }
+      }),
+      available: [],
+    }
+  }
+  const roster: PlanningRosterRow[] = store.people.map(p => {
+    const u = byId.get(p.user_id)
+    return {
+      id: p.user_id,
+      name: u?.name || 'Télépro retiré',
+      email: u?.email ?? null,
+      contract: p.contract,
+      min_hours: p.min_hours,
+    }
+  })
+  const inRoster = new Set(store.people.map(p => p.user_id))
+  return { roster, available: users.filter(u => !inRoster.has(u.id)) }
+}
+
+export function replacePeople(raw: unknown): PlanningPerson[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: PlanningPerson[] = []
+  for (const item of raw) {
+    const p = normalizePerson(item)
+    if (!p || seen.has(p.user_id)) continue
+    seen.add(p.user_id)
+    out.push(p)
+  }
+  return out
+}
+
+export function slotHours(start: string, end: string): number {
+  const s = normalizeHm(start)
+  const e = normalizeHm(end)
+  if (!s || !e) return 0
+  const [sh, sm] = s.split(':').map(Number)
+  const [eh, em] = e.split(':').map(Number)
+  const mins = eh * 60 + em - (sh * 60 + sm)
+  return mins > 0 ? mins / 60 : 0
+}
+
+export function plannedHours(slots: Array<{ start: string; end: string }>): number {
+  return Math.round(slots.reduce((acc, s) => acc + slotHours(s.start, s.end), 0) * 10) / 10
+}
+
+export function formatHours(h: number): string {
+  if (!Number.isFinite(h) || h <= 0) return '0h'
+  const rounded = Math.round(h * 60) / 60
+  if (rounded % 1 === 0) return `${rounded}h`
+  const hInt = Math.floor(rounded)
+  const m = Math.round((rounded - hInt) * 60)
+  return `${hInt}h${String(m).padStart(2, '0')}`
 }
 
 function normalizeSlot(raw: unknown): PlanningSlot | null {
@@ -92,7 +225,7 @@ export async function savePlanningStore(db: SupabaseClient, store: PlanningStore
   const slots = store.slots.filter(s => s.date >= cutoff)
   const { error } = await db.from('crm_settings').upsert({
     key: PLANNING_SETTING_KEY,
-    value: { director_email: store.director_email, slots },
+    value: { director_email: store.director_email, slots, people: store.people },
     description: 'Planning horaires télépros (suivi commercial) + alertes absence d’appels',
     updated_at: new Date().toISOString(),
   }, { onConflict: 'key' })
@@ -165,8 +298,11 @@ export async function runPlanningAbsenceAlerts(db: SupabaseClient): Promise<{ ch
   let checked = 0
   let dirty = false
 
+  const rosterIds = new Set(store.people.map(p => p.user_id))
+
   for (const slot of store.slots) {
     if (slot.alerted_at) continue
+    if (rosterIds.size > 0 && !rosterIds.has(slot.user_id)) continue
     const start = parisHmUtc(slot.date, slot.start)
     const end = parisHmUtc(slot.date, slot.end)
     const dueAt = end.getTime() + ALERT_GRACE_MIN * 60 * 1000
