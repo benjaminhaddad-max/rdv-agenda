@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  ChevronDown, ChevronLeft, ChevronRight, PhoneCall, RefreshCw,
+  CalendarClock, ChevronDown, ChevronLeft, ChevronRight, PhoneCall, RefreshCw,
   Settings, TrendingDown, TrendingUp, Phone,
 } from 'lucide-react'
 import type { AgentMetrics, SuiviCommercialResponse, SuiviRole } from '@/lib/suivi-commercial'
+import PlanningPanel from './PlanningPanel'
 
 type PeriodMode = 'week' | 'day' | 'month' | 'custom'
 
@@ -92,6 +93,7 @@ export default function SuiviCommercialPage() {
   const [err, setErr] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showLines, setShowLines] = useState(false)
+  const [showPlanning, setShowPlanning] = useState(false)
 
   const applyMode = useCallback((next: PeriodMode, anchor = from) => {
     setMode(next)
@@ -185,6 +187,9 @@ export default function SuiviCommercialPage() {
                 { value: 'closer', label: 'Commerciaux' },
               ]}
             />
+            <button onClick={() => setShowPlanning(s => !s)} style={navBtnStyle} title="Planning des télépros">
+              <CalendarClock size={14} /> Planning
+            </button>
             <button onClick={() => setShowLines(s => !s)} style={navBtnStyle} title="Lignes et utilisateurs Aircall">
               <Settings size={14} /> Lignes & utilisateurs
             </button>
@@ -237,6 +242,13 @@ export default function SuiviCommercialPage() {
             )}
           </div>
         </div>
+
+        {showPlanning && (
+          <PlanningPanel
+            weekStart={weekStartOf(from)}
+            onClose={() => setShowPlanning(false)}
+          />
+        )}
 
         {showLines && (
           <LinesPanel
