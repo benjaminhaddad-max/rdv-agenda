@@ -9,10 +9,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
 import { isAircallEnabled, listAircallCalls } from '@/lib/aircall'
-import { handleAircallCallEnded } from '@/lib/aircall-crm'
+import { persistAircallCallsBatch } from '@/lib/aircall-crm'
 import { parisDateKey, parisMidnightUtc, addParisDays } from '@/lib/date-paris'
 
-export const maxDuration = 60
+export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
@@ -48,17 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const db = createServiceClient()
-  let imported = 0
-  let failed = 0
-  for (const call of listed.calls) {
-    if (!call.id) continue
-    try {
-      await handleAircallCallEnded(db, call)
-      imported += 1
-    } catch {
-      failed += 1
-    }
-  }
+  const { imported, failed } = await persistAircallCallsBatch(db, listed.calls)
 
   return NextResponse.json({
     ok: true,

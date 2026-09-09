@@ -277,6 +277,61 @@ export async function upsertAircallCall(
   return { ok: true }
 }
 
+/**
+ * Import dashboard : upsert en lot, sans lookup CRM (trop lent à l’historique).
+ * L’agent est quand même lié via l’email Aircall → rdv_users.
+ */
+export async function persistAircallCallsBatch(
+  db: SupabaseClient,
+  calls: AircallCallPayload[],
+): Promise<{ imported: number; failed: number }> {
+  const valid = calls.filter(c => Number(c.id) > 0)
+  if (valid.length === 0) return { imported: 0, failed: 0 }
+
+  const { data: agents } = await db.from('rdv_users').select('id, email')
+  const byEmail = new Map<string, string>()
+  for (const u of agents ?? []) {
+    const email = String((u as { email?: string | null }).email || '').trim().toLowerCase()
+    if (email) byEmail.set(email, (u as { id: string }).id)
+  }
+
+  const rows = valid.map(call => {
+    const classified = classifyAircallCall(call)
+    const email = call.user?.email?.trim().toLowerCase() || null
+    return {
+      aircall_call_id: call.id,
+      started_at: toIso(call.started_at ?? call.ended_at),
+      ended_at: call.ended_at ? toIso(call.ended_at) : null,
+      duration_sec: Math.max(0, Math.round(Number(call.duration) || 0)),
+      direction: classified.direction,
+      answered: classified.answered,
+      status: classified.status,
+      line_id: call.number?.id ?? null,
+      line_name: call.number?.name ?? null,
+      line_digits: call.number?.digits ?? null,
+      aircall_user_id: call.user?.id ?? null,
+      agent_email: email,
+      agent_name: call.user?.name ?? null,
+      rdv_user_id: email ? byEmail.get(email) ?? null : null,
+      raw_digits: call.raw_digits ?? null,
+      recording_url: safeHttpUrl(call.recording),
+      missed_call_reason: call.missed_call_reason ?? null,
+      payload: {
+        aircall_status: call.status ?? null,
+        answered_at: call.answered_at ?? null,
+      },
+      updated_at: new Date().toISOString(),
+    }
+  })
+
+  const { error } = await db.from('aircall_calls').upsert(rows, { onConflict: 'aircall_call_id' })
+  if (error) {
+    logger.warn('aircall-calls-batch-upsert', error.message, { count: rows.length })
+    return { imported: 0, failed: rows.length }
+  }
+  return { imported: rows.length, failed: 0 }
+}
+
 export async function handleAircallCallCreated(
   db: SupabaseClient,
   call: AircallCallPayload,

@@ -583,15 +583,26 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
     let page = 1
     let imported = 0
     try {
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < 250; i++) {
         setProgress(`Import page ${page}… (${imported} appels)`)
-        const res = await fetch('/api/crm/reports/suivi-commercial/backfill', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ page }),
-        })
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+        let json: { error?: string; imported?: number; done?: boolean; next_page?: number } | null = null
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            const res = await fetch('/api/crm/reports/suivi-commercial/backfill', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ page }),
+            })
+            json = await res.json()
+            if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`)
+            break
+          } catch (e) {
+            if (attempt === 3) throw e
+            setProgress(`Page ${page} coupée, nouvel essai ${attempt + 2}/4… (${imported} déjà importés)`)
+            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+          }
+        }
+        if (!json) throw new Error('Import interrompu')
         imported += json.imported ?? 0
         if (json.done) {
           setProgress(`${imported} appels importés`)
