@@ -180,10 +180,15 @@ function safeHttpUrl(raw: string | null | undefined): string | null {
   return null
 }
 
-export async function mapAircallAgentToOwnerId(
+export type AircallRdvUser = {
+  id: string
+  hubspot_owner_id: string | null
+}
+
+export async function mapAircallAgentToRdvUser(
   db: SupabaseClient,
   agentEmail: string | null | undefined,
-): Promise<string | null> {
+): Promise<AircallRdvUser | null> {
   const email = agentEmail?.trim().toLowerCase()
   if (!email) return null
   const { data: u } = await db
@@ -191,7 +196,85 @@ export async function mapAircallAgentToOwnerId(
     .select('id, hubspot_owner_id')
     .ilike('email', email)
     .maybeSingle()
+  if (!u?.id) return null
+  return { id: u.id, hubspot_owner_id: u.hubspot_owner_id ?? null }
+}
+
+export async function mapAircallAgentToOwnerId(
+  db: SupabaseClient,
+  agentEmail: string | null | undefined,
+): Promise<string | null> {
+  const u = await mapAircallAgentToRdvUser(db, agentEmail)
   return u?.hubspot_owner_id ?? u?.id ?? null
+}
+
+export type AircallCallStatus = 'completed' | 'no_answer' | 'voicemail' | 'missed'
+
+export function classifyAircallCall(call: AircallCallPayload): {
+  direction: 'inbound' | 'outbound'
+  answered: boolean
+  status: AircallCallStatus
+} {
+  const isInbound = String(call.direction) === 'inbound'
+  // Messagerie = la boîte a pris, pas le prospect → status voicemail en premier,
+  // même si Aircall pose un answered_at.
+  const toVoicemail = Boolean(call.voicemail)
+  const answered = !toVoicemail && Boolean(call.answered_at) && Number(call.duration) > 0
+  let status: AircallCallStatus
+  if (toVoicemail) status = 'voicemail'
+  else if (answered) status = 'completed'
+  else if (isInbound) status = 'missed'
+  else status = 'no_answer'
+  return {
+    direction: isInbound ? 'inbound' : 'outbound',
+    answered,
+    status,
+  }
+}
+
+export async function upsertAircallCall(
+  db: SupabaseClient,
+  call: AircallCallPayload,
+  extras: { rdvUserId: string | null; hubspotContactId: string | null },
+): Promise<{ ok: boolean; error?: string }> {
+  if (!call.id) return { ok: false, error: 'missing call id' }
+  const { direction, answered, status } = classifyAircallCall(call)
+  const recording = safeHttpUrl(call.recording)
+  const row = {
+    aircall_call_id: call.id,
+    started_at: toIso(call.started_at ?? call.ended_at),
+    ended_at: call.ended_at ? toIso(call.ended_at) : null,
+    duration_sec: Math.max(0, Math.round(Number(call.duration) || 0)),
+    direction,
+    answered,
+    status,
+    line_id: call.number?.id ?? null,
+    line_name: call.number?.name ?? null,
+    line_digits: call.number?.digits ?? null,
+    aircall_user_id: call.user?.id ?? null,
+    agent_email: call.user?.email?.trim().toLowerCase() || null,
+    agent_name: call.user?.name ?? null,
+    rdv_user_id: extras.rdvUserId,
+    raw_digits: call.raw_digits ?? null,
+    hubspot_contact_id: extras.hubspotContactId,
+    recording_url: recording,
+    missed_call_reason: call.missed_call_reason ?? null,
+    payload: {
+      aircall_status: call.status ?? null,
+      answered_at: call.answered_at ?? null,
+    },
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await db
+    .from('aircall_calls')
+    .upsert(row, { onConflict: 'aircall_call_id' })
+
+  if (error) {
+    logger.warn('aircall-calls-upsert', error.message, { call_id: call.id })
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
 }
 
 export async function handleAircallCallCreated(
@@ -229,29 +312,41 @@ export async function handleAircallCallCreated(
 export async function handleAircallCallEnded(
   db: SupabaseClient,
   call: AircallCallPayload,
-): Promise<{ matched: boolean; contact_id: string | null; status?: string; direction?: string }> {
+): Promise<{ matched: boolean; contact_id: string | null; status?: string; direction?: string; persisted?: boolean }> {
   if (!call.id) return { matched: false, contact_id: null }
 
   const contact = await findCrmContactByPhone(db, call.raw_digits)
+  const agent = await mapAircallAgentToRdvUser(db, call.user?.email)
+  const classified = classifyAircallCall(call)
+
+  const persisted = await upsertAircallCall(db, call, {
+    rdvUserId: agent?.id ?? null,
+    hubspotContactId: contact?.hubspot_contact_id ?? null,
+  })
+
   if (!contact?.hubspot_contact_id) {
-    return { matched: false, contact_id: null }
+    return {
+      matched: false,
+      contact_id: null,
+      status: classified.status,
+      direction: classified.direction,
+      persisted: persisted.ok,
+    }
   }
 
-  const ownerId = await mapAircallAgentToOwnerId(db, call.user?.email)
+  const ownerId = agent?.hubspot_owner_id ?? agent?.id ?? null
+  const activityDirection = classified.direction === 'inbound' ? 'INCOMING' : 'OUTGOING'
+  const activityStatus =
+    classified.status === 'voicemail'
+      ? 'LEFT_VOICEMAIL'
+      : classified.answered
+        ? 'COMPLETED'
+        : 'NO_ANSWER'
 
-  const isInbound = String(call.direction) === 'inbound'
-  const direction = isInbound ? 'INCOMING' : 'OUTGOING'
-  const answered = Boolean(call.answered_at) && Number(call.duration) > 0
-
-  let status: string
-  if (call.voicemail) status = 'LEFT_VOICEMAIL'
-  else if (answered) status = 'COMPLETED'
-  else status = 'NO_ANSWER'
-
-  const sens = isInbound ? 'entrant' : 'sortant'
+  const sens = classified.direction === 'inbound' ? 'entrant' : 'sortant'
   let subject: string
-  if (status === 'COMPLETED') subject = `Appel ${sens} — ${fmtDuration(call.duration)}`
-  else if (status === 'LEFT_VOICEMAIL') subject = `Appel ${sens} — messagerie vocale`
+  if (activityStatus === 'COMPLETED') subject = `Appel ${sens} — ${fmtDuration(call.duration)}`
+  else if (activityStatus === 'LEFT_VOICEMAIL') subject = `Appel ${sens} — messagerie vocale`
   else subject = `Appel ${sens} manqué`
 
   const recording = safeHttpUrl(call.recording)
@@ -272,8 +367,8 @@ export async function handleAircallCallEnded(
     owner_id: ownerId,
     subject,
     body,
-    direction,
-    status,
+    direction: activityDirection,
+    status: activityStatus,
     occurred_at: toIso(call.started_at ?? call.ended_at),
     metadata: {
       source: 'aircall',
@@ -285,6 +380,8 @@ export async function handleAircallCallEnded(
       agent_email: call.user?.email ?? null,
       agent_name: call.user?.name ?? null,
       line: call.number?.name ?? null,
+      line_id: call.number?.id ?? null,
+      line_digits: call.number?.digits ?? null,
     },
   }
 
@@ -303,7 +400,8 @@ export async function handleAircallCallEnded(
   return {
     matched: true,
     contact_id: contact.hubspot_contact_id,
-    status,
-    direction,
+    status: classified.status,
+    direction: classified.direction,
+    persisted: persisted.ok,
   }
 }

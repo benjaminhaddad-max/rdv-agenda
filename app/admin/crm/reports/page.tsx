@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import {
-  LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy, Phone,
+  LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy, Phone, PhoneCall,
 } from 'lucide-react'
 
 interface Dashboard {
@@ -61,6 +61,17 @@ export default function DashboardsListPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Link
+            href="/admin/crm/reports/suivi-commercial"
+            style={{
+              background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.35)',
+              borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none',
+            }}
+          >
+            <PhoneCall size={14} /> Suivi commercial
+          </Link>
+          <Link
             href="/admin/crm/reports/telepro-rdv"
             style={{
               background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.35)',
@@ -81,7 +92,32 @@ export default function DashboardsListPage() {
       </div>
 
       {/* Rapport télépros — accès rapide */}
-      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 10 }}>
+        <Link
+          href="/admin/crm/reports/suivi-commercial"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'linear-gradient(135deg, rgba(204,172,113,0.16), rgba(46,163,242,0.08))',
+            border: '1px solid rgba(204,172,113,0.45)',
+            borderRadius: 12, padding: '14px 18px',
+            textDecoration: 'none', color: '#0e1e35',
+          }}
+        >
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: 'rgba(204,172,113,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <PhoneCall size={20} style={{ color: '#C9A84C' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Suivi commercial (Aircall)</div>
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
+              Appels, RDV et conversions par télépro et par commercial
+            </div>
+          </div>
+          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>Voir →</span>
+        </Link>
         <Link
           href="/admin/crm/reports/telepro-rdv"
           style={{
@@ -128,6 +164,7 @@ export default function DashboardsListPage() {
           <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
         ) : filtered.length === 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <SuiviCommercialCard />
             <TeleproReportCard />
             <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
               <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
@@ -142,6 +179,7 @@ export default function DashboardsListPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <SuiviCommercialCard />
             <TeleproReportCard />
             {filtered.map(d => (
               <DashboardCard key={d.id} dashboard={d} onDelete={() => remove(d)} />
@@ -157,6 +195,41 @@ export default function DashboardsListPage() {
         />
       )}
     </div>
+  )
+}
+
+function SuiviCommercialCard() {
+  return (
+    <Link
+      href="/admin/crm/reports/suivi-commercial"
+      style={{
+        background: 'linear-gradient(135deg, #ffffff 0%, rgba(204,172,113,0.10) 100%)',
+        border: '2px solid rgba(204,172,113,0.45)',
+        borderRadius: 12, padding: 20, cursor: 'pointer',
+        textDecoration: 'none', color: '#0e1e35', display: 'block',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: 'rgba(204,172,113,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <PhoneCall size={20} style={{ color: '#C9A84C' }} />
+        </div>
+        <span style={{
+          fontSize: 10, color: '#C9A84C', background: 'rgba(204,172,113,0.15)',
+          padding: '3px 8px', borderRadius: 999, fontWeight: 700,
+        }}>
+          Nouveau
+        </span>
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Suivi commercial</div>
+      <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 14, minHeight: 32, lineHeight: 1.4 }}>
+        Appels Aircall, RDV et taux de conversion par télépro et par commercial — lignes déroulantes.
+      </div>
+      <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 600 }}>Ouvrir le dashboard →</div>
+    </Link>
   )
 }
 

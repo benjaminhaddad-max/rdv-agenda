@@ -214,3 +214,106 @@ export async function updateAircallWebhook(
   const r = await aircallFetch<{ webhook?: AircallWebhook }>('PUT', `/webhooks/${id}`, body)
   return r.ok
 }
+
+export type AircallNumber = {
+  id: number
+  name: string | null
+  digits: string | null
+  open?: boolean
+}
+
+type AircallListMeta = {
+  count?: number
+  total?: number
+  current_page?: number
+  per_page?: number
+  next_page_link?: string | null
+}
+
+export type AircallUser = {
+  id: number
+  name: string | null
+  email: string | null
+  availability_status?: string | null
+}
+
+export async function listAircallUsers(): Promise<
+  { ok: true; users: AircallUser[] } | { ok: false; error: string }
+> {
+  const all: AircallUser[] = []
+  for (let page = 1; page <= 20; page++) {
+    const r = await aircallFetch<{ users?: AircallUser[]; meta?: AircallListMeta }>(
+      'GET',
+      `/users?page=${page}&per_page=50`,
+    )
+    if (!r.ok) return { ok: false, error: `${r.status} ${r.error}` }
+    all.push(...(r.data.users ?? []))
+    if (!r.data.meta?.next_page_link) break
+  }
+  return { ok: true, users: all }
+}
+
+export async function listAircallNumbers(): Promise<
+  { ok: true; numbers: AircallNumber[] } | { ok: false; error: string }
+> {
+  const all: AircallNumber[] = []
+  for (let page = 1; page <= 20; page++) {
+    const r = await aircallFetch<{ numbers?: AircallNumber[]; meta?: AircallListMeta }>(
+      'GET',
+      `/numbers?page=${page}&per_page=50`,
+    )
+    if (!r.ok) return { ok: false, error: `${r.status} ${r.error}` }
+    all.push(...(r.data.numbers ?? []))
+    if (!r.data.meta?.next_page_link) break
+  }
+  return { ok: true, numbers: all }
+}
+
+export type AircallListCall = {
+  id?: number
+  direction?: string | null
+  status?: string | null
+  started_at?: number | null
+  answered_at?: number | null
+  ended_at?: number | null
+  duration?: number | null
+  raw_digits?: string | null
+  missed_call_reason?: string | null
+  recording?: string | null
+  voicemail?: string | null
+  user?: { id?: number; name?: string | null; email?: string | null } | null
+  number?: { id?: number; name?: string | null; digits?: string | null } | null
+}
+
+export async function listAircallCalls(opts: {
+  from: number
+  to: number
+  page?: number
+  perPage?: number
+}): Promise<
+  | { ok: true; calls: AircallListCall[]; nextPage: number | null; total: number; page: number }
+  | { ok: false; error: string }
+> {
+  const page = Math.max(1, opts.page ?? 1)
+  const perPage = Math.min(50, Math.max(1, opts.perPage ?? 50))
+  const qs = new URLSearchParams({
+    from: String(Math.floor(opts.from)),
+    to: String(Math.floor(opts.to)),
+    order: 'asc',
+    page: String(page),
+    per_page: String(perPage),
+  })
+  const r = await aircallFetch<{ calls?: AircallListCall[]; meta?: AircallListMeta }>(
+    'GET',
+    `/calls?${qs.toString()}`,
+  )
+  if (!r.ok) return { ok: false, error: `${r.status} ${r.error}` }
+  const nextPage = r.data.meta?.next_page_link ? page + 1 : null
+  return {
+    ok: true,
+    calls: r.data.calls ?? [],
+    nextPage,
+    total: r.data.meta?.total ?? (r.data.calls ?? []).length,
+    page,
+  }
+}

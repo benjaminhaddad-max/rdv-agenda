@@ -50,6 +50,31 @@ export async function getSettingBool(
 }
 
 /**
+ * Lit un setting JSON brut (tableau, objet, scalaire).
+ */
+export async function getSettingValue(key: string): Promise<unknown | null> {
+  return getRawSetting(key)
+}
+
+/** IDs des lignes Aircall cochées pour le dashboard Suivi commercial. */
+export async function getAircallTrackedLineIds(): Promise<number[]> {
+  const raw = await getRawSetting('aircall_tracked_line_ids')
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(v => Number(v))
+    .filter(n => Number.isInteger(n) && n > 0)
+}
+
+/** IDs des utilisateurs Aircall cochés pour le dashboard Suivi commercial. */
+export async function getAircallTrackedUserIds(): Promise<number[]> {
+  const raw = await getRawSetting('aircall_tracked_user_ids')
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(v => Number(v))
+    .filter(n => Number.isInteger(n) && n > 0)
+}
+
+/**
  * Met à jour un setting et invalide le cache.
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {

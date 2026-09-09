@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -33,7 +33,7 @@ const READY = new Set([
   'import', 'doublons', 'recherche-prop', 'proprietes', 'users', 'parametres',
   'campaigns', 'programs', 'mkt-lists', 'brands', 'segments', 'templates',
   'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'sms-factor', 'events',
-  'alternance', 'reports', 'telepro-rdv-report', 'dashboard', 'errors',
+  'alternance', 'reports', 'suivi-commercial', 'telepro-rdv-report', 'dashboard', 'errors',
   'webinars',
 ])
 
@@ -90,6 +90,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Analytics',
     items: [
       { key: 'reports', label: 'Dashboards & Rapports', href: '/admin/crm-v2/reports', icon: BarChart3 },
+      { key: 'suivi-commercial', label: 'Suivi commercial', href: '/admin/crm-v2/reports/suivi-commercial', icon: PhoneCall, ready: true },
       { key: 'telepro-rdv-report', label: 'RDV par télépro', href: '/admin/crm-v2/reports/telepro-rdv', icon: Phone },
     ],
   },

@@ -99,3 +99,43 @@ export function parisWeekUtcBounds(weekStartKey: string): { start: string; end: 
   const endUtc = parisMidnightUtc(addParisWeeks(weekStartKey, 1))
   return { start: startUtc.toISOString(), end: endUtc.toISOString() }
 }
+
+/** Ajoute `days` jours à une date calendaire Paris (YYYY-MM-DD). */
+export function addParisDays(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10)
+}
+
+/** Bornes UTC [start, end) pour une plage calendaire Paris inclusive. */
+export function parisRangeUtcBounds(fromKey: string, toKeyInclusive: string): { start: string; end: string } {
+  return {
+    start: parisMidnightUtc(fromKey).toISOString(),
+    end: parisMidnightUtc(addParisDays(toKeyInclusive, 1)).toISOString(),
+  }
+}
+
+/** Premier jour du mois Paris (YYYY-MM-01) contenant `date`. */
+export function parisMonthStartKey(date: Date): string {
+  return parisDateKey(date).slice(0, 8) + '01'
+}
+
+/** Dernier jour du mois Paris pour un YYYY-MM-01. */
+export function parisMonthEndKey(monthStartKey: string): string {
+  const [y, m] = monthStartKey.split('-').map(Number)
+  const nextFirst = m === 12
+    ? `${y + 1}-01-01`
+    : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  return addParisDays(nextFirst, -1)
+}
+
+/** Toutes les dates calendaires Paris de `fromKey` à `toKeyInclusive`. */
+export function eachParisDate(fromKey: string, toKeyInclusive: string): string[] {
+  const out: string[] = []
+  let cur = fromKey
+  for (let i = 0; i < 400; i++) {
+    out.push(cur)
+    if (cur >= toKeyInclusive) break
+    cur = addParisDays(cur, 1)
+  }
+  return out
+}

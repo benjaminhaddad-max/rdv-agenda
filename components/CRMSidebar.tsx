@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -68,6 +68,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Analytics',
     items: [
       { key: 'reports', label: 'Dashboards & Rapports', href: '/admin/crm/reports', icon: BarChart3 },
+      { key: 'suivi-commercial', label: 'Suivi commercial', href: '/admin/crm/reports/suivi-commercial', icon: PhoneCall },
       { key: 'telepro-rdv-report', label: 'RDV par télépro', href: '/admin/crm/reports/telepro-rdv', icon: Phone },
     ],
   },

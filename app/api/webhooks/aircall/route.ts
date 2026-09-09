@@ -4,7 +4,8 @@
  * Reçoit les webhooks Aircall et les relie au CRM, comme l'intégration HubSpot :
  *   - call.created → affiche prénom/nom (+ fiche) dans Aircall Workspace
  *     et pousse le contact dans le carnet partagé
- *   - call.ended   → enregistre l'appel dans crm_activities (timeline fiche)
+ *   - call.ended   → enregistre l'appel dans aircall_calls (tous les appels)
+ *     et dans crm_activities si un contact CRM matche (timeline fiche)
  *
  * Sécurité : si AIRCALL_WEBHOOK_TOKEN est défini, on accepte si le token Aircall
  * (payload.token), le query ?token=, ou le header x-aircall-token correspond.
