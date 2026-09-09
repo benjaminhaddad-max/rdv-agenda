@@ -6,10 +6,25 @@ export type SuiviRole = 'telepro' | 'closer'
 export const TALK_MIN_SEC = 120
 
 /**
- * En dessous de 30 s, un « décroché » n'en est pas un (raccroché immédiat,
- * pas intéressé, mauvais numéro) : on le compte comme « pas de réponse ».
+ * En dessous de 10 s de conversation réelle, un « décroché » n'en est pas un
+ * (messagerie du mobile qui prend, raccroché immédiat, mauvais numéro) :
+ * on le compte comme « pas de réponse ».
  */
-export const ANSWER_MIN_SEC = 30
+export const ANSWER_MIN_SEC = 10
+
+/**
+ * Temps de conversation réel. La `duration` Aircall inclut la sonnerie
+ * (souvent 20-25 s avant que la messagerie du mobile prenne), donc on
+ * mesure ended_at − answered_at quand on les a, sinon on retombe sur duration.
+ */
+export function talkSeconds(call: CallRow): number {
+  const answeredAt = Number(call.answered_at)
+  const endedAt = call.ended_at ? Date.parse(call.ended_at) / 1000 : NaN
+  if (Number.isFinite(answeredAt) && answeredAt > 0 && Number.isFinite(endedAt)) {
+    return Math.max(0, Math.round(endedAt - answeredAt))
+  }
+  return Math.max(0, Number(call.duration_sec) || 0)
+}
 
 export type DayPoint = {
   date: string
@@ -133,7 +148,7 @@ export function isVoicemail(call: CallRow): boolean {
 export function isHumanAnswered(call: CallRow): boolean {
   return Boolean(call.answered)
     && !isVoicemail(call)
-    && (Number(call.duration_sec) || 0) >= ANSWER_MIN_SEC
+    && talkSeconds(call) >= ANSWER_MIN_SEC
 }
 
 export function isOutboundUnanswered(call: CallRow): boolean {
@@ -143,13 +158,13 @@ export function isOutboundUnanswered(call: CallRow): boolean {
 export function isOutboundTalk2min(call: CallRow): boolean {
   return call.direction === 'outbound'
     && isHumanAnswered(call)
-    && (Number(call.duration_sec) || 0) >= TALK_MIN_SEC
+    && talkSeconds(call) >= TALK_MIN_SEC
 }
 
 export function isOutboundTalkShort(call: CallRow): boolean {
   return call.direction === 'outbound'
     && isHumanAnswered(call)
-    && (Number(call.duration_sec) || 0) < TALK_MIN_SEC
+    && talkSeconds(call) < TALK_MIN_SEC
 }
 
 export function emptyAgent(
@@ -278,6 +293,9 @@ export type CallRow = {
   status: string | null
   duration_sec: number | null
   started_at: string
+  ended_at?: string | null
+  /** Epoch secondes (payload Aircall), présent sur tous les décrochés. */
+  answered_at?: number | string | null
   hubspot_contact_id: string | null
   line_id: number | null
   line_name: string | null
@@ -291,7 +309,7 @@ export function applyCall(agent: AgentMetrics, call: CallRow, dayIndex: Map<stri
   else agent.calls_inbound += 1
 
   const human = isHumanAnswered(call)
-  const duration = Math.max(0, Number(call.duration_sec) || 0)
+  const duration = talkSeconds(call)
   if (human) {
     agent.calls_answered += 1
     agent.talk_time_sec += duration

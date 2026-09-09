@@ -305,7 +305,7 @@ export default function SuiviCommercialPage() {
             )}
             <p style={{ marginTop: 16, fontSize: 11, color: '#a89e8a' }}>
               {data.role === 'telepro'
-                ? 'Non décroché = pas de réponse, messagerie, ou décroché < 30 s. Décroché > 2 min = conversation réelle. Conversion principale = RDV / décrochés > 2 min. RDV comptés à la prise (created_at).'
+                ? 'Non décroché = pas de réponse, messagerie, ou moins de 10 s de conversation (sonnerie exclue). Décroché > 2 min = conversation réelle. Conversion principale = RDV / décrochés > 2 min. RDV comptés à la prise (created_at).'
                 : 'Commerciaux : RDV sur l’agenda (start_at). Show = honorés / (honorés + no-show). Closing = positifs+préinscriptions / honorés. Appels : même règle messagerie / > 2 min.'}
               {' '}Données générées le {new Date(data.generated_at).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}.
             </p>
@@ -469,8 +469,8 @@ function AgentBlock({
 function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean }) {
   const outbound = row.calls_outbound
   const parts = [
-    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie, messagerie ou décroché < 30 s', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
-    { key: 'short', label: 'Décroché < 2 min', hint: '30 s à 2 min : quelqu’un a pris, échange court', n: row.calls_outbound_talk_short, color: '#e8b84a', extra: null as string | null },
+    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie, messagerie ou moins de 10 s de conversation', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
+    { key: 'short', label: 'Décroché < 2 min', hint: '10 s à 2 min de conversation : quelqu’un a pris, échange court', n: row.calls_outbound_talk_short, color: '#e8b84a', extra: null as string | null },
     { key: 'long', label: 'Décroché > 2 min', hint: 'Vraie conversation', n: row.calls_outbound_talk_2min, color: '#2ea3f2', extra: row.avg_talk_2min_sec != null ? `moy. ${fmtTalk(row.avg_talk_2min_sec)} par appel` : null },
   ]
   const maxDay = Math.max(1, ...row.by_day.map(d => Math.max(d.calls_outbound, d.rdv, d.calls_talk_2min)))

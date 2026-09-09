@@ -268,7 +268,7 @@ async function fetchCalls(
   while (from < 200_000) {
     let q = db
       .from('aircall_calls')
-      .select('rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
+      .select('rdv_user_id, agent_email, agent_name, direction, answered, status, duration_sec, started_at, ended_at, answered_at:payload->answered_at, hubspot_contact_id, line_id, line_name, aircall_user_id')
       .in('line_id', lineIds)
       .gte('started_at', start)
       .lt('started_at', end)
