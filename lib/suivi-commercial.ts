@@ -6,11 +6,10 @@ export type SuiviRole = 'telepro' | 'closer'
 export const TALK_MIN_SEC = 120
 
 /**
- * En dessous de 10 s, un « décroché » n'en est pas un (raccroché immédiat,
- * mauvais numéro, bascule messagerie non détectée) : on le compte comme
- * « pas de réponse ».
+ * En dessous de 30 s, un « décroché » n'en est pas un (raccroché immédiat,
+ * pas intéressé, mauvais numéro) : on le compte comme « pas de réponse ».
  */
-export const ANSWER_MIN_SEC = 10
+export const ANSWER_MIN_SEC = 30
 
 export type DayPoint = {
   date: string
