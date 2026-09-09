@@ -37,7 +37,9 @@ export type AgentMetrics = {
   calls_no_answer: number
   calls_unmatched: number
   talk_time_sec: number
+  talk_time_2min_sec: number
   avg_duration_sec: number | null
+  avg_talk_2min_sec: number | null
   answer_rate: number | null
   talk_2min_rate: number | null
   rdv_total: number
@@ -167,7 +169,9 @@ export function emptyAgent(
     calls_no_answer: 0,
     calls_unmatched: 0,
     talk_time_sec: 0,
+    talk_time_2min_sec: 0,
     avg_duration_sec: null,
+    avg_talk_2min_sec: null,
     answer_rate: null,
     talk_2min_rate: null,
     rdv_total: 0,
@@ -195,6 +199,9 @@ export function finalizeAgent(agent: AgentMetrics, role: SuiviRole): void {
   const humanOutbound = agent.calls_outbound_talk_2min + agent.calls_outbound_talk_short
   agent.avg_duration_sec = agent.calls_answered > 0
     ? Math.round(agent.talk_time_sec / agent.calls_answered)
+    : null
+  agent.avg_talk_2min_sec = agent.calls_outbound_talk_2min > 0
+    ? Math.round(agent.talk_time_2min_sec / agent.calls_outbound_talk_2min)
     : null
   agent.answer_rate = rate(humanOutbound, agent.calls_outbound)
   agent.talk_2min_rate = rate(agent.calls_outbound_talk_2min, agent.calls_outbound)
@@ -283,7 +290,10 @@ export function applyCall(agent: AgentMetrics, call: CallRow, dayIndex: Map<stri
     if (outbound) agent.calls_answered_outbound += 1
   }
   if (isOutboundUnanswered(call)) agent.calls_outbound_unanswered += 1
-  if (isOutboundTalk2min(call)) agent.calls_outbound_talk_2min += 1
+  if (isOutboundTalk2min(call)) {
+    agent.calls_outbound_talk_2min += 1
+    agent.talk_time_2min_sec += duration
+  }
   if (isOutboundTalkShort(call)) agent.calls_outbound_talk_short += 1
 
   if (call.status === 'voicemail') agent.calls_voicemail += 1

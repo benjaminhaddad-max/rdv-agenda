@@ -469,9 +469,9 @@ function AgentBlock({
 function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean }) {
   const outbound = row.calls_outbound
   const parts = [
-    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie ou messagerie, personne au bout', n: row.calls_outbound_unanswered, color: '#c4b8a5' },
-    { key: 'short', label: 'Décroché < 2 min', hint: 'Quelqu’un a pris, échange trop court', n: row.calls_outbound_talk_short, color: '#e8b84a' },
-    { key: 'long', label: 'Décroché > 2 min', hint: 'Vraie conversation', n: row.calls_outbound_talk_2min, color: '#2ea3f2' },
+    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie ou messagerie, personne au bout', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
+    { key: 'short', label: 'Décroché < 2 min', hint: 'Quelqu’un a pris, échange trop court', n: row.calls_outbound_talk_short, color: '#e8b84a', extra: null as string | null },
+    { key: 'long', label: 'Décroché > 2 min', hint: 'Vraie conversation', n: row.calls_outbound_talk_2min, color: '#2ea3f2', extra: row.avg_talk_2min_sec != null ? `moy. ${fmtTalk(row.avg_talk_2min_sec)} par appel` : null },
   ]
   const maxDay = Math.max(1, ...row.by_day.map(d => Math.max(d.calls_outbound, d.rdv, d.calls_talk_2min)))
   const matched = Math.max(0, row.calls_total - row.calls_unmatched)
@@ -496,7 +496,7 @@ function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean
               <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{p.n} {p.label}</div>
-                <div style={{ fontSize: 11, color: '#a89e8a' }}>{p.hint}</div>
+                <div style={{ fontSize: 11, color: '#a89e8a' }}>{p.hint}{p.extra ? ` · ${p.extra}` : ''}</div>
               </div>
               <div style={{ fontSize: 12, color: '#4a6070', fontWeight: 600 }}>
                 {outbound ? `${Math.round((p.n / outbound) * 100)} %` : '—'}
