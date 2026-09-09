@@ -5,6 +5,13 @@ export type SuiviRole = 'telepro' | 'closer'
 /** Conversation réelle : décroché humain d'au moins 2 minutes. */
 export const TALK_MIN_SEC = 120
 
+/**
+ * En dessous de 10 s, un « décroché » n'en est pas un (raccroché immédiat,
+ * mauvais numéro, bascule messagerie non détectée) : on le compte comme
+ * « pas de réponse ».
+ */
+export const ANSWER_MIN_SEC = 10
+
 export type DayPoint = {
   date: string
   calls_outbound: number
@@ -123,9 +130,11 @@ export function isVoicemail(call: CallRow): boolean {
   return call.status === 'voicemail'
 }
 
-/** Décroché humain (pas la messagerie). */
+/** Décroché humain (pas la messagerie), d'au moins ANSWER_MIN_SEC. */
 export function isHumanAnswered(call: CallRow): boolean {
-  return Boolean(call.answered) && !isVoicemail(call)
+  return Boolean(call.answered)
+    && !isVoicemail(call)
+    && (Number(call.duration_sec) || 0) >= ANSWER_MIN_SEC
 }
 
 export function isOutboundUnanswered(call: CallRow): boolean {

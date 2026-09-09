@@ -469,7 +469,7 @@ function AgentBlock({
 function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean }) {
   const outbound = row.calls_outbound
   const parts = [
-    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie ou messagerie, personne au bout', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
+    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie, messagerie ou décroché < 10 s', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
     { key: 'short', label: 'Décroché < 2 min', hint: 'Quelqu’un a pris, échange trop court', n: row.calls_outbound_talk_short, color: '#e8b84a', extra: null as string | null },
     { key: 'long', label: 'Décroché > 2 min', hint: 'Vraie conversation', n: row.calls_outbound_talk_2min, color: '#2ea3f2', extra: row.avg_talk_2min_sec != null ? `moy. ${fmtTalk(row.avg_talk_2min_sec)} par appel` : null },
   ]
