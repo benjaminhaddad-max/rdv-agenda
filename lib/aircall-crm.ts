@@ -10,7 +10,7 @@ import {
   upsertAircallContact,
   type AircallContactInput,
 } from '@/lib/aircall'
-import { aircallPhoneVariants, phoneDigits, toE164French } from '@/lib/phone-e164'
+import { aircallPhoneVariants, phoneDigits, phoneLast9, toE164French } from '@/lib/phone-e164'
 import { getAircallUserMap } from '@/lib/settings'
 import { deriveSiteUrl } from '@/lib/site-url'
 import { logger } from '@/lib/logger'
@@ -476,6 +476,71 @@ export async function handleAircallCallEnded(
     direction: classified.direction,
     persisted: persisted.ok,
   }
+}
+
+/** Index last-9 → hubspot_contact_id pour rattacher les appels Aircall aux fiches. */
+export async function loadCrmPhoneIndex(db: SupabaseClient): Promise<Map<string, string>> {
+  const index = new Map<string, string>()
+  const pageSize = 1000
+  for (let from = 0; from < 500_000; from += pageSize) {
+    const { data, error } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, phone')
+      .not('phone', 'is', null)
+      .range(from, from + pageSize - 1)
+    if (error) {
+      logger.warn('aircall-phone-index', error.message)
+      break
+    }
+    if (!data?.length) break
+    for (const row of data as { hubspot_contact_id: string | null; phone: string | null }[]) {
+      if (!row.hubspot_contact_id) continue
+      const key = phoneLast9(row.phone)
+      if (key && !index.has(key)) index.set(key, row.hubspot_contact_id)
+    }
+    if (data.length < pageSize) break
+  }
+  return index
+}
+
+export async function rematchAircallCallsContacts(
+  db: SupabaseClient,
+): Promise<{ scanned: number; updated: number }> {
+  const index = await loadCrmPhoneIndex(db)
+  let scanned = 0
+  let updated = 0
+  const pageSize = 1000
+  const pending = new Map<string, number[]>()
+  for (let from = 0; from < 200_000; from += pageSize) {
+    const { data, error } = await db
+      .from('aircall_calls')
+      .select('id, raw_digits')
+      .is('hubspot_contact_id', null)
+      .range(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    if (!data?.length) break
+    scanned += data.length
+    for (const row of data as { id: number; raw_digits: string | null }[]) {
+      const hs = index.get(phoneLast9(row.raw_digits))
+      if (!hs) continue
+      const list = pending.get(hs) ?? []
+      list.push(row.id)
+      pending.set(hs, list)
+    }
+    if (data.length < pageSize) break
+  }
+  for (const [hs, ids] of pending) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200)
+      const { error: upErr } = await db
+        .from('aircall_calls')
+        .update({ hubspot_contact_id: hs, updated_at: new Date().toISOString() })
+        .in('id', chunk)
+      if (upErr) logger.warn('aircall-contact-rematch', upErr.message)
+      else updated += chunk.length
+    }
+  }
+  return { scanned, updated }
 }
 
 /** Applique la liaison manuelle Aircall → CRM sur les appels déjà importés. */

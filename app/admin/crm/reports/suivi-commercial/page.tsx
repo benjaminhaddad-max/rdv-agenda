@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  BarChart3, ChevronDown, ChevronLeft, ChevronRight, PhoneCall, RefreshCw,
-  Settings, TrendingDown, TrendingUp, Phone, CalendarDays,
+  ChevronDown, ChevronLeft, ChevronRight, PhoneCall, RefreshCw,
+  Settings, TrendingDown, TrendingUp, Phone,
 } from 'lucide-react'
 import type { AgentMetrics, SuiviCommercialResponse, SuiviRole } from '@/lib/suivi-commercial'
 
@@ -467,46 +467,107 @@ function AgentBlock({
 }
 
 function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean }) {
-  const maxBar = Math.max(1, ...row.by_day.map(d => Math.max(d.calls_outbound, d.rdv)))
+  const outbound = row.calls_outbound
+  const parts = [
+    { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie ou messagerie, personne au bout', n: row.calls_outbound_unanswered, color: '#c4b8a5' },
+    { key: 'short', label: 'Décroché < 2 min', hint: 'Quelqu’un a pris, échange trop court', n: row.calls_outbound_talk_short, color: '#e8b84a' },
+    { key: 'long', label: 'Décroché > 2 min', hint: 'Vraie conversation', n: row.calls_outbound_talk_2min, color: '#2ea3f2' },
+  ]
+  const maxDay = Math.max(1, ...row.by_day.map(d => Math.max(d.calls_outbound, d.rdv, d.calls_talk_2min)))
+  const matched = Math.max(0, row.calls_total - row.calls_unmatched)
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 10 }}>
-          Activité jour par jour
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ background: '#fff', border: '1px solid #eee6d6', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 4 }}>
+          Les {outbound} appels sortants
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 72 }}>
-          {row.by_day.map(d => (
-            <div key={d.date} title={`${d.date} — ${d.calls_outbound} sortants, ${d.calls_talk_2min} > 2 min, ${d.rdv} RDV`} style={{ flex: 1, display: 'flex', gap: 1, alignItems: 'flex-end', height: '100%' }}>
-              <div style={{ flex: 1, background: '#C9A84C', borderRadius: 2, height: `${(d.calls_outbound / maxBar) * 100}%`, minHeight: d.calls_outbound ? 3 : 0 }} />
-              <div style={{ flex: 1, background: '#22c55e', borderRadius: 2, height: `${(d.rdv / maxBar) * 100}%`, minHeight: d.rdv ? 3 : 0 }} />
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4a6070' }}>
+          {outbound} tentatives = {row.calls_outbound_unanswered} sans réponse + {row.calls_outbound_talk_short} courts + {row.calls_outbound_talk_2min} vraies conv.
+        </p>
+        <div style={{ display: 'flex', height: 18, borderRadius: 6, overflow: 'hidden', background: '#f0ebe0', marginBottom: 12 }}>
+          {parts.map(p => outbound > 0 && p.n > 0 ? (
+            <div key={p.key} title={`${p.label} : ${p.n}`} style={{ width: `${(p.n / outbound) * 100}%`, background: p.color, minWidth: p.n ? 4 : 0 }} />
+          ) : null)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {parts.map(p => (
+            <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{p.n} {p.label}</div>
+                <div style={{ fontSize: 11, color: '#a89e8a' }}>{p.hint}</div>
+              </div>
+              <div style={{ fontSize: 12, color: '#4a6070', fontWeight: 600 }}>
+                {outbound ? `${Math.round((p.n / outbound) * 100)} %` : '—'}
+              </div>
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: '#4a6070' }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#C9A84C', borderRadius: 2, marginRight: 4 }} />Sortants</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#22c55e', borderRadius: 2, marginRight: 4 }} />RDV</span>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0ebe0', fontSize: 13 }}>
+          <strong>{row.rdv_total} RDV</strong>
+          <span style={{ color: '#4a6070' }}>
+            {' '}sur {row.calls_outbound_talk_2min} conversations &gt; 2 min
+            {row.conversion_talk_2min != null ? ` → ${fmtPct(row.conversion_talk_2min)}` : ''}
+          </span>
+          <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 4 }}>
+            Temps de parole {fmtTalk(row.talk_time_sec)} (uniquement les décrochés, hors messagerie)
+            {row.avg_duration_sec != null ? ` · moy. ${fmtTalk(row.avg_duration_sec)}` : ''}
+          </div>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-        <StatChip icon={<Phone size={12} />} label="Non décrochés" value={row.calls_outbound_unanswered} />
-        <StatChip icon={<Phone size={12} />} label="Messagerie" value={row.calls_voicemail} />
-        <StatChip icon={<Phone size={12} />} label="Sans réponse" value={row.calls_no_answer} />
-        <StatChip icon={<Phone size={12} />} label="Décroché < 2 min" value={row.calls_outbound_talk_short} />
-        <StatChip icon={<Phone size={12} />} label="Décroché > 2 min" value={row.calls_outbound_talk_2min} />
-        <StatChip icon={<Phone size={12} />} label="Entrants" value={row.calls_inbound} />
-        <StatChip icon={<Phone size={12} />} label="Manqués (entrants)" value={row.calls_missed} />
-        <StatChip icon={<Phone size={12} />} label="Non matchés CRM" value={row.calls_unmatched} />
-        <StatChip icon={<CalendarDays size={12} />} label="Durée moy." value={row.avg_duration_sec != null ? fmtTalk(row.avg_duration_sec) : '—'} />
-        <StatChip icon={<BarChart3 size={12} />} label="Positifs" value={row.rdv_positifs} />
-        <StatChip icon={<BarChart3 size={12} />} label="Pré-inscr." value={row.rdv_preinscriptions} />
-        <StatChip icon={<BarChart3 size={12} />} label="Annulés" value={row.rdv_annules} />
-        <StatChip icon={<BarChart3 size={12} />} label="No-show" value={row.rdv_no_show} />
-        {isCloser && <StatChip icon={<BarChart3 size={12} />} label="Honorés" value={row.rdv_honored} />}
-        {row.lines.length > 0 && (
-          <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#4a6070', marginTop: 4 }}>
-            Lignes : {row.lines.map(l => `${l.line_name || l.line_id || '?'} (${l.calls})`).join(' · ')}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: '#fff', border: '1px solid #eee6d6', borderRadius: 10, padding: 14, flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 10 }}>
+            Jour par jour
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 88 }}>
+            {row.by_day.map(d => {
+              const label = d.date.slice(8)
+              return (
+                <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%' }}>
+                  <div title={`${d.date} — ${d.calls_outbound} sortants, ${d.calls_talk_2min} > 2 min, ${d.rdv} RDV`} style={{ flex: 1, width: '100%', display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, background: '#C9A84C', borderRadius: 2, height: `${(d.calls_outbound / maxDay) * 100}%`, minHeight: d.calls_outbound ? 3 : 0 }} />
+                    <div style={{ flex: 1, background: '#2ea3f2', borderRadius: 2, height: `${(d.calls_talk_2min / maxDay) * 100}%`, minHeight: d.calls_talk_2min ? 3 : 0 }} />
+                    <div style={{ flex: 1, background: '#22c55e', borderRadius: 2, height: `${(d.rdv / maxDay) * 100}%`, minHeight: d.rdv ? 3 : 0 }} />
+                  </div>
+                  <span style={{ fontSize: 9, color: '#a89e8a' }}>{Number(label)}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 10, color: '#4a6070' }}>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#C9A84C', borderRadius: 2, marginRight: 4 }} />Sortants</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#2ea3f2', borderRadius: 2, marginRight: 4 }} />&gt; 2 min</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#22c55e', borderRadius: 2, marginRight: 4 }} />RDV</span>
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: '1px solid #eee6d6', borderRadius: 10, padding: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 8 }}>
+            {isCloser ? 'RDV agenda' : 'RDV pris'}
+          </div>
+          <div style={{ display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
+            <span><b>{row.rdv_total}</b> total</span>
+            <span style={{ color: '#16a34a' }}><b>{row.rdv_positifs + row.rdv_preinscriptions}</b> positifs / pré-inscr.</span>
+            <span style={{ color: '#4a6070' }}><b>{row.rdv_annules}</b> annulés</span>
+            <span style={{ color: '#4a6070' }}><b>{row.rdv_no_show}</b> no-show</span>
+            {isCloser && <span><b>{row.rdv_honored}</b> honorés</span>}
+          </div>
+          {row.calls_inbound > 0 && (
+            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 8 }}>{row.calls_inbound} appels entrants · {row.calls_missed} manqués</div>
+          )}
+          {row.lines.length > 0 && (
+            <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 8 }}>
+              Ligne{row.lines.length > 1 ? 's' : ''} : {row.lines.map(l => `${l.line_name || l.line_id || '?'} (${l.calls})`).join(' · ')}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 8 }}>
+            {matched} appels reliés à une fiche CRM
+            {row.calls_unmatched > 0 ? ` · ${row.calls_unmatched} numéro${row.calls_unmatched > 1 ? 's' : ''} pas trouvé${row.calls_unmatched > 1 ? 's' : ''} dans les contacts` : ''}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -798,16 +859,6 @@ function KpiCard({ label, value, hint, color }: { label: string; value: number |
       <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1.1 }}>{value}</div>
       {hint && <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 4 }}>{hint}</div>}
-    </div>
-  )
-}
-
-function StatChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #eee6d6', borderRadius: 8, padding: '6px 8px' }}>
-      <span style={{ color: '#C9A84C' }}>{icon}</span>
-      <span style={{ color: '#4a6070' }}>{label}</span>
-      <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{value}</span>
     </div>
   )
 }

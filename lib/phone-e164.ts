@@ -71,3 +71,9 @@ export function aircallPhoneVariants(raw: string | null | undefined): string[] {
 export function telHref(phone: string): string {
   return `tel:${toE164French(phone) || phone.replace(/\s/g, '')}`
 }
+
+/** 9 derniers chiffres (NSN FR) pour matcher deux écritures du même numéro. */
+export function phoneLast9(raw: string | null | undefined): string {
+  const d = phoneDigits(toE164French(raw) || raw)
+  return d.length >= 9 ? d.slice(-9) : ''
+}
