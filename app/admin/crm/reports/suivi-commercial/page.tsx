@@ -85,9 +85,9 @@ export default function SuiviCommercialPage() {
   const today = parisToday()
 
   const [role, setRole] = useState<SuiviRole>('telepro')
-  const [mode, setMode] = useState<PeriodMode>('week')
-  const [from, setFrom] = useState(() => weekStartOf(today))
-  const [to, setTo] = useState(() => addDays(weekStartOf(today), 6))
+  const [mode, setMode] = useState<PeriodMode>('day')
+  const [from, setFrom] = useState(today)
+  const [to, setTo] = useState(today)
   const [data, setData] = useState<SuiviCommercialResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
