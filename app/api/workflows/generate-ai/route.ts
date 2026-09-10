@@ -49,7 +49,7 @@ Renvoie UNIQUEMENT un JSON valide (pas de markdown, pas d'explication), avec ce 
 
 2. "send_sms" — Envoie un SMS via SMS Factor.
    config: { sender: string, text: string }
-   sender : "DiploSante", "Diploma", "PrepaMed", "Edumove", "PASS-LAS" (max 11 chars alphanumériques)
+   sender : "DiploSante", "Diploma", "PrepaMed", "Edumove", "PASS-LAS", "Hermione", "AFEM", "MEDECINE" (max 11 chars alphanumériques)
    text : court (idéalement < 130 chars = 2 segments). Variables idem email.
 
 3. "create_task" — Crée une tâche pour le commercial.
