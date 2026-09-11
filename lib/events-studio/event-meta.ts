@@ -181,7 +181,12 @@ export const STAFF_PAY = {
   jpo: {
     amount: 60,
     label: '60 € / après-midi',
-    hint: 'JPO : 60 € pour l’après-midi',
+    hint: 'JPO après-midi : 60 €',
+  },
+  jpo_full_day: {
+    amount: 120,
+    label: '120 € / jour',
+    hint: 'JPO journée complète : 120 € par jour',
   },
 } as const
 
@@ -226,7 +231,9 @@ export function staffPayForEvent(ev: {
   description?: string | null
 }): { amount: number; label: string; hint: string } | null {
   const typeId = ev.event_type || 'autre'
-  if (typeId === 'jpo') return STAFF_PAY.jpo
+  if (typeId === 'jpo') {
+    return isFullDayStaffEvent(ev) ? STAFF_PAY.jpo_full_day : STAFF_PAY.jpo
+  }
   if (typeId === 'salon') {
     const days = eventDayCount(ev)
     if (days > 1) {

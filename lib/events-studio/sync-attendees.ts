@@ -46,6 +46,22 @@ function emailFromSubmissionData(data: Record<string, unknown> | null | undefine
   return ''
 }
 
+/** PostgREST plafonne à 1000 lignes : paginer pour ne pas sous-compter. */
+const PAGE_SIZE = 1000
+
+async function fetchAllPages<T>(
+  load: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await load(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...(data || []))
+    if (!data || data.length < PAGE_SIZE) break
+  }
+  return rows
+}
+
 export async function listEventAttendees(eventId: string): Promise<{
   attendees: AttendeeRow[]
   counts: { total: number; crm: number; meta: number; events: number }
@@ -53,8 +69,11 @@ export async function listEventAttendees(eventId: string): Promise<{
   const eventsDb = createEventsClient()
   const crmDb = createServiceClient()
 
-  const [{ data: forms }, { data: regs }] = await Promise.all([
-    eventsDb.from('event_forms').select('hubspot_form_id, form_name, form_type').eq('event_id', eventId),
+  const { data: forms } = await eventsDb
+    .from('event_forms')
+    .select('hubspot_form_id, form_name, form_type')
+    .eq('event_id', eventId)
+  const regs = await fetchAllPages((from, to) =>
     eventsDb
       .from('registrations')
       .select(
@@ -62,8 +81,8 @@ export async function listEventAttendees(eventId: string): Promise<{
       )
       .eq('event_id', eventId)
       .order('registered_at', { ascending: false })
-      .limit(2000),
-  ])
+      .range(from, to),
+  )
 
   const byEmail = new Map<string, AttendeeRow>()
 
@@ -92,14 +111,16 @@ export async function listEventAttendees(eventId: string): Promise<{
     .filter(Boolean)
 
   if (crmFormIds.length > 0) {
-    const { data: subs } = await crmDb
-      .from('form_submissions')
-      .select('id, form_id, data, submitted_at, contact_id')
-      .in('form_id', crmFormIds)
-      .order('submitted_at', { ascending: false })
-      .limit(2000)
+    const subs = await fetchAllPages((from, to) =>
+      crmDb
+        .from('form_submissions')
+        .select('id, form_id, data, submitted_at, contact_id')
+        .in('form_id', crmFormIds)
+        .order('submitted_at', { ascending: false })
+        .range(from, to),
+    )
 
-    for (const s of subs || []) {
+    for (const s of subs) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = ((s as any).data || {}) as Record<string, unknown>
       const email = emailFromSubmissionData(data)
@@ -134,15 +155,17 @@ export async function listEventAttendees(eventId: string): Promise<{
 
     const formIds = (metaForms || []).map((f) => f.form_id).filter(Boolean)
     if (formIds.length > 0) {
-      const { data: metaEvents } = await crmDb
-        .from('meta_lead_events')
-        .select('id, form_id, contact_id, field_data, received_at, status')
-        .in('form_id', formIds)
-        .order('received_at', { ascending: false })
-        .limit(3000)
+      const metaEvents = await fetchAllPages((from, to) =>
+        crmDb
+          .from('meta_lead_events')
+          .select('id, form_id, contact_id, field_data, received_at, status')
+          .in('form_id', formIds)
+          .order('received_at', { ascending: false })
+          .range(from, to),
+      )
 
       const contactIds = [
-        ...new Set((metaEvents || []).map((e) => e.contact_id).filter(Boolean)),
+        ...new Set(metaEvents.map((e) => e.contact_id).filter(Boolean)),
       ] as string[]
       const contactsById = new Map<
         string,
@@ -161,7 +184,7 @@ export async function listEventAttendees(eventId: string): Promise<{
         }
       }
 
-      for (const e of metaEvents || []) {
+      for (const e of metaEvents) {
         const c = e.contact_id ? contactsById.get(e.contact_id) : null
         const email = String(c?.email || fieldFromMeta(e.field_data, 'email', 'e-mail') || '')
           .trim()
@@ -217,11 +240,9 @@ export async function syncEventRegistrationsFromSources(eventId: string): Promis
   const eventsDb = createEventsClient()
   const { attendees, counts } = await listEventAttendees(eventId)
 
-  const { data: existing } = await eventsDb
-    .from('registrations')
-    .select('email')
-    .eq('event_id', eventId)
-    .limit(5000)
+  const existing = await fetchAllPages((from, to) =>
+    eventsDb.from('registrations').select('email').eq('event_id', eventId).range(from, to),
+  )
 
   const have = new Set(
     (existing || []).map((r) => String(r.email || '').trim().toLowerCase()).filter(Boolean),
@@ -295,12 +316,14 @@ export async function countRegisteredByEventIds(
   const eventsDb = createEventsClient()
   const crmDb = createServiceClient()
 
-  const [{ data: regs }, { data: forms }] = await Promise.all([
-    eventsDb.from('registrations').select('event_id').in('event_id', eventIds).limit(20000),
+  const [{ data: forms }, regs] = await Promise.all([
     eventsDb
       .from('event_forms')
       .select('event_id, hubspot_form_id, form_name, form_type')
       .in('event_id', eventIds),
+    fetchAllPages((from, to) =>
+      eventsDb.from('registrations').select('event_id').in('event_id', eventIds).range(from, to),
+    ),
   ])
 
   const regCounts: Record<string, number> = {}
@@ -333,13 +356,11 @@ export async function countRegisteredByEventIds(
 
   const crmIds = [...crmFormToEvents.keys()]
   if (crmIds.length > 0) {
-    const { data: subs } = await crmDb
-      .from('form_submissions')
-      .select('form_id')
-      .in('form_id', crmIds)
-      .limit(20000)
+    const subs = await fetchAllPages((from, to) =>
+      crmDb.from('form_submissions').select('form_id').in('form_id', crmIds).range(from, to),
+    )
     const byForm: Record<string, number> = {}
-    for (const s of subs || []) {
+    for (const s of subs) {
       const fid = String(s.form_id || '')
       byForm[fid] = (byForm[fid] || 0) + 1
     }
@@ -363,14 +384,16 @@ export async function countRegisteredByEventIds(
     const metaFormIds = [...formIdToName.keys()]
     if (metaFormIds.length > 0) {
       // Compte les contacts uniques (évite les doublons / rows brutes Meta)
-      const { data: metaEvents } = await crmDb
-        .from('meta_lead_events')
-        .select('form_id, contact_id')
-        .in('form_id', metaFormIds)
-        .not('contact_id', 'is', null)
-        .limit(20000)
+      const metaEvents = await fetchAllPages((from, to) =>
+        crmDb
+          .from('meta_lead_events')
+          .select('form_id, contact_id')
+          .in('form_id', metaFormIds)
+          .not('contact_id', 'is', null)
+          .range(from, to),
+      )
       const uniqueByForm = new Map<string, Set<string>>()
-      for (const e of metaEvents || []) {
+      for (const e of metaEvents) {
         const fid = String(e.form_id || '')
         const cid = String(e.contact_id || '')
         if (!fid || !cid) continue
