@@ -22,17 +22,7 @@ body:has(.event-landing){
 .event-landing details>summary{list-style:none;cursor:pointer}
 .event-landing details>summary::-webkit-details-marker{display:none}
 .event-landing .faq-row[open] .faq-ln2{opacity:0;transform:rotate(90deg)}
-.event-landing .nav-drop[open] .nd-chev{transform:rotate(180deg)}
 .event-landing ::selection{background:#d3ab67;color:#12314d}
-.event-landing .hd-link::after{content:'';position:absolute;left:12px;right:12px;bottom:2px;height:2px;border-radius:2px;background:#d3ab67;transform:scaleX(0);transform-origin:left;transition:transform .2s}
-.event-landing .hd-link:hover::after,
-.event-landing .nav-drop[open]>summary .hd-underline{transform:scaleX(1)}
-.event-landing .hd-ghost:hover{background:#fff !important;border-color:#fff !important;color:#12314d !important}
-.event-landing .hd-gold:hover{background:#e0bc82 !important}
-.event-landing .hd-space:hover{background:rgba(255,255,255,.14) !important;border-color:rgba(255,255,255,.3) !important}
-.event-landing .hd-phone:hover{color:#d3ab67}
-.event-landing .nav-drop>summary:hover{background:rgba(255,255,255,.08)}
-.event-landing .nd-item:hover{color:#d3ab67 !important}
 .event-landing .cta{transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
 .event-landing .cta:hover{transform:translateY(-2px)}
 .event-landing .cta:active{transform:translateY(0)}
@@ -56,22 +46,6 @@ body:has(.event-landing){
 }
 .event-landing .ev-field:focus{border-color:#4fabdb}
 
-@media (max-width:1500px){
-  .event-landing .hd-space .hd-space-label{display:none}
-  .event-landing .hd-space{padding:9px 10px !important;gap:0 !important}
-}
-@media (max-width:1440px){
-  .event-landing .hd-phone .hd-phone-label{display:none}
-  .event-landing .hd-phone{width:42px;height:42px;padding:0;border-radius:999px;border:1px solid rgba(255,255,255,.2);justify-content:center;gap:0;box-sizing:border-box}
-}
-@media (max-width:1380px){
-  .event-landing .hd-ghost .hd-ghost-label{display:none}
-  .event-landing .hd-ghost{padding:11px 13px !important;gap:0 !important}
-}
-@media (max-width:1240px){
-  .event-landing .hd-nav{display:none !important}
-  .event-landing .hd-burger{display:flex !important}
-}
 @media (max-width:1040px){
   .event-landing .ev-hero{grid-template-columns:1fr !important;gap:32px !important}
   .event-landing .ev-hero-form{order:-1}
@@ -86,6 +60,4 @@ body:has(.event-landing){
   .event-landing .ev-pair{grid-template-columns:1fr !important}
   .event-landing .ev-g4{grid-template-columns:1fr !important}
   .event-landing .ev-bar-s{display:none}
-  .event-landing .hd-gold,
-  .event-landing .hd-space{display:none !important}
 }

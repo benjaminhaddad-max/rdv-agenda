@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import EventLandingForm from './EventLandingForm'
-import { DIPLOMA_FOOTER_HTML, DIPLOMA_HEADER_HTML, DIPLOMA_SITE } from './diploma-chrome-html'
+import { DIPLOMA_FOOTER_HTML, DIPLOMA_SITE } from './diploma-chrome-html'
 import './event-landing.css'
 import type { EventDateFormat, EventLandingData, LandingCopy } from '@/lib/event-landing/types'
 import { prettyLocation } from '@/lib/event-landing/format'
@@ -77,8 +77,6 @@ export default function EventLandingPage({
 
   return (
     <div className="event-landing">
-      <div dangerouslySetInnerHTML={{ __html: DIPLOMA_HEADER_HTML }} />
-
       <div style={{ background: '#12314d', position: 'relative', overflow: 'hidden' }}>
         <img
           src="/event-landing/serpent-blanc.svg"
@@ -86,7 +84,7 @@ export default function EventLandingPage({
           aria-hidden="true"
           style={{ position: 'absolute', top: '50%', left: -140, transform: 'translateY(-50%)', height: '142%', opacity: 0.05, pointerEvents: 'none' }}
         />
-        <div className="ev-hero-wrap" style={{ position: 'relative', maxWidth: 1240, margin: '0 auto', padding: 'clamp(92px,8.5vw,142px) 32px clamp(48px,5.2vw,80px)' }}>
+        <div className="ev-hero-wrap" style={{ position: 'relative', maxWidth: 1240, margin: '0 auto', padding: 'clamp(40px,5.5vw,72px) 32px clamp(48px,5.2vw,80px)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: 'rgba(255,255,255,.72)', marginBottom: 'clamp(22px,2.4vw,32px)', flexWrap: 'wrap' }}>
             <a href={`${DIPLOMA_SITE}/evenements/`} style={{ color: 'rgba(255,255,255,.72)' }}>
               Nos événements
