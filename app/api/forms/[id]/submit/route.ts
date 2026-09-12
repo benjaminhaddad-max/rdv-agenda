@@ -290,9 +290,11 @@ export async function POST(req: Request, { params }: Params) {
   Object.assign(form, mergeFormWithExtra(form as Record<string, unknown>, extra))
 
   // Capacité salon (si formulaire lié à un événement Events)
+  let eventLinkedForm = false
   try {
     const { getEventCapacityByFormId } = await import('@/lib/events-studio/capacity')
     const capacity = await getEventCapacityByFormId(form.id)
+    eventLinkedForm = Boolean(capacity)
     if (capacity?.is_full) {
       return NextResponse.json(
         { error: 'Plus de places disponibles pour cet événement.' },
@@ -703,6 +705,9 @@ export async function POST(req: Request, { params }: Params) {
     (fields || []) as Array<{ field_key?: string; crm_field?: string | null }>,
     deriveSiteUrl(req),
   )
+  if (eventLinkedForm && !postSubmit.download_url) {
+    postSubmit.redirect_url = null
+  }
 
   return NextResponse.json(
     {

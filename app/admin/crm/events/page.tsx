@@ -48,6 +48,8 @@ type EventRow = {
   staff_count?: number
   staff_remaining?: number | null
   registered_count?: number
+  public_form_url?: string | null
+  form_slug?: string | null
 }
 
 const BRANDS: EventBrand[] = ['diploma', 'medibox', 'edumove']
@@ -320,6 +322,47 @@ export default function EventsListPage() {
           </span>
         </button>
 
+        {ev.public_form_url && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 18px 14px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 12,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                color: crmV2.link,
+                wordBreak: 'break-all',
+                padding: '8px 10px',
+                background: crmV2.bgSoft,
+                borderRadius: crmV2.radius,
+                border: `1px solid ${crmV2.border}`,
+              }}
+            >
+              {ev.public_form_url}
+            </div>
+            <CrmV2Button
+              variant="gold"
+              onClick={() => copyEventUrl(ev.public_form_url!)}
+            >
+              <Copy size={14} /> Copier
+            </CrmV2Button>
+            <CrmV2Button
+              variant="secondary"
+              onClick={() => window.open(ev.public_form_url!, '_blank', 'noopener,noreferrer')}
+            >
+              <ExternalLink size={14} /> Ouvrir
+            </CrmV2Button>
+          </div>
+        )}
+
         {open && (
           <div
             style={{
@@ -404,6 +447,14 @@ export default function EventsListPage() {
                 <Link href={`/admin/crm/events/${ev.id}`} style={{ textDecoration: 'none' }}>
                   <CrmV2Button variant="primary">Ouvrir la fiche</CrmV2Button>
                 </Link>
+                {ev.public_form_url && (
+                  <CrmV2Button
+                    variant="gold"
+                    onClick={() => window.open(ev.public_form_url!, '_blank', 'noopener,noreferrer')}
+                  >
+                    <ExternalLink size={14} /> Page événement
+                  </CrmV2Button>
+                )}
                 {showStaff && (
                   <a
                     href={`/events-studio/?staff=${ev.id}`}
@@ -422,6 +473,13 @@ export default function EventsListPage() {
         )}
       </CrmV2Card>
     )
+  }
+
+  function copyEventUrl(url: string) {
+    navigator.clipboard.writeText(url).then(() => {
+      setToast('URL de l’événement copiée')
+      setTimeout(() => setToast(null), 2000)
+    })
   }
 
   function copyPlanningLink() {

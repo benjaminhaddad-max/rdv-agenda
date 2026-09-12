@@ -105,6 +105,47 @@ export async function getSalonCapacitySnapshot(eventId: string): Promise<{
     is_full: max != null && registered >= max,
     form_id: link?.hubspot_form_id || null,
     form_slug: slug,
-    public_url: slug ? `https://hub.diploma-sante.fr/forms/${slug}` : null,
+    public_url: eventPublicFormUrl(slug),
   }
+}
+
+export function eventPublicFormUrl(slug: string | null | undefined): string | null {
+  if (!slug) return null
+  return `https://hub.diploma-sante.fr/forms/${slug}`
+}
+
+/** URL publique du formulaire CRM lié, pour une liste d’événements. */
+export async function getPublicFormUrlsByEventIds(
+  eventIds: string[],
+): Promise<Record<string, { slug: string; public_url: string }>> {
+  const unique = Array.from(new Set(eventIds.filter(Boolean)))
+  if (unique.length === 0) return {}
+
+  const eventsDb = createEventsClient()
+  const crmDb = createServiceClient()
+  const { data: links } = await eventsDb
+    .from('event_forms')
+    .select('event_id, hubspot_form_id')
+    .in('event_id', unique)
+
+  const formIds = Array.from(
+    new Set(
+      (links || [])
+        .map((l) => l.hubspot_form_id)
+        .filter((id) => id && !String(id).startsWith('meta:')),
+    ),
+  )
+  if (formIds.length === 0) return {}
+
+  const { data: forms } = await crmDb.from('forms').select('id, slug').in('id', formIds)
+  const slugById = new Map((forms || []).map((f) => [f.id, f.slug as string]))
+
+  const out: Record<string, { slug: string; public_url: string }> = {}
+  for (const link of links || []) {
+    if (out[link.event_id]) continue
+    const slug = slugById.get(link.hubspot_form_id)
+    const public_url = eventPublicFormUrl(slug)
+    if (slug && public_url) out[link.event_id] = { slug, public_url }
+  }
+  return out
 }

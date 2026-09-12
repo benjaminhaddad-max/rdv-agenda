@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { PublicField, PublicForm } from '@/lib/public-forms'
+import { buildPublicFormValues, submitPublicForm } from '@/lib/public-form-client'
 
 type PublicFormWithCapacity = PublicForm & {
   event_capacity?: {
@@ -25,18 +26,14 @@ function triggerBrowserDownload(url: string, filename?: string | null) {
 }
 
 function buildInitialValues(nextForm: PublicForm): Record<string, string> {
-  const initial: Record<string, string> = {}
-  for (const f of nextForm.fields) {
-    if (f.default_value) initial[f.field_key] = f.default_value
-  }
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search)
+  if (typeof window === 'undefined') {
+    const initial: Record<string, string> = {}
     for (const f of nextForm.fields) {
-      const urlVal = params.get(f.field_key) || params.get('utm_' + f.field_key)
-      if (urlVal) initial[f.field_key] = urlVal
+      if (f.default_value) initial[f.field_key] = f.default_value
     }
+    return initial
   }
-  return initial
+  return buildPublicFormValues(nextForm.fields)
 }
 
 export default function FormRenderer({
@@ -137,52 +134,12 @@ export default function FormRenderer({
     setSubmitting(true)
     setError(null)
     try {
-      const utm: Record<string, string> = {}
-      const params = new URLSearchParams(window.location.search)
-      for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']) {
-        const v = params.get(k)
-        if (v) utm[k] = v
-      }
-
-      // ── Attribution publicitaire ──────────────────────────────────────
-      // Recupere les click IDs (gclid, fbclid, msclkid, ttclid, li_fat_id,
-      // sccid, gbraid, wbraid) depuis l'URL d'abord, puis le cookie pose
-      // par diploma-tracker.js a la 1re visite (cookie 90 jours).
-      // On lit aussi les cookies meme si le tracker n'est pas charge sur
-      // cette page (ex: form en embed) — c'est la meme convention.
-      const AD_PARAMS = ['gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', 'sccid']
-      const readCookie = (name: string): string | null => {
-        try {
-          const prefix = `${name}=`
-          const cookies = document.cookie.split(';')
-          for (const c of cookies) {
-            const t = c.trim()
-            if (t.indexOf(prefix) === 0) return decodeURIComponent(t.substring(prefix.length))
-          }
-        } catch { /* ignore */ }
-        return null
-      }
-      const attribution: Record<string, string> = {}
-      for (const k of AD_PARAMS) {
-        const v = params.get(k) || readCookie(`_dpa_${k}`)
-        if (v) attribution[k] = v
-      }
-
-      const res = await fetch(`/api/forms/${slug}/submit`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          data: values,
-          hp,
-          contact_token: contactToken || undefined,
-          source_url: window.location.href,
-          ...utm,
-          attribution,
-        }),
+      const data = await submitPublicForm(slug, values, {
+        hp,
+        contactToken,
       })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Erreur inconnue')
+      if (!data.ok) {
+        setError(data.error)
         return
       }
 
