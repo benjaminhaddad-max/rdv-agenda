@@ -526,13 +526,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     : null
 
   const emailSubjectValue =
-    (emailDraft[emailStep]?.subject || '').trim() ||
+    emailDraft[emailStep]?.subject ||
     (evForDefaults ? defaultEmailSubject(evForDefaults, emailStep) : '')
   const emailBodyValue =
-    (emailDraft[emailStep]?.body || '').trim() ||
+    emailDraft[emailStep]?.body ||
     (evForDefaults ? defaultEmailBody(evForDefaults, emailStep) : '')
   const smsValue =
-    (smsDraft[smsStep] || '').trim() || (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
+    smsDraft[smsStep] || (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
 
   const emailHtmlPreview = useMemo(() => {
     if (!evForDefaults) return ''
