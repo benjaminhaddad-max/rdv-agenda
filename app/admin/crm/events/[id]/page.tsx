@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { use, useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -198,6 +198,51 @@ function CommsScheduleTable({
         }
       `}</style>
     </div>
+  )
+}
+
+/** Champ non contrôlé : React ne réécrit pas la valeur à chaque frappe (sinon les espaces disparaissent). */
+function CommsTextField({
+  fieldKey,
+  value,
+  onChange,
+  style,
+  placeholder,
+  multiline,
+}: {
+  fieldKey: string
+  value: string
+  onChange: (value: string) => void
+  style: CSSProperties
+  placeholder?: string
+  multiline?: boolean
+}) {
+  const stopKeys = (e: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    e.stopPropagation()
+  }
+  if (multiline) {
+    return (
+      <textarea
+        id={fieldKey}
+        name={fieldKey}
+        defaultValue={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={stopKeys}
+        placeholder={placeholder}
+        style={{ ...style, whiteSpace: 'pre-wrap' }}
+      />
+    )
+  }
+  return (
+    <input
+      id={fieldKey}
+      name={fieldKey}
+      defaultValue={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={stopKeys}
+      placeholder={placeholder}
+      style={style}
+    />
   )
 }
 
@@ -429,6 +474,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [commsTab, setCommsTab] = useState<'sms' | 'email'>('email')
   const [emailStep, setEmailStep] = useState('confirmation')
   const [smsStep, setSmsStep] = useState('confirmation')
+  const [editorEpoch, setEditorEpoch] = useState(0)
 
   const [formsPickerOpen, setFormsPickerOpen] = useState(false)
   const [formOptions, setFormOptions] = useState<FormOption[]>([])
@@ -526,13 +572,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     : null
 
   const emailSubjectValue =
-    emailDraft[emailStep]?.subject ||
+    emailDraft[emailStep]?.subject ??
     (evForDefaults ? defaultEmailSubject(evForDefaults, emailStep) : '')
   const emailBodyValue =
-    emailDraft[emailStep]?.body ||
+    emailDraft[emailStep]?.body ??
     (evForDefaults ? defaultEmailBody(evForDefaults, emailStep) : '')
   const smsValue =
-    smsDraft[smsStep] || (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
+    smsDraft[smsStep] ?? (evForDefaults ? defaultSmsBody(evForDefaults, smsStep) : '')
 
   const emailHtmlPreview = useMemo(() => {
     if (!evForDefaults) return ''
@@ -818,6 +864,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     )
     setEmailDraft(merged.emails)
     setSmsDraft(merged.sms)
+    setEditorEpoch((n) => n + 1)
     setToast('Communications régénérées (enregistrez pour sauvegarder)')
   }
 
@@ -1609,9 +1656,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                       {emailSteps.map((s) => (
-                        <button
+                        <div
                           key={s.id}
-                          type="button"
+                          role="tab"
+                          aria-selected={emailStep === s.id}
                           onClick={() => setEmailStep(s.id)}
                           style={{
                             border: `1px solid ${emailStep === s.id ? crmV2.goldBorder : crmV2.border}`,
@@ -1624,7 +1672,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           }}
                         >
                           {s.label}
-                        </button>
+                        </div>
                       ))}
                     </div>
 
@@ -1641,30 +1689,35 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
                           Objet (modifiable)
                         </label>
-                        <input
-                          style={{ ...inputStyle, marginBottom: 8 }}
+                        <CommsTextField
+                          key={`email-subject-${emailStep}-${editorEpoch}`}
+                          fieldKey={`email-subject-${emailStep}-${editorEpoch}`}
                           value={emailSubjectValue}
-                          onChange={(e) =>
+                          onChange={(subject) =>
                             setEmailDraft((prev) => ({
                               ...prev,
-                              [emailStep]: { ...prev[emailStep], subject: e.target.value },
+                              [emailStep]: { ...prev[emailStep], subject },
                             }))
                           }
+                          style={{ ...inputStyle, marginBottom: 8 }}
                           placeholder="Objet de l'email"
                         />
                         <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
                           Texte du mail (modifiable) — utilisez {'{prenom}'}
                         </label>
-                        <textarea
-                          style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
+                        <CommsTextField
+                          key={`email-body-${emailStep}-${editorEpoch}`}
+                          fieldKey={`email-body-${emailStep}-${editorEpoch}`}
                           value={emailBodyValue}
-                          onChange={(e) =>
+                          onChange={(body) =>
                             setEmailDraft((prev) => ({
                               ...prev,
-                              [emailStep]: { ...prev[emailStep], body: e.target.value },
+                              [emailStep]: { ...prev[emailStep], body },
                             }))
                           }
+                          style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
                           placeholder="Texte du mail (utilisez {prenom})"
+                          multiline
                         />
                         <div style={{ marginTop: 8, fontSize: 11, color: crmV2.textFaint, lineHeight: 1.45 }}>
                           L’aperçu à droite se met à jour en direct. Les horaires se règlent dans le tableau en haut.
@@ -1718,9 +1771,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                       {smsSteps.map((s) => (
-                        <button
+                        <div
                           key={s.id}
-                          type="button"
+                          role="tab"
+                          aria-selected={smsStep === s.id}
                           onClick={() => setSmsStep(s.id)}
                           style={{
                             border: `1px solid ${smsStep === s.id ? crmV2.goldBorder : crmV2.border}`,
@@ -1733,14 +1787,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           }}
                         >
                           {s.label}
-                        </button>
+                        </div>
                       ))}
                     </div>
-                    <textarea
-                      style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
+                    <CommsTextField
+                      key={`sms-${smsStep}-${editorEpoch}`}
+                      fieldKey={`sms-${smsStep}-${editorEpoch}`}
                       value={smsValue}
-                      onChange={(e) => setSmsDraft((prev) => ({ ...prev, [smsStep]: e.target.value }))}
+                      onChange={(text) => setSmsDraft((prev) => ({ ...prev, [smsStep]: text }))}
+                      style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
                       placeholder="Texte SMS (utilisez {prenom} pour personnaliser)"
+                      multiline
                     />
                     <div style={{ marginTop: 6, fontSize: 11, color: crmV2.textFaint }}>
                       {smsValue.length} caractères — horaires dans le tableau en haut
