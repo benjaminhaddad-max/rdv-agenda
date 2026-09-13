@@ -508,12 +508,7 @@ export default function EventsListPage() {
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: crmV2.textMuted }}>
               Créez un événement et son formulaire CRM type (Nom, Prénom, Téléphone, Email, Classe, Département).
-            </p>
-            <p style={{ margin: '6px 0 0', fontSize: 12, color: crmV2.textFaint }}>
-              Lien public salons (choix du lieu + places) :{' '}
-              <a href="/inscription-salons" target="_blank" rel="noreferrer" style={{ color: crmV2.link }}>
-                /inscription-salons
-              </a>
+              Les salons externes n’ont pas de page d’inscription publique.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

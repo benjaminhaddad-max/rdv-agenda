@@ -1,7 +1,7 @@
 import { getPublicFormBySlug, type PublicForm } from '@/lib/public-forms'
 import { getEventCapacityByFormId } from '@/lib/events-studio/capacity'
 import { createEventsClient } from '@/lib/events-studio/client'
-import { eventHasComms } from '@/lib/events-studio/config'
+import { eventHasComms, eventOffersPublicInscriptionPage } from '@/lib/events-studio/config'
 import { humanDescription } from '@/lib/events-studio/event-meta'
 import type { EventLandingData, EventLandingEvent } from './types'
 
@@ -9,6 +9,8 @@ export type PublicFormPage =
   | { kind: 'missing' }
   | { kind: 'form'; form: PublicForm }
   | { kind: 'landing'; data: EventLandingData }
+  /** Formulaire lié à un salon externe : pas d’inscription publique. */
+  | { kind: 'no_public_inscription'; form: PublicForm; eventName: string }
 
 export async function loadPublicFormPage(slug: string): Promise<PublicFormPage> {
   const form = await getPublicFormBySlug(slug)
@@ -34,6 +36,10 @@ export async function loadPublicFormPage(slug: string): Promise<PublicFormPage> 
 
   if (!event) return { kind: 'form', form }
   if ((event.brand || 'diploma') !== 'diploma') return { kind: 'form', form }
+  // Salons externes : pas de page d’inscription publique (on n’organise pas le salon).
+  if (!eventOffersPublicInscriptionPage(event)) {
+    return { kind: 'no_public_inscription', form, eventName: event.name || form.title || 'Salon' }
+  }
 
   const cap = await getEventCapacityByFormId(form.id)
   const landingEvent: EventLandingEvent = {

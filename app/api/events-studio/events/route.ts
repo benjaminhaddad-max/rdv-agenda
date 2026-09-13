@@ -5,6 +5,7 @@ import {
   BRAND_CONFIG,
   EVENT_TYPES,
   eventHasComms,
+  eventOffersPublicInscriptionPage,
   type EventBrand,
   type EventTypeId,
 } from '@/lib/events-studio/config'
@@ -69,8 +70,8 @@ export async function GET(req: NextRequest) {
         staff_count: count,
         staff_remaining: needed != null ? Math.max(0, needed - count) : null,
         registered_count: registeredCounts[e.id] || 0,
-        public_form_url: form?.public_url || null,
-        form_slug: form?.slug || null,
+        public_form_url: eventOffersPublicInscriptionPage(e) ? form?.public_url || null : null,
+        form_slug: eventOffersPublicInscriptionPage(e) ? form?.slug || null : null,
       }
     }),
   })
@@ -245,7 +246,7 @@ export async function POST(req: NextRequest) {
       event,
       form: crmForm,
       form_warning: formWarning,
-      public_form_url: crmForm?.public_url || null,
+      public_form_url: typeCfg.publicInscriptionPage ? crmForm?.public_url || null : null,
       staff_url: typeCfg.staff
         ? `${req.nextUrl.origin}/events-studio/?staff=${event.id}`
         : null,

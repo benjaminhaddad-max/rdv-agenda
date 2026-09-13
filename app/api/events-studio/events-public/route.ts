@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { getSalonCapacitySnapshot } from '@/lib/events-studio/capacity'
-import { eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
+import { eventTypeOf, eventOffersPublicInscriptionPage, type EventTypeId } from '@/lib/events-studio/config'
 import { formatEventSchedule, humanDescription } from '@/lib/events-studio/event-meta'
 
 const CORS_HEADERS = {
@@ -105,10 +105,12 @@ export async function GET(req: NextRequest) {
       registered_count: cap.registered_count,
       remaining: cap.remaining,
       is_full: cap.is_full,
-      form_slug: slug,
-      form_url: cap.public_url,
-      embed_js_url: slug ? `${base}/api/forms/${slug}/embed.js` : null,
-      embed_iframe_url: slug ? `${base}/embed/forms/${slug}` : null,
+      form_slug: eventOffersPublicInscriptionPage(e) ? slug : null,
+      form_url: eventOffersPublicInscriptionPage(e) ? cap.public_url : null,
+      embed_js_url:
+        eventOffersPublicInscriptionPage(e) && slug ? `${base}/api/forms/${slug}/embed.js` : null,
+      embed_iframe_url:
+        eventOffersPublicInscriptionPage(e) && slug ? `${base}/embed/forms/${slug}` : null,
     })
   }
 

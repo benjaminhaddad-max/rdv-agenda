@@ -8,10 +8,26 @@ export const contentType = 'image/png'
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const page = await loadPublicFormPage(slug)
-  const title = page.kind === 'landing' ? page.data.event.name : page.kind === 'form' ? page.form.title || 'Inscription' : 'Diploma Santé'
+  const title =
+    page.kind === 'landing'
+      ? page.data.event.name
+      : page.kind === 'no_public_inscription'
+        ? page.eventName
+        : page.kind === 'form'
+          ? page.form.title || 'Inscription'
+          : 'Diploma Santé'
   const fmt = page.kind === 'landing' ? formatEventDate(page.data.event) : null
   const kind = page.kind === 'landing' ? detectLandingKind(page.data.event) : null
-  const kicker = kind === 'webinaire' ? 'Webinaire' : kind === 'immersion' ? 'Journée d’immersion' : kind === 'salon' ? 'Salon' : 'Événement'
+  const kicker =
+    page.kind === 'no_public_inscription'
+      ? 'Salon'
+      : kind === 'webinaire'
+        ? 'Webinaire'
+        : kind === 'immersion'
+          ? 'Journée d’immersion'
+          : kind === 'salon'
+            ? 'Salon'
+            : 'Événement'
 
   return new ImageResponse(
     (

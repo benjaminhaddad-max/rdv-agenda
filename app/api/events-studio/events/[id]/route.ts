@@ -9,7 +9,7 @@ import {
   type EmailValue,
 } from '@/lib/events-studio/comms-defaults'
 import { attachCommsSchedule, extractCommsSchedule } from '@/lib/events-studio/comms-schedule'
-import { eventHasComms, EVENT_TYPES, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
+import { eventHasComms, EVENT_TYPES, eventOffersPublicInscriptionPage, eventTypeOf, type EventTypeId } from '@/lib/events-studio/config'
 import {
   buildEventDate,
   parseStaffNeeded,
@@ -103,10 +103,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const formsEnriched = (forms || []).map((f) => {
     const meta = crmFormsMeta.find((m) => m.id === f.hubspot_form_id)
+    const showPublic = eventOffersPublicInscriptionPage(event)
     return {
       ...f,
       slug: meta?.slug || null,
-      public_url: meta?.slug ? `https://hub.diploma-sante.fr/forms/${meta.slug}` : null,
+      public_url:
+        showPublic && meta?.slug ? `https://hub.diploma-sante.fr/forms/${meta.slug}` : null,
       crm_status: meta?.status || null,
     }
   })

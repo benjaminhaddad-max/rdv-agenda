@@ -27,10 +27,59 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       },
     }
   }
+  if (page.kind === 'no_public_inscription') {
+    return { title: `${page.eventName} · Diploma Santé`, robots: { index: false, follow: false } }
+  }
   if (page.kind === 'form') {
     return { title: `${page.form.title || 'Inscription'} · Diploma Santé` }
   }
   return { title: 'Formulaire · Diploma Santé' }
+}
+
+function NoPublicInscription({ eventName }: { eventName: string }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: '#f7fafc',
+        fontFamily:
+          'ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        color: '#0c4a6e',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 440,
+          textAlign: 'center',
+          background: '#fff',
+          borderRadius: 16,
+          border: '1px solid #e2e8f0',
+          padding: '36px 28px',
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#0f172a' }}>{eventName}</h1>
+        <p style={{ margin: '14px 0 0', fontSize: 15, lineHeight: 1.55, color: '#64748b' }}>
+          Cet événement est un salon externe. L’inscription ne se fait pas sur notre site.
+        </p>
+        <a
+          href="https://diploma-sante.fr/evenements/"
+          style={{
+            display: 'inline-block',
+            marginTop: 22,
+            color: '#0369a1',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          Voir nos événements
+        </a>
+      </div>
+    </div>
+  )
 }
 
 export default async function PublicFormPage({ params }: Params) {
@@ -56,6 +105,10 @@ export default async function PublicFormPage({ params }: Params) {
         <EventLandingPage data={page.data} copy={copy} fmt={fmt} remainingText={remainingText} />
       </>
     )
+  }
+
+  if (page.kind === 'no_public_inscription') {
+    return <NoPublicInscription eventName={page.eventName} />
   }
 
   const form = page.kind === 'form' ? page.form : null

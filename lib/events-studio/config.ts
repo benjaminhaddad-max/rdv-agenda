@@ -21,6 +21,8 @@ export type EventTypeConfig = {
   comms: boolean
   checkin: boolean
   autoCrmForm: boolean
+  /** Page / URL publique d’inscription visiteurs (hub.diploma-sante.fr/forms/…). Faux pour les salons externes. */
+  publicInscriptionPage: boolean
   brands?: EventBrand[]
   desc: string
 }
@@ -58,6 +60,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     comms: true,
     checkin: true,
     autoCrmForm: true,
+    publicInscriptionPage: true,
     desc: 'Accueil sur site — QR codes, emails & SMS, équipe staff',
   },
   salon: {
@@ -71,7 +74,8 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     comms: false,
     checkin: false,
     autoCrmForm: true,
-    desc: 'Collecte de leads sur stand — formulaire CRM, aucun email ni SMS',
+    publicInscriptionPage: false,
+    desc: 'Salon externe — planning staff + collecte sur stand, pas de page d’inscription publique',
   },
   webinaire: {
     id: 'webinaire',
@@ -83,6 +87,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     comms: true,
     checkin: false,
     autoCrmForm: true,
+    publicInscriptionPage: true,
     desc: 'En ligne via Zoom — rappels email & SMS',
   },
   autre: {
@@ -95,6 +100,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     comms: true,
     checkin: true,
     autoCrmForm: true,
+    publicInscriptionPage: true,
     desc: 'Format libre',
   },
 }
@@ -152,6 +158,15 @@ export function eventUsesQrCheckin(ev: {
   zoom_join_url?: string | null
 }): boolean {
   return !!eventTypeOf(ev).checkin
+}
+
+/** Page publique d’inscription visiteurs (pas les salons externes organisés par un tiers). */
+export function eventOffersPublicInscriptionPage(ev: {
+  event_type?: string | null
+  brand?: string | null
+  zoom_join_url?: string | null
+}): boolean {
+  return !!eventTypeOf(ev).publicInscriptionPage
 }
 
 export function staffPublicUrl(eventId: string, origin = 'https://hub.diploma-sante.fr'): string {
