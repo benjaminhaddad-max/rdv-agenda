@@ -119,26 +119,47 @@ export async function POST(req: Request, { params }: Params) {
 
   // 5. Insertion des destinataires en pending (idempotent via upsert)
   if (recipients.length > 0) {
-    const rows = recipients.map(r => ({
-      campaign_id: id,
-      contact_id: r.contact_id,
-      email: r.email,
-      first_name: r.first_name,
-      last_name: r.last_name,
-      status: 'pending' as const,
-    }))
-
-    // Upsert par chunks de 500
-    for (let i = 0; i < rows.length; i += 500) {
-      await db.from('email_campaign_recipients').upsert(rows.slice(i, i + 500), {
-        onConflict: 'campaign_id,contact_id',
-        ignoreDuplicates: false,  // permet de remettre status='pending' si on reprend
+    const uniqueRows: Array<{
+      campaign_id: string
+      contact_id: string
+      email: string
+      first_name: string | null
+      last_name: string | null
+      status: 'pending'
+    }> = []
+    const seenEmail = new Set<string>()
+    for (const r of recipients) {
+      const email = String(r.email || '').trim().toLowerCase()
+      if (!email || seenEmail.has(email)) continue
+      seenEmail.add(email)
+      uniqueRows.push({
+        campaign_id: id,
+        contact_id: r.contact_id,
+        email: r.email.trim(),
+        first_name: r.first_name,
+        last_name: r.last_name,
+        status: 'pending' as const,
       })
+    }
+
+    for (let i = 0; i < uniqueRows.length; i += 500) {
+      const { error: upsertErr } = await db
+        .from('email_campaign_recipients')
+        .upsert(uniqueRows.slice(i, i + 500), {
+          onConflict: 'campaign_id,email',
+          ignoreDuplicates: false,
+        })
+      if (upsertErr) {
+        return NextResponse.json(
+          { error: `Impossible d'enregistrer les destinataires : ${upsertErr.message}` },
+          { status: 500 },
+        )
+      }
     }
 
     await db.from('email_campaigns').update({
       status: 'sending',
-      total_recipients: recipients.length,
+      total_recipients: uniqueRows.length,
     }).eq('id', id)
   }
 
