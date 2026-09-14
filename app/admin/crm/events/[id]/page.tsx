@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   Copy,
+  Download,
   ExternalLink,
   EyeOff,
   Mail,
@@ -34,6 +35,54 @@ import { brandSender, buildEmailHtmlPreview } from '@/lib/events-studio/email-ht
 import { formatEventSchedule, parisDateFromIso, parisTimeFromIso } from '@/lib/events-studio/event-meta'
 
 const EDITABLE_TYPES: EventTypeId[] = ['salon', 'jpo', 'webinaire']
+
+type StaffRow = {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  phone?: string | null
+  role?: string | null
+  note?: string | null
+  source?: string | null
+  created_at?: string | null
+}
+
+function formatParisDateTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('fr-FR', {
+    timeZone: 'Europe/Paris',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function csvCell(value: string | null | undefined): string {
+  return `"${String(value || '').replace(/"/g, '""')}"`
+}
+
+function downloadStaffCsv(eventName: string, staff: StaffRow[]) {
+  const header = 'Prenom,Nom,Email,Telephone,Role,Date inscription'
+  const rows = staff.map((s) =>
+    [
+      csvCell(s.first_name),
+      csvCell(s.last_name),
+      csvCell(s.email),
+      csvCell(s.phone),
+      csvCell(s.role),
+      csvCell(formatParisDateTime(s.created_at)),
+    ].join(','),
+  )
+  const blob = new Blob([`\ufeff${[header, ...rows].join('\n')}`], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `staff_${eventName.replace(/[^a-zA-Z0-9À-ÿ]/g, '_')}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 
 function ScheduleRowControls({
   entry,
@@ -407,7 +456,7 @@ type Detail = {
     source?: 'crm' | 'meta' | 'events'
   }>
   attendee_counts?: { total: number; crm: number; meta: number; events: number }
-  staff: Array<{ id: string; first_name: string; last_name: string; email: string }>
+  staff: StaffRow[]
   type: { short: string; label: string; staff: boolean; comms: boolean; checkin: boolean }
   staff_url: string | null
   studio_url?: string | null
@@ -1949,18 +1998,76 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
               {data.type.staff && data.staff_url ? (
                 <CrmV2Card style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8 }}>Lien staff</div>
+                  <div style={{ fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Users size={16} /> Équipe staff ({data.staff.length})
+                  </div>
                   <div style={{ fontSize: 12, color: crmV2.link, wordBreak: 'break-all', marginBottom: 10 }}>
                     {data.staff_url}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
                     <CrmV2Button variant="secondary" onClick={() => copy(data.staff_url!)}>
                       <Copy size={14} /> Copier
                     </CrmV2Button>
-                    <span style={{ fontSize: 12, color: crmV2.textMuted }}>
-                      {data.staff.length} inscription(s) staff
-                    </span>
+                    {data.staff.length > 0 && (
+                      <CrmV2Button
+                        variant="secondary"
+                        onClick={() => {
+                          downloadStaffCsv(ev.name, data.staff)
+                          setToast(`${data.staff.length} staff exporté(s)`)
+                        }}
+                      >
+                        <Download size={14} /> Export CSV
+                      </CrmV2Button>
+                    )}
                   </div>
+                  {data.staff.length === 0 ? (
+                    <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+                      Personne n’a encore postulé. Partagez le lien ci-dessus.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 6, maxHeight: 360, overflow: 'auto' }}>
+                      {data.staff.map((s) => (
+                        <div
+                          key={s.id}
+                          style={{ fontSize: 13, borderBottom: `1px solid ${crmV2.border}`, paddingBottom: 6 }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                            <strong>
+                              {s.first_name} {s.last_name}
+                            </strong>
+                            {s.role ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: crmV2.gold }}>
+                                {s.role}
+                              </span>
+                            ) : null}
+                          </div>
+                          {s.email ? (
+                            <div style={{ fontSize: 11, color: crmV2.textFaint }}>
+                              {s.email.includes('@') ? (
+                                <a href={`mailto:${s.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                  {s.email}
+                                </a>
+                              ) : (
+                                s.email
+                              )}
+                            </div>
+                          ) : null}
+                          {s.phone ? (
+                            <div style={{ fontSize: 11, color: crmV2.textFaint }}>
+                              <a href={`tel:${s.phone}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                {s.phone}
+                              </a>
+                            </div>
+                          ) : null}
+                          {s.created_at ? (
+                            <div style={{ fontSize: 11, color: crmV2.textMuted, marginTop: 2 }}>
+                              Postulé le {formatParisDateTime(s.created_at)}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CrmV2Card>
               ) : (
                 <CrmV2Card style={{ padding: 18 }}>
