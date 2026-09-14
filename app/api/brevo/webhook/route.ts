@@ -15,6 +15,7 @@ import { createServiceClient } from '@/lib/supabase'
  *   date: '2026-04-17 11:42:00',
  *   'message-id': '<abc@brevo.com>',
  *   tag: 'campaign:uuid',
+ *   tags?: ['campaign:uuid'],
  *   link?: '...'  (pour les clicks)
  *   reason?: '...' (pour bounce)
  * }
@@ -33,7 +34,6 @@ export async function POST(req: Request) {
       const rawEvent = String(ev.event || '').toLowerCase()
       const email = String(ev.email || '').toLowerCase()
       const messageId = String(ev['message-id'] || ev.messageId || '')
-      const tag = String(ev.tag || '')
       const occurredAt = ev.date
         ? new Date(String(ev.date)).toISOString()
         : new Date().toISOString()
@@ -41,21 +41,11 @@ export async function POST(req: Request) {
       // Normalise le type d'événement
       const eventType = normalizeEventType(rawEvent)
 
-      // Extrait le campaign_id depuis le tag "campaign:<uuid>"
-      const campaignMatch = tag.match(/^campaign:([0-9a-f-]{36})/i)
-      const campaignId = campaignMatch ? campaignMatch[1] : null
+      // Brevo envoie `tags: ["campaign:<uuid>"]` et `tag` parfois en JSON string
+      const campaignId = extractCampaignId(ev)
 
       // Retrouve le destinataire
-      let recipientId: string | null = null
-      if (campaignId && email) {
-        const { data: recipient } = await db
-          .from('email_campaign_recipients')
-          .select('id')
-          .eq('campaign_id', campaignId)
-          .eq('email', email)
-          .maybeSingle()
-        recipientId = recipient?.id || null
-      }
+      const recipientId = await findRecipient(db, { campaignId, email, messageId })
 
       // Enregistre l'événement
       await db.from('email_events').insert({
@@ -91,6 +81,57 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
+}
+
+const CAMPAIGN_TAG_RE = /campaign:([0-9a-f-]{36})/i
+
+function extractCampaignId(ev: Record<string, unknown>): string | null {
+  const candidates: string[] = []
+  if (Array.isArray(ev.tags)) {
+    for (const t of ev.tags) candidates.push(String(t))
+  }
+  if (typeof ev.tag === 'string' && ev.tag.trim()) {
+    const raw = ev.tag.trim()
+    if (raw.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) candidates.push(...parsed.map(String))
+      } catch {
+        candidates.push(raw)
+      }
+    } else {
+      candidates.push(raw)
+    }
+  }
+  for (const t of candidates) {
+    const match = t.match(CAMPAIGN_TAG_RE)
+    if (match) return match[1]
+  }
+  return null
+}
+
+async function findRecipient(
+  db: ReturnType<typeof createServiceClient>,
+  opts: { campaignId: string | null; email: string; messageId: string },
+): Promise<string | null> {
+  if (opts.campaignId && opts.email) {
+    const { data } = await db
+      .from('email_campaign_recipients')
+      .select('id')
+      .eq('campaign_id', opts.campaignId)
+      .ilike('email', opts.email)
+      .maybeSingle()
+    if (data?.id) return data.id
+  }
+  if (opts.messageId) {
+    const { data } = await db
+      .from('email_campaign_recipients')
+      .select('id')
+      .eq('brevo_message_id', opts.messageId)
+      .maybeSingle()
+    if (data?.id) return data.id
+  }
+  return null
 }
 
 function normalizeEventType(raw: string): string {
