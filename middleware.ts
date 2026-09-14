@@ -42,6 +42,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/visio/') ||    // salles de visio (accès par room name secret, sans compte)
     pathname.startsWith('/r/') ||
     pathname.startsWith('/events-studio') || // Events Studio SPA (staff / planning / QR publics)
+    pathname.startsWith('/scan/') || // Scanner QR public (accueil sur place)
     pathname.startsWith('/q/') || // QR courts Events Studio
     pathname.startsWith('/inscription-salons') || // hub public choix salon + places
     pathname.startsWith('/inscription-staff') || // inscription staff (sous-ensemble d’événements)

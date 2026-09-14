@@ -173,6 +173,11 @@ export function staffPublicUrl(eventId: string, origin = 'https://hub.diploma-sa
   return `${origin}/events-studio/?staff=${eventId}`
 }
 
+/** Scanner QR public (accueil sur place, sans compte). */
+export function scannerPublicUrl(eventId: string, origin = 'https://hub.diploma-sante.fr'): string {
+  return `${origin}/scan/${eventId}`
+}
+
 export function planningPublicUrl(year?: number, origin = 'https://hub.diploma-sante.fr'): string {
   const y = year || new Date().getFullYear()
   return `${origin}/events-studio/?planning=diploma&year=${y}`

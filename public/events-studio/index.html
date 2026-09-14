@@ -17,6 +17,7 @@
       if (p.get('qr')) document.write('<style>#page-login{display:none!important}#page-qr{display:block!important}</style>');
       if (p.get('staff')) document.write('<style>#page-login{display:none!important}#page-staff{display:block!important}</style>');
       if (p.get('planning')) document.write('<style>#page-login{display:none!important}#page-planning-public{display:block!important}</style>');
+      if (p.get('scan')) document.write('<style>#page-login{display:none!important}</style>');
       if (p.get('crm') === '1') document.write('<style>#page-login{display:none!important}.crm-hide-logout{display:none!important}</style>');
     })();
   </script>
@@ -1640,6 +1641,11 @@ async function handleRoute() {
     document.getElementById('page-login').classList.remove('active');
     document.getElementById('page-qr').style.display = 'block';
     loadQrPage(id);
+    return;
+  }
+  // Scanner public : page Next.js sans compte
+  if (page === 'scan' && id) {
+    window.location.replace('/scan/' + id);
     return;
   }
   // Hide QR/staff/planning public pages if navigating away
@@ -4246,6 +4252,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('page-login').classList.remove('active');
     document.getElementById('page-planning-public').style.display = 'block';
     loadPlanningPublic(planningBrand, urlParams.get('year'));
+    return;
+  }
+  const scanEventId = urlParams.get('scan');
+  if (scanEventId) {
+    window.location.replace('/scan/' + scanEventId);
     return;
   }
   await handleRoute();

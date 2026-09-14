@@ -896,7 +896,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const typeCfg = EVENT_TYPES[typeEdit]
   const showStaffEdit = typeCfg.staff
   const showComms = typeCfg.comms
-  const showCheckin = typeCfg.checkin
+  const showCheckin = typeCfg.physical
   const cap = data?.capacity
   const hasZoom = Boolean((zoomEdit || ev?.zoom_join_url || '').trim())
   const zoomBlockPublish = typeEdit === 'webinaire' && !hasZoom
@@ -1831,6 +1831,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     </a>
                   )}
                 </div>
+                {data.scanner_url && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 6 }}>
+                      Lien public — à donner au staff sur place, sans connexion
+                    </div>
+                    <div style={{ fontSize: 12, color: crmV2.link, wordBreak: 'break-all', marginBottom: 8 }}>
+                      {data.scanner_url}
+                    </div>
+                    <CrmV2Button variant="secondary" onClick={() => copy(data.scanner_url!)}>
+                      <Copy size={14} /> Copier le lien
+                    </CrmV2Button>
+                  </div>
+                )}
                 {data.checkin_stats ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                     {[
