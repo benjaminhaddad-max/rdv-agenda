@@ -369,6 +369,40 @@ export async function resolveFormEventFilter(
   return result
 }
 
+function quotePostgrestValue(v: string): string {
+  return `"${String(v).replace(/"/g, '\\"')}"`
+}
+
+/** Applique un résultat resolveFormEventFilter sur une requête crm_contacts. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function applyFormEventResultToQuery(q: any, result: FormEventFilterResult): any {
+  if (result.mode === 'ids') {
+    if (result.contactIds.length === 0) return q.eq('hubspot_contact_id', '__no_match__')
+    const BATCH = 2000
+    if (result.contactIds.length <= BATCH) return q.in('hubspot_contact_id', result.contactIds)
+    const orParts: string[] = []
+    for (let i = 0; i < result.contactIds.length; i += BATCH) {
+      const batch = result.contactIds.slice(i, i + BATCH)
+      orParts.push(`hubspot_contact_id.in.(${batch.map(quotePostgrestValue).join(',')})`)
+    }
+    return q.or(orParts.join(','))
+  }
+
+  const orParts: string[] = []
+  if (result.exactNames.length > 0) {
+    const nameList = result.exactNames.map(quotePostgrestValue).join(',')
+    orParts.push(`recent_conversion_event.in.(${nameList})`)
+    orParts.push(`first_conversion_event_name.in.(${nameList})`)
+  }
+  const META_BATCH = 1500
+  for (let i = 0; i < result.metaOnlyIds.length; i += META_BATCH) {
+    const batch = result.metaOnlyIds.slice(i, i + META_BATCH)
+    orParts.push(`hubspot_contact_id.in.(${batch.map(quotePostgrestValue).join(',')})`)
+  }
+  if (orParts.length === 0) return q.eq('hubspot_contact_id', '__no_match__')
+  return q.or(orParts.join(','))
+}
+
 export async function warmupFormEventCache(filterValues: string[]): Promise<void> {
   const db = createServiceClient()
   await Promise.all(

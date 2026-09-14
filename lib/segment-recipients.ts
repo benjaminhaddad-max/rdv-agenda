@@ -8,6 +8,7 @@ import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { viewToParams } from '@/lib/crm-views'
 import { applyFilters, type FilterShape } from '@/lib/campaign-recipients'
 import { deriveSiteUrl } from '@/lib/site-url'
+import { applyFormEventResultToQuery, resolveFormEventFilter } from '@/lib/form-event-resolver'
 
 export type SegmentChannel = 'email' | 'sms' | 'any'
 
@@ -113,7 +114,7 @@ function applyLeadStatusNotDirect(q: any, raw: string) {
 
 /** Count SQL direct (sans self-call API) — fiable pour l'aperçu segments. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyFilterGroupToCountQuery(q: any, filterGroup: CRMFilterGroup) {
+async function applyFilterGroupToCountQuery(db: SupabaseClient, q: any, filterGroup: CRMFilterGroup) {
   for (const rule of filterGroup.rules ?? []) {
     if (!rule.value && rule.operator !== 'is_empty' && rule.operator !== 'is_not_empty') continue
     const field = String(rule.field)
@@ -143,6 +144,18 @@ function applyFilterGroupToCountQuery(q: any, filterGroup: CRMFilterGroup) {
     if (field === 'contact_owner' && (rule.operator === 'is' || rule.operator === 'is_any')) {
       q = vals.length > 1 ? q.in('hubspot_owner_id', vals) : q.eq('hubspot_owner_id', rule.value)
     }
+    if (field === 'form_event' || field === 'recent_conversion_event') {
+      if (rule.operator === 'is' || rule.operator === 'is_any') {
+        const resolved = await resolveFormEventFilter(db, rule.value)
+        q = applyFormEventResultToQuery(q, resolved)
+      } else if (rule.operator === 'is_none' || rule.operator === 'is_not') {
+        if (vals.length > 0) q = q.not('recent_conversion_event', 'in', `(${vals.map(v => `"${v.replace(/"/g, '\\"')}"`).join(',')})`)
+      } else if (rule.operator === 'is_empty') {
+        q = q.or('recent_conversion_event.is.null,recent_conversion_event.eq.')
+      } else if (rule.operator === 'is_not_empty') {
+        q = q.not('recent_conversion_event', 'is', null).neq('recent_conversion_event', '')
+      }
+    }
   }
   return q
 }
@@ -152,10 +165,22 @@ async function countFilterGroupDirect(
   filterGroup: CRMFilterGroup,
 ): Promise<number> {
   let q = db.from('crm_contacts').select('hubspot_contact_id', { count: 'exact', head: true })
-  q = applyFilterGroupToCountQuery(q, filterGroup)
+  q = await applyFilterGroupToCountQuery(db, q, filterGroup)
   const { count, error } = await q
   if (error) throw new Error(`countFilterGroupDirect: ${error.message}`)
   return count ?? 0
+}
+
+async function sampleFilterGroupDirect(
+  db: SupabaseClient,
+  filterGroup: CRMFilterGroup,
+  sampleSize: number,
+): Promise<ContactDbRow[]> {
+  let q = db.from('crm_contacts').select(CONTACT_COLUMNS).limit(Math.max(1, sampleSize))
+  q = await applyFilterGroupToCountQuery(db, q, filterGroup)
+  const { data, error } = await q
+  if (error) throw new Error(`sampleFilterGroupDirect: ${error.message}`)
+  return (data ?? []) as ContactDbRow[]
 }
 
 function appendSegmentQueryFlags(params: URLSearchParams, limit: number) {
@@ -281,12 +306,11 @@ async function previewContactsFromOneFilterGroup(
   sampleSize: number,
 ): Promise<{ total: number; sample: ResolvedSegmentContact[] }> {
   if (channel === 'any') {
-    const total = await countFilterGroupDirect(db, filterGroup)
-    const { data } = await fetchCrmContactsPage(
-      baseUrl, cookies, filterGroup, presetFlags, 0, Math.max(sampleSize, 10),
-    )
-    const sample = data.slice(0, sampleSize).map(toResolved)
-    return { total, sample }
+    const [total, rows] = await Promise.all([
+      countFilterGroupDirect(db, filterGroup),
+      sampleFilterGroupDirect(db, filterGroup, Math.max(sampleSize, 10)),
+    ])
+    return { total, sample: rows.slice(0, sampleSize).map(toResolved) }
   }
 
   let page = 0

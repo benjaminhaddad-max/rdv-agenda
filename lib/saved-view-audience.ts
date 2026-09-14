@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
-import { resolveFormEventFilter } from '@/lib/form-event-resolver'
+import { applyFormEventResultToQuery, resolveFormEventFilter } from '@/lib/form-event-resolver'
 
 export interface SavedViewAudienceContact {
   contact_id: string
@@ -120,6 +120,10 @@ export async function resolveFilterGroupAudience(
       const vals = splitCsv(val).filter(v => /^\d+$/.test(v))
       if (vals.length > 1) q = q.in('telepro_user_id', vals)
       else if (vals.length === 1) q = q.eq('telepro_user_id', vals[0])
+    }
+    if (field === 'form_event' && (op === 'is' || op === 'is_any')) {
+      const resolved = await resolveFormEventFilter(db, val)
+      q = applyFormEventResultToQuery(q, resolved)
     }
     if (field === 'form_event' && (op === 'is_none' || op === 'is_not')) {
       excludeFormIds = await collectFormEventExcludeIds(db, val)
