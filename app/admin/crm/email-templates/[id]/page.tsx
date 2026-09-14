@@ -37,6 +37,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
   const [testMsg, setTestMsg] = useState<string | null>(null)
   const editorRef = useRef<EmailEditorVisualRef>(null)
   const [editorReady, setEditorReady] = useState(false)
+  const [creatingCampaign, setCreatingCampaign] = useState(false)
 
   useEffect(() => {
     fetch(`/api/email-templates/${id}`)
@@ -81,6 +82,32 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
     } catch (e) {
       alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
     } finally { setSaving(false) }
+  }
+
+  const createCampaign = async () => {
+    if (!tpl) return
+    setCreatingCampaign(true)
+    try {
+      const full = await fetch(`/api/email-templates/${id}`).then(r => r.json())
+      const r = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: tpl.name,
+          subject: tpl.subject || tpl.name,
+          html_body: full.html_body || tpl.html_body,
+          text_body: full.text_body,
+          design_json: full.design_json,
+          template_id: tpl.id,
+        }),
+      })
+      if (!r.ok) throw new Error(await r.text())
+      const campaign = await r.json()
+      const base = window.location.pathname.includes('/crm-v2/') ? '/admin/crm-v2' : '/admin/crm'
+      window.location.href = `${base}/campaigns/${campaign.id}`
+    } catch (e) {
+      alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
+    } finally { setCreatingCampaign(false) }
   }
 
   const sendTest = async () => {
@@ -133,6 +160,13 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee]"
             >
               <Send size={14} /> Test
+            </button>
+            <button
+              onClick={createCampaign}
+              disabled={creatingCampaign}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md hover:bg-[#f7f4ee] disabled:opacity-50"
+            >
+              <Mail size={14} /> {creatingCampaign ? 'Création…' : 'Envoyer via une campagne'}
             </button>
             <button
               onClick={save}

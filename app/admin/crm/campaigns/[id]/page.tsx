@@ -20,6 +20,7 @@ interface Campaign {
   html_body: string
   text_body: string | null
   design_json: unknown
+  template_id: string | null
   status: string
   scheduled_at: string | null
   sent_at: string | null
@@ -118,15 +119,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     if (!campaign) return
     setSaving(true)
     try {
-      // Récupère le HTML + design depuis l'éditeur visuel si disponible
       let htmlBody = campaign.html_body
       let designJson = campaign.design_json
-      if (editorRef.current) {
+      const keepRawHtml = !!campaign.template_id && !!campaign.html_body
+      if (editorRef.current && !keepRawHtml) {
         const exported = await editorRef.current.exportContent()
         if (exported.html) {
           htmlBody = exported.html
           designJson = exported.design
-          // Met aussi à jour le state local pour la preview
           setCampaign(prev => prev ? { ...prev, html_body: exported.html, design_json: exported.design } : prev)
         }
       }
@@ -141,6 +141,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           sender_email: campaign.sender_email,
           sender_name: campaign.sender_name,
           reply_to: campaign.reply_to,
+          template_id: campaign.template_id,
           html_body: htmlBody,
           text_body: campaign.text_body,
           design_json: designJson,
@@ -503,6 +504,20 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
               <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
               Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code>.
             </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <CrmTemplateButton
+              onPick={(tpl) => {
+                update({
+                  template_id: tpl.id,
+                  subject: tpl.subject || campaign.subject,
+                  html_body: tpl.html_body,
+                  text_body: tpl.text_body,
+                  design_json: tpl.design_json,
+                })
+                if (tpl.design_json) editorRef.current?.loadDesign(tpl.design_json)
+                setDirty()
+              }}
+            />
             <BrevoImportButton
               onImport={(html) => {
                 // Injecte le HTML Brevo comme nouveau contenu
@@ -521,6 +536,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
                 setDirty()
               }}
             />
+            </div>
           </div>
           <EmailEditorVisual
             ref={editorRef}
@@ -779,6 +795,100 @@ interface BrevoTemplate {
   sender: { name: string; email: string }
   modifiedAt: string
   tag: string | null
+}
+
+function CrmTemplateButton({ onPick }: { onPick: (tpl: {
+  id: string
+  name: string
+  subject: string
+  html_body: string
+  text_body: string | null
+  design_json: unknown
+}) => void }) {
+  const [open, setOpen] = useState(false)
+  const [templates, setTemplates] = useState<Array<{
+    id: string
+    name: string
+    subject: string
+    html_body: string
+    text_body: string | null
+    design_json: unknown
+  }>>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    fetch('/api/email-templates')
+      .then(r => r.json())
+      .then(d => setTemplates(Array.isArray(d) ? d : []))
+      .finally(() => setLoading(false))
+  }, [open])
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e5ddc8',
+          borderRadius: 8,
+          padding: '6px 12px',
+          color: '#0e1e35',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          whiteSpace: 'nowrap',
+          fontFamily: 'inherit',
+          flexShrink: 0,
+        }}
+      >
+        Charger un modèle
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 70 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxHeight: '80vh', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 71, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Modèles CRM</div>
+              <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4a6070' }}><X size={16} /></button>
+            </div>
+            <div style={{ overflow: 'auto', padding: 8 }}>
+              {loading ? (
+                <div style={{ padding: 20, fontSize: 12, color: '#4a6070', textAlign: 'center' }}>Chargement…</div>
+              ) : templates.length === 0 ? (
+                <div style={{ padding: 20, fontSize: 12, color: '#4a6070', textAlign: 'center' }}>Aucun modèle. Crée-en un dans Modèles email.</div>
+              ) : templates.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { onPick(t); setOpen(false) }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    border: 'none',
+                    borderRadius: 8,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{t.name}</div>
+                  {t.subject && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>{t.subject}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  )
 }
 
 function BrevoImportButton({ onImport }: { onImport: (html: string) => void }) {

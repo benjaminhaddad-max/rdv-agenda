@@ -76,6 +76,31 @@ export default function EmailTemplatesPage() {
     if (r.ok) load()
   }
 
+  const sendViaCampaign = async (t: Template) => {
+    setCreating(true)
+    try {
+      const full = await fetch(`/api/email-templates/${t.id}`).then(r => r.json())
+      const r = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: t.name,
+          subject: full.subject || t.subject || t.name,
+          html_body: full.html_body,
+          text_body: full.text_body,
+          design_json: full.design_json,
+          template_id: t.id,
+        }),
+      })
+      if (!r.ok) throw new Error(await r.text())
+      const campaign = await r.json()
+      const base = window.location.pathname.includes('/crm-v2/') ? '/admin/crm-v2' : '/admin/crm'
+      window.location.href = `${base}/campaigns/${campaign.id}`
+    } catch (e) {
+      alert(`Échec : ${e instanceof Error ? e.message : String(e)}`)
+    } finally { setCreating(false) }
+  }
+
   const remove = async (id: string) => {
     if (!confirm('Supprimer définitivement ce modèle ?')) return
     const r = await fetch(`/api/email-templates/${id}`, { method: 'DELETE' })
@@ -143,7 +168,14 @@ export default function EmailTemplatesPage() {
                     </div>
                   </div>
                 </Link>
-                <div className="px-4 py-2 border-t flex items-center justify-end gap-1 bg-[#f7f4ee] opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="px-4 py-2 border-t flex items-center justify-end gap-1 bg-[#f7f4ee]">
+                  <button
+                    onClick={() => sendViaCampaign(t)}
+                    disabled={creating}
+                    className="mr-auto text-xs font-medium text-[#0038f0] hover:underline disabled:opacity-50"
+                  >
+                    Envoyer via une campagne
+                  </button>
                   <button onClick={() => duplicate(t)} title="Dupliquer" className="p-1.5 text-[#4a6070] hover:text-[#0038f0]">
                     <Copy size={14} />
                   </button>
