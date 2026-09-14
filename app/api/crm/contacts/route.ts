@@ -10,6 +10,7 @@ import { recordCrmPerfSample } from '@/lib/crm-perf'
 import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
+import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -43,8 +44,40 @@ export async function GET(req: NextRequest) {
   }
 
   const db = createServiceClient()
-  const { searchParams } = req.nextUrl
+  const searchParams = new URLSearchParams(req.nextUrl.searchParams)
   const apiUser = await getApiUserContext()
+
+  // Les vues télépro n'envoient que `view_id` (pas les filtres dépliés de l'admin).
+  // On hydrate ici pour appliquer formulaire / classe / statut, tout en ignorant
+  // les contraintes d'attribution (« sans télépro ») déjà couvertes par le scope.
+  const viewIdEarly = searchParams.get('view_id') ?? ''
+  if (viewIdEarly && viewIdEarly !== 'all') {
+    const skipTeleproConstraints = !!(
+      searchParams.get('telepro_id') ||
+      searchParams.get('telepro_hs_id') ||
+      searchParams.get('telepro_owner_hs_id') ||
+      apiUser?.role === 'telepro'
+    )
+    const { data: viewRow } = await db
+      .from('crm_saved_views')
+      .select('id, name, filter_groups, preset_flags')
+      .eq('id', viewIdEarly)
+      .maybeSingle()
+    if (viewRow) {
+      overlaySavedViewParams(
+        searchParams,
+        {
+          id: String(viewRow.id),
+          name: String(viewRow.name || ''),
+          groups: Array.isArray(viewRow.filter_groups)
+            ? viewRow.filter_groups as CRMSavedView['groups']
+            : [],
+          presetFlags: (viewRow.preset_flags as CRMSavedView['presetFlags']) ?? undefined,
+        },
+        { skipTeleproConstraints },
+      )
+    }
+  }
 
   const search           = searchParams.get('search') ?? ''
   const stage            = searchParams.get('stage') ?? ''
@@ -1136,9 +1169,14 @@ export async function GET(req: NextRequest) {
     stageNot || closerHsId || closerNot || teleproOwnerHsId ||
     formationNot || pipelineNot || priorPreinscription || periodFilter ||
     ownerExclude || contactOwnerNot || teleproNot || closerContactNot ||
+    sourceNot || zoneNot || deptNot || leadStatusNot ||
     effectiveNoTelepro || withTelepro ||
     effectiveRecentFormMonths > 0 || effectiveRecentFormDays > 0 || effectiveCreatedBeforeDays > 0 ||
     ((formEvent || formEventNot) && !allowLinovaFormEventInTypesense) ||
+    // Vue télépro + formulaire : Typesense renvoyait found=0 (leads NATIVE_META
+    // / noms avec accents) alors que SQL trouve les contacts attribués.
+    ((formEventNames !== null || formEventContactIds !== null || formEventMetaOnlyIds !== null) &&
+      !!(teleproId || teleproHsId || forcedScopedTeleproIds.length)) ||
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     metaLeadAdsContactIds !== null ||

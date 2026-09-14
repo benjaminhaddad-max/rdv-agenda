@@ -120,12 +120,68 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
           case 'pipeline':      p.set('pipeline_not', val); break
         }
       }
+      if (rule.operator === 'is_empty') {
+        if (rule.field === 'telepro') {
+          p.set('no_telepro', '1')
+        } else {
+          const prev = p.get('empty_fields')
+          p.set('empty_fields', prev ? `${prev},${rule.field}` : String(rule.field))
+        }
+      }
+      if (rule.operator === 'is_not_empty') {
+        const prev = p.get('not_empty_fields')
+        p.set('not_empty_fields', prev ? `${prev},${rule.field}` : String(rule.field))
+      }
     }
   }
   if (customFilters.length > 0) {
     p.set('cf', JSON.stringify(customFilters))
   }
   return p
+}
+
+const TELEPRO_VIEW_PARAM_KEYS = ['no_telepro', 'telepro_hs_id', 'telepro_not'] as const
+
+function stripTeleproFromCsv(raw: string | null): string {
+  return (raw ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s && s !== 'telepro')
+    .join(',')
+}
+
+/**
+ * Injecte les filtres d'une vue sauvegardée dans les query params d'une
+ * requête /api/crm/contacts, sans écraser ce que le client a déjà envoyé.
+ *
+ * `skipTeleproConstraints` : vue ouverte depuis « Mes Contacts » d'un télépro.
+ * On garde les filtres métier (formulaire, classe, statut…) mais on ignore
+ * « sans télépro » / « télépro = X » — sinon les leads qu'on vient de lui
+ * attribuer disparaissent de l'onglet alors qu'ils restent dans « Tous mes contacts ».
+ */
+export function overlaySavedViewParams(
+  target: URLSearchParams,
+  view: CRMSavedView,
+  opts?: { skipTeleproConstraints?: boolean },
+): void {
+  const fromView = viewToParams(view)
+  if (opts?.skipTeleproConstraints) {
+    for (const key of TELEPRO_VIEW_PARAM_KEYS) fromView.delete(key)
+    const empty = stripTeleproFromCsv(fromView.get('empty_fields'))
+    if (empty) fromView.set('empty_fields', empty)
+    else fromView.delete('empty_fields')
+    const notEmpty = stripTeleproFromCsv(fromView.get('not_empty_fields'))
+    if (notEmpty) fromView.set('not_empty_fields', notEmpty)
+    else fromView.delete('not_empty_fields')
+    // Empêche le fallback `preset_flags.noTelepro` de réappliquer le filtre.
+    if (!target.has('no_telepro')) target.set('no_telepro', '0')
+  }
+
+  for (const [key, value] of fromView.entries()) {
+    if (!value) continue
+    if (target.get(key)) continue
+    target.set(key, value)
+  }
 }
 
 /**
