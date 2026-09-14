@@ -10,21 +10,26 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, X } from 'lucide-react'
 import type { SelectOption } from '@/lib/crm-constants'
+
+function splitCsvIds(value: string): string[] {
+  return value ? value.split(',').map(s => s.trim().normalize('NFC')).filter(Boolean) : []
+}
 
 // ── Multi-select dropdown for filters ─────────────────────────────────────
 
-export function MultiSelectDropdown({ options, value, onChange, allowCustomValue = false }: {
+export function MultiSelectDropdown({ options, value, onChange, allowCustomValue = false, loading = false }: {
   options: SelectOption[]
   value: string          // comma-separated
   onChange: (v: string) => void
   allowCustomValue?: boolean
+  loading?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
-  const selected = value ? value.split(',').filter(Boolean) : []
+  const selected = splitCsvIds(value)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -34,8 +39,16 @@ export function MultiSelectDropdown({ options, value, onChange, allowCustomValue
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const isSelected = (id: string) => {
+    const n = id.trim().normalize('NFC')
+    return selected.some(s => s === n || s.toLowerCase() === n.toLowerCase())
+  }
+
   const toggle = (id: string) => {
-    const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]
+    const n = id.trim().normalize('NFC')
+    const next = isSelected(n)
+      ? selected.filter(s => s !== n && s.toLowerCase() !== n.toLowerCase())
+      : [...selected, n]
     onChange(next.join(','))
   }
 
@@ -92,7 +105,9 @@ export function MultiSelectDropdown({ options, value, onChange, allowCustomValue
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {filtered.length === 0 && !(allowCustomValue && q) && (
-              <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>Aucun résultat</div>
+              <div style={{ padding: '8px 10px', fontSize: 12, color: '#4a6070' }}>
+                {loading ? 'Chargement…' : 'Aucun résultat'}
+              </div>
             )}
             {allowCustomValue && q && filtered.length === 0 && (
               <div
@@ -114,23 +129,47 @@ export function MultiSelectDropdown({ options, value, onChange, allowCustomValue
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#4a6070',
-                  background: selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
+                  background: isSelected(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,172,113,0.12)')}
-                onMouseLeave={e => (e.currentTarget.style.background = selected.includes(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
+                onMouseLeave={e => (e.currentTarget.style.background = isSelected(opt.id) ? 'rgba(204,172,113,0.08)' : 'transparent')}
               >
                 <span style={{
                   width: 16, height: 16, borderRadius: 3,
-                  border: selected.includes(opt.id) ? '2px solid #C9A84C' : '2px solid #0e1e35',
-                  background: selected.includes(opt.id) ? '#C9A84C' : 'transparent',
+                  border: isSelected(opt.id) ? '2px solid #C9A84C' : '2px solid #0e1e35',
+                  background: isSelected(opt.id) ? '#C9A84C' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  {selected.includes(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
+                  {isSelected(opt.id) && <Check size={10} color="#ffffff" strokeWidth={3} />}
                 </span>
                 {opt.label}
               </label>
             ))}
           </div>
+        </div>
+      )}
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+          {selected.map(id => {
+            const label = options.find(o => o.id === id || o.id.normalize('NFC') === id)?.label ?? id
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={e => { e.preventDefault(); e.stopPropagation(); toggle(id) }}
+                title={`Retirer « ${label} »`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%',
+                  background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
+                  borderRadius: 999, padding: '3px 8px', color: '#0F1F3D', fontSize: 11,
+                  fontFamily: 'inherit', cursor: 'pointer', fontWeight: 600,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                <X size={11} color="#ef4444" />
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

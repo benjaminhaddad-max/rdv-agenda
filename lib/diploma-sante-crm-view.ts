@@ -1,4 +1,5 @@
 import type { CRMFilterGroup } from './crm-constants'
+import { conversionEventMatchesFormNames } from './form-event-names'
 
 export const DIPLOMA_SANTE_CRM_VIEW_ID = 'v_candidature_diploma_2026'
 export const DIPLOMA_SANTE_CRM_VIEW_NAME = 'Candidature Diploma 2026'
@@ -26,6 +27,22 @@ export function isDiplomaNsFormName(name: string): boolean {
   return name.trim().toUpperCase().startsWith('NS')
 }
 
+export function diplomaFormNamesFromGroups(groups: CRMFilterGroup[] | null | undefined): string[] {
+  const rule = (groups ?? [])
+    .flatMap(g => g.rules ?? [])
+    .find(r => r.field === 'form_event' && String(r.value || '').trim())
+  if (!rule?.value) return [...DIPLOMA_SANTE_NS_FORM_NAMES]
+  const names = rule.value.split(',').map(v => v.trim()).filter(Boolean)
+  return names.length > 0 ? names : [...DIPLOMA_SANTE_NS_FORM_NAMES]
+}
+
+export function formEventMatchesDiplomaList(
+  eventName: string | null | undefined,
+  formNames: readonly string[],
+): boolean {
+  return conversionEventMatchesFormNames(eventName, formNames)
+}
+
 export function buildDiplomaSanteGroups(formNames: readonly string[] = DIPLOMA_SANTE_NS_FORM_NAMES): CRMFilterGroup[] {
   const ns = [...new Set(formNames.filter(isDiplomaNsFormName).map(n => n.trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'fr'))
@@ -47,6 +64,18 @@ export function isDiplomaSanteGroups(groups: CRMFilterGroup[]): boolean {
   if (!rule?.value) return false
   const vals = rule.value.split(',').map(v => v.trim()).filter(Boolean)
   return DIPLOMA_SANTE_NS_FORM_NAMES.every(name => vals.includes(name))
+}
+
+export function hasDiplomaFormEventRule(groups: CRMFilterGroup[] | null | undefined): boolean {
+  return (groups ?? []).some(g =>
+    Array.isArray(g.rules) &&
+    g.rules.some(r => r.field === 'form_event' && String(r.value || '').trim()),
+  )
+}
+
+/** Liste canonique uniquement si la vue n'a pas encore de filtre formulaire. */
+export function diplomaSanteGroupsFromSaved(rawGroups: CRMFilterGroup[] | null | undefined): CRMFilterGroup[] {
+  return hasDiplomaFormEventRule(rawGroups) ? (rawGroups ?? []) : buildDiplomaSanteGroups()
 }
 
 export function isDiplomaSanteView(id: string, name?: string): boolean {

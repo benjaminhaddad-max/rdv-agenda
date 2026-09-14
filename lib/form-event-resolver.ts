@@ -1,12 +1,13 @@
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
+import { formEventIlikePatterns } from '@/lib/form-event-names'
 
 type SupabaseClient = ReturnType<typeof createServiceClient>
 
 const FRESH_TTL_MS = 5 * 60 * 1000
 const STALE_TTL_MS = 60 * 60 * 1000
 /** Incrémenter pour invalider crm_form_event_cache après changement de résolution. */
-const CACHE_VERSION = 2
+const CACHE_VERSION = 4
 
 const refreshInFlight = new Set<string>()
 
@@ -15,6 +16,7 @@ export type FormEventFilterHybrid = {
   mode: 'hybrid'
   exactNames: string[]
   metaOnlyIds: string[]
+  aliasPatterns: string[]
 }
 
 /** Mode Linova (variantes datees) : liste complete de contact_ids. */
@@ -157,6 +159,10 @@ async function expandPrefixesToDistinctNames(
   return [...allNames]
 }
 
+function aliasPatternsForNames(formNames: string[]): string[] {
+  return [...new Set(formNames.flatMap(formEventIlikePatterns))]
+}
+
 /**
  * Meta-only : leads Meta Ads ELIGIBLES a la vue (i.e. qui n'ont pas un
  * recent_conversion_event appartenant a une AUTRE vue/marque).
@@ -223,8 +229,9 @@ async function computeHybrid(
   const allNames = new Set<string>(normalizedFormNames)
   for (const n of expandedFromPrefixes) allNames.add(n)
   const exactNames = [...allNames]
+  const aliasPatterns = aliasPatternsForNames(normalizedFormNames)
   const metaOnlyIds = await computeMetaOnlyIds(db, exactNames)
-  return { mode: 'hybrid', exactNames, metaOnlyIds }
+  return { mode: 'hybrid', exactNames, metaOnlyIds, aliasPatterns }
 }
 
 async function compute(
@@ -233,7 +240,7 @@ async function compute(
 ): Promise<FormEventFilterResult> {
   const { normalizedFormNames, distinctPrefixes } = parseFilterValue(filterValue)
   if (normalizedFormNames.length === 0) {
-    return { mode: 'hybrid', exactNames: [], metaOnlyIds: [] }
+    return { mode: 'hybrid', exactNames: [], metaOnlyIds: [], aliasPatterns: [] }
   }
   return computeHybrid(db, normalizedFormNames, distinctPrefixes)
 }
@@ -276,7 +283,10 @@ function readCache(
   if (resultJson && typeof resultJson === 'object') {
     const r = resultJson as Partial<FormEventFilterHybrid> & Partial<FormEventFilterIds> & { mode?: string }
     if (r.mode === 'hybrid' && Array.isArray(r.exactNames) && Array.isArray(r.metaOnlyIds)) {
-      return { mode: 'hybrid', exactNames: r.exactNames, metaOnlyIds: r.metaOnlyIds }
+      const aliasPatterns = Array.isArray(r.aliasPatterns)
+        ? r.aliasPatterns
+        : aliasPatternsForNames(parseFilterValue(filterValue).normalizedFormNames)
+      return { mode: 'hybrid', exactNames: r.exactNames, metaOnlyIds: r.metaOnlyIds, aliasPatterns }
     }
     if (r.mode === 'ids' && Array.isArray(r.contactIds)) {
       return { mode: 'ids', contactIds: r.contactIds }
@@ -285,7 +295,7 @@ function readCache(
   // Fallback : ancienne entree (contact_ids seuls).
   const { normalizedFormNames, distinctPrefixes } = parseFilterValue(filterValue)
   if (distinctPrefixes.length === 0) {
-    return { mode: 'hybrid', exactNames: normalizedFormNames, metaOnlyIds: contactIds }
+    return { mode: 'hybrid', exactNames: normalizedFormNames, metaOnlyIds: contactIds, aliasPatterns: aliasPatternsForNames(normalizedFormNames) }
   }
   return { mode: 'ids', contactIds }
 }

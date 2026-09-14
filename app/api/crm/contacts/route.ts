@@ -6,6 +6,7 @@ import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext, requireApiRole } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
+import { formEventIlikePatterns } from '@/lib/form-event-names'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
 import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
@@ -384,6 +385,8 @@ export async function GET(req: NextRequest) {
       if (!val && op !== 'is_empty' && op !== 'is_not_empty') continue
 
       if (fieldRaw === 'form_event') {
+        if (formEvent && (op === 'is' || op === 'is_any')) continue
+        if (formEventNot && (op === 'is_not' || op === 'is_none')) continue
         customFilters.push({ field: 'form_event', operator: op, value: val })
         continue
       }
@@ -543,6 +546,7 @@ export async function GET(req: NextRequest) {
   let formEventContactIds: string[] | null = metaBackfillTermIdfContactIds
   let formEventNames: string[] | null = null
   let formEventMetaOnlyIds: string[] | null = null
+  let formEventAliasPatterns: string[] = []
   let formEventParamResolved = false
   // Pour éviter de matérialiser 2.7K contact_ids dans l'URL PostgREST (limite
   // ~16K → la liste renvoie [] alors que le count vaut 2.7K), on combine :
@@ -552,6 +556,22 @@ export async function GET(req: NextRequest) {
   //    qui ne sont pas déjà couverts par les noms (typiquement quelques 100s)
   const skipHeavyFormResolver = deferCount
   if (!isMetaBackfillTermIdfView) {
+    if (formEvent) {
+      customFilters = customFilters.filter(
+        r => !(
+          (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
+          (r.operator === 'is' || r.operator === 'is_any')
+        ),
+      )
+    }
+    if (formEventNot) {
+      customFilters = customFilters.filter(
+        r => !(
+          (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
+          (r.operator === 'is_not' || r.operator === 'is_none')
+        ),
+      )
+    }
     // Détecte un filtre form_event op 'is' ou 'is_any' dans cf
     const formFilter = customFilters.find(
       r => (r.field === 'recent_conversion_event' || r.field === 'form_event') &&
@@ -566,6 +586,7 @@ export async function GET(req: NextRequest) {
       if (resolved.mode === 'hybrid') {
         formEventNames = resolved.exactNames
         formEventMetaOnlyIds = resolved.metaOnlyIds
+        formEventAliasPatterns = resolved.aliasPatterns ?? []
       } else {
         formEventContactIds = resolved.contactIds
       }
@@ -603,16 +624,9 @@ export async function GET(req: NextRequest) {
           formEventContactIds = resolved.contactIds
         }
       } else {
-        if (formEventNames !== null) {
-          formEventNames = [...new Set([...formEventNames, ...resolved.exactNames])]
-        } else {
-          formEventNames = resolved.exactNames
-        }
-        if (formEventMetaOnlyIds !== null) {
-          formEventMetaOnlyIds = [...new Set([...formEventMetaOnlyIds, ...resolved.metaOnlyIds])]
-        } else {
-          formEventMetaOnlyIds = resolved.metaOnlyIds
-        }
+        formEventNames = resolved.exactNames
+        formEventMetaOnlyIds = resolved.metaOnlyIds
+        formEventAliasPatterns = resolved.aliasPatterns ?? []
       }
     }
   }
@@ -1215,11 +1229,14 @@ export async function GET(req: NextRequest) {
     if (formEventNames !== null || formEventMetaOnlyIds !== null) {
       const orParts: string[] = []
       if (formEventNames && formEventNames.length > 0) {
-        if (formEventNames.length === 1) {
-          orParts.push(`recent_conversion_event:=${escapeBack(formEventNames[0])}`)
-        } else {
-          orParts.push(`recent_conversion_event:=[${formEventNames.map(escapeBack).join(',')}]`)
-        }
+        const recentParts = formEventNames.length === 1
+          ? `recent_conversion_event:=${escapeBack(formEventNames[0])}`
+          : `recent_conversion_event:=[${formEventNames.map(escapeBack).join(',')}]`
+        const firstParts = formEventNames.length === 1
+          ? `first_conversion_event_name:=${escapeBack(formEventNames[0])}`
+          : `first_conversion_event_name:=[${formEventNames.map(escapeBack).join(',')}]`
+        orParts.push(recentParts)
+        orParts.push(firstParts)
       }
       if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
         const BATCH = 1000
@@ -1819,13 +1836,24 @@ export async function GET(req: NextRequest) {
     query = query.gte('recent_conversion_date', since.toISOString())
   }
 
-  // Nom du dernier formulaire soumis (recent_conversion_event)
-  // Match EXACT sur le nom. Multi-value via virgule (?form_event=JPO,Webinaire)
+  // Nom du dernier / premier formulaire + variantes « Page: Formulaire "X" ».
   if (formEvent && !formEventParamResolved) {
-    const vals = splitMulti(formEvent)
-    query = vals.length > 1
-      ? query.in('recent_conversion_event', vals)
-      : query.eq('recent_conversion_event', formEvent)
+    const vals = splitMulti(formEvent).map(s => s.trim()).filter(Boolean)
+    const quoteNames = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
+    const nameList = vals.map(quoteNames).join(',')
+    const orParts: string[] = []
+    if (nameList) {
+      orParts.push(`recent_conversion_event.in.(${nameList})`)
+      orParts.push(`first_conversion_event_name.in.(${nameList})`)
+    }
+    for (const val of vals) {
+      for (const pattern of formEventIlikePatterns(val)) {
+        const quoted = quoteNames(pattern)
+        orParts.push(`recent_conversion_event.ilike.${quoted}`)
+        orParts.push(`first_conversion_event_name.ilike.${quoted}`)
+      }
+    }
+    if (orParts.length > 0) query = query.or(orParts.join(','))
   }
   if (formEventNot) {
     const vals = splitMulti(formEventNot)
@@ -1843,7 +1871,14 @@ export async function GET(req: NextRequest) {
     const orParts: string[] = []
     const quoteForPg = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
     if (formEventNames && formEventNames.length > 0) {
-      orParts.push(`recent_conversion_event.in.(${formEventNames.map(quoteForPg).join(',')})`)
+      const nameList = formEventNames.map(quoteForPg).join(',')
+      orParts.push(`recent_conversion_event.in.(${nameList})`)
+      orParts.push(`first_conversion_event_name.in.(${nameList})`)
+    }
+    for (const pattern of formEventAliasPatterns) {
+      const quoted = quoteForPg(pattern)
+      orParts.push(`recent_conversion_event.ilike.${quoted}`)
+      orParts.push(`first_conversion_event_name.ilike.${quoted}`)
     }
     if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
       const BATCH = 1500

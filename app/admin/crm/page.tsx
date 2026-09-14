@@ -39,8 +39,8 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { buildEdumoveGroups, isEdumoveGroups } from '@/lib/edumove-crm-view'
 import {
   isDiplomaSanteView,
-  buildDiplomaSanteGroups,
-  isDiplomaSanteGroups,
+  diplomaSanteGroupsFromSaved,
+  hasDiplomaFormEventRule,
 } from '@/lib/diploma-sante-crm-view'
 import {
   inferViewKind,
@@ -552,7 +552,7 @@ export default function CRMPage() {
             : shouldForceEdumove
               ? buildEdumoveGroups()
               : shouldForceDiploma
-                ? buildDiplomaSanteGroups()
+                ? diplomaSanteGroupsFromSaved(rawGroups)
                 : rawGroups
 
           if (shouldForceLinova && !isLinovaGroups(rawGroups)) {
@@ -569,7 +569,7 @@ export default function CRMPage() {
               body: JSON.stringify({ filter_groups: groups }),
             }).catch(() => {})
           }
-          if (shouldForceDiploma && !isDiplomaSanteGroups(rawGroups)) {
+          if (shouldForceDiploma && !hasDiplomaFormEventRule(rawGroups)) {
             void fetch(`/api/crm/views/${encodeURIComponent(r.id)}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -1095,7 +1095,7 @@ export default function CRMPage() {
         if (requestSeq !== contactsFetchSeqRef.current) return
         if (typeof totalPayload.total === 'number') {
           setTotal(totalPayload.total)
-          if (isLinovaView && activeViewId) {
+          if (activeViewId && activeViewId !== 'all') {
             setViewCounts(prev => ({ ...prev, [activeViewId]: totalPayload.total as number }))
           }
         }
@@ -1214,7 +1214,7 @@ export default function CRMPage() {
         applyContactsRows(cachedPayload.data ?? [])
         const nextTotal = cachedPayload.total ?? 0
         setTotal(nextTotal)
-        if (isLinovaView && activeViewId) {
+        if (activeViewId && activeViewId !== 'all') {
           setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
         }
         setTotalEstimated(cachedPayload.total_estimated === true)
@@ -1237,7 +1237,7 @@ export default function CRMPage() {
           }
           applyContactsRows(payload.data ?? [])
           setTotal(nextTotal)
-          if (isLinovaView && activeViewId) {
+          if (activeViewId && activeViewId !== 'all') {
             setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
           }
           setTotalEstimated(payload.total_estimated === true)
@@ -1266,7 +1266,7 @@ export default function CRMPage() {
       }
       applyContactsRows(payload.data ?? [])
       setTotal(nextTotal)
-      if (isLinovaView && activeViewId) {
+      if (activeViewId && activeViewId !== 'all') {
         setViewCounts(prev => ({ ...prev, [activeViewId]: nextTotal }))
       }
       setTotalEstimated(payload.total_estimated === true)
@@ -1544,7 +1544,11 @@ export default function CRMPage() {
       v.id === viewId ? { ...v, groups: [...filterGroups] } : v
     )
     setCrmViews(updated)
-    persistViewUpdate(viewId, { filter_groups: filterGroups })
+    forceFreshListRef.current = true
+    void persistViewUpdate(viewId, { filter_groups: filterGroups }).then(() => {
+      void fetchViewCounts([viewId])
+    })
+    scheduleRefetch()
   }
 
   function reorderCRMViews(fromId: string, toId: string) {
@@ -1602,6 +1606,11 @@ export default function CRMPage() {
   }
 
   function updateRule(gid: string, rid: string, patch: Partial<CRMFilterRule>) {
+    const prevForm = filterGroups
+      .flatMap(g => g.rules)
+      .filter(r => r.field === 'form_event')
+      .map(r => r.value)
+      .join('|')
     const updated = filterGroups.map(g => {
       if (g.id !== gid) return g
       return {
@@ -1615,8 +1624,20 @@ export default function CRMPage() {
         }),
       }
     })
+    const nextForm = updated
+      .flatMap(g => g.rules)
+      .filter(r => r.field === 'form_event')
+      .map(r => r.value)
+      .join('|')
     setFilterGroups(updated)
     applyGroupsToFilters(updated)
+    if (activeViewId && activeViewId !== 'all' && prevForm !== nextForm) {
+      setCrmViews(prev => prev.map(v => v.id === activeViewId ? { ...v, groups: updated } : v))
+      forceFreshListRef.current = true
+      void persistViewUpdate(activeViewId, { filter_groups: updated }).then(() => {
+        void fetchViewCounts([activeViewId])
+      })
+    }
     scheduleRefetch()
   }
 
