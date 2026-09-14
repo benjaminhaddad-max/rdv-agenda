@@ -207,6 +207,9 @@ export type StaffPlanningSet = {
   eventIds: string[]
 }
 
+/** Salon des études de médecine 2026 — samedi 19 septembre. */
+export const SALON_MEDECINE_2026_EVENT_ID = '76d9911f-00ba-4a68-a598-bd537ae86dd8'
+
 /** Liens staff ciblés (sous-ensemble d’événements, pas tout le planning annuel). */
 export const STAFF_PLANNING_SETS: Record<string, StaffPlanningSet> = {
   'premiers-presentiels': {
@@ -217,7 +220,7 @@ export const STAFF_PLANNING_SETS: Record<string, StaffPlanningSet> = {
     payIntro: 'Rémunération : 120 € / jour pour chaque salon.',
     path: '/inscription-staff',
     eventIds: [
-      '76d9911f-00ba-4a68-a598-bd537ae86dd8', // Salon des études de médecine — 19 sept.
+      SALON_MEDECINE_2026_EVENT_ID,
       'f87b4b6c-f905-4dd9-8702-a93e701463ae', // Salon Accès aux Études Médicales / MMOPK — 26 sept.
     ],
   },

@@ -29,6 +29,7 @@ import {
   enrichContactsForHermione,
   isHermioneOrientationUrl,
   resolveTrackedLinkDestination,
+  trackedLinkNeedsContactEnrich,
 } from '@/lib/hermione-orientation-link'
 import { logger } from '@/lib/logger'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
@@ -198,10 +199,10 @@ export async function runSmsCampaign(opts: RunOptions): Promise<RunResult> {
     }
 
     const trackedLinks: TrackedLink[] = Array.isArray(campaign.tracked_links) ? campaign.tracked_links : []
-    const needsHermioneEnrich = trackedLinks.some(l => l?.url && isHermioneOrientationUrl(l.url))
-    if (needsHermioneEnrich) {
+    const needsContactEnrich = trackedLinks.some(l => l?.url && trackedLinkNeedsContactEnrich(l.url))
+    if (needsContactEnrich) {
       contacts = await enrichContactsForHermione(db, contacts)
-      if (!process.env.HERMIONE_LINK_SECRET) {
+      if (trackedLinks.some(l => l?.url && isHermioneOrientationUrl(l.url)) && !process.env.HERMIONE_LINK_SECRET) {
         logger.warn('sms-campaign-send', 'HERMIONE_LINK_SECRET manquant — liens Hermione non signés', { campaign_id: id })
       }
     }

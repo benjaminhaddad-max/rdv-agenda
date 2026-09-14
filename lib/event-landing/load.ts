@@ -4,17 +4,36 @@ import { createEventsClient } from '@/lib/events-studio/client'
 import { eventHasComms, eventOffersPublicInscriptionPage } from '@/lib/events-studio/config'
 import { humanDescription } from '@/lib/events-studio/event-meta'
 import type { EventLandingData, EventLandingEvent } from './types'
+import {
+  ensureTimeslotSurveyForm,
+  isTimeslotSurveySlug,
+  loadSalonMedecineTimeslotEvent,
+} from '@/lib/event-timeslot-survey'
 
 export type PublicFormPage =
   | { kind: 'missing' }
   | { kind: 'form'; form: PublicForm }
   | { kind: 'landing'; data: EventLandingData }
+  | { kind: 'timeslot_survey'; form: PublicForm; event: EventLandingEvent }
   /** Formulaire lié à un salon externe : pas d’inscription publique. */
   | { kind: 'no_public_inscription'; form: PublicForm; eventName: string }
 
 export async function loadPublicFormPage(slug: string): Promise<PublicFormPage> {
+  if (isTimeslotSurveySlug(slug)) {
+    try {
+      await ensureTimeslotSurveyForm()
+    } catch {
+      /* le formulaire sera 404 si la création échoue */
+    }
+  }
+
   const form = await getPublicFormBySlug(slug)
   if (!form) return { kind: 'missing' }
+
+  if (isTimeslotSurveySlug(form.slug)) {
+    const event = await loadSalonMedecineTimeslotEvent()
+    return { kind: 'timeslot_survey', form, event }
+  }
 
   const eventsDb = createEventsClient()
   const { data: link } = await eventsDb

@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react'
 import MarketingNav from '@/components/crm/MarketingNav'
+import EventTimeslotSurveyCard from '@/components/crm/EventTimeslotSurveyCard'
 import { CrmV2Button, CrmV2Card, CrmV2Page } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { defaultEmailBody, defaultEmailSubject, defaultSmsBody, mergeCommsWithDefaults } from '@/lib/events-studio/comms-defaults'
@@ -1127,6 +1128,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 ne pourraient pas rejoindre la session ni recevoir le bon lien dans les emails/SMS.
               </div>
             )}
+
+            <EventTimeslotSurveyCard eventId={ev.id} eventName={ev.name} eventDate={ev.event_date} />
 
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Type, date, horaires, lieu, places & staff</div>

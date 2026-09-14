@@ -50,6 +50,7 @@ const CONDITIONAL_REDIRECT_EXCLUDED_FORMS = new Set([
   'ns - formulaire kit pass / las',
   'ns - formulaire "guide parcoursup 2026" - diploma sante',
   'ns - brochure diploma sante',
+  'salon etudes de medecine 2026 — creneau',
 ])
 
 function isDiplomaConditionalRedirectEligible(form: { folder?: string | null; name?: string | null }): boolean {

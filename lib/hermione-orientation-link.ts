@@ -5,6 +5,7 @@
 
 import { createHmac } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { attachFormContactTokenToUrl, isHubFormUrl } from '@/lib/form-contact-link'
 
 const HERMIONE_ORIGIN = 'https://orientation.hermione.co'
 const PAYLOAD_FIELDS = ['prenom', 'nom', 'email', 'telephone', 'departement', 'classe_actuelle'] as const
@@ -70,14 +71,29 @@ export function buildHermioneOrientationUrl(data: HermioneLeadPayload): string |
   return `${HERMIONE_ORIGIN}/?t=${token}`
 }
 
-/** Résout l'URL finale d'un lien tracké (Hermione signé par contact si possible). */
+export function trackedLinkNeedsContactEnrich(url: string): boolean {
+  return isHermioneOrientationUrl(url) || isHubFormUrl(url)
+}
+
+/** Résout l'URL finale d'un lien tracké (Hermione ou formulaire Hub signé par contact). */
 export function resolveTrackedLinkDestination(
   templateUrl: string,
-  contact: HermioneContactInput,
+  contact: HermioneContactInput & { hubspot_contact_id?: string | null },
 ): string {
-  if (!isHermioneOrientationUrl(templateUrl)) return templateUrl
-  const signed = buildHermioneOrientationUrl(hermionePayloadFromContact(contact))
-  return signed ?? (templateUrl.split('?')[0] || HERMIONE_ORIGIN)
+  if (isHermioneOrientationUrl(templateUrl)) {
+    const signed = buildHermioneOrientationUrl(hermionePayloadFromContact(contact))
+    return signed ?? (templateUrl.split('?')[0] || HERMIONE_ORIGIN)
+  }
+  if (isHubFormUrl(templateUrl) && contact.hubspot_contact_id?.trim()) {
+    return attachFormContactTokenToUrl(templateUrl, {
+      hubspot_contact_id: contact.hubspot_contact_id,
+      firstname: contact.firstname,
+      lastname: contact.lastname,
+      email: contact.email,
+      phone: contact.phone,
+    })
+  }
+  return templateUrl
 }
 
 const CRM_CONTACT_COLUMNS =

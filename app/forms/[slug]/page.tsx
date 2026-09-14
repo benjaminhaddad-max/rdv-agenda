@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import FormRenderer from './FormRenderer'
 import EventLandingPage from '@/components/event-landing/EventLandingPage'
+import TimeslotSurveyPage from '@/components/event-landing/TimeslotSurveyPage'
 import { buildLandingCopy } from '@/lib/event-landing/content'
 import { detectLandingKind, formatEventDate, remainingLabel } from '@/lib/event-landing/format'
 import { buildEventJsonLd } from '@/lib/event-landing/jsonld'
@@ -25,6 +26,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
         type: 'website',
         locale: 'fr_FR',
       },
+    }
+  }
+  if (page.kind === 'timeslot_survey') {
+    const fmt = formatEventDate(page.event)
+    return {
+      title: `${page.event.name} — votre créneau | Diploma Santé`,
+      description: `Indiquez le créneau auquel vous pensez venir au ${page.event.name} (${fmt.dateLongue}). Places limitées par horaire.`,
+      robots: { index: false, follow: false },
     }
   }
   if (page.kind === 'no_public_inscription') {
@@ -105,6 +114,11 @@ export default async function PublicFormPage({ params }: Params) {
         <EventLandingPage data={page.data} copy={copy} fmt={fmt} remainingText={remainingText} />
       </>
     )
+  }
+
+  if (page.kind === 'timeslot_survey') {
+    const fmt = formatEventDate(page.event)
+    return <TimeslotSurveyPage slug={slug} form={page.form} event={page.event} fmt={fmt} />
   }
 
   if (page.kind === 'no_public_inscription') {

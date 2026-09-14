@@ -103,6 +103,63 @@ export function formBaseUrl(): string {
   return base.replace(/\/+$/, '')
 }
 
+const HUB_FORM_HOST_RE =
+  /(^|\.)diploma-sante\.fr$|(^|\.)vercel\.app$|^localhost$|^127\.0\.0\.1$/i
+const HUB_FORM_PATH_RE = /\/forms\/([^/?#]+)/i
+
+function parseMaybeUrl(raw: string): URL | null {
+  try {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    return new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
+  } catch {
+    return null
+  }
+}
+
+/** Lien Hub Diploma `/forms/{slug}` (y compris hub.diploma-sante.fr). */
+export function isHubFormUrl(url: string): boolean {
+  const u = parseMaybeUrl(url)
+  if (!u) return false
+  if (!HUB_FORM_PATH_RE.test(u.pathname)) return false
+  return HUB_FORM_HOST_RE.test(u.hostname)
+}
+
+export function hubFormSlugFromUrl(url: string): string | null {
+  const u = parseMaybeUrl(url)
+  if (!u) return null
+  const m = u.pathname.match(HUB_FORM_PATH_RE)
+  if (!m?.[1]) return null
+  try {
+    return decodeURIComponent(m[1]).trim().toLowerCase() || null
+  } catch {
+    return m[1].trim().toLowerCase() || null
+  }
+}
+
+/** Ajoute `?t=` sur une URL /forms/{slug} existante, en conservant l’hôte. */
+export function attachFormContactTokenToUrl(
+  url: string,
+  contact: FormContactInput,
+  options?: { ttlMs?: number },
+): string {
+  const slug = hubFormSlugFromUrl(url)
+  const u = parseMaybeUrl(url)
+  if (!slug || !u || !contact.hubspot_contact_id?.trim()) return url
+  const token = signFormContactToken({
+    cid: contact.hubspot_contact_id,
+    slug,
+    exp: Date.now() + (options?.ttlMs ?? DEFAULT_TTL_MS),
+    firstname: contact.firstname ?? undefined,
+    lastname: contact.lastname ?? undefined,
+    email: contact.email ?? undefined,
+    phone: contact.phone ?? undefined,
+  })
+  if (!token) return url
+  u.searchParams.set('t', token)
+  return u.toString()
+}
+
 /** URL publique : /forms/{slug}?t={token} */
 export function buildFormContactUrl(
   slug: string,
