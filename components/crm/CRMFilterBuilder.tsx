@@ -77,6 +77,8 @@ export default function CRMFilterBuilder({
   const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([])
   const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([])
   const [deptOptions, setDeptOptions] = useState<SelectOption[]>([])
+  const [formEventOptions, setFormEventOptions] = useState<SelectOption[]>([])
+  const [formEventsLoading, setFormEventsLoading] = useState(true)
   const [allCrmProps, setAllCrmProps] = useState<CrmPropertyMeta[]>([])
 
   useEffect(() => {
@@ -96,7 +98,21 @@ export default function CRMFilterBuilder({
     fetch('/api/crm/properties?object=contacts&limit=2000').then(r => r.json()).then(d => {
       if (Array.isArray(d.properties)) setAllCrmProps(d.properties as CrmPropertyMeta[])
     }).catch(() => {})
-    fetch('/api/crm/field-options').then(r => r.json()).then(d => {
+    const mergeFormEvents = (events: unknown) => {
+      if (!Array.isArray(events) || events.length === 0) return
+      setFormEventOptions(prev => {
+        const merged = new Map(prev.map(o => [o.id, o]))
+        for (const raw of events) {
+          if (typeof raw !== 'string' || !raw.trim()) continue
+          const v = raw.trim()
+          merged.set(v, { id: v, label: v })
+        }
+        return [...merged.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
+      })
+      setFormEventsLoading(false)
+    }
+
+    fetch('/api/crm/field-options', { cache: 'no-store' }).then(r => r.json()).then(d => {
       // Ne JAMAIS remplacer le fallback par une liste vide : on garde toujours
       // un dropdown rempli, même si l'API retourne 0 valeurs distinctes.
       if (Array.isArray(d.leadStatuses) && d.leadStatuses.length > 0) {
@@ -114,7 +130,29 @@ export default function CRMFilterBuilder({
       if (d.departements?.length) {
         setDeptOptions(d.departements.map((v: string) => ({ id: v, label: v })))
       }
+      mergeFormEvents(d.formEvents)
     }).catch(() => {})
+    const loadFormEvents = (attempt: number) => {
+      fetch('/api/crm/form-events', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => {
+          mergeFormEvents(d.events)
+          const n = Array.isArray(d.events) ? d.events.length : 0
+          if (n === 0 && attempt < 4) {
+            setTimeout(() => loadFormEvents(attempt + 1), 1500 * (attempt + 1))
+            return
+          }
+          setFormEventsLoading(false)
+        })
+        .catch(() => {
+          if (attempt < 4) {
+            setTimeout(() => loadFormEvents(attempt + 1), 1500 * (attempt + 1))
+            return
+          }
+          setFormEventsLoading(false)
+        })
+    }
+    loadFormEvents(0)
   }, [])
 
   // ── Stages : pipeline actuel + anciens (préfixés [année]) ─────────────────
@@ -276,6 +314,7 @@ export default function CRMFilterBuilder({
                   case 'pipeline':    valueOptions = pipelineOptions; break
                   case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
                   case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
+                  case 'form_event':  valueOptions = formEventOptions; break
                 }
               }
 
@@ -338,6 +377,8 @@ export default function CRMFilterBuilder({
                           value: v,
                           operator: coerceMultiSelectOperator(canonicalField, rule.operator),
                         })}
+                        allowCustomValue={canonicalField === 'form_event'}
+                        loading={canonicalField === 'form_event' && formEventsLoading}
                       />
                     )
                   }

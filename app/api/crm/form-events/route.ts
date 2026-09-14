@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { cached } from '@/lib/cache'
+
+export const maxDuration = 60
 
 /**
  * GET /api/crm/form-events
@@ -35,38 +38,40 @@ async function fetchDistinctContactFormEvents(): Promise<string[]> {
 }
 
 export async function GET() {
-  const db = createServiceClient()
-  const all = new Set<string>()
+  const payload = await cached('crm:form-events:v2:full', 60, async () => {
+    const db = createServiceClient()
+    const all = new Set<string>()
 
-  const [
-    crmFormsRes,
-    metaFormsRes,
-    contactEvents,
-  ] = await Promise.all([
-    db.from('forms').select('name').not('name', 'is', null).limit(5000),
-    db.from('meta_lead_forms').select('name').not('name', 'is', null).limit(5000),
-    fetchDistinctContactFormEvents(),
-  ])
+    const [
+      crmFormsRes,
+      metaFormsRes,
+      contactEvents,
+    ] = await Promise.all([
+      db.from('forms').select('name').not('name', 'is', null).limit(5000),
+      db.from('meta_lead_forms').select('name').not('name', 'is', null).limit(5000),
+      fetchDistinctContactFormEvents(),
+    ])
 
-  for (const r of (crmFormsRes.data ?? [])) {
-    const n = (r as { name: string | null }).name
-    if (n && n.trim() !== '') all.add(n.trim())
-  }
-  for (const r of (metaFormsRes.data ?? [])) {
-    const n = (r as { name: string | null }).name
-    if (n && n.trim() !== '') all.add(n.trim())
-  }
-  for (const n of contactEvents) {
-    if (n && n.trim() !== '') all.add(n.trim())
-  }
+    for (const r of (crmFormsRes.data ?? [])) {
+      const n = (r as { name: string | null }).name
+      if (n && n.trim() !== '') all.add(n.trim())
+    }
+    for (const r of (metaFormsRes.data ?? [])) {
+      const n = (r as { name: string | null }).name
+      if (n && n.trim() !== '') all.add(n.trim())
+    }
+    for (const n of contactEvents) {
+      if (n && n.trim() !== '') all.add(n.trim())
+    }
 
-  const payload = {
-    events: [...all].sort(),
-    sources: {
-      crm: crmFormsRes.data?.length ?? 0,
-      meta: metaFormsRes.data?.length ?? 0,
-    },
-  }
+    return {
+      events: [...all].sort((a, b) => a.localeCompare(b, 'fr')),
+      sources: {
+        crm: crmFormsRes.data?.length ?? 0,
+        meta: metaFormsRes.data?.length ?? 0,
+      },
+    }
+  })
 
   return NextResponse.json(payload, { headers: { 'Cache-Control': 'no-store' } })
 }
