@@ -6,6 +6,7 @@ import LogoutButton from '@/components/LogoutButton'
 import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { normalizeFilterGroups } from '@/lib/crm-constants'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 interface Segment {
   id: string
@@ -31,6 +32,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const [segment, setSegment] = useState<Segment | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(segment?.name)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')

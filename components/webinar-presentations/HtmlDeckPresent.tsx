@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { htmlDeckNav } from '@/lib/webinar-deck-enhance'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 function presentSrc(src: string) {
   return src.includes('?') ? `${src}&present=1` : `${src}?present=1`
@@ -16,6 +17,7 @@ export function HtmlDeckPresent({
   title: string
   backHref: string
 }) {
+  usePageTitle(title)
   const rootRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [showUi, setShowUi] = useState(true)

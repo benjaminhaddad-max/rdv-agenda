@@ -8,6 +8,7 @@ import {
 import LogoutButton from '@/components/LogoutButton'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
 import CampaignRecipientsTab from '@/components/crm/CampaignRecipientsTab'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 interface Campaign {
   id: string
@@ -84,6 +85,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(campaign?.name)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [tab, setTab] = useState<'content' | 'preview' | 'recipients' | 'stats'>('content')

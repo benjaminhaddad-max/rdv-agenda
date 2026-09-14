@@ -7,6 +7,7 @@ import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/compone
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
 import { validateEmailDomain } from '@/lib/email-validation'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // ── Lazy-loaded modals / panels ──────────────────────────────────────────────
 // Composants ouverts conditionnellement (drawers, modals d'outils). Charges a
@@ -189,6 +190,7 @@ export default function CRMPage() {
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null)
   /** Ids du catalogue affichés dans la barre d'onglets de CET admin. */
   const [layoutViewIds, setLayoutViewIds] = useState<string[]>([])
+  usePageTitle(crmViews.find(v => v.id === activeViewId)?.name || 'Contacts')
 
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])

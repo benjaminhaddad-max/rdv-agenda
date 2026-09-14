@@ -20,6 +20,7 @@ import UserCRMView from '@/components/UserCRMView'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -182,6 +183,7 @@ function generateJitsiLink() {
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function CloserClient({ user }: { user: CloserUser }) {
+  usePageTitle(user.name)
   const [activeTab, setActiveTab] = useState<'planning' | 'rdv' | 'dispos' | 'historique' | 'repop' | 'leads' | 'contacts'>('planning')
   const [leadsTotal, setLeadsTotal] = useState(0)
   const [contactsTotal, setContactsTotal] = useState(0)

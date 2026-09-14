@@ -5,6 +5,7 @@ import {
   BarChart3, ChevronLeft, Plus, Trash2, Edit3, TrendingUp, TrendingDown,
   RefreshCw, X,
 } from 'lucide-react'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface Dashboard {
@@ -57,6 +58,7 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(dashboard?.name)
   const [showAddWidget, setShowAddWidget] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 

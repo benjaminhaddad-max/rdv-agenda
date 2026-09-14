@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import { fileNameFromUrl, isFormStoragePath } from '@/lib/form-downloads'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface FormData {
@@ -211,6 +212,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params)
   const [form, setForm] = useState<FormData | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(form?.title || form?.name)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [tab, setTab] = useState<'builder' | 'settings' | 'embed' | 'submissions'>('builder')

@@ -24,6 +24,7 @@ import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { validateEmailDomain } from '@/lib/email-validation'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Slot = { start: string; end: string; count?: number }
@@ -478,6 +479,7 @@ export default function TeleproClient({
   previewMode?: boolean
   adminUser?: { name: string }
 }) {
+  usePageTitle(teleproUser.name)
   const isAdmin = teleproUser.role === 'admin'
   const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
   // "Mes Contacts" doit reposer sur l'identité CRM interne du télépro.

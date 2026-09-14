@@ -11,6 +11,7 @@ import {
 import { BRAND_FORM_CTA_LABEL } from '@/lib/marketing/last-chance-medecine-steps'
 import { getBrandFormUrl } from '@/lib/marketing/brand-form-links'
 import { ChevronDown, ChevronUp, Code, Eye, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 interface Step {
   id: string
@@ -52,6 +53,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const [program, setProgram] = useState<Program | null>(null)
   const [saving, setSaving] = useState(false)
+  usePageTitle(program?.name)
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {

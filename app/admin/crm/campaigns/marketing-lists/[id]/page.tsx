@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import MarketingNav from '@/components/crm/MarketingNav'
+import { usePageTitle } from '@/components/DocumentTitle'
 import { Upload } from 'lucide-react'
 
 interface Member {
@@ -15,6 +16,7 @@ export default function MarketingListDetailPage({ params }: { params: Promise<{ 
   const { id } = use(params)
   const [name, setName] = useState('')
   const [members, setMembers] = useState<Member[]>([])
+  usePageTitle(name)
   const [count, setCount] = useState(0)
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState('')

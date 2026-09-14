@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -73,6 +74,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const [data, setData] = useState<DealDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  usePageTitle(data?.deal?.dealname)
   const [editing, setEditing] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const [saving, setSaving] = useState(false)

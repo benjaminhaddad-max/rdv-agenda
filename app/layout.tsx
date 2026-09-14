@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { DocumentTitleProvider } from '@/components/DocumentTitle'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -18,7 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <DocumentTitleProvider>{children}</DocumentTitleProvider>
+      </body>
     </html>
   )
 }

@@ -8,6 +8,7 @@ import {
   CalendarClock, Target, FlaskConical, Copy,
 } from 'lucide-react'
 import { SMS_SENDERS } from '@/lib/smsfactor'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 interface Wf {
   id: string
@@ -56,6 +57,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const [wf, setWf] = useState<Wf | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(wf?.name)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [forms, setForms] = useState<FormItem[]>([])

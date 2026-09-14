@@ -16,6 +16,7 @@ import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 import { telHref } from '@/lib/phone-e164'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -303,6 +304,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [data, setData] = useState<ContactDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  usePageTitle(
+    data?.contact
+      ? [data.contact.firstname, data.contact.lastname].filter(Boolean).join(' ')
+        || data.contact.email
+        || 'Contact'
+      : undefined,
+  )
   const [editing, setEditing] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const [saving, setSaving] = useState(false)

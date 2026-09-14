@@ -6,6 +6,7 @@ import { FileDown } from 'lucide-react'
 import AlternanceShell, { AlternanceBtn, AlternanceCard, StatusPill } from '@/components/alternance/AlternanceShell'
 import { CONTRACT_STATUS_META } from '@/lib/alternance/constants'
 import type { AlternanceContract, AlternanceDocument } from '@/lib/alternance/types'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 const CONTRACT_FIELDS: { key: string; label: string; type?: string }[] = [
   { key: 'date_signature', label: 'Date signature', type: 'date' },
@@ -29,6 +30,12 @@ export default function ContratDetailPage() {
   const id = params.id as string
   const [contract, setContract] = useState<AlternanceContract | null>(null)
   const [docs, setDocs] = useState<AlternanceDocument[]>([])
+  const studentName = contract
+    ? [(contract.student as { prenom?: string; nom?: string } | undefined)?.prenom, (contract.student as { prenom?: string; nom?: string } | undefined)?.nom]
+        .filter(Boolean)
+        .join(' ')
+    : ''
+  usePageTitle(studentName || undefined)
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, use } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Save, Send, Mail } from 'lucide-react'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 interface Template {
   id: string
@@ -29,6 +30,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
   const { id } = use(params)
   const [tpl, setTpl] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(tpl?.name)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [showTest, setShowTest] = useState(false)

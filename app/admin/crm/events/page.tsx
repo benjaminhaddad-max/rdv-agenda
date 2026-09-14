@@ -19,6 +19,7 @@ import MarketingNav from '@/components/crm/MarketingNav'
 import EventsAgendaCalendar, { EVENT_TYPE_COLORS } from '@/components/crm/EventsAgendaCalendar'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { usePageTitle } from '@/components/DocumentTitle'
 import {
   BRAND_CONFIG,
   EVENT_TYPES,
@@ -102,6 +103,7 @@ function isEventPast(ev: EventRow, nowMs = Date.now()): boolean {
 export default function EventsListPage() {
   const [brand, setBrand] = useState<EventBrand>('diploma')
   const [allEvents, setAllEvents] = useState<EventRow[]>([])
+  usePageTitle(`Événements ${BRAND_CONFIG[brand].name}`)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)

@@ -8,6 +8,7 @@ import {
 import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { usePageTitle } from '@/components/DocumentTitle'
 import { SlideCanvas } from '@/components/webinar-presentations/SlideCanvas'
 import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
 import { HtmlDeckPreview } from '@/components/webinar-presentations/HtmlDeckPreview'
@@ -44,6 +45,7 @@ export default function WebinarPresentationDetailPage() {
   const router = useRouter()
   const [data, setData] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(true)
+  usePageTitle(data?.title)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState('slides')
   const [saving, setSaving] = useState(false)

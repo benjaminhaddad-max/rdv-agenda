@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import WebinarDeckPlayer from '@/components/webinar-presentations/WebinarDeckPlayer'
 import { normalizeSlides, type WebinarPresentation } from '@/lib/webinar-presentations'
+import { usePageTitle } from '@/components/DocumentTitle'
 
 export default function PresentWebinarClient({
   id,
@@ -15,6 +16,7 @@ export default function PresentWebinarClient({
   const router = useRouter()
   const [data, setData] = useState<WebinarPresentation | null>(initial)
   const [error, setError] = useState<string | null>(null)
+  usePageTitle(data?.title)
 
   useEffect(() => {
     if (initial) return
