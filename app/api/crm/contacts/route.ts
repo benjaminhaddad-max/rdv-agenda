@@ -6,7 +6,6 @@ import { isTypesenseEnabled, searchTypesenseCrmContacts } from '@/lib/typesense'
 import { getApiUserContext, requireApiRole } from '@/lib/api-auth'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { resolveFormEventFilter } from '@/lib/form-event-resolver'
-import { formEventIlikePatterns } from '@/lib/form-event-names'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
 import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict } from '@/lib/parcoursup-verdict'
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
@@ -546,7 +545,6 @@ export async function GET(req: NextRequest) {
   let formEventContactIds: string[] | null = metaBackfillTermIdfContactIds
   let formEventNames: string[] | null = null
   let formEventMetaOnlyIds: string[] | null = null
-  let formEventAliasPatterns: string[] = []
   let formEventParamResolved = false
   // Pour éviter de matérialiser 2.7K contact_ids dans l'URL PostgREST (limite
   // ~16K → la liste renvoie [] alors que le count vaut 2.7K), on combine :
@@ -586,7 +584,6 @@ export async function GET(req: NextRequest) {
       if (resolved.mode === 'hybrid') {
         formEventNames = resolved.exactNames
         formEventMetaOnlyIds = resolved.metaOnlyIds
-        formEventAliasPatterns = resolved.aliasPatterns ?? []
       } else {
         formEventContactIds = resolved.contactIds
       }
@@ -626,7 +623,6 @@ export async function GET(req: NextRequest) {
       } else {
         formEventNames = resolved.exactNames
         formEventMetaOnlyIds = resolved.metaOnlyIds
-        formEventAliasPatterns = resolved.aliasPatterns ?? []
       }
     }
   }
@@ -1836,24 +1832,16 @@ export async function GET(req: NextRequest) {
     query = query.gte('recent_conversion_date', since.toISOString())
   }
 
-  // Nom du dernier / premier formulaire + variantes « Page: Formulaire "X" ».
+  // Nom du dernier / premier formulaire soumis.
   if (formEvent && !formEventParamResolved) {
     const vals = splitMulti(formEvent).map(s => s.trim()).filter(Boolean)
     const quoteNames = (v: string) => `"${String(v).replace(/"/g, '\\"')}"`
     const nameList = vals.map(quoteNames).join(',')
-    const orParts: string[] = []
     if (nameList) {
-      orParts.push(`recent_conversion_event.in.(${nameList})`)
-      orParts.push(`first_conversion_event_name.in.(${nameList})`)
+      query = query.or(
+        `recent_conversion_event.in.(${nameList}),first_conversion_event_name.in.(${nameList})`,
+      )
     }
-    for (const val of vals) {
-      for (const pattern of formEventIlikePatterns(val)) {
-        const quoted = quoteNames(pattern)
-        orParts.push(`recent_conversion_event.ilike.${quoted}`)
-        orParts.push(`first_conversion_event_name.ilike.${quoted}`)
-      }
-    }
-    if (orParts.length > 0) query = query.or(orParts.join(','))
   }
   if (formEventNot) {
     const vals = splitMulti(formEventNot)
@@ -1874,11 +1862,6 @@ export async function GET(req: NextRequest) {
       const nameList = formEventNames.map(quoteForPg).join(',')
       orParts.push(`recent_conversion_event.in.(${nameList})`)
       orParts.push(`first_conversion_event_name.in.(${nameList})`)
-    }
-    for (const pattern of formEventAliasPatterns) {
-      const quoted = quoteForPg(pattern)
-      orParts.push(`recent_conversion_event.ilike.${quoted}`)
-      orParts.push(`first_conversion_event_name.ilike.${quoted}`)
     }
     if (formEventMetaOnlyIds && formEventMetaOnlyIds.length > 0) {
       const BATCH = 1500
