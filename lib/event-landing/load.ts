@@ -6,15 +6,17 @@ import { humanDescription } from '@/lib/events-studio/event-meta'
 import type { EventLandingData, EventLandingEvent } from './types'
 import {
   ensureTimeslotSurveyForm,
+  getTimeslotSurveyCopy,
   isTimeslotSurveySlug,
   loadSalonMedecineTimeslotEvent,
+  type TimeslotSurveyCopy,
 } from '@/lib/event-timeslot-survey'
 
 export type PublicFormPage =
   | { kind: 'missing' }
   | { kind: 'form'; form: PublicForm }
   | { kind: 'landing'; data: EventLandingData }
-  | { kind: 'timeslot_survey'; form: PublicForm; event: EventLandingEvent }
+  | { kind: 'timeslot_survey'; form: PublicForm; event: EventLandingEvent; copy: TimeslotSurveyCopy }
   /** Formulaire lié à un salon externe : pas d’inscription publique. */
   | { kind: 'no_public_inscription'; form: PublicForm; eventName: string }
 
@@ -31,8 +33,8 @@ export async function loadPublicFormPage(slug: string): Promise<PublicFormPage> 
   if (!form) return { kind: 'missing' }
 
   if (isTimeslotSurveySlug(form.slug)) {
-    const event = await loadSalonMedecineTimeslotEvent()
-    return { kind: 'timeslot_survey', form, event }
+    const [event, copy] = await Promise.all([loadSalonMedecineTimeslotEvent(), getTimeslotSurveyCopy()])
+    return { kind: 'timeslot_survey', form, event, copy }
   }
 
   const eventsDb = createEventsClient()

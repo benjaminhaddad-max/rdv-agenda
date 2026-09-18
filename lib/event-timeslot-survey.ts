@@ -5,6 +5,7 @@ import { createCrmFormForEvent } from '@/lib/events-studio/create-crm-form'
 import { createEventsClient } from '@/lib/events-studio/client'
 import { SALON_MEDECINE_2026_EVENT_ID } from '@/lib/events-studio/config'
 import { formBaseUrl } from '@/lib/form-contact-link'
+import { formatPhoneForSms } from '@/lib/smsfactor'
 import { createServiceClient } from '@/lib/supabase'
 import { invalidatePublicFormCache } from '@/lib/public-forms'
 import type { EventLandingEvent } from '@/lib/event-landing/types'
@@ -35,12 +36,97 @@ export type TimeslotSurveyFeedback = {
 }
 
 type SettingsStore = {
-  byEventId: Record<string, { formId: string; slug: string }>
+  byEventId: Record<string, { formId: string; slug: string; campaignId?: string }>
   feedback: TimeslotSurveyFeedback[]
+  copy?: TimeslotSurveyCopy
+  capacities?: TimeslotCapacities
+  campaignId?: string
 }
 
+/**
+ * Avec accents : le SMS passe en UCS-2 (70 car. / SMS, puis 67).
+ * Accepte volontairement plusieurs segments pour rester lisible.
+ */
 export const TIMESLOT_SURVEY_SMS_TEMPLATE =
-  '{prenom}, le salon medecine du 19/09 a trop d’inscrits. Choisissez votre creneau (places limitees) : {lien1}'
+  "{prenom}, confirmez votre participation au salon de demain en choisissant votre créneau ! Action obligatoire pour accéder au salon, sinon l'entrée vous sera refusée. Places limitées : {lien1}"
+
+/** Variantes proposees dans la fiche evenement, a un clic. */
+export const TIMESLOT_SURVEY_SMS_VARIANTS: Array<{ id: string; label: string; text: string }> = [
+  {
+    id: 'confirmer',
+    label: 'Confirmer (recommandé)',
+    text: TIMESLOT_SURVEY_SMS_TEMPLATE,
+  },
+  {
+    id: 'refusee',
+    label: 'Entrée refusée',
+    text: "{prenom}, confirmez votre venue au salon de demain : choisissez votre créneau ! Action obligatoire, sinon l'entrée vous sera refusée : {lien1}",
+  },
+  {
+    id: 'court',
+    label: 'Plus court',
+    text: "{prenom}, confirmez votre participation au salon de demain en choisissant votre créneau ! Action obligatoire pour y accéder : {lien1}",
+  },
+]
+
+export type TimeslotSurveyCopy = {
+  title: string
+  intro: string
+  note: string
+  sms: string
+  success: string
+}
+
+export const DEFAULT_TIMESLOT_COPY: TimeslotSurveyCopy = {
+  title: 'Choisissez votre créneau',
+  intro:
+    'Le choix du créneau est obligatoire pour accéder au salon. Sans créneau, vous ne pourrez pas entrer.',
+  note: 'Les places sont limitées par créneau.',
+  sms: TIMESLOT_SURVEY_SMS_TEMPLATE,
+  success: 'Merci, votre créneau est bien enregistré. À samedi.',
+}
+
+export type TimeslotCapacities = Record<string, number | null>
+
+const SUPERSEDED_SMS = new Set([
+  '{prenom}, le salon medecine du 19/09 a trop d’inscrits. Choisissez votre creneau (places limitees) : {lien1}',
+  "{prenom}, c'est demain ! Salon des etudes de medecine Diploma Sante. Confirmez votre venue en choisissant votre creneau, places limitees : {lien1}",
+  '{prenom}, salon medecine Diploma Sante demain. Le choix du creneau est obligatoire pour participer, places limitees : {lien1}',
+  "{prenom}, on vous attend demain au Salon des etudes de medecine Diploma Sante ! Dites-nous votre creneau, places limitees : {lien1}",
+  "{prenom}, derniere etape avant le salon medecine de demain : choisissez votre creneau d'arrivee, places limitees : {lien1}",
+  "{prenom}, le salon des etudes de medecine Diploma Sante, c'est demain. Pour y acceder, vous devez obligatoirement choisir votre creneau. Sans ce choix, pas d'acces au salon. Places limitees : {lien1}",
+  "{prenom}, salon medecine Diploma Sante demain. Attention : sans choix de creneau, vous n'aurez pas acces au salon. Choisissez-le obligatoirement ici, places limitees : {lien1}",
+  "{prenom}, c'est demain : salon des etudes de medecine Diploma Sante. Le creneau est obligatoire, sinon pas d'entree. Choisissez le votre : {lien1}",
+  "{prenom}, confirmez votre participation au salon de demain en choisissant votre creneau ! Action obligatoire pour acceder au salon, sinon pas d'entree. Places limitees : {lien1}",
+  "{prenom}, confirmez votre venue au salon de demain : choisissez votre creneau ! Action obligatoire, sans creneau pas d'acces au salon : {lien1}",
+  "{prenom}, confirmez votre participation au salon de demain en choisissant votre creneau ! Action obligatoire pour y acceder : {lien1}",
+])
+
+const SUPERSEDED_INTRO = new Set([
+  'Les inscriptions au salon sont très nombreuses. Pour vous accueillir correctement, dites-nous à quelle heure vous pensez venir.',
+])
+
+export function normalizeTimeslotCopy(raw?: Partial<TimeslotSurveyCopy> | null): TimeslotSurveyCopy {
+  const sms = String(raw?.sms || '').trim()
+  const intro = String(raw?.intro || '').trim()
+  return {
+    title: String(raw?.title || '').trim() || DEFAULT_TIMESLOT_COPY.title,
+    intro: !intro || SUPERSEDED_INTRO.has(intro) ? DEFAULT_TIMESLOT_COPY.intro : intro,
+    note: String(raw?.note || '').trim() || DEFAULT_TIMESLOT_COPY.note,
+    sms: !sms || SUPERSEDED_SMS.has(sms) ? DEFAULT_TIMESLOT_COPY.sms : sms,
+    success: String(raw?.success || '').trim() || DEFAULT_TIMESLOT_COPY.success,
+  }
+}
+
+export function normalizeTimeslotCapacities(raw?: TimeslotCapacities | null): TimeslotCapacities {
+  const out: TimeslotCapacities = {}
+  for (const slot of TIMESLOT_SLOTS) {
+    const n = raw?.[slot.value]
+    const places = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : null
+    out[slot.value] = places && places > 0 ? places : null
+  }
+  return out
+}
 
 export function isTimeslotSurveySlug(slug: string | null | undefined): boolean {
   return String(slug || '').trim().toLowerCase() === TIMESLOT_SURVEY_SLUG
@@ -129,7 +215,7 @@ const SURVEY_FIELDS: EventFormFieldInsert[] = [
 ]
 
 function emptyStore(): SettingsStore {
-  return { byEventId: {}, feedback: [] }
+  return { byEventId: {}, feedback: [], copy: DEFAULT_TIMESLOT_COPY, capacities: normalizeTimeslotCapacities() }
 }
 
 async function readStore(
@@ -146,6 +232,9 @@ async function readStore(
     byEventId:
       raw.byEventId && typeof raw.byEventId === 'object' ? raw.byEventId : {},
     feedback: Array.isArray(raw.feedback) ? raw.feedback : [],
+    copy: raw.copy && typeof raw.copy === 'object' ? normalizeTimeslotCopy(raw.copy) : DEFAULT_TIMESLOT_COPY,
+    capacities: normalizeTimeslotCapacities(raw.capacities),
+    campaignId: typeof raw.campaignId === 'string' ? raw.campaignId : undefined,
   }
 }
 
@@ -237,8 +326,61 @@ export async function ensureTimeslotSurveyForm(): Promise<{ id: string; slug: st
 export async function rememberTimeslotSurveyForEvent(eventId: string, form: { id: string; slug: string }) {
   const db = createServiceClient()
   const store = await readStore(db)
-  store.byEventId[eventId] = { formId: form.id, slug: form.slug }
+  store.byEventId[eventId] = {
+    ...(store.byEventId[eventId] || {}),
+    formId: form.id,
+    slug: form.slug,
+  }
   await writeStore(db, store)
+}
+
+export async function getTimeslotSurveyCopy(): Promise<TimeslotSurveyCopy> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return normalizeTimeslotCopy(store.copy)
+}
+
+export async function getTimeslotSurveyCapacities(): Promise<TimeslotCapacities> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return normalizeTimeslotCapacities(store.capacities)
+}
+
+export async function saveTimeslotSurveySettings(input: {
+  copy?: Partial<TimeslotSurveyCopy>
+  capacities?: TimeslotCapacities
+}): Promise<{ copy: TimeslotSurveyCopy; capacities: TimeslotCapacities }> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  if (input.copy) store.copy = normalizeTimeslotCopy({ ...store.copy, ...input.copy })
+  if (input.capacities) store.capacities = normalizeTimeslotCapacities(input.capacities)
+  await writeStore(db, store)
+
+  const copy = normalizeTimeslotCopy(store.copy)
+  const form = await ensureTimeslotSurveyForm()
+  await db
+    .from('forms')
+    .update({
+      title: copy.title,
+      subtitle: copy.intro,
+      success_message: copy.success,
+    })
+    .eq('id', form.id)
+  await invalidatePublicFormCache(form.slug)
+  return { copy, capacities: normalizeTimeslotCapacities(store.capacities) }
+}
+
+export async function rememberTimeslotSurveyCampaign(campaignId: string) {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  store.campaignId = campaignId
+  await writeStore(db, store)
+}
+
+export async function getTimeslotSurveyCampaignId(): Promise<string | null> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return store.campaignId || null
 }
 
 export async function loadSalonMedecineTimeslotEvent(): Promise<EventLandingEvent> {
@@ -271,7 +413,13 @@ export async function loadSalonMedecineTimeslotEvent(): Promise<EventLandingEven
 export type TimeslotStats = {
   total: number
   unique_contacts: number
-  by_slot: Array<{ value: string; label: string; count: number }>
+  by_slot: Array<{
+    value: string
+    label: string
+    count: number
+    places: number | null
+    remaining: number | null
+  }>
 }
 
 function slotLabel(value: string): string {
@@ -306,14 +454,119 @@ export async function getTimeslotSurveyStats(formId: string): Promise<TimeslotSt
     counts.set(slot, (counts.get(slot) || 0) + 1)
   }
 
+  const capacities = await getTimeslotSurveyCapacities()
+
   return {
     total: (data || []).length,
     unique_contacts: latestByContact.size,
-    by_slot: TIMESLOT_SLOTS.map((s) => ({
-      value: s.value,
-      label: s.label,
-      count: counts.get(s.value) || 0,
-    })),
+    by_slot: TIMESLOT_SLOTS.map((s) => {
+      const count = counts.get(s.value) || 0
+      const places = capacities[s.value] ?? null
+      return {
+        value: s.value,
+        label: s.label,
+        count,
+        places,
+        remaining: places == null ? null : places - count,
+      }
+    }),
+  }
+}
+
+export type TimeslotSurveyAudience = {
+  /** Préinscrits du salon (table registrations). */
+  registrations: number
+  /** Contacts CRM retrouvés ET joignables par SMS. */
+  ready: number
+  /** Préinscrits sans fiche CRM correspondante. */
+  unmatched: number
+  /** Fiches CRM trouvées mais sans numéro exploitable. */
+  no_phone: number
+  contact_ids: string[]
+}
+
+function phoneVariants(raw: string | null | undefined): string[] {
+  const digits = String(raw || '').replace(/\D/g, '')
+  if (digits.length < 9) return []
+  const last9 = digits.slice(-9)
+  return [`+33${last9}`, `0${last9}`, `0033${last9}`, `33${last9}`]
+}
+
+function chunk<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size))
+  return out
+}
+
+/**
+ * Audience du SMS : les préinscrits du salon, rattachés à leur fiche CRM par
+ * email puis par téléphone. On renvoie des hubspot_contact_id (et pas des
+ * numéros bruts) car c'est ce qui permet de signer un lien unique par contact.
+ */
+export async function resolveTimeslotSurveyAudience(): Promise<TimeslotSurveyAudience> {
+  const eventsDb = createEventsClient()
+  const regs: Array<{ email: string | null; phone: string | null }> = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await eventsDb
+      .from('registrations')
+      .select('email, phone')
+      .eq('event_id', SALON_MEDECINE_2026_EVENT_ID)
+      .range(from, from + 999)
+    if (error) break
+    regs.push(...((data || []) as Array<{ email: string | null; phone: string | null }>))
+    if (!data || data.length < 1000) break
+  }
+
+  const db = createServiceClient()
+  const byEmail = new Map<string, { id: string; phone: string | null }>()
+  const emails = [...new Set(regs.map((r) => String(r.email || '').trim().toLowerCase()).filter(Boolean))]
+  for (const part of chunk(emails, 300)) {
+    const { data } = await db.from('crm_contacts').select('hubspot_contact_id, email, phone').in('email', part)
+    for (const row of data || []) {
+      const key = String(row.email || '').trim().toLowerCase()
+      if (key && row.hubspot_contact_id) byEmail.set(key, { id: String(row.hubspot_contact_id), phone: row.phone })
+    }
+  }
+
+  const pendingPhones = regs
+    .filter((r) => !byEmail.has(String(r.email || '').trim().toLowerCase()))
+    .flatMap((r) => phoneVariants(r.phone))
+  const byPhone = new Map<string, { id: string; phone: string | null }>()
+  for (const part of chunk([...new Set(pendingPhones)], 300)) {
+    const { data } = await db.from('crm_contacts').select('hubspot_contact_id, phone').in('phone', part)
+    for (const row of data || []) {
+      const digits = String(row.phone || '').replace(/\D/g, '')
+      if (digits.length >= 9 && row.hubspot_contact_id) {
+        byPhone.set(digits.slice(-9), { id: String(row.hubspot_contact_id), phone: row.phone })
+      }
+    }
+  }
+
+  const ready = new Set<string>()
+  let unmatched = 0
+  let noPhone = 0
+  for (const reg of regs) {
+    const email = String(reg.email || '').trim().toLowerCase()
+    const digits = String(reg.phone || '').replace(/\D/g, '')
+    const match = byEmail.get(email) || (digits.length >= 9 ? byPhone.get(digits.slice(-9)) : undefined)
+    if (!match) {
+      unmatched += 1
+      continue
+    }
+    if (ready.has(match.id)) continue
+    if (!formatPhoneForSms(String(match.phone || reg.phone || ''))) {
+      noPhone += 1
+      continue
+    }
+    ready.add(match.id)
+  }
+
+  return {
+    registrations: regs.length,
+    ready: ready.size,
+    unmatched,
+    no_phone: noPhone,
+    contact_ids: [...ready],
   }
 }
 

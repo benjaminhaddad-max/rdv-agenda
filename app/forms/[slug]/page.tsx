@@ -118,7 +118,7 @@ export default async function PublicFormPage({ params }: Params) {
 
   if (page.kind === 'timeslot_survey') {
     const fmt = formatEventDate(page.event)
-    return <TimeslotSurveyPage slug={slug} form={page.form} event={page.event} fmt={fmt} />
+    return <TimeslotSurveyPage slug={slug} form={page.form} event={page.event} fmt={fmt} copy={page.copy} />
   }
 
   if (page.kind === 'no_public_inscription') {

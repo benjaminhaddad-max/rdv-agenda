@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import './event-landing.css'
 import type { EventDateFormat, EventLandingEvent } from '@/lib/event-landing/types'
-import { TIMESLOT_FIELD_KEY, TIMESLOT_SLOTS } from '@/lib/event-timeslot-survey'
+import { TIMESLOT_FIELD_KEY, TIMESLOT_SLOTS, type TimeslotSurveyCopy } from '@/lib/event-timeslot-survey'
 import type { PublicForm } from '@/lib/public-forms'
 import { submitPublicForm } from '@/lib/public-form-client'
 
@@ -18,16 +18,25 @@ function capitalizeName(raw: string) {
     .join('')
 }
 
+function applyGreeting(greeting: string, intro: string) {
+  const text = intro.trim()
+  if (!greeting || !text) return text
+  const rest = text.charAt(0).toLocaleLowerCase('fr-FR') + text.slice(1)
+  return `${greeting}, ${rest}`
+}
+
 export default function TimeslotSurveyPage({
   slug,
   form,
   event,
   fmt,
+  copy,
 }: {
   slug: string
   form: PublicForm
   event: EventLandingEvent
   fmt: EventDateFormat
+  copy: TimeslotSurveyCopy
 }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [contactToken, setContactToken] = useState<string | null>(null)
@@ -115,16 +124,14 @@ export default function TimeslotSurveyPage({
             </div>
             <h1>Créneau enregistré</h1>
             {selectedLabel ? <p className="ev-survey-picked">{selectedLabel}</p> : null}
-            <p>{form.success_message || 'Merci, à samedi.'}</p>
+            <p>{form.success_message || copy.success}</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <p className="ev-survey-kicker">{event.name}</p>
-            <h1>Choisissez votre créneau</h1>
-            <p className="ev-survey-intro">
-              {greeting ? `${greeting}, les` : 'Les'} inscriptions au salon sont très nombreuses. Pour vous accueillir correctement, dites-nous à quelle heure vous pensez venir.
-            </p>
-            <p className="ev-survey-note">Chaque créneau a un nombre de places limité.</p>
+            <h1>{copy.title}</h1>
+            <p className="ev-survey-intro">{applyGreeting(greeting, copy.intro)}</p>
+            {copy.note ? <p className="ev-survey-note">{copy.note}</p> : null}
 
             <div className="ev-slot-grid" role="radiogroup" aria-label="Créneau">
               {TIMESLOT_SLOTS.map((s) => {

@@ -1129,7 +1129,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            <EventTimeslotSurveyCard eventId={ev.id} eventName={ev.name} eventDate={ev.event_date} />
+            <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
+              <EventTimeslotSurveyCard
+                eventId={ev.id}
+                eventName={ev.name}
+                eventDate={ev.event_date}
+                inputStyle={inputStyle}
+              />
+            </CrmV2Card>
 
             <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Type, date, horaires, lieu, places & staff</div>
