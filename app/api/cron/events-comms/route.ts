@@ -26,6 +26,13 @@ export async function GET(req: NextRequest) {
     const confirmations = await sendPendingConfirmationsForPublishedEvents()
     const reminders = await sendDueEventReminders()
 
+    console.log('[events-comms]', {
+      confirmations_emails: confirmations.emails_sent,
+      confirmations_sms: confirmations.sms_sent,
+      reminders_emails: reminders.emails_sent,
+      reminders_sms: reminders.sms_sent,
+    })
+
     return NextResponse.json({
       ok: true,
       confirmations,
