@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger'
 import { resolveTrackedLinkDestination } from '@/lib/hermione-orientation-link'
 import { detectUrls, replaceUrlsWithShortPlaceholder, sendSms } from '@/lib/smsfactor'
 import {
+  SALON_MEDECINE_2026_DATE,
   ensureTimeslotSurveyForm,
   getTimeslotDrip,
   getTimeslotRelance,
@@ -61,6 +62,13 @@ export async function GET(req: NextRequest) {
   const drip = await getTimeslotDrip()
   if (!drip || !drip.enabled) {
     return NextResponse.json({ ok: true, skipped: 'envoi auto désactivé' })
+  }
+
+  // Passé le jour du salon, plus rien ne part : les deux textes ne veulent
+  // alors plus rien dire.
+  const parisToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  if (parisToday > SALON_MEDECINE_2026_DATE) {
+    return NextResponse.json({ ok: true, skipped: 'salon terminé' })
   }
 
   const db = createServiceClient()
