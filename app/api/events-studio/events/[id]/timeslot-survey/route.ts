@@ -4,14 +4,17 @@ import { createEventsClient } from '@/lib/events-studio/client'
 import { createServiceClient } from '@/lib/supabase'
 import {
   ensureTimeslotSurveyForm,
+  getTimeslotDrip,
   getTimeslotSurveyCampaignId,
   getTimeslotSurveyCapacities,
   getTimeslotSurveyCopy,
   getTimeslotSurveyStats,
+  isSalonDay,
   isSalonEtudesMedecineTimeslotEvent,
   rememberTimeslotSurveyCampaign,
   rememberTimeslotSurveyForEvent,
   resolveTimeslotSurveyAudience,
+  saveTimeslotDrip,
   saveTimeslotSurveySettings,
   timeslotSurveyPublicUrl,
 } from '@/lib/event-timeslot-survey'
@@ -65,11 +68,12 @@ async function payloadForEvent(id: string) {
 
   const form = await ensureTimeslotSurveyForm()
   await rememberTimeslotSurveyForEvent(id, form)
-  const [stats, copy, capacities, campaignId] = await Promise.all([
+  const [stats, copy, capacities, campaignId, drip] = await Promise.all([
     getTimeslotSurveyStats(form.id),
     getTimeslotSurveyCopy(),
     getTimeslotSurveyCapacities(),
     getTimeslotSurveyCampaignId(),
+    getTimeslotDrip(),
   ])
 
   return {
@@ -83,8 +87,23 @@ async function payloadForEvent(id: string) {
       stats,
       campaign_id: campaignId,
       campaign: await campaignState(campaignId),
+      drip,
+      drip_sent: await dripSentCount(drip?.campaignId),
+      drip_variant: isSalonDay() ? 'aujourdhui' : 'demain',
     },
   }
+}
+
+/** Nombre de nouveaux inscrits déjà notifiés automatiquement. */
+async function dripSentCount(campaignId?: string | null): Promise<number> {
+  if (!campaignId) return 0
+  const db = createServiceClient()
+  const { count } = await db
+    .from('sms_campaign_recipients')
+    .select('id', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .eq('status', 'sent')
+  return count ?? 0
 }
 
 export async function GET(req: NextRequest, ctx: Ctx) {
@@ -126,6 +145,14 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     copy: body.copy,
     capacities: body.capacities,
   })
+  if (body.drip && typeof body.drip === 'object') {
+    await saveTimeslotDrip({
+      enabled: typeof body.drip.enabled === 'boolean' ? body.drip.enabled : undefined,
+      smsDemain: typeof body.drip.smsDemain === 'string' ? body.drip.smsDemain : undefined,
+      smsAujourdhui: typeof body.drip.smsAujourdhui === 'string' ? body.drip.smsAujourdhui : undefined,
+      delayMinutes: Number.isFinite(body.drip.delayMinutes) ? Number(body.drip.delayMinutes) : undefined,
+    })
+  }
   const result = await payloadForEvent(id)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
   return NextResponse.json(result.body)

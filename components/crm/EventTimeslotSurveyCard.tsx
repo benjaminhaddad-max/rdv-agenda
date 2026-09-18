@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { CheckCircle2, Copy, ExternalLink, Save, Send, Users } from 'lucide-react'
+import { CheckCircle2, Copy, ExternalLink, Save, Send, Users, Zap } from 'lucide-react'
 import { CrmV2Button } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import {
   DEFAULT_TIMESLOT_COPY,
+  TIMESLOT_DRIP_SMS_AUJOURDHUI,
+  TIMESLOT_DRIP_SMS_DEMAIN,
   TIMESLOT_SLOTS,
   TIMESLOT_SURVEY_SMS_VARIANTS,
   isSalonEtudesMedecineTimeslotEvent,
@@ -43,6 +45,13 @@ type SendResult = {
   segments_used: number
 }
 
+type DripState = {
+  enabled: boolean
+  delayMinutes: number
+  smsDemain: string
+  smsAujourdhui: string
+}
+
 type Payload = {
   enabled: boolean
   public_url?: string
@@ -52,6 +61,16 @@ type Payload = {
   campaign_id?: string | null
   campaign?: CampaignState | null
   send_result?: SendResult
+  drip?: (DripState & { cutoffAt?: string }) | null
+  drip_sent?: number
+  drip_variant?: 'demain' | 'aujourdhui'
+}
+
+const DEFAULT_DRIP: DripState = {
+  enabled: true,
+  delayMinutes: 5,
+  smsDemain: TIMESLOT_DRIP_SMS_DEMAIN,
+  smsAujourdhui: TIMESLOT_DRIP_SMS_AUJOURDHUI,
 }
 
 const GSM7 =
@@ -107,6 +126,7 @@ export default function EventTimeslotSurveyCard({
   const [confirmSend, setConfirmSend] = useState(false)
   const [sendResult, setSendResult] = useState<SendResult | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [drip, setDrip] = useState<DripState>(DEFAULT_DRIP)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/events-studio/events/${eventId}/timeslot-survey`, { credentials: 'include' })
@@ -114,6 +134,14 @@ export default function EventTimeslotSurveyCard({
     if (!res.ok) throw new Error(json.error || 'Erreur')
     setData(json)
     if (json.copy) setCopy(json.copy)
+    if (json.drip) {
+      setDrip({
+        enabled: !!json.drip.enabled,
+        delayMinutes: json.drip.delayMinutes ?? 5,
+        smsDemain: json.drip.smsDemain || TIMESLOT_DRIP_SMS_DEMAIN,
+        smsAujourdhui: json.drip.smsAujourdhui || TIMESLOT_DRIP_SMS_AUJOURDHUI,
+      })
+    }
     const next: Record<string, string> = {}
     for (const slot of TIMESLOT_SLOTS) {
       const n = json.capacities?.[slot.value]
@@ -185,7 +213,8 @@ export default function EventTimeslotSurveyCard({
     navigator.clipboard.writeText(text).then(() => showToast(label))
   }
 
-  async function save() {
+  async function save(dripOverride?: DripState) {
+    const dripPayload = dripOverride ?? drip
     setBusy(true)
     setError(null)
     try {
@@ -193,7 +222,7 @@ export default function EventTimeslotSurveyCard({
         method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ copy, capacities: capacitiesPayload }),
+        body: JSON.stringify({ copy, capacities: capacitiesPayload, drip: dripPayload }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Erreur')
@@ -582,7 +611,7 @@ export default function EventTimeslotSurveyCard({
         ) : (
           <>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <CrmV2Button variant="gold" disabled={busy} onClick={save}>
+              <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
                 <Save size={14} /> Enregistrer le texte
               </CrmV2Button>
               <CrmV2Button variant="secondary" disabled={busy || !hasLien} onClick={prepareCampaign}>
@@ -603,6 +632,103 @@ export default function EventTimeslotSurveyCard({
             </p>
           </>
         )}
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 14,
+          borderRadius: crmV2.radius,
+          border: `1px solid ${crmV2.border}`,
+          background: crmV2.bg,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <Zap size={15} color={crmV2.gold} />
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Nouveaux inscrits — envoi automatique</div>
+          <span
+            style={{
+              padding: '2px 9px',
+              borderRadius: crmV2.radiusPill,
+              fontSize: 11,
+              fontWeight: 700,
+              border: `1px solid ${drip.enabled ? crmV2.success : crmV2.border}`,
+              color: drip.enabled ? crmV2.success : crmV2.textMuted,
+            }}
+          >
+            {drip.enabled ? 'Actif' : 'En pause'}
+          </span>
+        </div>
+
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
+          Toute personne qui s’inscrit désormais au salon reçoit le SMS {drip.delayMinutes} minutes après son
+          inscription, avec son lien personnel. Le texte bascule tout seul sur la version « aujourd’hui » le jour du
+          salon.{' '}
+          {typeof data?.drip_sent === 'number' && data.drip_sent > 0
+            ? `${data.drip_sent} nouvel${data.drip_sent > 1 ? 's' : ''} inscrit${data.drip_sent > 1 ? 's' : ''} déjà notifié${data.drip_sent > 1 ? 's' : ''}.`
+            : 'Aucun envoi automatique pour l’instant.'}
+        </p>
+
+        <label
+          style={{
+            display: 'block',
+            fontSize: 12,
+            color: crmV2.textMuted,
+            marginBottom: 4,
+            fontWeight: data?.drip_variant === 'demain' ? 700 : 400,
+          }}
+        >
+          Texte la veille {data?.drip_variant === 'demain' ? '— utilisé actuellement' : ''}
+        </label>
+        <textarea
+          rows={3}
+          style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4 }}
+          value={drip.smsDemain}
+          onChange={(e) => setDrip((p) => ({ ...p, smsDemain: e.target.value }))}
+        />
+        <div style={{ fontSize: 11, color: crmV2.textMuted, marginBottom: 10 }}>
+          {smsSegments(previewSms(drip.smsDemain))} segment
+          {smsSegments(previewSms(drip.smsDemain)) > 1 ? 's' : ''} par personne
+        </div>
+
+        <label
+          style={{
+            display: 'block',
+            fontSize: 12,
+            color: crmV2.textMuted,
+            marginBottom: 4,
+            fontWeight: data?.drip_variant === 'aujourdhui' ? 700 : 400,
+          }}
+        >
+          Texte le jour du salon {data?.drip_variant === 'aujourdhui' ? '— utilisé actuellement' : ''}
+        </label>
+        <textarea
+          rows={3}
+          style={{ ...field, minHeight: 74, resize: 'vertical', marginBottom: 4 }}
+          value={drip.smsAujourdhui}
+          onChange={(e) => setDrip((p) => ({ ...p, smsAujourdhui: e.target.value }))}
+        />
+        <div style={{ fontSize: 11, color: crmV2.textMuted, marginBottom: 12 }}>
+          {smsSegments(previewSms(drip.smsAujourdhui))} segment
+          {smsSegments(previewSms(drip.smsAujourdhui)) > 1 ? 's' : ''} par personne
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
+            <Save size={14} /> Enregistrer les textes automatiques
+          </CrmV2Button>
+          <CrmV2Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => {
+              const next = { ...drip, enabled: !drip.enabled }
+              setDrip(next)
+              void save(next)
+            }}
+          >
+            {drip.enabled ? 'Mettre en pause' : 'Réactiver l’envoi auto'}
+          </CrmV2Button>
+        </div>
       </div>
       <style>{`
         @media (max-width: 860px) {

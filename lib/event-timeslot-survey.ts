@@ -42,6 +42,24 @@ type SettingsStore = {
   capacities?: TimeslotCapacities
   campaignId?: string
   relance?: TimeslotRelance
+  drip?: TimeslotDrip
+}
+
+/**
+ * Envoi automatique aux nouveaux inscrits, quelques minutes après leur
+ * inscription. Le texte bascule tout seul de « demain » à « aujourd'hui » le
+ * jour du salon.
+ */
+export type TimeslotDrip = {
+  enabled: boolean
+  /** Seules les inscriptions postérieures à cette date sont concernées. */
+  cutoffAt: string
+  delayMinutes: number
+  smsDemain: string
+  smsAujourdhui: string
+  /** Au-delà de ce délai sans fiche CRM, on envoie le lien non pré-rempli. */
+  fallbackAfterMinutes: number
+  campaignId?: string
 }
 
 /**
@@ -253,6 +271,7 @@ async function readStore(
     capacities: normalizeTimeslotCapacities(raw.capacities),
     campaignId: typeof raw.campaignId === 'string' ? raw.campaignId : undefined,
     relance: raw.relance && typeof raw.relance === 'object' ? (raw.relance as TimeslotRelance) : undefined,
+    drip: raw.drip && typeof raw.drip === 'object' ? (raw.drip as TimeslotDrip) : undefined,
   }
 }
 
@@ -689,6 +708,153 @@ export async function resolveTimeslotRelanceTargets(input: {
     if (responders.has(contactId)) continue
     if (alreadyRelanced.has(contactId)) continue
     out.push({ contactId, phone: info.phone, firstname: info.firstname })
+  }
+  return out
+}
+
+export const TIMESLOT_DRIP_SMS_DEMAIN = TIMESLOT_SURVEY_SMS_TEMPLATE
+
+export const TIMESLOT_DRIP_SMS_AUJOURDHUI =
+  "{prenom}, le salon des études de médecine c'est aujourd'hui ! Confirmez votre présence en précisant votre créneau d'arrivée, c'est obligatoire pour accéder au salon : {lien1}"
+
+export async function getTimeslotDrip(): Promise<TimeslotDrip | null> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return store.drip || null
+}
+
+export async function saveTimeslotDrip(patch: Partial<TimeslotDrip>): Promise<TimeslotDrip> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  const next: TimeslotDrip = {
+    enabled: patch.enabled ?? store.drip?.enabled ?? true,
+    cutoffAt: patch.cutoffAt ?? store.drip?.cutoffAt ?? new Date().toISOString(),
+    delayMinutes: patch.delayMinutes ?? store.drip?.delayMinutes ?? 5,
+    smsDemain: (patch.smsDemain ?? store.drip?.smsDemain ?? TIMESLOT_DRIP_SMS_DEMAIN).trim(),
+    smsAujourdhui: (patch.smsAujourdhui ?? store.drip?.smsAujourdhui ?? TIMESLOT_DRIP_SMS_AUJOURDHUI).trim(),
+    fallbackAfterMinutes: patch.fallbackAfterMinutes ?? store.drip?.fallbackAfterMinutes ?? 30,
+    campaignId: patch.campaignId ?? store.drip?.campaignId,
+  }
+  store.drip = next
+  await writeStore(db, store)
+  return next
+}
+
+/** Date du salon des études de médecine (samedi 19 septembre 2026). */
+export const SALON_MEDECINE_2026_DATE = '2026-09-19'
+
+/** true le jour même du salon, en heure de Paris. */
+export function isSalonDay(now = new Date(), eventDate = SALON_MEDECINE_2026_DATE): boolean {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' }) === eventDate
+}
+
+export type DripTarget = {
+  registrationId: string
+  contactId: string | null
+  phone: string
+  firstname: string | null
+  lastname: string | null
+  email: string | null
+  registeredAt: string
+  /** true si on a attendu trop longtemps une fiche CRM : lien non pré-rempli. */
+  fallback: boolean
+}
+
+/**
+ * Nouveaux inscrits à notifier : inscrits après le cutoff, passé le délai,
+ * jamais notifiés, et qui n'ont pas déjà choisi leur créneau.
+ */
+export async function resolveTimeslotDripTargets(input: {
+  drip: TimeslotDrip
+  formId: string
+  /** Campagnes déjà envoyées : personne n'y figurant ne sera re-textée. */
+  alreadySentCampaignIds?: (string | null | undefined)[]
+  now?: Date
+}): Promise<DripTarget[]> {
+  const now = input.now ?? new Date()
+  const readyBefore = new Date(now.getTime() - input.drip.delayMinutes * 60_000).toISOString()
+
+  const eventsDb = createEventsClient()
+  const { data: regs } = await eventsDb
+    .from('registrations')
+    .select('id, email, phone, first_name, last_name, hubspot_contact_id, registered_at')
+    .eq('event_id', SALON_MEDECINE_2026_EVENT_ID)
+    .gt('registered_at', input.drip.cutoffAt)
+    .lte('registered_at', readyBefore)
+    .order('registered_at', { ascending: true })
+    .limit(2000)
+  if (!regs || regs.length === 0) return []
+
+  const db = createServiceClient()
+
+  // Déjà notifiés : une ligne destinataire existe pour eux, que ce soit sur
+  // l'envoi auto, la campagne de masse ou la relance.
+  const notified = new Set<string>()
+  const campaignIds = [input.drip.campaignId, ...(input.alreadySentCampaignIds || [])].filter(
+    (id): id is string => Boolean(id),
+  )
+  for (const campaignId of [...new Set(campaignIds)]) {
+    const { data } = await db
+      .from('sms_campaign_recipients')
+      .select('hubspot_contact_id, phone')
+      .eq('campaign_id', campaignId)
+      .limit(5000)
+    for (const row of data || []) {
+      if (row.hubspot_contact_id) notified.add(`cid:${row.hubspot_contact_id}`)
+      if (row.phone) notified.add(`tel:${String(row.phone).replace(/\D/g, '').slice(-9)}`)
+    }
+  }
+
+  const responders = await listTimeslotResponders(input.formId)
+
+  // Rattachement CRM : id porté par l'inscription, sinon email, sinon téléphone.
+  const emails = [...new Set(regs.map((r) => String(r.email || '').trim().toLowerCase()).filter(Boolean))]
+  const byEmail = new Map<string, { id: string; phone: string | null; firstname: string | null; lastname: string | null }>()
+  for (const part of chunk(emails, 300)) {
+    const { data } = await db
+      .from('crm_contacts')
+      .select('hubspot_contact_id, email, phone, firstname, lastname')
+      .in('email', part)
+    for (const row of data || []) {
+      const key = String(row.email || '').trim().toLowerCase()
+      if (key && row.hubspot_contact_id) {
+        byEmail.set(key, {
+          id: String(row.hubspot_contact_id),
+          phone: row.phone,
+          firstname: row.firstname,
+          lastname: row.lastname,
+        })
+      }
+    }
+  }
+
+  const out: DripTarget[] = []
+  for (const reg of regs) {
+    const phone = String(reg.phone || '').trim()
+    if (!formatPhoneForSms(phone)) continue
+
+    const last9 = phone.replace(/\D/g, '').slice(-9)
+    const email = String(reg.email || '').trim().toLowerCase()
+    const match = byEmail.get(email)
+    const contactId = String(reg.hubspot_contact_id || '').trim() || match?.id || null
+
+    if (contactId && responders.has(contactId)) continue
+    if (contactId && notified.has(`cid:${contactId}`)) continue
+    if (last9 && notified.has(`tel:${last9}`)) continue
+
+    const waitedMinutes = (now.getTime() - new Date(reg.registered_at).getTime()) / 60_000
+    if (!contactId && waitedMinutes < input.drip.fallbackAfterMinutes) continue
+
+    out.push({
+      registrationId: String(reg.id),
+      contactId,
+      phone,
+      firstname: reg.first_name || match?.firstname || null,
+      lastname: reg.last_name || match?.lastname || null,
+      email: reg.email || null,
+      registeredAt: reg.registered_at,
+      fallback: !contactId,
+    })
   }
   return out
 }
