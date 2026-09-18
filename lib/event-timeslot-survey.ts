@@ -43,6 +43,18 @@ type SettingsStore = {
   campaignId?: string
   relance?: TimeslotRelance
   drip?: TimeslotDrip
+  jourJ?: TimeslotJourJ
+}
+
+/**
+ * Phrases injectées dans les rappels du jour J (SMS et email de 8h) via
+ * {creneau_phrase}. Deux cas : la personne a choisi son créneau, ou pas.
+ */
+export type TimeslotJourJ = {
+  smsAvecCreneau: string
+  smsSansCreneau: string
+  emailAvecCreneau: string
+  emailSansCreneau: string
 }
 
 /**
@@ -272,6 +284,7 @@ async function readStore(
     campaignId: typeof raw.campaignId === 'string' ? raw.campaignId : undefined,
     relance: raw.relance && typeof raw.relance === 'object' ? (raw.relance as TimeslotRelance) : undefined,
     drip: raw.drip && typeof raw.drip === 'object' ? (raw.drip as TimeslotDrip) : undefined,
+    jourJ: raw.jourJ && typeof raw.jourJ === 'object' ? (raw.jourJ as TimeslotJourJ) : undefined,
   }
 }
 
@@ -856,6 +869,134 @@ export async function resolveTimeslotDripTargets(input: {
       fallback: !contactId,
     })
   }
+  return out
+}
+
+export const DEFAULT_TIMESLOT_JOUR_J: TimeslotJourJ = {
+  smsAvecCreneau: 'Vous êtes attendu(e) entre {creneau_debut} et {creneau_fin}.',
+  smsSansCreneau: 'Le salon est ouvert de 10h à 18h.',
+  emailAvecCreneau:
+    'Vous avez choisi le créneau {creneau_debut} – {creneau_fin} : vous pouvez arriver à partir de {creneau_debut}.',
+  emailSansCreneau: 'Vous pouvez arriver à partir de 10h, le salon reste ouvert jusqu’à 18h.',
+}
+
+export async function getTimeslotJourJ(): Promise<TimeslotJourJ> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return { ...DEFAULT_TIMESLOT_JOUR_J, ...(store.jourJ || {}) }
+}
+
+export async function saveTimeslotJourJ(patch: Partial<TimeslotJourJ>): Promise<TimeslotJourJ> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  const current = { ...DEFAULT_TIMESLOT_JOUR_J, ...(store.jourJ || {}) }
+  const next: TimeslotJourJ = {
+    smsAvecCreneau: (patch.smsAvecCreneau ?? current.smsAvecCreneau).trim(),
+    smsSansCreneau: (patch.smsSansCreneau ?? current.smsSansCreneau).trim(),
+    emailAvecCreneau: (patch.emailAvecCreneau ?? current.emailAvecCreneau).trim(),
+    emailSansCreneau: (patch.emailSansCreneau ?? current.emailSansCreneau).trim(),
+  }
+  store.jourJ = next
+  await writeStore(db, store)
+  return next
+}
+
+/** « 10-12 » → début « 10h », fin « 12h ». */
+function slotBounds(value: string): { debut: string; fin: string } {
+  const [a, b] = value.split('-')
+  return { debut: a ? `${a}h` : '', fin: b ? `${b}h` : '' }
+}
+
+export type TimeslotMergeFields = {
+  creneau: string
+  creneau_debut: string
+  creneau_fin: string
+  phraseSms: string
+  phraseEmail: string
+}
+
+/**
+ * Créneau choisi par chaque inscrit, pour personnaliser les rappels du jour J.
+ * Rattachement par contact CRM, puis email, puis téléphone : une personne peut
+ * avoir répondu depuis un lien signé sans que l'inscription porte son id.
+ *
+ * Renvoie une map vide pour tout autre événement que le salon.
+ */
+export async function timeslotMergeFieldsForRegistrations(
+  eventId: string,
+  regs: { id: string; email?: string | null; phone?: string | null; hubspot_contact_id?: string | null }[],
+): Promise<Map<string, TimeslotMergeFields>> {
+  const out = new Map<string, TimeslotMergeFields>()
+  if (eventId !== SALON_MEDECINE_2026_EVENT_ID || regs.length === 0) return out
+
+  const form = await ensureTimeslotSurveyForm()
+  const db = createServiceClient()
+
+  const byContact = new Map<string, string>()
+  const byEmail = new Map<string, string>()
+  const byPhone = new Map<string, string>()
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('form_submissions')
+      .select('data, submitted_at')
+      .eq('form_id', form.id)
+      .neq('status', 'spam')
+      .order('submitted_at', { ascending: true })
+      .range(from, from + 999)
+    if (error) break
+    for (const row of data || []) {
+      const payload = (row.data || {}) as Record<string, unknown>
+      const slot = String(payload[TIMESLOT_FIELD_KEY] || '').trim()
+      if (!slot) continue
+      // Ordre croissant : la dernière réponse écrase les précédentes.
+      const cid = String(payload._contact_id || '').trim()
+      if (cid) byContact.set(cid, slot)
+      const email = String(payload.email || '').trim().toLowerCase()
+      if (email) byEmail.set(email, slot)
+      const last9 = String(payload.phone || '').replace(/\D/g, '').slice(-9)
+      if (last9.length === 9) byPhone.set(last9, slot)
+    }
+    if (!data || data.length < 1000) break
+  }
+
+  const jourJ = await getTimeslotJourJ()
+
+  for (const reg of regs) {
+    const cid = String(reg.hubspot_contact_id || '').trim()
+    const email = String(reg.email || '').trim().toLowerCase()
+    const last9 = String(reg.phone || '').replace(/\D/g, '').slice(-9)
+    const slot =
+      (cid ? byContact.get(cid) : undefined) ||
+      (email ? byEmail.get(email) : undefined) ||
+      (last9.length === 9 ? byPhone.get(last9) : undefined) ||
+      null
+
+    if (!slot) {
+      out.set(reg.id, {
+        creneau: '',
+        creneau_debut: '',
+        creneau_fin: '',
+        phraseSms: jourJ.smsSansCreneau,
+        phraseEmail: jourJ.emailSansCreneau,
+      })
+      continue
+    }
+
+    const { debut, fin } = slotBounds(slot)
+    const fill = (tpl: string) =>
+      tpl
+        .replace(/\{creneau_debut\}/gi, debut)
+        .replace(/\{creneau_fin\}/gi, fin)
+        .replace(/\{creneau\}/gi, slotLabel(slot))
+    out.set(reg.id, {
+      creneau: slotLabel(slot),
+      creneau_debut: debut,
+      creneau_fin: fin,
+      phraseSms: fill(jourJ.smsAvecCreneau),
+      phraseEmail: fill(jourJ.emailAvecCreneau),
+    })
+  }
+
   return out
 }
 

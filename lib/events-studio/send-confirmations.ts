@@ -2,9 +2,9 @@
  * Envoi des communications événement (confirmations + rappels)
  * avec les templates HTML / SMS de la plateforme Events (aperçu CRM).
  *
- * Idempotence plateforme : Redis `events:platform-comms:*`
- * (Events.sent_reminders a un CHECK trop strict pour un type dédié).
- * On marque aussi sent_reminders (types autorisés) pour que l’edge legacy skip.
+ * Idempotence : Redis `events:platform-comms:*` ET `sent_reminders`.
+ * On réclame le créneau (insert DB / SADD Redis) AVANT l’envoi Brevo,
+ * sinon le cron toutes les 5 min renvoie le même mail en boucle.
  */
 
 import { getRedisClient } from '@/lib/cache'
@@ -53,6 +53,13 @@ type RegRow = {
   first_name: string | null
   last_name: string | null
   qr_code: string | null
+}
+
+/** « jakib » → « Jakib » : les prénoms saisis en minuscules sont fréquents. */
+function capitalizeFirstName(value: string): string {
+  const clean = value.trim()
+  if (!clean) return ''
+  return clean.charAt(0).toUpperCase() + clean.slice(1)
 }
 
 function brandSenderName(brand?: string | null): string {
@@ -111,7 +118,7 @@ async function fetchAllRegistrations(eventId: string): Promise<RegRow[]> {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from('registrations')
-      .select('id, email, phone, first_name, last_name, qr_code')
+      .select('id, email, phone, first_name, last_name, qr_code, hubspot_contact_id')
       .eq('event_id', eventId)
       .range(from, from + 999)
     if (error) throw error
@@ -142,12 +149,12 @@ async function fetchLegacySentIds(eventId: string, reminderType: string) {
   return { emailIds, smsIds }
 }
 
-async function markLegacySent(
+async function tryClaimLegacySent(
   eventId: string,
   registrationId: string,
   reminderType: string,
   channel: 'email' | 'sms',
-) {
+): Promise<'claimed' | 'exists' | 'failed'> {
   const db = createEventsClient()
   const { data: existing } = await db
     .from('sent_reminders')
@@ -157,16 +164,77 @@ async function markLegacySent(
     .eq('reminder_type', reminderType)
     .eq('channel', channel)
     .limit(1)
-  if (existing?.length) return
+  if (existing?.length) return 'exists'
   const { error } = await db.from('sent_reminders').insert({
     event_id: eventId,
     registration_id: registrationId,
     reminder_type: reminderType,
     channel,
   })
-  if (error && !/duplicate|unique|23505/i.test(error.message)) {
-    logger.error('markLegacySent', error, { eventId, reminderType, channel })
+  if (!error) return 'claimed'
+  if (/duplicate|unique|23505/i.test(error.message)) return 'exists'
+  logger.error('tryClaimLegacySent', error, { eventId, reminderType, channel })
+  return 'failed'
+}
+
+async function releaseLegacySent(
+  eventId: string,
+  registrationId: string,
+  reminderType: string,
+  channel: 'email' | 'sms',
+) {
+  const db = createEventsClient()
+  await db
+    .from('sent_reminders')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('registration_id', registrationId)
+    .eq('reminder_type', reminderType)
+    .eq('channel', channel)
+}
+
+async function tryClaimPlatformSent(
+  eventId: string,
+  registrationId: string,
+  stepId: string,
+  channel: 'email' | 'sms',
+): Promise<'claimed' | 'exists' | 'unavailable'> {
+  const redis = getRedisClient()
+  if (!redis) return 'unavailable'
+  try {
+    const key = platformRedisKey(eventId, stepId, channel)
+    const added = await redis.sadd(key, registrationId)
+    await redis.expire(key, 180 * 24 * 60 * 60)
+    if (added === 0 || added === false) return 'exists'
+    return 'claimed'
+  } catch (e) {
+    logger.error('tryClaimPlatformSent redis', e, { eventId, stepId, channel })
+    return 'unavailable'
   }
+}
+
+async function releasePlatformSent(
+  eventId: string,
+  registrationId: string,
+  stepId: string,
+  channel: 'email' | 'sms',
+) {
+  const redis = getRedisClient()
+  if (!redis) return
+  try {
+    await redis.srem(platformRedisKey(eventId, stepId, channel), registrationId)
+  } catch (e) {
+    logger.error('releasePlatformSent redis', e, { eventId, stepId, channel })
+  }
+}
+
+async function markLegacySent(
+  eventId: string,
+  registrationId: string,
+  reminderType: string,
+  channel: 'email' | 'sms',
+) {
+  await tryClaimLegacySent(eventId, registrationId, reminderType, channel)
 }
 
 /** Efface les marquages confirmation email Events (stubs) pour des registrations. */
@@ -236,8 +304,22 @@ async function sendStepToRegistrations(params: {
     fetchPlatformSentIds(eventId, stepId, 'sms'),
     fetchLegacySentIds(eventId, stepId),
   ])
-  const emailIds = platformEmailIds
+  // Emails aussi via sent_reminders : Redis seul laissait le cron (5 min) renvoyer
+  // « Inscription confirmée » à tout le monde, indéfiniment.
+  const emailIds = new Set([...platformEmailIds, ...legacy.emailIds])
   const smsIds = new Set([...platformSmsIds, ...legacy.smsIds])
+  const emailsSent = new Set<string>()
+  for (const r of regs) {
+    const em = (r.email || '').trim().toLowerCase()
+    if (em && emailIds.has(r.id)) emailsSent.add(em)
+  }
+
+  // Créneau choisi par chaque inscrit : résolu une seule fois, et seulement si
+  // un des deux textes s'en sert.
+  const usesCreneau = /\{creneau/i.test(`${smsTemplate} ${customBody}`)
+  const creneauByReg = usesCreneau
+    ? await timeslotMergeFieldsForRegistrations(eventId, regs)
+    : new Map<string, TimeslotMergeFields>()
 
   const result: SendConfirmationsResult = {
     success: true,
@@ -257,14 +339,21 @@ async function sendStepToRegistrations(params: {
       chunk.map(async (reg) => {
         const email = (reg.email || '').trim().toLowerCase()
         const phone = (reg.phone || '').trim()
-        const prenom = (reg.first_name || '').trim() || 'Bonjour'
+        const prenom = capitalizeFirstName(reg.first_name || '') || 'Bonjour'
         const participantName =
           [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() || prenom
 
         const forceThis =
           !!forceEmail || (!!forceEmailRegistrationIds && forceEmailRegistrationIds.has(reg.id))
-        const needEmail = sendEmailChannel && !!email && (forceThis || !emailIds.has(reg.id))
+        let needEmail =
+          sendEmailChannel &&
+          !!email &&
+          (forceThis || (!emailIds.has(reg.id) && !emailsSent.has(email)))
         const needSms = sendSmsChannel && !!phone && !smsIds.has(reg.id)
+
+        // Réserve l'adresse tout de suite (avant le premier await) pour ne pas
+        // envoyer 2 fois le même mail si deux inscriptions partagent l'email.
+        if (needEmail && !forceThis) emailsSent.add(email)
 
         if (!needEmail && !needSms) {
           result.skipped++
@@ -273,40 +362,72 @@ async function sendStepToRegistrations(params: {
         }
 
         if (needEmail) {
-          try {
-            const html = buildEmailHtmlPreview(previewEv, stepId, customBody, {
-              prenom,
-              participantName,
-              qrCode: reg.qr_code,
-            })
-            await sendBrevoEmail({
-              sender: { email: senderEmail, name: senderName },
-              to: [{ email, name: participantName }],
-              subject,
-              htmlContent: html,
-              tags: [`events-${stepId}`, `event:${eventId}`, 'events-platform-template'],
-            })
-            const wasAlready = emailIds.has(reg.id)
-            await markPlatformSent(eventId, reg.id, stepId, 'email')
-            await markLegacySent(eventId, reg.id, stepId, 'email')
-            emailIds.add(reg.id)
-            result.emails_sent++
-            result.sent++
-            result.details.push({
-              email,
-              action: wasAlready ? 'email_resent' : 'email_sent',
-            })
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e)
-            result.errors.push(`${email}: ${msg}`)
-            result.details.push({ email, action: 'email_error' })
-            logger.error('send-event-comms email', e, { event_id: eventId, stepId, email })
+          let redisClaim: 'claimed' | 'exists' | 'unavailable' = 'unavailable'
+          let dbClaim: 'claimed' | 'exists' | 'failed' = 'failed'
+          if (!forceThis) {
+            ;[redisClaim, dbClaim] = await Promise.all([
+              tryClaimPlatformSent(eventId, reg.id, stepId, 'email'),
+              tryClaimLegacySent(eventId, reg.id, stepId, 'email'),
+            ])
+            if (redisClaim === 'exists' || dbClaim === 'exists') {
+              emailIds.add(reg.id)
+              result.skipped++
+              result.details.push({ email, action: 'already_sent' })
+              needEmail = false
+            } else if (redisClaim !== 'claimed' && dbClaim !== 'claimed') {
+              // Impossible d'enregistrer l'envoi → on n'envoie pas (évite la boucle).
+              result.skipped++
+              result.details.push({ email, action: 'claim_failed' })
+              needEmail = false
+            }
+          }
+
+          if (needEmail) {
+            try {
+              const body = usesCreneau
+                ? renderCommsText(customBody, prenom, creneauByReg.get(reg.id), 'email')
+                : customBody
+              const html = buildEmailHtmlPreview(previewEv, stepId, body, {
+                prenom,
+                participantName,
+                qrCode: reg.qr_code,
+              })
+              await sendBrevoEmail({
+                sender: { email: senderEmail, name: senderName },
+                to: [{ email, name: participantName }],
+                subject,
+                htmlContent: html,
+                tags: [`events-${stepId}`, `event:${eventId}`, 'events-platform-template'],
+              })
+              if (forceThis) {
+                await markPlatformSent(eventId, reg.id, stepId, 'email')
+                await markLegacySent(eventId, reg.id, stepId, 'email')
+              }
+              emailIds.add(reg.id)
+              result.emails_sent++
+              result.sent++
+              result.details.push({ email, action: forceThis ? 'email_resent' : 'email_sent' })
+            } catch (e) {
+              if (!forceThis) {
+                if (dbClaim === 'claimed') {
+                  await releaseLegacySent(eventId, reg.id, stepId, 'email')
+                }
+                if (redisClaim === 'claimed') {
+                  await releasePlatformSent(eventId, reg.id, stepId, 'email')
+                }
+                emailsSent.delete(email)
+              }
+              const msg = e instanceof Error ? e.message : String(e)
+              result.errors.push(`${email}: ${msg}`)
+              result.details.push({ email, action: 'email_error' })
+              logger.error('send-event-comms email', e, { event_id: eventId, stepId, email })
+            }
           }
         }
 
         if (needSms) {
           try {
-            const text = smsTemplate.replace(/\{prenom\}/gi, prenom)
+            const text = renderCommsText(smsTemplate, prenom, creneauByReg.get(reg.id), 'sms')
             const smsRes = await sendSms(phone, text, {
               sender: smsSender,
               pushtype: 'alert',

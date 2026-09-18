@@ -38,6 +38,7 @@ export function emailStepsFor(ev: {
     { id: 'j-3', label: 'J-3' },
     { id: 'j-2', label: 'J-2' },
     { id: 'j-1', label: 'J-1' },
+    { id: 'j-0-matin', label: 'Jour J (matin)' },
   ]
 }
 
