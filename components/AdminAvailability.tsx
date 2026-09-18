@@ -45,9 +45,9 @@ const DAYS = [
 ]
 
 const TIME_OPTIONS: string[] = []
-for (let h = 7; h <= 22; h++) {
+for (let h = 7; h <= 21; h++) {
   TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 22) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
+  if (h < 21) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
 }
 
 const selectStyle: React.CSSProperties = {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { weekStartISO } from '@/lib/week'
+import { clampBookingWindowEnd, isBookableSlotStart } from '@/lib/rdv-slots'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isMissingWeeklyTable(err: any): boolean {
@@ -25,6 +26,7 @@ function isMissingWeeklyTable(err: any): boolean {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const date = searchParams.get('date') // "2025-03-10"
+  const closerId = searchParams.get('closerId')
 
   if (!date) {
     return NextResponse.json({ error: 'date requis' }, { status: 400 })
@@ -54,7 +56,11 @@ export async function GET(req: NextRequest) {
     .in('user_id', closerIds)
 
   const blockedIds = new Set((blocked || []).map(b => b.user_id))
-  const availableCloserIds = closerIds.filter(id => !blockedIds.has(id))
+  const availableCloserIds = closerIds.filter(id => {
+    if (blockedIds.has(id)) return false
+    if (closerId) return id === closerId
+    return true
+  })
 
   if (availableCloserIds.length === 0) {
     return NextResponse.json([])
@@ -128,11 +134,13 @@ export async function GET(req: NextRequest) {
 
     const slotStart = new Date(date)
     slotStart.setHours(startH, startM, 0, 0)
-    const slotEnd = new Date(date)
-    slotEnd.setHours(endH, endM, 0, 0)
+    const ruleEnd = new Date(date)
+    ruleEnd.setHours(endH, endM, 0, 0)
+    const slotEnd = clampBookingWindowEnd(date, ruleEnd)
 
     const current = new Date(slotStart)
     while (current < slotEnd) {
+      if (!isBookableSlotStart(current)) break
       const slotEndTime = new Date(current)
       slotEndTime.setMinutes(slotEndTime.getMinutes() + 30)
 
@@ -151,7 +159,7 @@ export async function GET(req: NextRequest) {
         new Date(b.end_at) > current
       ).length || 0
 
-      if (bookingCount < 3) {
+      if (bookingCount < (closerId ? 1 : 3)) {
         const key = current.toISOString()
         const existing = slotMap.get(key)
         if (existing) {

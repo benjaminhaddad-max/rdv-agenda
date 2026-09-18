@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format, addDays, startOfToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Clock, ChevronLeft, ChevronRight, CheckCircle, MapPin, Video, Phone, Building2 } from 'lucide-react'
+import { isBookableSlotStart } from '@/lib/rdv-slots'
 
 // ─── Brand ────────────────────────────────────────────────────────────────────
 const NAVY  = '#1d2f4b'
@@ -106,10 +107,10 @@ export default function RdvPublicDashboard({
     setLoadingSlots(true); setSlots([]); setSelectedSlot(null); setSelectedDate(day)
     const base = new Date(day); base.setHours(9, 0, 0, 0)
     const result: Slot[] = []
-    while (base.getHours() < 22) {
+    while (isBookableSlotStart(base)) {
       const start = new Date(base), end = new Date(base)
       end.setMinutes(base.getMinutes() + 30)
-      if (end.getHours() <= 22) result.push({ start: start.toISOString(), end: end.toISOString() })
+      result.push({ start: start.toISOString(), end: end.toISOString() })
       base.setMinutes(base.getMinutes() + 30)
     }
     setSlots(result); setLoadingSlots(false); setStep('slot')

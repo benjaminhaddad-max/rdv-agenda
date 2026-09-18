@@ -48,6 +48,24 @@ const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, i)
 const HOUR_HEIGHT = 54       // hauteur d'une ligne d'heure en vue semaine
 const HOUR_HEIGHT_DAY = 76   // hauteur d'une ligne d'heure en vue jour
 const MOBILE_TIME_COL = 40   // colonne heures en vue semaine mobile (scroll horizontal)
+
+/** Couleurs de FOND post-RDV — le CONTOUR reste toujours la couleur du closer. */
+const POST_RDV_COLORS = {
+  positif: '#166534',       // vert foncé
+  pre_positif: '#86efac',   // vert clair
+  no_show: '#374151',       // gris foncé
+  pending_update: '#dc2626', // rouge — fiche non mise à jour
+} as const
+
+const POST_RDV_LEGEND: { label: string; color: string }[] = [
+  { label: 'Positif', color: POST_RDV_COLORS.positif },
+  { label: 'Pré-positif', color: POST_RDV_COLORS.pre_positif },
+  { label: 'No-show', color: POST_RDV_COLORS.no_show },
+  { label: 'Fiche non màj', color: POST_RDV_COLORS.pending_update },
+]
+
+const POST_RDV_LIGHT_FILL = new Set<string>([POST_RDV_COLORS.pre_positif])
+
 const MOBILE_DAY_COL = 88    // largeur min d'un jour en vue semaine mobile
 const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
 const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
@@ -217,6 +235,12 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const [view, setView] = useState<'day' | 'week' | 'list'>('week')
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
   const [showNewRdvModal, setShowNewRdvModal] = useState(false)
+  // Rafraîchit la couleur « fiche non màj » dès qu’un créneau vient de se terminer
+  const [, setNowTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(t => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   // Sur mobile, la vue semaine est illisible : on démarre en vue liste.
   useEffect(() => {
@@ -305,6 +329,28 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     if (closerId && closerColor && (!teamView || id === closerId)) return closerColor
     const idx = closers.findIndex(c => c.id === id)
     return idx >= 0 ? COLORS[idx % COLORS.length] : '#C9A84C'
+  }
+
+  /** Fond du bloc = statut post-RDV (null = pas encore qualifié → fond blanc). */
+  function getStatusFill(appt: Appointment): string | null {
+    const s = appt.status
+    if (s === 'positif' || s === 'preinscription') return POST_RDV_COLORS.positif
+    if (s === 'pre_positif') return POST_RDV_COLORS.pre_positif
+    if (s === 'no_show') return POST_RDV_COLORS.no_show
+    if (s === 'annule') return 'rgba(107,114,128,0.18)'
+
+    const ended = new Date(appt.end_at).getTime() < Date.now()
+    if (ended && (s === 'confirme' || s === 'confirme_prospect')) {
+      return POST_RDV_COLORS.pending_update
+    }
+    return null
+  }
+
+  function statusFillTextColor(fill: string | null): string {
+    if (!fill) return '#0e1e35'
+    if (POST_RDV_LIGHT_FILL.has(fill)) return '#0e1e35'
+    if (fill.startsWith('rgba')) return '#6b7280'
+    return '#ffffff'
   }
 
   /** Applique le déplacement : calcule le nouveau créneau, met à jour de façon
@@ -411,9 +457,11 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     const isDay = scale === 'day'
     const top = timeToPercent(appt.start_at, day)
     const height = durationToPercent(appt.start_at, appt.end_at, day)
-    const color = getColorForCommercial(appt.users?.id || '')
+    const closerColor = getColorForCommercial(appt.users?.id || '')
+    const statusFill = getStatusFill(appt)
     const isCancelled = appt.status === 'annule'
     const isConfirmed = appt.status === 'confirme_prospect'
+    const textOnFill = statusFillTextColor(statusFill)
     const formation = (appt.formation_type || '').trim()
     const displayName = shortProspectName(appt.prospect_name)
     const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
@@ -469,9 +517,10 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           width: `calc(${widthPct}% - ${lay.cols === 1 ? 6 : gap + 2}px - ${rightReserve}px)`,
           top: `${top}%`,
           height: `${height}%`,
-          background: isCancelled ? 'rgba(107,114,128,0.12)' : '#fff',
-          border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${color}55`}`,
-          borderLeft: `${isDay ? 4 : 3}px solid ${isCancelled ? '#6b7280' : color}`,
+          // Fond = statut post-RDV ; Contour = couleur closer
+          background: statusFill || '#fff',
+          border: `1px solid ${isCancelled ? 'rgba(107,114,128,0.35)' : `${closerColor}55`}`,
+          borderLeft: `${isDay ? 4 : 3}px solid ${isCancelled ? '#6b7280' : closerColor}`,
           borderRadius: 5,
           padding: isDay ? '6px 10px' : (sideBySide ? '2px 4px' : '3px 5px'),
           cursor: isCancelled ? 'pointer' : 'grab',
@@ -517,7 +566,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
         <div style={{
           fontSize: nameSize,
           fontWeight: 700,
-          color: isCancelled ? '#6b7280' : '#0e1e35',
+          color: textOnFill,
           lineHeight: 1.25,
           overflow: 'hidden',
           display: '-webkit-box',
@@ -525,7 +574,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           WebkitBoxOrient: 'vertical',
           paddingRight: isConfirmed ? (isDay ? 20 : 14) : 0,
         }}>
-          <span style={{ color: isCancelled ? '#6b7280' : color, marginRight: 4 }}>
+          <span style={{ color: statusFill ? textOnFill : closerColor, marginRight: 4 }}>
             {format(new Date(appt.start_at), 'HH:mm')}
           </span>
           {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
@@ -536,7 +585,9 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           <div style={{
             fontSize: niveauSize,
             fontWeight: 600,
-            color: isCancelled ? '#9ca3af' : '#64748b',
+            color: statusFill
+              ? (POST_RDV_LIGHT_FILL.has(statusFill) || statusFill.startsWith('rgba') ? '#64748b' : 'rgba(255,255,255,0.85)')
+              : '#64748b',
             lineHeight: 1.25,
             marginTop: 1,
             whiteSpace: 'nowrap',
@@ -980,6 +1031,46 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
       </div>
       )}
 
+      {/* Légende code couleur post-RDV (agenda équipe / admin) */}
+      {(teamView || adminMode) && (
+        <div style={{
+          padding: isMobile ? '6px 12px' : '6px 24px',
+          background: '#ffffff',
+          borderBottom: '1px solid #e5ddc8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: isMobile ? 10 : 16,
+          flexWrap: 'wrap',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>
+            Fond = statut · Contour = closer
+          </span>
+          {POST_RDV_LEGEND.map(item => (
+            <span
+              key={item.label}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 11,
+                color: '#0e1e35',
+                fontWeight: 500,
+              }}
+            >
+              <span style={{
+                width: 10,
+                height: 10,
+                borderRadius: 3,
+                background: item.color,
+                flexShrink: 0,
+              }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       {weekIsDense && view === 'week' && !isMobile && (
         <div style={{
           padding: '8px 24px',
@@ -1317,13 +1408,15 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   key={appt.id}
                   onClick={() => setSelectedAppointment(appt)}
                   style={{
-                    background: '#e5ddc8', border: '1px solid #e5ddc8',
+                    background: getStatusFill(appt) || '#e5ddc8',
+                    border: `1px solid ${getColorForCommercial(appt.users?.id || '')}55`,
+                    borderLeft: `4px solid ${getColorForCommercial(appt.users?.id || '')}`,
                     borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 18px',
                     display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
                     cursor: 'pointer', transition: 'border-color 0.15s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5ddc8')}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = getColorForCommercial(appt.users?.id || ''))}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = `${getColorForCommercial(appt.users?.id || '')}55`)}
                 >
                   {appt.users && (
                     <div style={{
@@ -1340,13 +1433,21 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35' }}>
+                    <div style={{
+                      fontWeight: 700, fontSize: 14,
+                      color: statusFillTextColor(getStatusFill(appt)),
+                    }}>
                       {appt.prospect_name}
                     </div>
-                    <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
+                    <div style={{
+                      fontSize: 12, marginTop: 2,
+                      color: getStatusFill(appt) && !POST_RDV_LIGHT_FILL.has(getStatusFill(appt)!)
+                        ? 'rgba(255,255,255,0.8)'
+                        : '#4a6070',
+                    }}>
                       {format(new Date(appt.start_at), 'EEEE d MMMM · HH:mm', { locale: fr })} – {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.users && <span> · {appt.users.name}</span>}
-                      {appt.formation_type && <span style={{ color: '#C9A84C' }}> · {appt.formation_type}</span>}
+                      {appt.formation_type && <span> · {appt.formation_type}</span>}
                     </div>
                   </div>
 
@@ -1423,20 +1524,29 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                     }}
                     style={{
                       textAlign: 'left',
-                      background: '#f7f4ee',
-                      border: '1px solid #e5ddc8',
+                      background: getStatusFill(appt) || '#f7f4ee',
+                      border: `1px solid ${getColorForCommercial(appt.users?.id || '')}55`,
+                      borderLeft: `4px solid ${getColorForCommercial(appt.users?.id || '')}`,
                       borderRadius: 10,
                       padding: '10px 12px',
                       cursor: 'pointer',
                     }}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#C9A84C' }}>
+                    <div style={{
+                      fontSize: 12, fontWeight: 700,
+                      color: getStatusFill(appt)
+                        ? statusFillTextColor(getStatusFill(appt))
+                        : getColorForCommercial(appt.users?.id || ''),
+                    }}>
                       {format(new Date(appt.start_at), 'HH:mm')}
                       {' – '}
                       {format(new Date(appt.end_at), 'HH:mm')}
                       {appt.meeting_type === 'visio' ? ' · 📹' : appt.meeting_type === 'presentiel' ? ' · 📍' : ''}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', marginTop: 2 }}>
+                    <div style={{
+                      fontSize: 14, fontWeight: 700, marginTop: 2,
+                      color: statusFillTextColor(getStatusFill(appt)),
+                    }}>
                       {shortProspectName(appt.prospect_name)}
                     </div>
                     {(() => {

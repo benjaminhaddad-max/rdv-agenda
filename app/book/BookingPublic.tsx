@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format, addDays, isSameDay, startOfToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Clock, CheckCircle, ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
+import { isBookableSlotStart } from '@/lib/rdv-slots'
 
 type Slot = { start: string; end: string }
 
@@ -54,11 +55,11 @@ export default function BookingPublic() {
     const base = new Date(selectedDate)
     base.setHours(9, 0, 0, 0)
     const daySlots: Slot[] = []
-    while (base.getHours() < 22) {
+    while (isBookableSlotStart(base)) {
       const start = new Date(base)
       const end = new Date(base)
       end.setMinutes(base.getMinutes() + 30)
-      if (end.getHours() <= 22) daySlots.push({ start: start.toISOString(), end: end.toISOString() })
+      daySlots.push({ start: start.toISOString(), end: end.toISOString() })
       base.setMinutes(base.getMinutes() + 30)
     }
     setSlots(daySlots)

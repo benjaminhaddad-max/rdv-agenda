@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { weekStartISO } from '@/lib/week'
+import { clampBookingWindowEnd, isBookableSlotStart } from '@/lib/rdv-slots'
 
 /**
  * /api/availability — disponibilites des closers PAR SEMAINE.
@@ -106,9 +107,11 @@ function buildSlotsFromRules(
     const [sH, sM] = (rule.start_time as string).split(':').map(Number)
     const [eH, eM] = (rule.end_time as string).split(':').map(Number)
     const slotStart = new Date(date); slotStart.setHours(sH, sM, 0, 0)
-    const slotEnd = new Date(date);   slotEnd.setHours(eH, eM, 0, 0)
+    const ruleEnd = new Date(date);   ruleEnd.setHours(eH, eM, 0, 0)
+    const slotEnd = clampBookingWindowEnd(date, ruleEnd)
     const current = new Date(slotStart)
     while (current < slotEnd) {
+      if (!isBookableSlotStart(current)) break
       const slotEndTime = new Date(current); slotEndTime.setMinutes(slotEndTime.getMinutes() + 30)
       if (slotEndTime > slotEnd) break
       const bookingCount = booked?.filter(b => {
