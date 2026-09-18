@@ -24,6 +24,10 @@ import {
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
 import { eventHasComms, type EventBrand } from '@/lib/events-studio/config'
 import { brandSender, buildEmailHtmlPreview } from '@/lib/events-studio/email-html-preview'
+import {
+  timeslotMergeFieldsForRegistrations,
+  type TimeslotMergeFields,
+} from '@/lib/event-timeslot-survey'
 import { sendSms } from '@/lib/smsfactor'
 import { logger } from '@/lib/logger'
 
@@ -53,6 +57,35 @@ type RegRow = {
   first_name: string | null
   last_name: string | null
   qr_code: string | null
+  hubspot_contact_id: string | null
+}
+
+/**
+ * Remplace {prenom} et, quand l'événement a un sondage créneaux, les champs
+ * {creneau}, {creneau_debut}, {creneau_fin} et {creneau_phrase}.
+ */
+export function renderCommsText(
+  template: string,
+  prenom: string,
+  fields: TimeslotMergeFields | undefined,
+  channel: 'email' | 'sms',
+): string {
+  let out = template.replace(/\{prenom\}/gi, prenom)
+  if (fields) {
+    out = out
+      .replace(/\{creneau_phrase\}/gi, channel === 'sms' ? fields.phraseSms : fields.phraseEmail)
+      .replace(/\{creneau_debut\}/gi, fields.creneau_debut)
+      .replace(/\{creneau_fin\}/gi, fields.creneau_fin)
+      .replace(/\{creneau\}/gi, fields.creneau)
+  } else {
+    out = out.replace(/\{creneau[a-z_]*\}/gi, '')
+  }
+  // Un placeholder vide laisse des espaces doubles. On ne touche pas aux
+  // espaces avant « ! ? ; : », obligatoires en typographie française.
+  return out
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,])/g, '$1')
+    .trim()
 }
 
 /** « jakib » → « Jakib » : les prénoms saisis en minuscules sont fréquents. */
@@ -314,13 +347,6 @@ async function sendStepToRegistrations(params: {
     if (em && emailIds.has(r.id)) emailsSent.add(em)
   }
 
-  // Créneau choisi par chaque inscrit : résolu une seule fois, et seulement si
-  // un des deux textes s'en sert.
-  const usesCreneau = /\{creneau/i.test(`${smsTemplate} ${customBody}`)
-  const creneauByReg = usesCreneau
-    ? await timeslotMergeFieldsForRegistrations(eventId, regs)
-    : new Map<string, TimeslotMergeFields>()
-
   const result: SendConfirmationsResult = {
     success: true,
     total: regs.length,
@@ -384,10 +410,7 @@ async function sendStepToRegistrations(params: {
 
           if (needEmail) {
             try {
-              const body = usesCreneau
-                ? renderCommsText(customBody, prenom, creneauByReg.get(reg.id), 'email')
-                : customBody
-              const html = buildEmailHtmlPreview(previewEv, stepId, body, {
+              const html = buildEmailHtmlPreview(previewEv, stepId, customBody, {
                 prenom,
                 participantName,
                 qrCode: reg.qr_code,
@@ -427,7 +450,7 @@ async function sendStepToRegistrations(params: {
 
         if (needSms) {
           try {
-            const text = renderCommsText(smsTemplate, prenom, creneauByReg.get(reg.id), 'sms')
+            const text = smsTemplate.replace(/\{prenom\}/gi, prenom)
             const smsRes = await sendSms(phone, text, {
               sender: smsSender,
               pushtype: 'alert',
