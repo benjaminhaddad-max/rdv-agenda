@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase'
 import {
   ensureTimeslotSurveyForm,
   getTimeslotDrip,
+  getTimeslotJourJ,
   getTimeslotSurveyCampaignId,
   getTimeslotSurveyCapacities,
   getTimeslotSurveyCopy,
@@ -15,6 +16,7 @@ import {
   rememberTimeslotSurveyForEvent,
   resolveTimeslotSurveyAudience,
   saveTimeslotDrip,
+  saveTimeslotJourJ,
   saveTimeslotSurveySettings,
   timeslotSurveyPublicUrl,
 } from '@/lib/event-timeslot-survey'
@@ -57,7 +59,7 @@ async function payloadForEvent(id: string) {
   const eventsDb = createEventsClient()
   const { data: event, error } = await eventsDb
     .from('events')
-    .select('id, name, event_date')
+    .select('id, name, event_date, custom_sms, custom_emails')
     .eq('id', id)
     .maybeSingle()
   if (error || !event) return { error: 'Événement introuvable' as const, status: 404 as const }
@@ -68,13 +70,17 @@ async function payloadForEvent(id: string) {
 
   const form = await ensureTimeslotSurveyForm()
   await rememberTimeslotSurveyForEvent(id, form)
-  const [stats, copy, capacities, campaignId, drip] = await Promise.all([
+  const [stats, copy, capacities, campaignId, drip, jourJ] = await Promise.all([
     getTimeslotSurveyStats(form.id),
     getTimeslotSurveyCopy(),
     getTimeslotSurveyCapacities(),
     getTimeslotSurveyCampaignId(),
     getTimeslotDrip(),
+    getTimeslotJourJ(),
   ])
+  const customSms = (event.custom_sms || {}) as Record<string, string>
+  const customEmails = (event.custom_emails || {}) as Record<string, { subject?: string; body?: string }>
+  const jourJEmail = customEmails['j-0-matin'] || {}
 
   return {
     body: {
@@ -90,6 +96,10 @@ async function payloadForEvent(id: string) {
       drip,
       drip_sent: await dripSentCount(drip?.campaignId),
       drip_variant: isSalonDay() ? 'aujourdhui' : 'demain',
+      jour_j: jourJ,
+      jour_j_sms_template: customSms['j-0-matin'] || '',
+      jour_j_email_subject: jourJEmail.subject || '',
+      jour_j_email_body: jourJEmail.body || '',
     },
   }
 }
@@ -145,6 +155,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     copy: body.copy,
     capacities: body.capacities,
   })
+  if (body.jourJ && typeof body.jourJ === 'object') {
+    await saveTimeslotJourJ({
+      smsAvecCreneau: typeof body.jourJ.smsAvecCreneau === 'string' ? body.jourJ.smsAvecCreneau : undefined,
+      smsSansCreneau: typeof body.jourJ.smsSansCreneau === 'string' ? body.jourJ.smsSansCreneau : undefined,
+      emailAvecCreneau:
+        typeof body.jourJ.emailAvecCreneau === 'string' ? body.jourJ.emailAvecCreneau : undefined,
+      emailSansCreneau:
+        typeof body.jourJ.emailSansCreneau === 'string' ? body.jourJ.emailSansCreneau : undefined,
+    })
+  }
   if (body.drip && typeof body.drip === 'object') {
     await saveTimeslotDrip({
       enabled: typeof body.drip.enabled === 'boolean' ? body.drip.enabled : undefined,

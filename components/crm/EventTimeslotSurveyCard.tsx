@@ -64,6 +64,37 @@ type Payload = {
   drip?: (DripState & { cutoffAt?: string }) | null
   drip_sent?: number
   drip_variant?: 'demain' | 'aujourdhui'
+  jour_j?: JourJState | null
+  jour_j_sms_template?: string
+  jour_j_email_subject?: string
+  jour_j_email_body?: string
+}
+
+type JourJState = {
+  smsAvecCreneau: string
+  smsSansCreneau: string
+  emailAvecCreneau: string
+  emailSansCreneau: string
+}
+
+const DEFAULT_JOUR_J: JourJState = {
+  smsAvecCreneau: 'Vous êtes attendu(e) entre {creneau_debut} et {creneau_fin}.',
+  smsSansCreneau: 'Le salon est ouvert de 10h à 18h.',
+  emailAvecCreneau:
+    'Vous avez choisi le créneau {creneau_debut} – {creneau_fin} : vous pouvez arriver à partir de {creneau_debut}.',
+  emailSansCreneau: 'Vous pouvez arriver à partir de 10h, le salon reste ouvert jusqu’à 18h.',
+}
+
+/** Rend un texte jour J comme le fera le cron, pour un exemple 14h – 16h. */
+function previewJourJ(template: string, phrase: string, withSlot: boolean) {
+  const filled = withSlot
+    ? phrase.replaceAll('{creneau_debut}', '14h').replaceAll('{creneau_fin}', '16h').replaceAll('{creneau}', '14h – 16h')
+    : phrase
+  return template
+    .replaceAll('{prenom}', 'Aaron')
+    .replaceAll('{creneau_phrase}', filled)
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
 }
 
 const DEFAULT_DRIP: DripState = {
@@ -127,6 +158,7 @@ export default function EventTimeslotSurveyCard({
   const [sendResult, setSendResult] = useState<SendResult | null>(null)
   const [dirty, setDirty] = useState(false)
   const [drip, setDrip] = useState<DripState>(DEFAULT_DRIP)
+  const [jourJ, setJourJ] = useState<JourJState>(DEFAULT_JOUR_J)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/events-studio/events/${eventId}/timeslot-survey`, { credentials: 'include' })
@@ -134,6 +166,7 @@ export default function EventTimeslotSurveyCard({
     if (!res.ok) throw new Error(json.error || 'Erreur')
     setData(json)
     if (json.copy) setCopy(json.copy)
+    if (json.jour_j) setJourJ({ ...DEFAULT_JOUR_J, ...json.jour_j })
     if (json.drip) {
       setDrip({
         enabled: !!json.drip.enabled,
@@ -222,7 +255,7 @@ export default function EventTimeslotSurveyCard({
         method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ copy, capacities: capacitiesPayload, drip: dripPayload }),
+        body: JSON.stringify({ copy, capacities: capacitiesPayload, drip: dripPayload, jourJ }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Erreur')
@@ -729,6 +762,93 @@ export default function EventTimeslotSurveyCard({
             {drip.enabled ? 'Mettre en pause' : 'Réactiver l’envoi auto'}
           </CrmV2Button>
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 14,
+          borderRadius: crmV2.radius,
+          border: `1px solid ${crmV2.border}`,
+          background: crmV2.bg,
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Rappel du jour J (8h) — personnalisé par créneau</div>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: crmV2.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
+          Le SMS et l’email de 8h partent à tous les inscrits. La phrase <code>{'{creneau_phrase}'}</code> change selon que
+          la personne a choisi son créneau ou non.{' '}
+          {data?.stats && audience
+            ? `Aujourd’hui : ${uniqueContacts} avec créneau, ${Math.max(0, audience.registrations - uniqueContacts)} sans.`
+            : null}
+        </p>
+
+        <div className="event-timeslot-sms-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>SMS</div>
+            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+              Si créneau choisi
+            </label>
+            <input
+              style={{ ...field, marginBottom: 8 }}
+              value={jourJ.smsAvecCreneau}
+              onChange={(e) => setJourJ((p) => ({ ...p, smsAvecCreneau: e.target.value }))}
+            />
+            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Sans créneau</label>
+            <input
+              style={{ ...field, marginBottom: 8 }}
+              value={jourJ.smsSansCreneau}
+              onChange={(e) => setJourJ((p) => ({ ...p, smsSansCreneau: e.target.value }))}
+            />
+            {data?.jour_j_sms_template ? (
+              <div style={{ fontSize: 11.5, color: crmV2.textMuted, lineHeight: 1.45 }}>
+                <div style={{ marginBottom: 4 }}>
+                  <strong>Aperçu avec créneau :</strong> {previewJourJ(data.jour_j_sms_template, jourJ.smsAvecCreneau, true)}
+                </div>
+                <div>
+                  <strong>Aperçu sans :</strong> {previewJourJ(data.jour_j_sms_template, jourJ.smsSansCreneau, false)}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Email</div>
+            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+              Si créneau choisi
+            </label>
+            <input
+              style={{ ...field, marginBottom: 8 }}
+              value={jourJ.emailAvecCreneau}
+              onChange={(e) => setJourJ((p) => ({ ...p, emailAvecCreneau: e.target.value }))}
+            />
+            <label style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>Sans créneau</label>
+            <input
+              style={{ ...field, marginBottom: 8 }}
+              value={jourJ.emailSansCreneau}
+              onChange={(e) => setJourJ((p) => ({ ...p, emailSansCreneau: e.target.value }))}
+            />
+            {data?.jour_j_email_body ? (
+              <div style={{ fontSize: 11.5, color: crmV2.textMuted, lineHeight: 1.45 }}>
+                <div style={{ marginBottom: 4 }}>
+                  <strong>Objet :</strong> {data.jour_j_email_subject}
+                </div>
+                <div>
+                  <strong>Aperçu avec créneau :</strong>{' '}
+                  {previewJourJ(data.jour_j_email_body, jourJ.emailAvecCreneau, true)}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          <CrmV2Button variant="gold" disabled={busy} onClick={() => void save()}>
+            <Save size={14} /> Enregistrer les phrases du jour J
+          </CrmV2Button>
+        </div>
+        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: crmV2.textMuted }}>
+          Le texte complet du SMS et de l’email se modifie dans les communications de l’événement (étape « Jour J »).
+          Variables : <code>{'{creneau_debut}'}</code>, <code>{'{creneau_fin}'}</code>, <code>{'{creneau}'}</code>.
+        </p>
       </div>
       <style>{`
         @media (max-width: 860px) {
