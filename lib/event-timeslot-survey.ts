@@ -872,6 +872,51 @@ export async function resolveTimeslotDripTargets(input: {
   return out
 }
 
+/**
+ * Verrou applicatif entre deux passages d'un même cron. Vercel relance la
+ * fonction chaque minute sans attendre la fin de la précédente : sans verrou,
+ * deux passages calculent la même cible et envoient deux fois (relance du
+ * 18/09 : 349 doublons). Le bail expire tout seul si la fonction est coupée.
+ */
+export async function acquireTimeslotLock(name: string, ttlMs: number): Promise<boolean> {
+  const db = createServiceClient()
+  const key = `event_timeslot_lock_${name}`
+  const now = Date.now()
+  const { data } = await db.from('crm_settings').select('value').eq('key', key).maybeSingle()
+  const current = (data?.value || {}) as { until?: number }
+  if (Number(current.until || 0) > now) return false
+
+  const token = randomUUID()
+  const { error } = await db.from('crm_settings').upsert(
+    {
+      key,
+      value: { until: now + ttlMs, token },
+      description: 'Verrou cron sondage créneaux',
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'key' },
+  )
+  if (error) return false
+
+  // Deux passages ont pu écrire quasi simultanément : seul celui dont le jeton
+  // est resté en base continue, l'autre s'efface.
+  const { data: check } = await db.from('crm_settings').select('value').eq('key', key).maybeSingle()
+  return ((check?.value || {}) as { token?: string }).token === token
+}
+
+export async function releaseTimeslotLock(name: string): Promise<void> {
+  const db = createServiceClient()
+  await db.from('crm_settings').upsert(
+    {
+      key: `event_timeslot_lock_${name}`,
+      value: { until: 0 },
+      description: 'Verrou cron sondage créneaux',
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'key' },
+  )
+}
+
 export const DEFAULT_TIMESLOT_JOUR_J: TimeslotJourJ = {
   smsAvecCreneau: 'Vous êtes attendu(e) entre {creneau_debut} et {creneau_fin}.',
   smsSansCreneau: 'Le salon est ouvert de 10h à 18h.',

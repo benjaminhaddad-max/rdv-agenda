@@ -22,8 +22,10 @@ import { logger } from '@/lib/logger'
 import { resolveTrackedLinkDestination } from '@/lib/hermione-orientation-link'
 import { detectUrls, replaceUrlsWithShortPlaceholder, sendSms } from '@/lib/smsfactor'
 import {
+  acquireTimeslotLock,
   ensureTimeslotSurveyForm,
   getTimeslotRelance,
+  releaseTimeslotLock,
   getTimeslotSurveyCampaignId,
   resolveTimeslotRelanceTargets,
   saveTimeslotRelance,
@@ -50,10 +52,25 @@ function baseUrl(req: NextRequest): string {
   return host ? `${req.headers.get('x-forwarded-proto') ?? 'https'}://${host}` : 'http://localhost:3000'
 }
 
+const LOCK = 'relance'
+
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
 
+  // Un seul passage à la fois : sans ce verrou, deux passages parallèles ont
+  // envoyé 349 doublons le 18/09.
+  if (!(await acquireTimeslotLock(LOCK, 4 * 60_000))) {
+    return NextResponse.json({ ok: true, skipped: 'passage précédent encore en cours' })
+  }
+  try {
+    return await run(req)
+  } finally {
+    await releaseTimeslotLock(LOCK)
+  }
+}
+
+async function run(req: NextRequest) {
   const relance = await getTimeslotRelance()
   if (!relance) return NextResponse.json({ ok: true, skipped: 'aucune relance programmée' })
   if (relance.status === 'sent' || relance.status === 'cancelled') {

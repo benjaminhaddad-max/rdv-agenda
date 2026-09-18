@@ -19,14 +19,17 @@ import { resolveTrackedLinkDestination } from '@/lib/hermione-orientation-link'
 import { detectUrls, replaceUrlsWithShortPlaceholder, sendSms } from '@/lib/smsfactor'
 import {
   SALON_MEDECINE_2026_DATE,
+  acquireTimeslotLock,
   ensureTimeslotSurveyForm,
   getTimeslotDrip,
   getTimeslotRelance,
   getTimeslotSurveyCampaignId,
   isSalonDay,
+  releaseTimeslotLock,
   resolveTimeslotDripTargets,
   saveTimeslotDrip,
   timeslotSurveyPublicUrl,
+  type TimeslotDrip,
 } from '@/lib/event-timeslot-survey'
 
 export const maxDuration = 300
@@ -55,6 +58,8 @@ function capitalize(value: string): string {
   return clean.charAt(0).toUpperCase() + clean.slice(1)
 }
 
+const LOCK = 'nouveaux'
+
 export async function GET(req: NextRequest) {
   const cronAuth = requireCronSecret(req)
   if (!cronAuth.ok) return cronAuth.response
@@ -63,6 +68,19 @@ export async function GET(req: NextRequest) {
   if (!drip || !drip.enabled) {
     return NextResponse.json({ ok: true, skipped: 'envoi auto désactivé' })
   }
+
+  // Un seul passage à la fois : le précédent peut encore être en train d'envoyer.
+  if (!(await acquireTimeslotLock(LOCK, 4 * 60_000))) {
+    return NextResponse.json({ ok: true, skipped: 'passage précédent encore en cours' })
+  }
+  try {
+    return await run(req, drip)
+  } finally {
+    await releaseTimeslotLock(LOCK)
+  }
+}
+
+async function run(req: NextRequest, drip: TimeslotDrip) {
 
   // Passé le jour du salon, plus rien ne part : les deux textes ne veulent
   // alors plus rien dire.
@@ -128,6 +146,14 @@ export async function GET(req: NextRequest) {
     const rendered = template.replace(/\{(\w+)\}/g, (m, key) =>
       key === 'prenom' || key === 'firstname' ? firstname : m,
     )
+
+    // Ceinture et bretelles : si un autre passage l'a déjà enregistré, on saute.
+    const { count: dejaLa } = await db
+      .from('sms_campaign_recipients')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('phone', target.phone)
+    if ((dejaLa ?? 0) > 0) continue
 
     const { data: recipient, error: recErr } = await db
       .from('sms_campaign_recipients')
