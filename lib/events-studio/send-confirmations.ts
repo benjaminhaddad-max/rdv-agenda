@@ -238,7 +238,8 @@ async function tryClaimPlatformSent(
     const key = platformRedisKey(eventId, stepId, channel)
     const added = await redis.sadd(key, registrationId)
     await redis.expire(key, 180 * 24 * 60 * 60)
-    if (added === 0 || added === false) return 'exists'
+    // sadd renvoie 1 si le membre est nouveau, 0 s'il était déjà là.
+    if (!added) return 'exists'
     return 'claimed'
   } catch (e) {
     logger.error('tryClaimPlatformSent redis', e, { eventId, stepId, channel })
