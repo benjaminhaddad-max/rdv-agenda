@@ -19,6 +19,7 @@
     { "path": "/api/cron/workflow-engine",            "schedule": "* * * * *" },
     { "path": "/api/cron/form-webhook-retries",       "schedule": "* * * * *" },
     { "path": "/api/cron/sms-campaigns-scheduled",    "schedule": "* * * * *" },
+    { "path": "/api/cron/timeslot-survey-relance",    "schedule": "* * * * *" },
     { "path": "/api/cron/email-programs-process",     "schedule": "*/15 * * * *" }
   ]
 }

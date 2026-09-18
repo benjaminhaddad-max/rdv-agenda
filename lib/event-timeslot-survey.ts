@@ -41,6 +41,23 @@ type SettingsStore = {
   copy?: TimeslotSurveyCopy
   capacities?: TimeslotCapacities
   campaignId?: string
+  relance?: TimeslotRelance
+}
+
+/**
+ * Relance des non-répondants. L'audience n'est PAS figée ici : elle est
+ * recalculée à chaque passage du cron, pour ne jamais relancer quelqu'un qui a
+ * répondu entre la programmation et l'envoi.
+ */
+export type TimeslotRelance = {
+  /** ISO. Aucun envoi avant cette date. */
+  scheduledAt: string
+  sms: string
+  /** Campagne SMS créée au premier lot, pour le suivi et les stats. */
+  campaignId?: string
+  status: 'scheduled' | 'sending' | 'sent' | 'cancelled'
+  startedAt?: string
+  finishedAt?: string
 }
 
 /**
@@ -235,6 +252,7 @@ async function readStore(
     copy: raw.copy && typeof raw.copy === 'object' ? normalizeTimeslotCopy(raw.copy) : DEFAULT_TIMESLOT_COPY,
     capacities: normalizeTimeslotCapacities(raw.capacities),
     campaignId: typeof raw.campaignId === 'string' ? raw.campaignId : undefined,
+    relance: raw.relance && typeof raw.relance === 'object' ? (raw.relance as TimeslotRelance) : undefined,
   }
 }
 
@@ -568,6 +586,111 @@ export async function resolveTimeslotSurveyAudience(): Promise<TimeslotSurveyAud
     no_phone: noPhone,
     contact_ids: [...ready],
   }
+}
+
+export const TIMESLOT_RELANCE_SMS_TEMPLATE =
+  "{prenom}, dernière chance ! Choisissez votre créneau pour le salon de demain, sinon l'entrée vous sera refusée. Confirmez vite votre présence : {lien1}"
+
+export async function getTimeslotRelance(): Promise<TimeslotRelance | null> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  return store.relance || null
+}
+
+export async function saveTimeslotRelance(patch: Partial<TimeslotRelance>): Promise<TimeslotRelance> {
+  const db = createServiceClient()
+  const store = await readStore(db)
+  const next: TimeslotRelance = {
+    scheduledAt: patch.scheduledAt ?? store.relance?.scheduledAt ?? new Date().toISOString(),
+    sms: (patch.sms ?? store.relance?.sms ?? TIMESLOT_RELANCE_SMS_TEMPLATE).trim(),
+    campaignId: patch.campaignId ?? store.relance?.campaignId,
+    status: patch.status ?? store.relance?.status ?? 'scheduled',
+    startedAt: patch.startedAt ?? store.relance?.startedAt,
+    finishedAt: patch.finishedAt ?? store.relance?.finishedAt,
+  }
+  store.relance = next
+  await writeStore(db, store)
+  return next
+}
+
+/** hubspot_contact_id de tous ceux qui ont déjà répondu au sondage. */
+export async function listTimeslotResponders(formId: string): Promise<Set<string>> {
+  const db = createServiceClient()
+  const out = new Set<string>()
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('form_submissions')
+      .select('data')
+      .eq('form_id', formId)
+      .neq('status', 'spam')
+      .range(from, from + 999)
+    if (error) break
+    for (const row of data || []) {
+      const payload = (row.data || {}) as Record<string, unknown>
+      if (!String(payload[TIMESLOT_FIELD_KEY] || '').trim()) continue
+      const cid = String(payload._contact_id || '').trim()
+      if (cid) out.add(cid)
+    }
+    if (!data || data.length < 1000) break
+  }
+  return out
+}
+
+export type RelanceTarget = { contactId: string; phone: string; firstname: string | null }
+
+/**
+ * Cible de la relance, recalculée à chaud : a bien reçu le premier SMS, n'a pas
+ * encore choisi son créneau, et n'a pas déjà été relancé.
+ */
+export async function resolveTimeslotRelanceTargets(input: {
+  originCampaignId: string
+  relanceCampaignId?: string | null
+  formId: string
+}): Promise<RelanceTarget[]> {
+  const db = createServiceClient()
+
+  const received = new Map<string, { phone: string; firstname: string | null }>()
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('sms_campaign_recipients')
+      .select('hubspot_contact_id, phone, firstname, status')
+      .eq('campaign_id', input.originCampaignId)
+      .eq('status', 'sent')
+      .range(from, from + 999)
+    if (error) break
+    for (const row of data || []) {
+      const cid = String(row.hubspot_contact_id || '').trim()
+      if (cid && row.phone) received.set(cid, { phone: String(row.phone), firstname: row.firstname ?? null })
+    }
+    if (!data || data.length < 1000) break
+  }
+
+  const responders = await listTimeslotResponders(input.formId)
+
+  const alreadyRelanced = new Set<string>()
+  if (input.relanceCampaignId) {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db
+        .from('sms_campaign_recipients')
+        .select('hubspot_contact_id')
+        .eq('campaign_id', input.relanceCampaignId)
+        .range(from, from + 999)
+      if (error) break
+      for (const row of data || []) {
+        const cid = String(row.hubspot_contact_id || '').trim()
+        if (cid) alreadyRelanced.add(cid)
+      }
+      if (!data || data.length < 1000) break
+    }
+  }
+
+  const out: RelanceTarget[] = []
+  for (const [contactId, info] of received) {
+    if (responders.has(contactId)) continue
+    if (alreadyRelanced.has(contactId)) continue
+    out.push({ contactId, phone: info.phone, firstname: info.firstname })
+  }
+  return out
 }
 
 export async function listTimeslotSurveyFeedback(eventId: string): Promise<TimeslotSurveyFeedback[]> {
