@@ -348,6 +348,16 @@ async function sendStepToRegistrations(params: {
     if (em && emailIds.has(r.id)) emailsSent.add(em)
   }
 
+  // Créneau choisi par chaque inscrit : résolu une seule fois, et seulement si
+  // un des deux textes s'en sert.
+  const usesCreneau = /\{creneau/i.test(`${smsTemplate} ${customBody}`)
+  const creneauByReg = usesCreneau
+    ? await timeslotMergeFieldsForRegistrations(eventId, regs)
+    : new Map<string, TimeslotMergeFields>()
+  // Jour J : les inscrits sans créneau reçoivent à la place le SMS « choisissez
+  // votre créneau » (campagne dédiée), pas le rappel générique.
+  const skipSmsSansCreneau = usesCreneau && stepId === 'j-0-matin'
+
   const result: SendConfirmationsResult = {
     success: true,
     total: regs.length,
@@ -376,7 +386,13 @@ async function sendStepToRegistrations(params: {
           sendEmailChannel &&
           !!email &&
           (forceThis || (!emailIds.has(reg.id) && !emailsSent.has(email)))
-        const needSms = sendSmsChannel && !!phone && !smsIds.has(reg.id)
+        const creneauFields = creneauByReg.get(reg.id)
+        const sansCreneau = !creneauFields || !creneauFields.creneau
+        const needSms =
+          sendSmsChannel &&
+          !!phone &&
+          !smsIds.has(reg.id) &&
+          !(skipSmsSansCreneau && sansCreneau)
 
         // Réserve l'adresse tout de suite (avant le premier await) pour ne pas
         // envoyer 2 fois le même mail si deux inscriptions partagent l'email.
@@ -411,7 +427,10 @@ async function sendStepToRegistrations(params: {
 
           if (needEmail) {
             try {
-              const html = buildEmailHtmlPreview(previewEv, stepId, customBody, {
+              const body = usesCreneau
+                ? renderCommsText(customBody, prenom, creneauFields, 'email')
+                : customBody
+              const html = buildEmailHtmlPreview(previewEv, stepId, body, {
                 prenom,
                 participantName,
                 qrCode: reg.qr_code,
@@ -451,7 +470,7 @@ async function sendStepToRegistrations(params: {
 
         if (needSms) {
           try {
-            const text = smsTemplate.replace(/\{prenom\}/gi, prenom)
+            const text = renderCommsText(smsTemplate, prenom, creneauFields, 'sms')
             const smsRes = await sendSms(phone, text, {
               sender: smsSender,
               pushtype: 'alert',
