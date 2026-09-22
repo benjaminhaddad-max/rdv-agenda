@@ -13,6 +13,7 @@ import {
   SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
+import AircallRecordingPlayer, { stripAircallRecordingLinks } from '@/components/crm/AircallRecordingPlayer'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 import { telHref } from '@/lib/phone-e164'
@@ -736,7 +737,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     sendStatus?: string
     sms?: SMSMessage
     emailCampaign?: EmailCampaign
-    recordingUrl?: string
+    aircallCallId?: number
+    isVoicemail?: boolean
     // Renseigné pour les activités natives (crm_activities) → édition/suppression
     activityId?: string
     editable?: boolean
@@ -753,7 +755,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     const isNativeEditable = ['note', 'call', 'email', 'meeting'].includes(type) && !a.hubspot_engagement_id
     const dir = String(a.direction || '').toUpperCase()
     const dirLabel = dir === 'INCOMING' ? 'Entrant' : dir === 'OUTGOING' ? 'Sortant' : a.direction
-    const recordingUrl = typeof a.metadata?.recording === 'string' ? a.metadata.recording : undefined
+    const aircallCallId = aircallCallIdFromActivity(a)
+    const isVoicemail = String(a.status || '').toUpperCase() === 'LEFT_VOICEMAIL'
     timeline.push({
       id: `act-${a.id}`,
       type,
@@ -770,7 +773,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       sendStatus: type === 'email' ? a.status : undefined,
       activityId: String(a.id),
       editable: isNativeEditable,
-      recordingUrl,
+      aircallCallId: aircallCallId && activityHasAircallAudio(a) ? aircallCallId : undefined,
+      isVoicemail,
     })
   }
   for (const f of formSubmissions) {
@@ -1131,7 +1135,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                     <div key={month} className="mb-6">
                       <div className="text-[11px] font-bold uppercase tracking-widest text-[#a89e8a] mb-3 -ml-8 pl-8 sticky top-0 bg-white py-1">{month}</div>
                       <ul className="space-y-3">
-                        {items.map(t => (
+                        {items.map(t => {
+                          const callBody = t.body ? stripAircallRecordingLinks(t.body) : ''
+                          return (
                           <li key={t.id} className="relative">
                             <div className="absolute -left-[22px] top-3">
                               <TypeDot type={t.type} />
@@ -1214,21 +1220,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                     </button>
                                   </div>
                                 </div>
-                              ) : t.body && (
+                              ) : callBody && (
                                 <div
                                   className="text-sm text-slate-700 mt-2 whitespace-pre-wrap bg-[#f7f4ee] p-2 rounded"
-                                  dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
+                                  dangerouslySetInnerHTML={{ __html: sanitize(callBody) }}
                                 />
                               )}
-                              {t.recordingUrl && (
-                                <a
-                                  href={t.recordingUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs font-medium text-[#C9A84C] hover:underline mt-2"
-                                >
-                                  Écouter l'enregistrement
-                                </a>
+                              {t.aircallCallId && (
+                                <AircallRecordingPlayer
+                                  callId={t.aircallCallId}
+                                  isVoicemail={t.isVoicemail}
+                                />
                               )}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
@@ -1248,7 +1250,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                               )}
                             </div>
                           </li>
-                        ))}
+                          )
+                        })}
                       </ul>
                     </div>
                   ))}
@@ -3070,6 +3073,22 @@ function sanitize(html: string) {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+="[^"]*"/gi, '')
     .replace(/javascript:/gi, '')
+}
+
+function aircallCallIdFromActivity(a: Activity): number | undefined {
+  const meta = Number(a.metadata?.aircall_call_id)
+  if (Number.isInteger(meta) && meta > 0) return meta
+  const eng = String(a.hubspot_engagement_id || '')
+  const m = /^aircall_(\d+)$/.exec(eng)
+  if (!m) return undefined
+  const id = Number(m[1])
+  return Number.isInteger(id) && id > 0 ? id : undefined
+}
+
+function activityHasAircallAudio(a: Activity): boolean {
+  if (a.metadata?.recording || a.metadata?.voicemail) return true
+  const status = String(a.status || '').toUpperCase()
+  return status === 'COMPLETED' || status === 'LEFT_VOICEMAIL'
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -317,3 +317,97 @@ export async function listAircallCalls(opts: {
     page,
   }
 }
+
+export type AircallCallMedia = {
+  id: number
+  recording?: string | null
+  recording_short_url?: string | null
+  voicemail?: string | null
+  voicemail_short_url?: string | null
+  asset?: string | null
+  duration?: number | null
+}
+
+/**
+ * URLs dashboard / pages `assets.aircall.io` : il faut un compte Aircall admin.
+ * On ne les sert jamais au navigateur — uniquement les MP3 signés.
+ */
+function isLikelyDirectAudioUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'https:') return false
+    const host = u.hostname.toLowerCase()
+    if (host === 'dashboard.aircall.io' || host === 'www.aircall.io' || host === 'aircall.io') {
+      return false
+    }
+    if (host === 'assets.aircall.io' && u.search.length < 8) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+function firstDirectAudioUrl(urls: Array<string | null | undefined>): string | null {
+  for (const raw of urls) {
+    if (typeof raw === 'string' && isLikelyDirectAudioUrl(raw)) return raw
+  }
+  return null
+}
+
+export async function getAircallCall(
+  callId: number,
+): Promise<{ ok: true; call: AircallCallMedia } | { ok: false; status: number; error: string }> {
+  const r = await aircallFetch<{ call?: AircallCallMedia }>(
+    'GET',
+    `/calls/${callId}?fetch_short_urls=true`,
+  )
+  if (!r.ok) return { ok: false, status: r.status, error: r.error }
+  const call = r.data?.call
+  if (!call?.id) return { ok: false, status: 404, error: 'call missing in response' }
+  return { ok: true, call }
+}
+
+export function pickAircallAudioUrl(
+  call: AircallCallMedia,
+  preferVoicemail = false,
+): string | null {
+  const recording = [call.recording, call.recording_short_url]
+  const voicemail = [call.voicemail, call.voicemail_short_url]
+  const ordered = preferVoicemail ? [...voicemail, ...recording] : [...recording, ...voicemail]
+  return firstDirectAudioUrl(ordered)
+}
+
+function isAllowedRecordingHost(hostname: string): boolean {
+  const h = hostname.toLowerCase()
+  if (h === 'aircall.io' || h === 'amazonaws.com' || h === 'cloudfront.net') return true
+  return (
+    h.endsWith('.aircall.io') ||
+    h.endsWith('.amazonaws.com') ||
+    h.endsWith('.cloudfront.net')
+  )
+}
+
+/**
+ * Télécharge le MP3 signé Aircall (expire en ~10 min).
+ * N'envoie le Basic Auth Aircall que vers *.aircall.io.
+ */
+export async function fetchAircallAudioFile(
+  url: string,
+  opts?: { range?: string | null },
+): Promise<Response> {
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'https:' || !isAllowedRecordingHost(parsed.hostname)) {
+    throw new Error('recording host not allowed')
+  }
+
+  const headers: Record<string, string> = { Accept: 'audio/*,*/*;q=0.8' }
+  if (opts?.range) headers.Range = opts.range
+
+  const host = parsed.hostname.toLowerCase()
+  const aircallHost = host === 'aircall.io' || host.endsWith('.aircall.io')
+  const res = await fetch(url, {
+    headers: aircallHost ? { ...headers, Authorization: authHeader() } : headers,
+    redirect: 'follow',
+  })
+  return res
+}

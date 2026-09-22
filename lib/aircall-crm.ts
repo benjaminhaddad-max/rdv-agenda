@@ -427,9 +427,6 @@ export async function handleAircallCallEnded(
   if (call.number?.name) bodyLines.push(`Ligne : ${call.number.name}`)
   if (call.raw_digits) bodyLines.push(`Numéro : ${call.raw_digits}`)
   if (call.missed_call_reason) bodyLines.push(`Raison : ${call.missed_call_reason}`)
-  if (recording) {
-    bodyLines.push(`<a href="${recording}" target="_blank" rel="noopener noreferrer">Écouter l'enregistrement</a>`)
-  }
   const body = bodyLines.length > 0 ? bodyLines.join('\n') : null
 
   const row = {
