@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, User, Clock, Tag, Zap, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
+import { formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 
 type Appointment = {
   id: string
@@ -16,6 +16,7 @@ type Appointment = {
   source?: string
   formation_type?: string | null
   notes: string | null
+  telepro_id?: string | null
   telepro?: { id: string; name: string } | null
 }
 
@@ -28,11 +29,6 @@ type Commercial = {
   rdv_count?: number
   is_available?: boolean
   is_blocked?: boolean
-}
-
-const SOURCE_LABEL: Record<string, string> = {
-  prospect: '🌐 Réservé en ligne',
-  admin: '⚙️ Admin',
 }
 
 const COLORS = ['#C9A84C','#22c55e','#C9A84C','#a855f7','#06b6d4','#ef4444','#f97316']
@@ -186,11 +182,7 @@ export function AssignCloserPanel({
             {appointment.source && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#4a6070' }}>
                 <Zap size={13} style={{ color: '#C9A84C' }} />
-                <span>
-                  {appointment.source === 'telepro'
-                    ? formatAppointmentSourceLabel('telepro', appointment.telepro?.name)
-                    : (SOURCE_LABEL[appointment.source] || appointment.source)}
-                </span>
+                <span>{formatAppointmentPlacementLabel(appointment)}</span>
               </div>
             )}
           </div>

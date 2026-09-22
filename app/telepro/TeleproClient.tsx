@@ -24,6 +24,7 @@ import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import { validateEmailDomain } from '@/lib/email-validation'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
+import { formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 import { usePageTitle } from '@/components/DocumentTitle'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -75,6 +76,8 @@ type MyAppointment = {
   source?: string | null
   classe_actuelle?: string | null
   departement?: string | null
+  telepro_id?: string | null
+  telepro?: { id: string; name: string; avatar_color?: string | null } | null
   rdv_users?: { id: string; name: string; avatar_color: string; slug: string } | null
 }
 
@@ -112,12 +115,6 @@ const REPLAN_STATUSES: AppointmentStatus[] = ['no_show', 'a_travailler', 'negati
 
 const PLANNING_FETCH_TIMEOUT_MS = 2500
 const PLANNING_LOADING_GUARD_MS = 3000
-const SOURCE_LABEL: Record<string, string> = {
-  telepro: '📞 Placé par télépro',
-  prospect: '🌐 Réservé en ligne',
-  admin: '⚙️ Placé en admin',
-}
-
 // ─── Styles partagés ───────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8',
@@ -212,7 +209,7 @@ function TeleproRdvModal({
             )}
             {rdv.source && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <span>{SOURCE_LABEL[rdv.source] || rdv.source}</span>
+                <span>{formatAppointmentPlacementLabel(rdv)}</span>
               </div>
             )}
             {rdv.meeting_type && (

@@ -162,9 +162,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
   }
 
-  // Verrou metier: les utilisateurs CRM de marque LINOVA ne doivent pas pouvoir
-  // utiliser le flux RDV classique (/api/appointments). Ils doivent passer par
-  // le flux Linova dedie (/api/linova/appointments).
+  // Utilisateur CRM connecte — null pour les prises de RDV publiques (widget web,
+  // liens /book). Sert au verrou LINOVA et a la tracabilite du placeur du RDV.
+  let sessionUser: { id: string; role: string | null; crm_brand: string | null } | null = null
   try {
     const auth = await createServerSupabase()
     const { cookies } = await import('next/headers')
@@ -175,19 +175,30 @@ export async function POST(req: NextRequest) {
       const dbCheck = createServiceClient()
       const { data: rdvUser } = await dbCheck
         .from('rdv_users')
-        .select('crm_brand')
+        .select('id, role, crm_brand')
         .eq('auth_id', userId)
         .maybeSingle()
-      if (String(rdvUser?.crm_brand || '').toLowerCase() === 'linova') {
-        return NextResponse.json(
-          { error: 'Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova.' },
-          { status: 403 },
-        )
-      }
+      sessionUser = rdvUser ?? null
     }
   } catch {
     // Best-effort: si l'auth server-side echoue, on laisse le flux historique.
   }
+
+  // Verrou metier: les utilisateurs CRM de marque LINOVA ne doivent pas pouvoir
+  // utiliser le flux RDV classique (/api/appointments). Ils doivent passer par
+  // le flux Linova dedie (/api/linova/appointments).
+  if (String(sessionUser?.crm_brand || '').toLowerCase() === 'linova') {
+    return NextResponse.json(
+      { error: 'Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova.' },
+      { status: 403 },
+    )
+  }
+
+  // Tracabilite du placeur : les flux CRM (drawer contact, modale Diploma) envoient
+  // source='admin' sans telepro_id. Sans ce fallback sur le telepro connecte, le
+  // RDV s'affiche "Place en admin" et on ne sait plus qui a pose le creneau.
+  const placedByTeleproId: string | null =
+    telepro_id || (sessionUser?.role === 'telepro' ? sessionUser.id : null)
 
   const db = createServiceClient()
 
@@ -380,7 +391,7 @@ export async function POST(req: NextRequest) {
       meeting_type: meeting_type || null,
       meeting_link: finalMeetingLink,
       google_event_id: googleEventId,
-      telepro_id: telepro_id || null,
+      telepro_id: placedByTeleproId,
     })
     .select()
     .single()
@@ -391,11 +402,11 @@ export async function POST(req: NextRequest) {
   // Utilisé pour (ré)assigner le contact et attribuer la transaction.
   // crm_contacts.telepro_user_id stocke le hubspot_user_id (pas l'UUID rdv_users).
   let teleproHsUserId: string | null = null
-  if (telepro_id) {
+  if (placedByTeleproId) {
     const { data: tp } = await db
       .from('rdv_users')
       .select('hubspot_user_id')
-      .eq('id', telepro_id)
+      .eq('id', placedByTeleproId)
       .maybeSingle()
     teleproHsUserId = tp?.hubspot_user_id || null
   }

@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Phone, Mail, Tag, Clock, Zap, RefreshCw } from 'lucide-react'
 import AssignModal from './AssignModal'
-import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
+import { appointmentPlacedByTelepro } from '@/lib/appointment-display'
 
 type Appointment = {
   id: string
@@ -18,6 +18,7 @@ type Appointment = {
   source?: string
   formation_type?: string | null
   notes: string | null
+  telepro_id?: string | null
   telepro?: { id: string; name: string } | null
 }
 
@@ -27,13 +28,9 @@ const SOURCE_LABEL: Record<string, { label: string; color: string }> = {
 }
 
 function sourceBadgeLabel(rdv: Appointment): { label: string; color: string } {
-  if (rdv.source === 'telepro') {
-    const name = rdv.telepro?.name?.trim()
-    return {
-      label: name ? `Télépro : ${name}` : 'Télépro (inconnu)',
-      color: '#C9A84C',
-    }
-  }
+  const placedBy = appointmentPlacedByTelepro(rdv)
+  if (placedBy) return { label: `Télépro : ${placedBy.name}`, color: '#C9A84C' }
+  if (rdv.source === 'telepro') return { label: 'Télépro (inconnu)', color: '#C9A84C' }
   return SOURCE_LABEL[rdv.source || 'telepro'] || { label: rdv.source || '', color: '#4a6070' }
 }
 

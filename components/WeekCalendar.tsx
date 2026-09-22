@@ -31,6 +31,7 @@ type Appointment = {
   report_summary?: string | null
   report_telepro_advice?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
+  telepro_id?: string | null
   telepro?: { id: string; name: string; avatar_color?: string | null } | null
 }
 

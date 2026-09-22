@@ -40,20 +40,48 @@ export const APPOINTMENT_LIST_SELECT = `
   telepro:telepro_id (id, name, avatar_color)
 `
 
-export function formatAppointmentSourceLabel(
-  source: string | null | undefined,
-  teleproName?: string | null,
-): string {
-  const name = teleproName?.trim()
-  switch (source) {
+export type AppointmentPlacement = {
+  source?: string | null
+  telepro_id?: string | null
+  telepro?: { name?: string | null; avatar_color?: string | null } | null
+}
+
+/**
+ * Nom du télépro qui a réellement placé le RDV.
+ * `telepro` peut provenir de l'enrichissement via le propriétaire de la fiche
+ * contact : seul `telepro_id` en base prouve que c'est lui qui a posé le créneau.
+ */
+export function appointmentPlacedByTelepro(
+  appointment: AppointmentPlacement,
+): { name: string; avatar_color?: string | null } | null {
+  if (!appointment.telepro_id) return null
+  const name = appointment.telepro?.name?.trim()
+  return name ? { name, avatar_color: appointment.telepro?.avatar_color ?? null } : null
+}
+
+/**
+ * Libellé "qui a placé le RDV" affiché dans les récaps (agenda, file d'attente,
+ * espace télépro). Le nom du télépro prime sur la source : un RDV posé depuis le
+ * CRM arrive avec source='admin' alors qu'un télépro est bien à l'origine.
+ */
+export function formatAppointmentPlacementLabel(appointment: AppointmentPlacement): string {
+  const placedBy = appointmentPlacedByTelepro(appointment)
+  if (placedBy) return `📞 Placé par ${placedBy.name}`
+  switch (appointment.source) {
     case 'telepro':
-      return name ? `📞 Placé par ${name}` : '📞 Placé par télépro (inconnu)'
+      return '📞 Placé par télépro (inconnu)'
     case 'prospect':
       return '🌐 Réservé en ligne'
-    case 'admin':
-      return '⚙️ Placé en admin'
+    case 'admin': {
+      // RDV d'avant la traçabilité du placeur : on affiche au moins le télépro
+      // propriétaire de la fiche, sans affirmer que c'est lui qui a placé.
+      const contactTelepro = appointment.telepro?.name?.trim()
+      return contactTelepro
+        ? `⚙️ Placé en admin · télépro du contact : ${contactTelepro}`
+        : '⚙️ Placé en admin'
+    }
     default:
-      return source || ''
+      return appointment.source || ''
   }
 }
 

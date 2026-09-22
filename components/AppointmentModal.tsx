@@ -9,7 +9,7 @@ import { fr } from 'date-fns/locale'
 import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 import MeetingModeSwitcher from './MeetingModeSwitcher'
 import VisioParticipantsBlock from './VisioParticipantsBlock'
-import { formatAppointmentSourceLabel } from '@/lib/appointment-display'
+import { appointmentPlacedByTelepro, formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 import { presentielCampusLabel } from '@/lib/campus'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 
@@ -43,6 +43,7 @@ type Appointment = {
   financement?: string | null
   jpo_invitation?: string | null
   users?: { id: string; name: string; avatar_color: string; slug: string }
+  telepro_id?: string | null
   telepro?: { id: string; name: string; avatar_color?: string | null } | null
   sms_confirmed_at?: string | null
   email_parent?: string | null
@@ -57,11 +58,6 @@ const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; 
   { status: 'positif',      label: 'POSITIF',        icon: '🎉', hint: '→ Pré-inscription HubSpot' },
   { status: 'negatif',      label: 'Négatif',        icon: '💀', hint: '→ Rien à faire' },
 ]
-
-const SOURCE_LABEL: Record<string, string> = {
-  prospect: '🌐 Réservé en ligne',
-  admin: '⚙️ Placé en admin',
-}
 
 const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
   visio:       { icon: Video,     label: 'Visio',       color: '#C9A84C' },
@@ -662,13 +658,11 @@ export default function AppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
                 <Zap size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {appointment.source === 'telepro'
-                    ? formatAppointmentSourceLabel('telepro', appointment.telepro?.name)
-                    : (SOURCE_LABEL[appointment.source] || appointment.source)}
-                  {appointment.source === 'telepro' && appointment.telepro?.avatar_color && (
+                  {formatAppointmentPlacementLabel(appointment)}
+                  {appointmentPlacedByTelepro(appointment)?.avatar_color && (
                     <span style={{
                       width: 10, height: 10, borderRadius: '50%',
-                      background: appointment.telepro.avatar_color,
+                      background: appointmentPlacedByTelepro(appointment)!.avatar_color!,
                       flexShrink: 0, display: 'inline-block',
                     }} />
                   )}
