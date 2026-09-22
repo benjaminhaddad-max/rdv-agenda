@@ -200,6 +200,11 @@ export async function POST(req: NextRequest) {
   const placedByTeleproId: string | null =
     telepro_id || (sessionUser?.role === 'telepro' ? sessionUser.id : null)
 
+  // Un telepro qui place depuis le CRM declenche les memes effets metier que
+  // depuis /telepro (transaction "RDV pris" + reassignation de la fiche), meme
+  // si le front a envoye source='admin'.
+  const isTeleproBooking = source === 'telepro' || sessionUser?.role === 'telepro'
+
   const db = createServiceClient()
 
   // ── Widget web (BookingDiploma) : lier le RDV à la fiche contact CRM ──────
@@ -471,7 +476,7 @@ export async function POST(req: NextRequest) {
         synced_at: new Date().toISOString(),
         hs_lead_status: 'RDV pris',
       }
-      if (source === 'telepro' || isWebBooking) {
+      if (isTeleproBooking || isWebBooking) {
         // Le télépro qui place le RDV devient le télépro du contact, même si le
         // contact appartenait à un autre télépro (réassignation directe, plus
         // d'arbitrage manuel par Pascal).
@@ -495,7 +500,7 @@ export async function POST(req: NextRequest) {
   // Règle métier: une prise de RDV par un télépro crée une transaction liée à la
   // fiche contact (visible dans la fiche + le pipeline). Best-effort, idempotent
   // (un seul deal par RDV grâce à hubspot_deal_id = "rdv_<appointment.id>").
-  if (contactId && (source === 'telepro' || isWebBooking)) {
+  if (contactId && (isTeleproBooking || isWebBooking)) {
     try {
       const dealId = `rdv_${appointment.id}`
 
