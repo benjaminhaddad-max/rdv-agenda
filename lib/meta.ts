@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase'
 import { normalizeClasseActuelle } from '@/lib/classe-actuelle'
 import { buildConversionFieldsForSubmission, type ExistingConversionFields } from '@/lib/conversion-fields'
+import { ORIGINE_ADS_META } from '@/lib/ad-attribution'
 
 /**
  * Helpers pour l'intégration Meta Lead Ads (Facebook + Instagram).
@@ -875,7 +876,7 @@ export async function processMetaLead(
       // que les leads backfilles gardent leur date d'origine.
       contact_createdate: leadCreatedIso,
       hubspot_contact_id: nativeId,
-      origine: resolvedFormMetadata?.origine_label || 'Meta Lead Ads',
+      origine: resolvedFormMetadata?.origine_label || ORIGINE_ADS_META,
       hubspot_owner_id: resolvedFormMetadata?.default_owner_id || null,
       telepro_user_id: assignedTeleproId,
       teleprospecteur: assignedTelepro.hubspotUserId,
