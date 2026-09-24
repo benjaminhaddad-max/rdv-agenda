@@ -13,6 +13,7 @@ import {
 import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
 import { deriveSiteUrl } from '@/lib/site-url'
 import { loadFormExtraSettings, mergeFormWithExtra } from '@/lib/form-extra-settings'
+import { canOverrideOrigine, collectAdAttribution, detectAdOrigine } from '@/lib/ad-attribution'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -221,24 +222,15 @@ export async function POST(req: Request, { params }: Params) {
   // ── Attribution publicitaire ─────────────────────────────────────────────
   // Le frontend envoie {gclid, fbclid, msclkid, ttclid, li_fat_id, sccid,
   // gbraid, wbraid} depuis l'URL ou le cookie 90j pose par diploma-tracker.js
-  // a la 1re visite. On les mappe sur les noms de proprietes que la fiche
-  // contact (section "Tracking publicitaire") sait afficher.
-  const rawAttribution = (body.attribution || {}) as Record<string, unknown>
-  const cleanStr = (v: unknown): string | null => {
-    if (v === null || v === undefined) return null
-    const s = String(v).trim()
-    return s.length ? s.slice(0, 500) : null
-  }
-  const adClickIds = {
-    gclid:    cleanStr(rawAttribution.gclid),
-    gbraid:   cleanStr(rawAttribution.gbraid),
-    wbraid:   cleanStr(rawAttribution.wbraid),
-    fbclid:   cleanStr(rawAttribution.fbclid),
-    msclkid:  cleanStr(rawAttribution.msclkid),
-    ttclid:   cleanStr(rawAttribution.ttclid),
-    li_fat_id: cleanStr(rawAttribution.li_fat_id),
-    sccid:    cleanStr(rawAttribution.sccid),
-  }
+  // a la 1re visite. Certains embeds (anciens embed.js en cache, HubSpot) ne
+  // les envoient pas : on les relit aussi dans l'URL de la page soumise.
+  const sourceUrlForAttribution = typeof body.source_url === 'string' ? body.source_url : null
+  const adAttribution = collectAdAttribution({
+    clickIds: (body.attribution || {}) as Record<string, unknown>,
+    utm: body as Record<string, unknown>,
+    urls: [sourceUrlForAttribution, req.headers.get('referer')],
+  })
+  const adClickIds = adAttribution.clickIds
   // Mapping vers les memes cles que HubSpot pour que la section "Tracking
   // publicitaire" sur la fiche contact affiche ces IDs sans modif UI.
   const trackingForContactRaw: Record<string, string> = {}
@@ -257,23 +249,13 @@ export async function POST(req: Request, { params }: Params) {
   if (adClickIds.li_fat_id) trackingForContactRaw.hs_linkedin_click_id = adClickIds.li_fat_id
   if (adClickIds.sccid)     trackingForContactRaw.lead_id_snapchat = adClickIds.sccid
   // UTM aussi recopiees dans hubspot_raw pour la section Tracking publicitaire
-  const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as const
-  for (const k of utmKeys) {
-    const v = cleanStr((body as Record<string, unknown>)[k])
+  for (const [k, v] of Object.entries(adAttribution.utm)) {
     if (v) trackingForContactRaw[k] = v
   }
 
   // ── Origine derivee du tracking ─────────────────────────────────────────
-  // Regle metier : la presence d'un click ID Google (gclid / gbraid / wbraid)
-  // ou Meta (fbclid) force l'origine du contact sur la campagne payante
-  // correspondante. Google prime sur Meta si jamais les deux sont presents
-  // (cas rare : navigation cross-pub avec cookie residuel).
-  let origineFromTracking: string | null = null
-  if (adClickIds.gclid || adClickIds.gbraid || adClickIds.wbraid) {
-    origineFromTracking = 'Campagne ADS Google'
-  } else if (adClickIds.fbclid) {
-    origineFromTracking = 'Campagne ADS META'
-  }
+  // Click ID ou UTM Google → "Campagne ADS Google", Meta → "Campagne ADS META".
+  const origineFromTracking = detectAdOrigine(adAttribution)
 
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
@@ -468,17 +450,21 @@ export async function POST(req: Request, { params }: Params) {
           updateData[k] = v
         }
       }
-      // Origine forcee si un click ID Google/Meta est present.
-      // Le tracking publicitaire prime sur l'origine eventuellement remontee
-      // par le formulaire (qui est souvent vide ou generique "Formulaire web").
-      if (origineFromTracking) {
-        updateData.origine = origineFromTracking
-      }
       const { data: existingRow } = await db
         .from('crm_contacts')
         .select(CONTACT_IDENTITY_COLUMNS.join(','))
         .eq('hubspot_contact_id', existing.hubspot_contact_id)
         .maybeSingle()
+      // Le tracking publicitaire prime sur une origine vide ou generique
+      // ("Formulaire web"…), mais pas sur un partenaire / salon deja attribue.
+      const originePatch: Record<string, string> = {}
+      if (origineFromTracking) {
+        const currentOrigine = (existingRow as { origine?: string | null } | null)?.origine
+        if (canOverrideOrigine(currentOrigine)) {
+          updateData.origine = origineFromTracking
+          originePatch.origine = origineFromTracking
+        }
+      }
       const mergedContact = {
         ...((existingRow as unknown as Record<string, unknown>) ?? {}),
         ...updateData,
@@ -487,6 +473,7 @@ export async function POST(req: Request, { params }: Params) {
       updateData.hubspot_raw = mergeSafeHubspotRaw(mergedContact, {
         ...trackingForContactRaw,
         ...customRaw,
+        ...originePatch,
       })
       await db.from('crm_contacts').update(updateData).eq('hubspot_contact_id', existing.hubspot_contact_id)
       contactId = existing.hubspot_contact_id
@@ -504,7 +491,7 @@ export async function POST(req: Request, { params }: Params) {
       }
       insertData.hubspot_raw = mergeSafeHubspotRaw(
         { ...insertData, hubspot_contact_id: nativeId },
-        { ...trackingForContactRaw, ...customRaw },
+        { ...trackingForContactRaw, ...customRaw, origine: insertData.origine },
       )
       const { data: created, error: cErr } = await db
         .from('crm_contacts')
@@ -593,11 +580,11 @@ export async function POST(req: Request, { params }: Params) {
     contact_created: contactCreated,
     source_url: body.source_url || req.headers.get('referer') || null,
     referrer: req.headers.get('referer') || null,
-    utm_source:   body.utm_source   || null,
-    utm_medium:   body.utm_medium   || null,
-    utm_campaign: body.utm_campaign || null,
-    utm_term:     body.utm_term     || null,
-    utm_content:  body.utm_content  || null,
+    utm_source:   adAttribution.utm.utm_source   || null,
+    utm_medium:   adAttribution.utm.utm_medium   || null,
+    utm_campaign: adAttribution.utm.utm_campaign || null,
+    utm_term:     adAttribution.utm.utm_term     || null,
+    utm_content:  adAttribution.utm.utm_content  || null,
     ip_address:   clientIp,
     user_agent:   req.headers.get('user-agent') || null,
     status: 'new',

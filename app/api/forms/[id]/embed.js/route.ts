@@ -56,6 +56,64 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
   }
   var currentScript = findOwnScript();
 
+  // ─── Attribution publicitaire ─────────────────────────────────
+  // Mêmes cookies que diploma-tracker.js (_dpa_<clickid>, 90j, first-touch)
+  // + _dpa_utm (dernier jeu d'UTM vu) pour retrouver la campagne si le lead
+  // soumet le formulaire sur une autre page que la landing.
+  var AD_CLICK_PARAMS = ['gclid','gbraid','wbraid','fbclid','msclkid','ttclid','li_fat_id','sccid'];
+  var UTM_PARAMS = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
+  function dpaSetCookie(name, value) {
+    try {
+      var d = new Date(); d.setTime(d.getTime() + 90 * 864e5);
+      var parts = location.hostname.split('.');
+      var domain = parts.length > 1 ? '.' + parts.slice(-2).join('.') : location.hostname;
+      document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;domain=' + domain + ';SameSite=Lax';
+    } catch(e){}
+  }
+  function dpaGetCookie(name) {
+    try {
+      var prefix = name + '=';
+      var cs = document.cookie.split(';');
+      for (var i = 0; i < cs.length; i++) {
+        var c = cs[i].trim();
+        if (c.indexOf(prefix) === 0) return decodeURIComponent(c.substring(prefix.length));
+      }
+    } catch(e){}
+    return null;
+  }
+  function captureAttribution() {
+    try {
+      var qs = new URLSearchParams(location.search);
+      AD_CLICK_PARAMS.forEach(function(k){
+        var v = qs.get(k);
+        if (v && !dpaGetCookie('_dpa_' + k)) dpaSetCookie('_dpa_' + k, v);
+      });
+      if (qs.get('utm_source')) {
+        var utm = {};
+        UTM_PARAMS.forEach(function(k){ var v = qs.get(k); if (v) utm[k] = v; });
+        dpaSetCookie('_dpa_utm', JSON.stringify(utm));
+      }
+    } catch(e){}
+  }
+  function getAttribution() {
+    var out = { utm: {}, attribution: {} };
+    try {
+      var qs = new URLSearchParams(location.search);
+      AD_CLICK_PARAMS.forEach(function(k){
+        var v = qs.get(k) || dpaGetCookie('_dpa_' + k);
+        if (v) out.attribution[k] = v;
+      });
+      if (qs.get('utm_source')) {
+        UTM_PARAMS.forEach(function(k){ var v = qs.get(k); if (v) out.utm[k] = v; });
+      } else {
+        var stored = dpaGetCookie('_dpa_utm');
+        if (stored) out.utm = JSON.parse(stored) || {};
+      }
+    } catch(e){}
+    return out;
+  }
+  captureAttribution();
+
   function init() {
     var containers = document.querySelectorAll(SELECTOR);
     // Si aucun container explicite n'existe, on en crée un juste avant le <script>
@@ -130,17 +188,11 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
                 data[el.name] = el.value;
               }
             }
-            var utm = {};
-            try {
-              var qs = new URLSearchParams(location.search);
-              ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
-                var v = qs.get(k); if (v) utm[k] = v;
-              });
-            } catch(e){}
+            var attr = getAttribution();
             fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/submit', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(Object.assign({ data: data, source_url: location.href }, utm)),
+              body: JSON.stringify(Object.assign({ data: data, source_url: location.href, attribution: attr.attribution }, attr.utm)),
             }).catch(function(){});
           } catch(e){ /* silent */ }
         },
@@ -167,7 +219,16 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
 
   function mountIframe(container) {
     var iframe = document.createElement('iframe');
-    iframe.src = HOST + '/embed/forms/' + SLUG + (location.search || '');
+    var iframeQs = location.search || '';
+    try {
+      var qsObj = new URLSearchParams(location.search);
+      var attr = getAttribution();
+      Object.keys(attr.attribution).forEach(function(k){ if (!qsObj.get(k)) qsObj.set(k, attr.attribution[k]); });
+      Object.keys(attr.utm).forEach(function(k){ if (!qsObj.get(k)) qsObj.set(k, attr.utm[k]); });
+      var s = qsObj.toString();
+      iframeQs = s ? '?' + s : '';
+    } catch(e){}
+    iframe.src = HOST + '/embed/forms/' + SLUG + iframeQs;
     iframe.style.cssText = 'border:0;width:100%;min-height:560px;max-width:100%;';
     iframe.setAttribute('title', 'Formulaire');
     iframe.setAttribute('loading', 'lazy');
@@ -367,20 +428,15 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
       });
       Object.keys(data).forEach(function(k){ if (Array.isArray(data[k])) data[k] = data[k].join(','); });
 
-      var utm = {};
-      try {
-        var qs = new URLSearchParams(location.search);
-        ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
-          var v = qs.get(k); if (v) utm[k] = v;
-        });
-      } catch(e){}
+      var attr = getAttribution();
 
       var hpInput = formEl.querySelector('input[name="website"]');
       var payload = Object.assign({
         data: data,
         hp: hpInput ? hpInput.value : '',
         source_url: location.href,
-      }, utm);
+        attribution: attr.attribution,
+      }, attr.utm);
 
       fetch(HOST + '/api/forms/' + encodeURIComponent(SLUG) + '/submit', {
         method: 'POST',
