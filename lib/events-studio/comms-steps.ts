@@ -51,12 +51,12 @@ export function smsStepsFor(ev: {
   const brand = (ev.brand || 'diploma') as EventBrand
   const isWebinar = type === 'webinaire' || !!ev.zoom_join_url || brand === 'edumove'
 
+  // Webinaires : pas de SMS à 11h (supprimé le 24/09/2026).
   if (brand === 'edumove' && isWebinar) {
     return [
       { id: 'confirmation', label: 'Confirmation' },
       { id: 'j-1', label: 'J-1 (veille)' },
       { id: 'j-0-matin', label: 'J-0 matin' },
-      { id: 'j-0-11h', label: 'J-0 11h' },
       { id: 'j-0-14h', label: 'J-0 14h' },
       { id: 'j-0-5min', label: '5 min avant' },
     ]
@@ -67,7 +67,6 @@ export function smsStepsFor(ev: {
       { id: 'confirmation', label: 'Confirmation' },
       { id: 'j-1', label: 'J-1 (veille)' },
       { id: 'j-0-matin', label: 'J-0 matin' },
-      { id: 'j-0-11h', label: 'J-0 11h' },
       { id: 'j-0-14h', label: 'J-0 14h' },
       { id: 'j-0-5min', label: '5 min avant' },
     ]

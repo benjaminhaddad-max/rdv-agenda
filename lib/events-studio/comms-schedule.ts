@@ -40,7 +40,6 @@ export function defaultScheduleForStep(stepId: string): CommsScheduleEntry {
 
   if (stepId === 'j-0-matin') return { mode: 'day_of', time: '08:00' }
   if (stepId === 'j-0-10h') return { mode: 'day_of', time: '10:00' }
-  if (stepId === 'j-0-11h') return { mode: 'day_of', time: '11:00' }
   if (stepId === 'j-0-14h') return { mode: 'day_of', time: '14:00' }
   if (stepId === 'j-0-18h25') return { mode: 'minutes_before', minutes: 5 }
   if (stepId === 'j-0-5min') return { mode: 'minutes_before', minutes: 5 }
