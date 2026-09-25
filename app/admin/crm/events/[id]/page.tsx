@@ -1061,6 +1061,44 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   {BRAND_CONFIG[brand]?.name || brand} · {formatEventSchedule(ev)}
                   {ev.location ? ` · ${ev.location}` : ''}
                 </div>
+                {/* Compteur d’inscriptions / leads — visible dès le haut de page */}
+                <div style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span
+                    title={
+                      attendeeCounts
+                        ? `CRM ${attendeeCounts.crm} · Meta ${attendeeCounts.meta} · Events ${attendeeCounts.events}`
+                        : undefined
+                    }
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'baseline',
+                      gap: 7,
+                      padding: '7px 14px',
+                      borderRadius: crmV2.radiusPill,
+                      background: crmV2.goldSoft,
+                      border: `1px solid ${crmV2.goldBorder}`,
+                      color: crmV2.text,
+                    }}
+                  >
+                    <Users size={15} style={{ alignSelf: 'center' }} />
+                    <strong style={{ fontSize: 22, lineHeight: 1, fontWeight: 700 }}>{inscriptionTotal}</strong>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>
+                      {typeCfg.standForm
+                        ? `lead${inscriptionTotal > 1 ? 's' : ''} collecté${inscriptionTotal > 1 ? 's' : ''}`
+                        : `inscrit${inscriptionTotal > 1 ? 's' : ''}`}
+                    </span>
+                    {cap?.max_capacity != null && (
+                      <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+                        / {cap.max_capacity} places
+                      </span>
+                    )}
+                  </span>
+                  {attendeeCounts && attendeeCounts.meta > 0 && (
+                    <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+                      dont {attendeeCounts.crm} formulaire{attendeeCounts.crm > 1 ? 's' : ''} CRM · {attendeeCounts.meta} Meta
+                    </span>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {typeEdit !== currentTypeId(ev) && (
