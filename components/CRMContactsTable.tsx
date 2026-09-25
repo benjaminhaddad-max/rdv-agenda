@@ -976,9 +976,22 @@ const SORTABLE_COLS = new Set<ColKey>([
 ])
 
 const DEFAULT_COL_ORDER: ColKey[] = [
-  'contact','phone','form_submission','formation_souhaitee','classe',
-  'zone','departement','etape','lead_status','parcoursup_verdict','origine','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
+  'contact','phone','form_submission','origine','formation_souhaitee','classe',
+  'zone','departement','etape','lead_status','parcoursup_verdict','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
+
+// Origine : colonne fixe, toujours visible, collée juste après
+// « Dernière soumission de formulaire » (quelle que soit la vue / l'ordre sauvegardé).
+const PINNED_COL: ColKey = 'origine'
+const PINNED_AFTER: ColKey = 'form_submission'
+
+function pinOrigineToken(order: string[]): string[] {
+  const pinned = toNativeToken(PINNED_COL)
+  const rest = order.filter(t => t !== pinned)
+  const anchor = rest.indexOf(toNativeToken(PINNED_AFTER))
+  rest.splice(anchor >= 0 ? anchor + 1 : rest.length, 0, pinned)
+  return rest
+}
 
 // Propriétés HubSpot à ne pas proposer comme colonnes dynamiques (doublons / obsolètes)
 const BLOCKED_EXTRA_COLUMN_PROPS = new Set([
@@ -1487,16 +1500,16 @@ export default function CRMContactsTable({
 
   // Déterminer les colonnes visibles (en respectant l'ordre courant)
   function isColVisible(key: ColKey): boolean {
+    if (key === PINNED_COL) return true
     if (hiddenCols.has(key)) return false
     if (key === 'lead_status'        && !leadStatusOptions?.length) return false
-    if (key === 'origine'            && !sourceOptions?.length)     return false
     return true
   }
 
   const visibleCols = colOrder.filter(isColVisible)
   const dynamicCols = extraColumns ?? []
   const displayCols = useMemo(
-    () => mixedColOrder.filter(entry => {
+    () => pinOrigineToken(mixedColOrder).filter(entry => {
       if (isNativeToken(entry)) return isColVisible(entry.slice(2) as ColKey)
       if (isDynToken(entry)) return dynamicCols.includes(entry.slice(2))
       return false
@@ -1623,6 +1636,8 @@ export default function CRMContactsTable({
     const fromToken = displayCols[dragIdx]
     const toToken   = displayCols[idx]
     if (!fromToken || !toToken) { resetDrag(); return }
+    const pinnedToken = toNativeToken(PINNED_COL)
+    if (fromToken === pinnedToken || toToken === pinnedToken) { resetDrag(); return }
     setMixedColOrder(prev => {
       const next = [...prev]
       const fromReal = next.indexOf(fromToken)
@@ -2088,6 +2103,7 @@ export default function CRMContactsTable({
             {colOrder.map(key => {
               // Toutes les colonnes sont disponibles dans le menu, même si la
               // liste d'options n'est pas chargée (les cellules afficheront —).
+              if (key === PINNED_COL) return null
               const checked = !hiddenCols.has(key)
               return (
                 <label key={key} style={{
@@ -2223,7 +2239,7 @@ export default function CRMContactsTable({
                   return (
                     <th
                       key={entry}
-                      draggable
+                      draggable={key !== PINNED_COL}
                       onDragStart={() => handleDragStart(idx)}
                       onDragOver={e => handleDragOver(e, idx)}
                       onDrop={() => handleDrop(idx)}
