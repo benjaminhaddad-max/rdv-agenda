@@ -18,6 +18,7 @@ import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/client-cache'
 import { telHref } from '@/lib/phone-e164'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -530,7 +531,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
   if (!data) return <div className="p-8">Aucune donnée.</div>
 
-  const { contact, deals, appointments, properties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [] } = data
+  const { contact, deals, appointments, properties: rawProperties, dealProperties, groups, activities, formSubmissions, owners, tasks = [], emailStatsByMessageId = {}, preInscriptions = [], smsMessages = [], emailCampaigns = [] } = data
+  const properties = rawProperties.map(p =>
+    p.name === 'origine'
+      ? { ...p, options: mergeCrmOrigineOptions(p.options) }
+      : p,
+  )
 
   const fullName = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || '(sans nom)'
   const initials = ((contact.firstname?.[0] ?? '') + (contact.lastname?.[0] ?? '')).toUpperCase() || '?'
@@ -552,6 +558,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     teleprospecteur:  contact.teleprospecteur,
     source:           contact.source,
     contact_createdate: contact.contact_createdate,
+    // Propriété HubSpot « Create date » : les leads natifs (Thotis, Meta…)
+    // remplissent la colonne contact_createdate, pas hubspot_raw.createdate.
+    createdate:         contact.contact_createdate,
     linova_status:        contact.linova_status,
     linova_appointment_id: contact.linova_appointment_id,
     zone___localite:  contact.zone_localite,

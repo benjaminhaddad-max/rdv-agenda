@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
-import { normalizeOrigineValue } from '@/lib/origine-normalization'
+import { CRM_ORIGINE_VALUES, normalizeOrigineValue } from '@/lib/origine-normalization'
 
 /**
  * Paginated helper to fetch all distinct values for a column from crm_contacts.
@@ -78,7 +78,7 @@ function canonicalizeLeadStatuses(raw: string[]): string[] {
 export async function GET() {
   // Bump cache key (v6) pour invalider l'ancien cache qui peut encore contenir
   // le doublon "Pré-inscrit 2026-2027".
-  const staticPayload = await cached('crm:field-options:v6:static', 300, async () => {
+  const staticPayload = await cached('crm:field-options:v8:static', 300, async () => {
     const [leadStatuses, sources, formations, zones, departements] = await Promise.all([
       fetchAllDistinctValues('hs_lead_status'),
       fetchAllDistinctValues('origine'),
@@ -86,11 +86,12 @@ export async function GET() {
       fetchAllDistinctValues('zone_localite'),
       fetchAllDistinctValues('departement'),
     ])
-    const normalizedSources = [...new Set(
-      sources
+    const normalizedSources = [...new Set([
+      ...CRM_ORIGINE_VALUES,
+      ...sources
         .map((v) => normalizeOrigineValue(v))
-        .filter((v): v is string => !!v)
-    )]
+        .filter((v): v is string => !!v),
+    ])]
     return {
       leadStatuses: canonicalizeLeadStatuses(leadStatuses).slice().sort(),
       sources: normalizedSources.slice().sort(),

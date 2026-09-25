@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { cached } from '@/lib/cache'
+import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 
 /**
  * GET /api/crm/metadata
@@ -23,7 +24,7 @@ export async function GET() {
   const db = createServiceClient()
 
   const [properties, dealProperties, owners] = await Promise.all([
-    cached('crm:metadata:properties_contacts', TTL_SECONDS, async () => {
+    cached('crm:metadata:properties_contacts:v3', TTL_SECONDS, async () => {
       const { data } = await db
         .from('crm_properties')
         .select('name, label, description, group_name, type, field_type, options, display_order')
@@ -31,7 +32,11 @@ export async function GET() {
         .eq('archived', false)
         .order('display_order', { ascending: true, nullsFirst: false })
         .order('label', { ascending: true })
-      return data ?? []
+      return (data ?? []).map((p) =>
+        p.name === 'origine'
+          ? { ...p, options: mergeCrmOrigineOptions(p.options) }
+          : p,
+      )
     }),
     cached('crm:metadata:properties_deals', TTL_SECONDS, async () => {
       const { data } = await db

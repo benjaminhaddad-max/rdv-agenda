@@ -35,7 +35,7 @@
  *     "pays_typeform":  "France",
  *     "pays":           "France",
  *
- *     // Type de lead Thotis (Prospect / Suspect)
+ *     // Type de lead Thotis (Prospect / Suspect / THOTIS - MEDIBOX)
  *     // → mappe vers `origine`
  *     "type_de_lead":  "Prospect : intérêt pour PRÉPA SANTÉ DIPLOMA",
  *
@@ -104,6 +104,14 @@ function cleanEmail(v: unknown): string | null {
 function cleanPhone(v: unknown): string | null {
   const s = cleanString(v)
   return s ? s.replace(/\s+/g, '') : null
+}
+
+/** Mappe le type de lead Thotis vers l'origine CRM. */
+function mapThotisOrigine(typeLead: string): string {
+  if (/medibox/i.test(typeLead)) return 'Thotis - Medibox'
+  if (/prospect/i.test(typeLead)) return 'Thotis Prospect'
+  if (/suspect/i.test(typeLead)) return 'Thotis Suspect'
+  return 'Thotis'
 }
 
 /** Normalise les clés JSON (espaces, accents, casse) pour lookup tolérant. */
@@ -291,9 +299,7 @@ export async function POST(req: NextRequest) {
 
   // ── Type de lead → origine ─────────────────────────────────────────────
   const typeLead = cleanString(pickPayloadField(fieldMap, ['type_de_lead'])) ?? ''
-  let origine = 'Thotis'
-  if (/prospect/i.test(typeLead))      origine = 'Thotis Prospect'
-  else if (/suspect/i.test(typeLead))  origine = 'Thotis Suspect'
+  const origine = mapThotisOrigine(typeLead)
 
   const db = createServiceClient()
   const nowIso = new Date().toISOString()
@@ -302,16 +308,19 @@ export async function POST(req: NextRequest) {
   let existing: {
     hubspot_contact_id: string
     hubspot_raw: Record<string, unknown> | null
+    contact_createdate: string | null
     first_conversion_date: string | null
     first_conversion_event_name: string | null
     recent_conversion_date: string | null
     recent_conversion_event: string | null
     recent_conversion_event_name: string | null
   } | null = null
+  const existingSelect =
+    'hubspot_contact_id, hubspot_raw, contact_createdate, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name'
   if (email) {
     const { data } = await db
       .from('crm_contacts')
-      .select('hubspot_contact_id, hubspot_raw, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
+      .select(existingSelect)
       .eq('email', email)
       .maybeSingle()
     existing = data
@@ -319,7 +328,7 @@ export async function POST(req: NextRequest) {
   if (!existing && phone) {
     const { data } = await db
       .from('crm_contacts')
-      .select('hubspot_contact_id, hubspot_raw, first_conversion_date, first_conversion_event_name, recent_conversion_date, recent_conversion_event, recent_conversion_event_name')
+      .select(existingSelect)
       .eq('phone', phone)
       .maybeSingle()
     existing = data
@@ -340,6 +349,10 @@ export async function POST(req: NextRequest) {
   // poser au top-level de hubspot_raw. Sur update, ...currentRaw préserve
   // l'existant et on n'écrase qu'avec des valeurs non vides.
   const currentRaw = (existing?.hubspot_raw as Record<string, unknown> | null) ?? {}
+  const createdate =
+    (typeof currentRaw.createdate === 'string' && currentRaw.createdate.trim())
+      ? currentRaw.createdate
+      : (existing?.contact_createdate || nowIso)
   const updatedRaw: Record<string, unknown> = {
     ...currentRaw,
     ...(email       ? { email } : {}),
@@ -352,6 +365,7 @@ export async function POST(req: NextRequest) {
     ...(existing    ? {} : { hs_lead_status: 'Nouveau' }),
     origine,
     source:                'Thotis',
+    createdate,
     ...conversionMeta,
     thotis_received_at:    nowIso,
     thotis_type_de_lead:   typeLead || null,

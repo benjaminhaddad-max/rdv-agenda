@@ -52,12 +52,12 @@ const SOURCE_LIST = [
   ...["Anciens salons L'étudiant",'Anciens salons Lycée','Anciens salons Studyrama',
      'Appel Diploma Santé','Autre','Bouche à oreille - Diploma Santé','Campagne ADS Google',
      'Campagne Ads - Snapchat','Campagne réseaux sociaux - Tiktok','Diplomeo (Partenaire)',
-     'Déjà étudiant','Extrastudent','Figaro étudiant','Hermione (Partenaire)',
+     'Déjà étudiant','Edumove','Extrastudent','Figaro étudiant','Hermione (Partenaire)',
      'Hippocast (Partenaire)','Influenceur',"L'Etudiant [leads]",'Lycée George Leven',
      'Lycée Maimonide Rambam','Lycée Yabné','Nomad Education (Partenaire)','Nomad Spéciaux',
      'Campagne ADS META','Salon étudiant 2024-2025 (AFEM)','Salon étudiant 2024-2025 (Diploma)',
      'Salons','Site AFEM','Site Diploma Santé','Special Premium','Studyrama',
-     'Thotis (Partenaire)','Twitter','Vecteur Bac',
+     'Thotis (Partenaire)','Thotis - Medibox','Twitter','Vecteur Bac',
   ].map(v => ({ id: v, label: v })),
 ]
 

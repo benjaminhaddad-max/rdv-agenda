@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 
 /**
  * GET /api/crm/property-options?property=hs_lead_status[&object=contacts]
@@ -28,7 +29,11 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (data?.options ?? []) as any[]
+  const raw = (
+    property === 'origine'
+      ? mergeCrmOrigineOptions(data?.options)
+      : (data?.options ?? [])
+  ) as any[]
   const options = Array.isArray(raw)
     ? raw
         .filter(o => !o.hidden)

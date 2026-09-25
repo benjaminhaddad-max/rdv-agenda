@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getAllPropertiesMeta } from '@/lib/hubspot'
 import { logger } from '@/lib/logger'
+import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
 
 /**
  * POST /api/crm/properties/sync?object=contacts|deals
@@ -28,20 +29,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Aucune propriété récupérée depuis HubSpot' }, { status: 502 })
     }
 
-    const propRows = propsMeta.map(p => ({
-      object_type:     objectType,
-      name:            p.name,
-      label:           p.label ?? null,
-      description:     p.description ?? null,
-      group_name:      p.groupName ?? null,
-      type:            p.type ?? null,
-      field_type:      p.fieldType ?? null,
-      options:         p.options ?? null,
-      hubspot_defined: p.hubspotDefined ?? true,
-      archived:        p.archived ?? false,
-      display_order:   p.displayOrder ?? null,
-      synced_at:       now,
-    }))
+    const { data: currentOrigine } = objectType === 'contacts'
+      ? await db
+          .from('crm_properties')
+          .select('options')
+          .eq('object_type', 'contacts')
+          .eq('name', 'origine')
+          .maybeSingle()
+      : { data: null }
+
+    const propRows = propsMeta.map(p => {
+      const fromHubspot = p.options ?? null
+      const options = p.name === 'origine'
+        ? mergeCrmOrigineOptions([
+            ...(Array.isArray(currentOrigine?.options) ? currentOrigine.options : []),
+            ...(Array.isArray(fromHubspot) ? fromHubspot : []),
+          ])
+        : fromHubspot
+      return {
+        object_type:     objectType,
+        name:            p.name,
+        label:           p.label ?? null,
+        description:     p.description ?? null,
+        group_name:      p.groupName ?? null,
+        type:            p.type ?? null,
+        field_type:      p.fieldType ?? null,
+        options,
+        hubspot_defined: p.hubspotDefined ?? true,
+        archived:        p.archived ?? false,
+        display_order:   p.displayOrder ?? null,
+        synced_at:       now,
+      }
+    })
 
     const { error } = await db.from('crm_properties').upsert(propRows, { onConflict: 'object_type,name' })
     if (error) {
