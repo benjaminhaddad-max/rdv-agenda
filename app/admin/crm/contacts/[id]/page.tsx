@@ -813,7 +813,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       type: 'web',
       timestamp: new Date(v.started_at).getTime(),
       title: `Visite du site · ${n} page${n > 1 ? 's' : ''} · ${formatSeconds(v.total_seconds)}`,
-      subtitle: `Source : ${visitSourceLabel(v)}${v.device ? ` · ${v.device}` : ''}`,
+      subtitle: `Source : ${visitSourceLabel(v)}`,
       webVisit: v,
     })
   }
