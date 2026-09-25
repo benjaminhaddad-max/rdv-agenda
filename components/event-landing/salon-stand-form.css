@@ -1,0 +1,115 @@
+/* Formulaire de collecte sur stand (salons externes) — tablette + QR code.
+   Port du template « Formulaire — Salon Studyrama » (refonte graphique). */
+
+@font-face{font-family:'Matter';src:url('/event-landing/fonts/Matter-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Matter';src:url('/event-landing/fonts/Matter-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'Clash Display';src:url('/event-landing/fonts/ClashDisplay-Semibold.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'PP Pangaia';src:url('/event-landing/fonts/PPPangaia-Bold.otf') format('opentype');font-weight:700;font-display:swap}
+
+body:has(.salon-stand){
+  margin:0;
+  background:#12314d !important;
+  color:#12314d;
+}
+
+.salon-stand{
+  min-height:100vh;
+  background:#12314d;
+  font-family:'Matter',system-ui,sans-serif;
+  color:#12314d;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:32px 16px;
+  position:relative;
+  overflow-x:hidden;
+}
+.salon-stand *{box-sizing:border-box}
+.salon-stand .ss-wm{position:fixed;top:50%;left:-160px;transform:translateY(-50%);height:140%;opacity:.05;pointer-events:none}
+.salon-stand .ss-card{position:relative;width:100%;max-width:560px;background:#fff;border-radius:32px;padding:clamp(24px,4vw,40px);box-shadow:0 30px 70px rgba(0,0,0,.3)}
+.salon-stand .ss-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+.salon-stand .ss-top img{height:26px}
+.salon-stand .ss-pill{background:#d3ab67;color:#12314d;font-family:'Clash Display',sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-radius:999px;padding:7px 14px;white-space:nowrap;max-width:62%;overflow:hidden;text-overflow:ellipsis}
+.salon-stand .ss-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.salon-stand label.ss-field{display:block;margin-bottom:12px}
+.salon-stand .ss-lbl{display:block;font-size:12px;letter-spacing:.03em;opacity:.65;margin-bottom:6px}
+.salon-stand .ss-lbl b{color:#c0392b;font-weight:500}
+.salon-stand .ss-input,
+.salon-stand select.ss-input,
+.salon-stand textarea.ss-input{
+  width:100%;
+  background:#f4f7fa;
+  border:1px solid #e6eaee;
+  border-radius:14px;
+  padding:13px 15px;
+  font:inherit;
+  font-size:15px;
+  color:#12314d;
+  appearance:none;
+  -webkit-appearance:none;
+}
+.salon-stand .ss-input::placeholder{color:#8a97a5}
+.salon-stand .ss-input:focus{outline:none;border-color:#4fabdb;background:#fff}
+.salon-stand select.ss-input{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2312314d' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 14px center;
+  padding-right:38px;
+}
+.salon-stand textarea.ss-input{resize:vertical;min-height:88px}
+.salon-stand .ss-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.salon-stand .ss-chips label{position:relative;margin:0}
+.salon-stand .ss-chips input{position:absolute;opacity:0;pointer-events:none}
+.salon-stand .ss-chips span{display:inline-block;border:1.5px solid #dce8f2;background:#f1f7fb;border-radius:999px;padding:9px 16px;font-family:'Clash Display',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
+.salon-stand .ss-chips input:checked+span{background:#12314d;border-color:#12314d;color:#fff}
+.salon-stand .ss-chips input:focus-visible+span{outline:2px solid #4fabdb;outline-offset:2px}
+.salon-stand .ss-error{margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:#fef2f2;color:#b91c1c;font-size:14px;line-height:1.45}
+.salon-stand .ss-submit{
+  width:100%;
+  background:#d3ab67;
+  color:#12314d;
+  border:none;
+  border-radius:999px;
+  padding:17px;
+  font-family:'Clash Display',sans-serif;
+  font-weight:600;
+  font-size:16px;
+  cursor:pointer;
+  margin-top:8px;
+  transition:background .15s;
+}
+.salon-stand .ss-submit:hover{background:#e0bc82}
+.salon-stand .ss-submit:disabled{opacity:.65;cursor:default}
+.salon-stand .ss-foot{text-align:center;font-size:12px;opacity:.55;margin-top:14px}
+.salon-stand .ss-rgpd{text-align:center;font-size:11px;line-height:1.5;opacity:.55;margin:12px 0 0}
+.salon-stand .ss-rgpd a{color:inherit;text-decoration:underline}
+.salon-stand .ss-ok{text-align:center;padding:30px 0 10px}
+.salon-stand .ss-ok .ss-ic{width:64px;height:64px;border-radius:50%;background:#f1f7fb;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.salon-stand .ss-ok h2{font-family:'PP Pangaia',serif;font-weight:700;font-size:26px;margin:0 0 10px}
+.salon-stand .ss-ok p{font-size:15px;opacity:.75;line-height:1.6;margin:0 auto 22px;max-width:36ch}
+.salon-stand .ss-ok a{display:inline-block;border:1.5px solid #12314d;color:#12314d;border-radius:999px;padding:13px 24px;font-family:'Clash Display',sans-serif;font-weight:600;font-size:14px;text-decoration:none}
+.salon-stand .ss-mhead{display:none}
+
+@media (max-width:480px){
+  .salon-stand{display:block;padding:0;min-height:100vh}
+  .salon-stand .ss-wm{display:block;position:absolute;top:-40px;left:auto;right:-150px;transform:none;height:340px;opacity:.07}
+  .salon-stand .ss-mhead{display:block;position:relative;padding:22px 22px 70px}
+  .salon-stand .ss-mhead img{height:22px;display:block;margin-bottom:34px}
+  .salon-stand .ss-mdate{position:absolute;top:18px;right:20px;background:#d3ab67;border-radius:16px;padding:8px 12px;text-align:center;line-height:1}
+  .salon-stand .ss-mdate b{display:block;font-family:'PP Pangaia',serif;font-weight:700;font-size:24px;color:#12314d}
+  .salon-stand .ss-mdate span{display:block;font-family:'Clash Display',sans-serif;font-weight:600;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#12314d;margin-top:3px}
+  .salon-stand .ss-mtitle{font-family:'PP Pangaia',serif;font-weight:700;font-size:36px;line-height:1.02;color:#fff;letter-spacing:-.01em;padding-right:72px}
+  .salon-stand .ss-mtitle--long{font-size:27px;line-height:1.08}
+  .salon-stand .ss-mtitle em{font-style:normal;color:#4fabdb}
+  .salon-stand .ss-msub{font-family:'Clash Display',sans-serif;font-weight:600;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);margin-top:12px}
+  .salon-stand .ss-card{max-width:none;border-radius:32px 32px 0 0;margin-top:-44px;min-height:calc(100vh - 170px);box-shadow:0 -12px 40px rgba(0,0,0,.25);padding:28px 20px 30px}
+  .salon-stand .ss-top{display:none}
+  .salon-stand .ss-row{grid-template-columns:1fr;gap:0}
+  .salon-stand .ss-lbl{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.55;font-family:'Clash Display',sans-serif;font-weight:600}
+  .salon-stand .ss-input,
+  .salon-stand select.ss-input,
+  .salon-stand textarea.ss-input{font-size:16px;padding:15px 16px;border-radius:16px}
+  .salon-stand .ss-submit{position:sticky;bottom:14px;padding:19px;font-size:17px;box-shadow:0 12px 28px rgba(211,171,103,.45)}
+  .salon-stand .ss-foot{display:none}
+  .salon-stand .ss-ok{padding:20px 0}
+}

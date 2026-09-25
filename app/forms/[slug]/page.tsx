@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import FormRenderer from './FormRenderer'
 import EventLandingPage from '@/components/event-landing/EventLandingPage'
+import SalonStandForm from '@/components/event-landing/SalonStandForm'
 import TimeslotSurveyPage from '@/components/event-landing/TimeslotSurveyPage'
 import { buildLandingCopy } from '@/lib/event-landing/content'
 import { detectLandingKind, formatEventDate, remainingLabel } from '@/lib/event-landing/format'
@@ -33,6 +34,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     return {
       title: `${page.event.name} — votre créneau | Diploma Santé`,
       description: `Indiquez le créneau auquel vous pensez venir au ${page.event.name} (${fmt.dateLongue}). Places limitées par horaire.`,
+      robots: { index: false, follow: false },
+    }
+  }
+  if (page.kind === 'salon_stand') {
+    return {
+      title: `${page.event.name} — Stand Diploma Santé`,
+      description: `Formulaire de contact du stand Diploma Santé — ${page.event.name}.`,
       robots: { index: false, follow: false },
     }
   }
@@ -119,6 +127,10 @@ export default async function PublicFormPage({ params }: Params) {
   if (page.kind === 'timeslot_survey') {
     const fmt = formatEventDate(page.event)
     return <TimeslotSurveyPage slug={slug} form={page.form} event={page.event} fmt={fmt} copy={page.copy} />
+  }
+
+  if (page.kind === 'salon_stand') {
+    return <SalonStandForm slug={slug} form={page.form} event={page.event} dateEnd={page.dateEnd} />
   }
 
   if (page.kind === 'no_public_inscription') {

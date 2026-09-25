@@ -38,6 +38,8 @@ const CORS_HEADERS = {
 
 const DEFAULT_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature-formulaire/'
 const DEFAULT_NON_TERMINALE_REDIRECT = 'https://diploma-sante.fr/remerciement-candidature/'
+/** Origine CRM (option existante de la propriété `origine`) des leads collectés sur un stand de salon. */
+const ORIGINE_SALONS = 'Salons'
 
 function normalizeForMatch(value: string | null | undefined): string {
   if (!value) return ''
@@ -274,10 +276,15 @@ export async function POST(req: Request, { params }: Params) {
 
   // Capacité salon (si formulaire lié à un événement Events)
   let eventLinkedForm = false
+  // Formulaire de collecte sur stand d'un salon externe : le lead est acquis
+  // sur le salon → origine « Salons » (sauf signal publicitaire explicite).
+  let salonStandForm = false
   try {
     const { getEventCapacityByFormId } = await import('@/lib/events-studio/capacity')
+    const { eventOffersStandForm } = await import('@/lib/events-studio/config')
     const capacity = await getEventCapacityByFormId(form.id)
     eventLinkedForm = Boolean(capacity)
+    salonStandForm = Boolean(capacity && eventOffersStandForm({ event_type: capacity.event_type }))
     if (capacity?.is_full) {
       return NextResponse.json(
         { error: 'Plus de places disponibles pour cet événement.' },
@@ -455,14 +462,16 @@ export async function POST(req: Request, { params }: Params) {
         .select(CONTACT_IDENTITY_COLUMNS.join(','))
         .eq('hubspot_contact_id', existing.hubspot_contact_id)
         .maybeSingle()
-      // Le tracking publicitaire prime sur une origine vide ou generique
-      // ("Formulaire web"…), mais pas sur un partenaire / salon deja attribue.
+      // Le tracking publicitaire (ou la collecte sur stand) prime sur une
+      // origine vide ou generique ("Formulaire web"…), mais pas sur un
+      // partenaire / salon deja attribue.
       const originePatch: Record<string, string> = {}
-      if (origineFromTracking) {
+      const origineCandidate = origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : null)
+      if (origineCandidate) {
         const currentOrigine = (existingRow as { origine?: string | null } | null)?.origine
         if (canOverrideOrigine(currentOrigine)) {
-          updateData.origine = origineFromTracking
-          originePatch.origine = origineFromTracking
+          updateData.origine = origineCandidate
+          originePatch.origine = origineCandidate
         }
       }
       const mergedContact = {
@@ -487,7 +496,7 @@ export async function POST(req: Request, { params }: Params) {
         contact_createdate: nowIso,
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,
-        origine:            origineFromTracking ?? 'Formulaire web',
+        origine:            origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : 'Formulaire web'),
       }
       insertData.hubspot_raw = mergeSafeHubspotRaw(
         { ...insertData, hubspot_contact_id: nativeId },

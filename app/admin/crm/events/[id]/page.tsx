@@ -461,6 +461,9 @@ type Detail = {
   type: { short: string; label: string; staff: boolean; comms: boolean; checkin: boolean }
   staff_url: string | null
   studio_url?: string | null
+  /** Salon externe : formulaire de collecte sur stand (tablette) + QR code à imprimer. */
+  stand_form_url?: string | null
+  stand_form_qr_url?: string | null
   scanner_url?: string | null
   checkin_stats?: {
     registered: number
@@ -1110,6 +1113,106 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               >
                 {typeCfg.label} — collecte CRM uniquement, aucune communication email/SMS à la publication.
               </div>
+            )}
+
+            {/* ——— Salon : formulaire de collecte sur stand (tablette + QR code) ——— */}
+            {typeCfg.standForm && (
+              <CrmV2Card style={{ padding: 18, marginBottom: 14 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    alignItems: 'center',
+                    marginBottom: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                    <QrCode size={16} /> Formulaire stand — tablette & QR code
+                  </div>
+                  {data.stand_form_url && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <CrmV2Button variant="secondary" onClick={() => copy(data.stand_form_url!)}>
+                        <Copy size={14} /> Copier le lien
+                      </CrmV2Button>
+                      <a href={data.stand_form_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                        <CrmV2Button variant="gold">
+                          <ExternalLink size={14} /> Ouvrir le formulaire
+                        </CrmV2Button>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {data.stand_form_url ? (
+                  <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    {data.stand_form_qr_url && (
+                      <a
+                        href={data.stand_form_qr_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Ouvrir le QR code en grand (clic droit → enregistrer l’image)"
+                        style={{
+                          flex: 'none',
+                          display: 'block',
+                          padding: 8,
+                          borderRadius: crmV2.radius,
+                          border: `1px solid ${crmV2.border}`,
+                          background: '#fff',
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={data.stand_form_qr_url}
+                          alt="QR code du formulaire stand"
+                          width={150}
+                          height={150}
+                          style={{ display: 'block', width: 150, height: 150 }}
+                        />
+                      </a>
+                    )}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
+                        Lien à ouvrir sur la tablette du stand (le QR code y renvoie)
+                      </div>
+                      <div style={{ fontSize: 13, color: crmV2.link, wordBreak: 'break-all', marginBottom: 10 }}>
+                        {data.stand_form_url}
+                      </div>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, lineHeight: 1.55 }}>
+                        Formulaire aux couleurs Diploma Santé (en-tête bleu nuit, date du salon, bouton doré) : il se
+                        réinitialise 8 s après chaque envoi pour le visiteur suivant. Imprimez le QR code pour que les
+                        visiteurs le remplissent sur leur téléphone. Les leads arrivent dans le CRM avec l’origine
+                        « Salons » et le formulaire de ce salon comme événement de conversion.
+                      </div>
+                      {data.stand_form_qr_url && (
+                        <a
+                          href={data.stand_form_qr_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            marginTop: 10,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: crmV2.link,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <Download size={13} /> QR code en grand (PNG)
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+                    Aucun formulaire CRM lié à ce salon : liez-en un via « Gérer les formulaires » ci-dessous
+                    {typeEdit !== currentTypeId(ev) ? ', puis enregistrez le type' : ''}.
+                  </div>
+                )}
+              </CrmV2Card>
             )}
 
             {zoomBlockPublish && (

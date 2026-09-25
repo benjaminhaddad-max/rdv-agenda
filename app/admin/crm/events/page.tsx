@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileUp,
   Plus,
+  QrCode,
   RefreshCw,
   Save,
   Users,
@@ -24,6 +25,7 @@ import {
   BRAND_CONFIG,
   EVENT_TYPES,
   brandEventTypes,
+  eventOffersStandForm,
   eventTypeOf,
   planningPublicUrl,
   staffPlanningSetPublicUrl,
@@ -454,7 +456,15 @@ export default function EventsListPage() {
                     variant="gold"
                     onClick={() => window.open(ev.public_form_url!, '_blank', 'noopener,noreferrer')}
                   >
-                    <ExternalLink size={14} /> Page événement
+                    {eventOffersStandForm(ev) ? (
+                      <>
+                        <QrCode size={14} /> Formulaire stand
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink size={14} /> Page événement
+                      </>
+                    )}
                   </CrmV2Button>
                 )}
                 {showStaff && (
@@ -510,7 +520,8 @@ export default function EventsListPage() {
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: crmV2.textMuted }}>
               Créez un événement et son formulaire CRM type (Nom, Prénom, Téléphone, Email, Classe, Département).
-              Les salons externes n’ont pas de page d’inscription publique.
+              Les salons externes n’ont pas de page d’inscription publique : leur formulaire sert à la collecte sur
+              le stand (tablette + QR code).
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -11,15 +11,22 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const title =
     page.kind === 'landing'
       ? page.data.event.name
-      : page.kind === 'no_public_inscription'
-        ? page.eventName
-        : page.kind === 'form'
-          ? page.form.title || 'Inscription'
-          : 'Diploma Santé'
-  const fmt = page.kind === 'landing' ? formatEventDate(page.data.event) : null
+      : page.kind === 'salon_stand'
+        ? page.event.name
+        : page.kind === 'no_public_inscription'
+          ? page.eventName
+          : page.kind === 'form'
+            ? page.form.title || 'Inscription'
+            : 'Diploma Santé'
+  const fmt =
+    page.kind === 'landing'
+      ? formatEventDate(page.data.event)
+      : page.kind === 'salon_stand'
+        ? formatEventDate(page.event)
+        : null
   const kind = page.kind === 'landing' ? detectLandingKind(page.data.event) : null
   const kicker =
-    page.kind === 'no_public_inscription'
+    page.kind === 'no_public_inscription' || page.kind === 'salon_stand'
       ? 'Salon'
       : kind === 'webinaire'
         ? 'Webinaire'

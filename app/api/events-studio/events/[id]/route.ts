@@ -9,7 +9,17 @@ import {
   type EmailValue,
 } from '@/lib/events-studio/comms-defaults'
 import { attachCommsSchedule, extractCommsSchedule } from '@/lib/events-studio/comms-schedule'
-import { eventHasComms, EVENT_TYPES, eventOffersPublicInscriptionPage, eventTypeOf, scannerPublicUrl, type EventTypeId } from '@/lib/events-studio/config'
+import {
+  eventHasComms,
+  EVENT_TYPES,
+  eventFormHasPublicUrl,
+  eventOffersStandForm,
+  eventTypeOf,
+  qrImageUrlFor,
+  scannerPublicUrl,
+  type EventTypeId,
+} from '@/lib/events-studio/config'
+import { getEventsSupabaseUrl } from '@/lib/events-studio/client'
 import {
   buildEventDate,
   parseStaffNeeded,
@@ -101,9 +111,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     crmFormsMeta = data || []
   }
 
+  const showPublic = eventFormHasPublicUrl(event)
   const formsEnriched = (forms || []).map((f) => {
     const meta = crmFormsMeta.find((m) => m.id === f.hubspot_form_id)
-    const showPublic = eventOffersPublicInscriptionPage(event)
     return {
       ...f,
       slug: meta?.slug || null,
@@ -112,6 +122,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       crm_status: meta?.status || null,
     }
   })
+
+  // Salon externe : formulaire de collecte sur stand (tablette + QR code à imprimer).
+  const standFormUrl = eventOffersStandForm(event)
+    ? formsEnriched.find((f) => f.form_type !== 'meta' && f.public_url)?.public_url || null
+    : null
+  const standFormQrUrl = standFormUrl ? qrImageUrlFor(standFormUrl, getEventsSupabaseUrl()) : null
 
   let capacity = null
   try {
@@ -155,6 +171,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     staff_full: staffNeeded != null && staffCount >= staffNeeded,
     staff_url: type.staff ? `https://hub.diploma-sante.fr/events-studio/?staff=${id}` : null,
     studio_url: `https://hub.diploma-sante.fr/events-studio/#event/${id}`,
+    stand_form_url: standFormUrl,
+    stand_form_qr_url: standFormQrUrl,
     scanner_url: type.physical ? scannerPublicUrl(id) : null,
     checkin_stats: type.physical
       ? {

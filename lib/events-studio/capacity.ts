@@ -3,6 +3,8 @@ import { createEventsClient } from '@/lib/events-studio/client'
 
 export type EventCapacityInfo = {
   event_id: string
+  /** Type Events Studio (jpo | salon | webinaire | autre) — null si colonne absente. */
+  event_type: string | null
   max_capacity: number | null
   registered_count: number
   remaining: number | null
@@ -46,6 +48,7 @@ export async function getEventCapacityByFormId(
 
   return {
     event_id: event.id,
+    event_type: event.event_type ? String(event.event_type) : null,
     max_capacity: max,
     registered_count: registered,
     remaining,

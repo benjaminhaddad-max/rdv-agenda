@@ -23,6 +23,12 @@ export type EventTypeConfig = {
   autoCrmForm: boolean
   /** Page / URL publique d’inscription visiteurs (hub.diploma-sante.fr/forms/…). Faux pour les salons externes. */
   publicInscriptionPage: boolean
+  /**
+   * Formulaire de collecte sur stand (tablette + QR code affiché), même URL
+   * hub.diploma-sante.fr/forms/… mais rendu « stand » : pas de pré-inscription
+   * publique, on saisit les visiteurs rencontrés sur le salon.
+   */
+  standForm: boolean
   brands?: EventBrand[]
   desc: string
 }
@@ -61,6 +67,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     checkin: true,
     autoCrmForm: true,
     publicInscriptionPage: true,
+    standForm: false,
     desc: 'Accueil sur site — QR codes, emails & SMS, équipe staff',
   },
   salon: {
@@ -75,7 +82,8 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     checkin: false,
     autoCrmForm: true,
     publicInscriptionPage: false,
-    desc: 'Salon externe — planning staff + collecte sur stand, pas de page d’inscription publique',
+    standForm: true,
+    desc: 'Salon externe — planning staff + formulaire de collecte sur stand (tablette / QR code), pas de page d’inscription publique',
   },
   webinaire: {
     id: 'webinaire',
@@ -88,6 +96,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     checkin: false,
     autoCrmForm: true,
     publicInscriptionPage: true,
+    standForm: false,
     desc: 'En ligne via Zoom — rappels email & SMS',
   },
   autre: {
@@ -101,6 +110,7 @@ export const EVENT_TYPES: Record<EventTypeId, EventTypeConfig> = {
     checkin: true,
     autoCrmForm: true,
     publicInscriptionPage: true,
+    standForm: false,
     desc: 'Format libre',
   },
 }
@@ -167,6 +177,29 @@ export function eventOffersPublicInscriptionPage(ev: {
   zoom_join_url?: string | null
 }): boolean {
   return !!eventTypeOf(ev).publicInscriptionPage
+}
+
+/** Formulaire de collecte sur stand (salons externes) : tablette + QR code. */
+export function eventOffersStandForm(ev: {
+  event_type?: string | null
+  brand?: string | null
+  zoom_join_url?: string | null
+}): boolean {
+  return !!eventTypeOf(ev).standForm
+}
+
+/** Le formulaire CRM lié a une URL publique (inscription ou collecte stand). */
+export function eventFormHasPublicUrl(ev: {
+  event_type?: string | null
+  brand?: string | null
+  zoom_join_url?: string | null
+}): boolean {
+  return eventOffersPublicInscriptionPage(ev) || eventOffersStandForm(ev)
+}
+
+/** Image QR (PNG) pointant vers une URL — edge function qr-image du projet Events. */
+export function qrImageUrlFor(text: string, eventsSupabaseUrl = EVENTS_SUPABASE_URL_DEFAULT): string {
+  return `${eventsSupabaseUrl.replace(/\/$/, '')}/functions/v1/qr-image?code=${encodeURIComponent(text)}`
 }
 
 export function staffPublicUrl(eventId: string, origin = 'https://hub.diploma-sante.fr'): string {
