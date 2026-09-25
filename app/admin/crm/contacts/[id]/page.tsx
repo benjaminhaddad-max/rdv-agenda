@@ -761,7 +761,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     // Renseigné pour les activités natives (crm_activities) → édition/suppression
     activityId?: string
     editable?: boolean
-    webPages?: WebActivityPage[]
+    webVisit?: WebActivityVisit
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -813,8 +813,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       type: 'web',
       timestamp: new Date(v.started_at).getTime(),
       title: `Visite du site · ${n} page${n > 1 ? 's' : ''} · ${formatSeconds(v.total_seconds)}`,
-      subtitle: `Source : ${visitSourceLabel(v)}`,
-      webPages: v.pages,
+      subtitle: `Source : ${visitSourceLabel(v)}${v.device ? ` · ${v.device}` : ''}`,
+      webVisit: v,
     })
   }
   for (const a of appointments) {
@@ -1263,7 +1263,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   isVoicemail={t.isVoicemail}
                                 />
                               )}
-                              {t.type === 'web' && t.webPages && <WebVisitPages pages={t.webPages} />}
+                              {t.type === 'web' && t.webVisit && <WebVisitPages visit={t.webVisit} />}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
                                   Erreur : {t.sms.error_message}
@@ -3337,15 +3337,19 @@ function AdTrackingSection({ raw }: { raw: Record<string, unknown> | null | unde
 // équivalent de l'historique de navigation HubSpot. Cachée si aucune donnée.
 // ────────────────────────────────────────────────────────────────────────────
 
-interface WebActivityPage { at: string; path: string | null; url: string | null; title: string | null; seconds: number | null; submitted_form: boolean }
+interface WebActivityClick { at: string; kind: string; text: string | null; href: string | null }
+interface WebActivityPage {
+  at: string; left_at: string | null; path: string | null; url: string | null; title: string | null
+  seconds: number | null; scroll_pct: number | null; submitted_form: boolean; clicks: WebActivityClick[]
+}
 interface WebActivityVisit {
-  session_id: string; started_at: string; referrer: string | null
+  session_id: string; started_at: string; ended_at: string; device: string | null; referrer: string | null
   utm_source: string | null; utm_medium: string | null; utm_campaign: string | null
   click_ids: Record<string, string> | null; total_seconds: number; pages: WebActivityPage[]
 }
 interface WebActivity {
   visits: WebActivityVisit[]
-  first_touch: { at: string; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; landing_path: string | null } | null
+  first_touch: { at: string; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; landing_path: string | null; device: string | null } | null
   totals: { visits: number; page_views: number; seconds: number; last_seen: string | null } | null
 }
 
@@ -3355,6 +3359,8 @@ function formatSeconds(s: number): string {
   if (m < 60) return `${m} min ${String(s % 60).padStart(2, '0')}`
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`
 }
+
+const hms = (iso: string) => format(new Date(iso), 'HH:mm:ss', { locale: fr })
 
 function visitSourceLabel(v: { referrer: string | null; utm_source: string | null; utm_medium: string | null; click_ids: Record<string, string> | null }): string {
   const ids = v.click_ids ?? {}
@@ -3370,28 +3376,57 @@ function visitSourceLabel(v: { referrer: string | null; utm_source: string | nul
   return 'Accès direct'
 }
 
-function WebVisitPages({ pages }: { pages: WebActivityPage[] }) {
+/** Détail d'une visite : page par page, heure d'arrivée / sortie, temps, scroll, clics. */
+function WebVisitPages({ visit }: { visit: WebActivityVisit }) {
   return (
-    <ul className="mt-2 space-y-0.5 text-xs bg-[#f7f4ee] p-2 rounded">
-      {pages.map((p, i) => (
-        <li key={i} className="flex items-start justify-between gap-3">
-          <a
-            href={p.url ?? undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate text-[#0e1e35] hover:underline"
-            title={p.title ?? p.url ?? ''}
-          >
-            {p.title?.split(' | ')[0] || p.path || p.url}
-            {p.path && p.title && <span className="ml-1 text-[#a89e8a]">{p.path}</span>}
-            {p.submitted_form && (
-              <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire</span>
+    <div className="mt-2 space-y-2 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#4a6070]">
+        <dt>Horaires</dt>
+        <dd className="text-[#0e1e35]">{hms(visit.started_at)} → {hms(visit.ended_at)}</dd>
+        {visit.device && (<><dt>Appareil</dt><dd className="text-[#0e1e35]">{visit.device}</dd></>)}
+        {visit.utm_campaign && (<><dt>Campagne</dt><dd className="text-[#0e1e35] truncate" title={visit.utm_campaign}>{visit.utm_campaign}</dd></>)}
+        {visit.referrer && (<><dt>Provenance</dt><dd className="text-[#0e1e35] truncate" title={visit.referrer}>{visit.referrer}</dd></>)}
+      </dl>
+      <ol className="space-y-1.5 bg-[#f7f4ee] p-2 rounded">
+        {visit.pages.map((p, i) => (
+          <li key={i}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-mono text-[11px] text-[#4a6070] mr-1.5">{hms(p.at)}</span>
+                <a
+                  href={p.url ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-[#0e1e35] hover:underline"
+                  title={p.url ?? ''}
+                >
+                  {p.title?.split(' | ')[0] || p.path || p.url}
+                </a>
+                {p.path && p.title && <span className="ml-1 text-[#a89e8a]">{p.path}</span>}
+                {p.submitted_form && (
+                  <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire envoyé</span>
+                )}
+              </div>
+              <div className="shrink-0 text-right text-[#4a6070]">
+                <div className="font-medium text-[#0e1e35]">{p.seconds !== null ? formatSeconds(p.seconds) : '—'}</div>
+                {p.left_at && <div className="text-[10px]">sortie {hms(p.left_at)}</div>}
+                {p.scroll_pct !== null && <div className="text-[10px]">lu à {p.scroll_pct} %</div>}
+              </div>
+            </div>
+            {p.clicks.length > 0 && (
+              <ul className="mt-0.5 ml-[62px] space-y-0.5 text-[11px] text-[#4a6070]">
+                {p.clicks.map((c, j) => (
+                  <li key={j} className="truncate" title={c.href ?? ''}>
+                    <span className="font-mono mr-1.5">{hms(c.at)}</span>
+                    clic {c.kind} « {c.text || c.href} »
+                  </li>
+                ))}
+              </ul>
             )}
-          </a>
-          <span className="shrink-0 text-[#4a6070]">{p.seconds !== null ? formatSeconds(p.seconds) : '—'}</span>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
@@ -3420,7 +3455,11 @@ function WebActivitySection({ data }: { data: WebActivity | null }) {
         {first && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
             <dt className="text-[#4a6070]">1re visite</dt>
-            <dd className="font-medium text-[#0e1e35]">{format(new Date(first.at), 'Pp', { locale: fr })}</dd>
+            <dd className="font-medium text-[#0e1e35]">{format(new Date(first.at), 'dd/MM/yyyy · HH:mm:ss', { locale: fr })}</dd>
+            {totals.last_seen && (<>
+              <dt className="text-[#4a6070]">Dernière visite</dt>
+              <dd className="font-medium text-[#0e1e35]">{format(new Date(totals.last_seen), 'dd/MM/yyyy · HH:mm:ss', { locale: fr })}</dd>
+            </>)}
             <dt className="text-[#4a6070]">Source</dt>
             <dd className="font-medium text-[#0e1e35] truncate">{visitSourceLabel(first)}</dd>
             {first.utm_campaign && (<>
@@ -3431,6 +3470,10 @@ function WebActivitySection({ data }: { data: WebActivity | null }) {
               <dt className="text-[#4a6070]">Page d&apos;entrée</dt>
               <dd className="font-medium text-[#0e1e35] truncate" title={first.landing_path}>{first.landing_path}</dd>
             </>)}
+            {first.device && (<>
+              <dt className="text-[#4a6070]">Appareil</dt>
+              <dd className="font-medium text-[#0e1e35] truncate">{first.device}</dd>
+            </>)}
           </dl>
         )}
 
@@ -3439,7 +3482,7 @@ function WebActivitySection({ data }: { data: WebActivity | null }) {
             <div key={v.session_id} className="space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold text-[#0e1e35]">
-                  {format(new Date(v.started_at), 'PP · HH:mm', { locale: fr })}
+                  {format(new Date(v.started_at), 'PP', { locale: fr })} · {format(new Date(v.started_at), 'HH:mm')}–{format(new Date(v.ended_at), 'HH:mm')}
                 </div>
                 <div className="text-[10px] text-[#a89e8a] truncate">
                   {visitSourceLabel(v)} · {formatSeconds(v.total_seconds)}
@@ -3455,6 +3498,7 @@ function WebActivitySection({ data }: { data: WebActivity | null }) {
                       className="truncate text-[#0e1e35] hover:underline"
                       title={p.title ?? p.url ?? ''}
                     >
+                      <span className="font-mono text-[10px] text-[#a89e8a] mr-1">{format(new Date(p.at), 'HH:mm')}</span>
                       {p.path || p.title || p.url}
                       {p.submitted_form && (
                         <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire</span>

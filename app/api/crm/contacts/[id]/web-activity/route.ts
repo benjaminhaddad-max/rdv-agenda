@@ -24,15 +24,52 @@ type WebEvent = {
   utm_campaign: string | null
   click_ids: Record<string, string> | null
   seconds_on_page: number | null
+  metadata: Record<string, unknown> | null
+  user_agent: string | null
 }
+
+type PageClick = { at: string; kind: string; text: string | null; href: string | null }
 
 type PageView = {
   at: string
+  left_at: string | null
   path: string | null
   url: string | null
   title: string | null
   seconds: number | null
+  scroll_pct: number | null
   submitted_form: boolean
+  clicks: PageClick[]
+}
+
+const CLICK_EVENTS = new Set(['link_click', 'button_click', 'element_click'])
+const PAGE_EVENTS = new Set(['page_view', 'page_leave', 'form_submit'])
+
+/** Appareil lisible depuis le user-agent : "Mobile · iOS · Safari". */
+function describeDevice(ua: string | null): string | null {
+  if (!ua) return null
+  const type = /iPad|Tablet/i.test(ua) ? 'Tablette' : /Mobi|iPhone|Android/i.test(ua) ? 'Mobile' : 'Ordinateur'
+  const os = /iPhone|iPad|iOS/i.test(ua) ? 'iOS'
+    : /Android/i.test(ua) ? 'Android'
+    : /Windows/i.test(ua) ? 'Windows'
+    : /Mac OS X|Macintosh/i.test(ua) ? 'macOS'
+    : /Linux/i.test(ua) ? 'Linux'
+    : null
+  const browser = /Instagram/i.test(ua) ? 'Instagram (navigateur intégré)'
+    : /FBAN|FBAV|FB_IAB/i.test(ua) ? 'Facebook (navigateur intégré)'
+    : /TikTok|musical_ly/i.test(ua) ? 'TikTok (navigateur intégré)'
+    : /Edg\//.test(ua) ? 'Edge'
+    : /SamsungBrowser/i.test(ua) ? 'Samsung Internet'
+    : /Firefox|FxiOS/i.test(ua) ? 'Firefox'
+    : /Chrome|CriOS/i.test(ua) ? 'Chrome'
+    : /Safari/i.test(ua) ? 'Safari'
+    : null
+  return [type, os, browser].filter(Boolean).join(' · ')
+}
+
+function metaString(meta: Record<string, unknown> | null, key: string): string | null {
+  const v = meta?.[key]
+  return typeof v === 'string' && v.trim() ? v.trim() : null
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -51,28 +88,43 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data, error } = await db
     .from('web_events')
-    .select('event_name, occurred_at, session_id, pageview_id, page_url, page_path, page_title, referrer, utm_source, utm_medium, utm_campaign, click_ids, seconds_on_page')
+    .select('event_name, occurred_at, session_id, pageview_id, page_url, page_path, page_title, referrer, utm_source, utm_medium, utm_campaign, click_ids, seconds_on_page, metadata, user_agent')
     .in('visitor_id', visitorIds)
-    .in('event_name', ['page_view', 'page_leave', 'form_submit'])
+    .in('event_name', [...PAGE_EVENTS, ...CLICK_EVENTS])
     .order('occurred_at', { ascending: true })
-    .limit(3000)
+    .limit(5000)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const events = (data ?? []) as WebEvent[]
 
-  // Temps passé : max des page_leave de chaque page vue
+  // Par page vue : temps (max des page_leave), sortie, scroll max, clics, formulaire
   const secondsByPageview = new Map<string, number>()
+  const leftAtByPageview = new Map<string, string>()
+  const scrollByPageview = new Map<string, number>()
+  const clicksByPageview = new Map<string, PageClick[]>()
   const formPageviews = new Set<string>()
   for (const e of events) {
     if (!e.pageview_id) continue
-    if (e.event_name === 'page_leave' && e.seconds_on_page !== null) {
-      secondsByPageview.set(e.pageview_id, Math.max(secondsByPageview.get(e.pageview_id) ?? 0, e.seconds_on_page))
+    const pv = e.pageview_id
+    if (e.event_name === 'page_leave') {
+      if (e.seconds_on_page !== null) secondsByPageview.set(pv, Math.max(secondsByPageview.get(pv) ?? 0, e.seconds_on_page))
+      leftAtByPageview.set(pv, e.occurred_at)
+      const scroll = Number(e.metadata?.scroll_pct)
+      if (Number.isFinite(scroll)) scrollByPageview.set(pv, Math.max(scrollByPageview.get(pv) ?? 0, scroll))
     }
-    if (e.event_name === 'form_submit') formPageviews.add(e.pageview_id)
+    if (e.event_name === 'form_submit') formPageviews.add(pv)
+    if (CLICK_EVENTS.has(e.event_name)) {
+      const text = metaString(e.metadata, 'text')
+      const href = metaString(e.metadata, 'href')
+      if (!text && !href) continue
+      const list = clicksByPageview.get(pv) ?? []
+      list.push({ at: e.occurred_at, kind: e.event_name === 'link_click' ? 'lien' : 'bouton', text: text?.slice(0, 120) ?? null, href })
+      clicksByPageview.set(pv, list)
+    }
   }
 
   const views = events.filter(e => e.event_name === 'page_view')
-  const visitsBySession = new Map<string, { session_id: string; started_at: string; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; pages: PageView[] }>()
+  const visitsBySession = new Map<string, { session_id: string; started_at: string; ended_at: string; device: string | null; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; pages: PageView[] }>()
   for (const v of views) {
     const key = v.session_id ?? v.pageview_id ?? v.occurred_at
     let visit = visitsBySession.get(key)
@@ -80,6 +132,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       visit = {
         session_id: key,
         started_at: v.occurred_at,
+        ended_at: v.occurred_at,
+        device: describeDevice(v.user_agent),
         referrer: v.referrer,
         utm_source: v.utm_source,
         utm_medium: v.utm_medium,
@@ -89,14 +143,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       }
       visitsBySession.set(key, visit)
     }
+    const pv = v.pageview_id
+    const leftAt = pv ? leftAtByPageview.get(pv) ?? null : null
     visit.pages.push({
       at: v.occurred_at,
+      left_at: leftAt,
       path: v.page_path,
       url: v.page_url,
       title: v.page_title,
-      seconds: v.pageview_id ? secondsByPageview.get(v.pageview_id) ?? null : null,
-      submitted_form: v.pageview_id ? formPageviews.has(v.pageview_id) : false,
+      seconds: pv ? secondsByPageview.get(pv) ?? null : null,
+      scroll_pct: pv ? scrollByPageview.get(pv) ?? null : null,
+      submitted_form: pv ? formPageviews.has(pv) : false,
+      clicks: pv ? clicksByPageview.get(pv) ?? [] : [],
     })
+    const end = leftAt && leftAt > v.occurred_at ? leftAt : v.occurred_at
+    if (end > visit.ended_at) visit.ended_at = end
   }
 
   const visits = [...visitsBySession.values()].map(v => ({
@@ -115,6 +176,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       utm_campaign: first.utm_campaign,
       click_ids: first.click_ids,
       landing_path: first.pages[0]?.path ?? null,
+      device: first.device,
     },
     totals: {
       visits: visits.length,

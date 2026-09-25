@@ -195,13 +195,32 @@
   // le CRM garde la valeur max par page vue.
   var visibleMs = 0;
   var visibleSince = document.visibilityState === "hidden" ? null : Date.now();
+
+  // Profondeur de scroll max de la page vue (en %), envoyee avec page_leave
+  var maxScrollPct = 0;
+  function measureScroll() {
+    try {
+      var doc = document.documentElement;
+      var full = Math.max(doc.scrollHeight, document.body ? document.body.scrollHeight : 0);
+      if (!full) return;
+      var seen = (window.scrollY || doc.scrollTop || 0) + window.innerHeight;
+      var pct = Math.min(100, Math.round((seen / full) * 100));
+      if (pct > maxScrollPct) maxScrollPct = pct;
+    } catch (_e) {}
+  }
+  window.addEventListener("scroll", measureScroll, { passive: true });
+  setTimeout(measureScroll, 1000);
+  function leaveMetadata() {
+    measureScroll();
+    return { seconds_on_page: Math.round(visibleMs / 1000), scroll_pct: maxScrollPct };
+  }
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") {
       if (visibleSince !== null) {
         visibleMs += Date.now() - visibleSince;
         visibleSince = null;
       }
-      track("page_leave", { seconds_on_page: Math.round(visibleMs / 1000) });
+      track("page_leave", leaveMetadata());
     } else {
       visibleSince = Date.now();
     }
@@ -218,19 +237,21 @@
       visibleMs += Date.now() - visibleSince;
     }
     // page_leave rattache a l'ancienne URL
-    var leave = basePayload("page_leave", { seconds_on_page: Math.round(visibleMs / 1000) });
+    var leave = basePayload("page_leave", leaveMetadata());
     leave.page_url = lastUrl;
     leave.page_title = lastTitle;
     send(leave);
     currentPath = window.location.pathname;
     pageviewId = randomId();
     visibleMs = 0;
+    maxScrollPct = 0;
     visibleSince = document.visibilityState === "hidden" ? null : Date.now();
     lastUrl = window.location.href;
     // Laisse le temps au framework de mettre a jour document.title
     setTimeout(function () {
       lastTitle = document.title || null;
       track("page_view", { path: window.location.pathname });
+      measureScroll();
     }, 50);
   }
   var lastUrl = window.location.href;
