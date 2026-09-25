@@ -621,6 +621,19 @@ export async function POST(req: Request, { params }: Params) {
     logger.error('forms-submit-event-comms', e, { form_id: form.id, submission_id: submission.id })
   }
 
+  // Rattache le visiteur diploma-tracker.js (cookie _dpv) au contact : son
+  // parcours web (pages vues, temps passé) remonte sur la fiche contact.
+  const visitorId = typeof body.attribution?.dp_visitor_id === 'string' ? body.attribution.dp_visitor_id.trim() : ''
+  if (contactId && /^[A-Za-z0-9_.-]{6,64}$/.test(visitorId)) {
+    const { error: linkErr } = await db
+      .from('web_visitor_contacts')
+      .upsert(
+        { visitor_id: visitorId, hubspot_contact_id: contactId, source: `form:${form.slug}` },
+        { onConflict: 'visitor_id,hubspot_contact_id', ignoreDuplicates: true },
+      )
+    if (linkErr) logger.error('forms-submit-web-visitor-link', linkErr, { form_id: form.id, contact_id: contactId })
+  }
+
   // 8. Déclenche les workflows liés à ce form (trigger_type='form_submitted')
   if (contactId) {
     try {

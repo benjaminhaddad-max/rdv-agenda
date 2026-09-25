@@ -103,6 +103,9 @@ function generateEmbedScript(host: string, slug: string, inlineForm: unknown): s
         var v = qs.get(k) || dpaGetCookie('_dpa_' + k);
         if (v) out.attribution[k] = v;
       });
+      // Visiteur diploma-tracker.js → rattachement du parcours web au contact
+      var dpv = dpaGetCookie('_dpv');
+      if (dpv) out.attribution.dp_visitor_id = dpv;
       if (qs.get('utm_source')) {
         UTM_PARAMS.forEach(function(k){ var v = qs.get(k); if (v) out.utm[k] = v; });
       } else {

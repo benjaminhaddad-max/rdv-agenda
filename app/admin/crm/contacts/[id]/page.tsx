@@ -10,7 +10,7 @@ import {
   StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
   Plus, Search, Settings, Briefcase, Clock, User, TrendingUp, Award, FileText, History,
   GraduationCap, AlertTriangle, Circle, Pencil, Megaphone, Copy, Check, Trash2,
-  SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical,
+  SlidersHorizontal, ArrowUp, ArrowDown, X, GripVertical, Globe,
 } from 'lucide-react'
 import type { QuickActionType } from '@/components/crm/QuickActionModal'
 import AircallRecordingPlayer, { stripAircallRecordingLinks } from '@/components/crm/AircallRecordingPlayer'
@@ -1346,6 +1346,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {/* Tracking publicitaire (gclid, fbclid, UTM…) — visible uniquement
               si au moins une donnée d'attribution est presente sur le contact */}
           <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
+
+          {/* Parcours web (diploma-tracker.js) — pages vues + temps passé */}
+          <WebActivitySection contactId={id} />
 
           {/* Inscription par saison — alimenté par la plateforme externe */}
           {preInscriptions.map(pi => {
@@ -3299,6 +3302,136 @@ function AdTrackingSection({ raw }: { raw: Record<string, unknown> | null | unde
             </dl>
           </div>
         )}
+      </div>
+    </RightSection>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Parcours web — pages vues sur le site et temps passé (diploma-tracker.js),
+// équivalent de l'historique de navigation HubSpot. Cachée si aucune donnée.
+// ────────────────────────────────────────────────────────────────────────────
+
+interface WebActivityPage { at: string; path: string | null; url: string | null; title: string | null; seconds: number | null; submitted_form: boolean }
+interface WebActivityVisit {
+  session_id: string; started_at: string; referrer: string | null
+  utm_source: string | null; utm_medium: string | null; utm_campaign: string | null
+  click_ids: Record<string, string> | null; total_seconds: number; pages: WebActivityPage[]
+}
+interface WebActivity {
+  visits: WebActivityVisit[]
+  first_touch: { at: string; referrer: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; click_ids: Record<string, string> | null; landing_path: string | null } | null
+  totals: { visits: number; page_views: number; seconds: number; last_seen: string | null } | null
+}
+
+function formatSeconds(s: number): string {
+  if (s < 60) return `${s} s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} min ${String(s % 60).padStart(2, '0')}`
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`
+}
+
+function visitSourceLabel(v: { referrer: string | null; utm_source: string | null; utm_medium: string | null; click_ids: Record<string, string> | null }): string {
+  const ids = v.click_ids ?? {}
+  if (ids.gclid || ids.gbraid || ids.wbraid) return 'Google Ads'
+  if (ids.fbclid) return 'Meta Ads'
+  if (v.utm_source) return [v.utm_source, v.utm_medium].filter(Boolean).join(' / ')
+  if (v.referrer) {
+    try {
+      const host = new URL(v.referrer).hostname.replace(/^www\./, '')
+      if (!host.endsWith('diploma-sante.fr')) return host
+    } catch { /* ignore */ }
+  }
+  return 'Accès direct'
+}
+
+function WebActivitySection({ contactId }: { contactId: string }) {
+  const [data, setData] = useState<WebActivity | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/crm/contacts/${contactId}/web-activity`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setData(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [contactId])
+
+  if (!data?.totals || data.visits.length === 0) return null
+  const { totals, first_touch: first } = data
+
+  return (
+    <RightSection icon={<Globe size={14} />} title="Parcours web" count={totals.page_views} accent="gold">
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded border bg-[#f7f4ee] py-1.5">
+            <div className="font-semibold text-[#0e1e35]">{totals.visits}</div>
+            <div className="text-[10px] text-[#4a6070]">visite{totals.visits > 1 ? 's' : ''}</div>
+          </div>
+          <div className="rounded border bg-[#f7f4ee] py-1.5">
+            <div className="font-semibold text-[#0e1e35]">{totals.page_views}</div>
+            <div className="text-[10px] text-[#4a6070]">pages vues</div>
+          </div>
+          <div className="rounded border bg-[#f7f4ee] py-1.5">
+            <div className="font-semibold text-[#0e1e35]">{formatSeconds(totals.seconds)}</div>
+            <div className="text-[10px] text-[#4a6070]">sur le site</div>
+          </div>
+        </div>
+
+        {first && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+            <dt className="text-[#4a6070]">1re visite</dt>
+            <dd className="font-medium text-[#0e1e35]">{format(new Date(first.at), 'Pp', { locale: fr })}</dd>
+            <dt className="text-[#4a6070]">Source</dt>
+            <dd className="font-medium text-[#0e1e35] truncate">{visitSourceLabel(first)}</dd>
+            {first.utm_campaign && (<>
+              <dt className="text-[#4a6070]">Campagne</dt>
+              <dd className="font-medium text-[#0e1e35] truncate" title={first.utm_campaign}>{first.utm_campaign}</dd>
+            </>)}
+            {first.landing_path && (<>
+              <dt className="text-[#4a6070]">Page d&apos;entrée</dt>
+              <dd className="font-medium text-[#0e1e35] truncate" title={first.landing_path}>{first.landing_path}</dd>
+            </>)}
+          </dl>
+        )}
+
+        <div className="space-y-2 pt-1 border-t">
+          {data.visits.slice(0, 10).map(v => (
+            <div key={v.session_id} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] font-semibold text-[#0e1e35]">
+                  {format(new Date(v.started_at), 'PP · HH:mm', { locale: fr })}
+                </div>
+                <div className="text-[10px] text-[#a89e8a] truncate">
+                  {visitSourceLabel(v)} · {formatSeconds(v.total_seconds)}
+                </div>
+              </div>
+              <ul className="space-y-0.5 pl-2 border-l-2 border-[#C9A84C]/30">
+                {v.pages.map((p, i) => (
+                  <li key={i} className="flex items-start justify-between gap-2">
+                    <a
+                      href={p.url ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate text-[#0e1e35] hover:underline"
+                      title={p.title ?? p.url ?? ''}
+                    >
+                      {p.path || p.title || p.url}
+                      {p.submitted_form && (
+                        <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire</span>
+                      )}
+                    </a>
+                    <span className="shrink-0 text-[10px] text-[#4a6070]">
+                      {p.seconds !== null ? formatSeconds(p.seconds) : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {data.visits.length > 10 && (
+            <div className="text-[10px] text-[#a89e8a]">+ {data.visits.length - 10} visites plus anciennes</div>
+          )}
+        </div>
       </div>
     </RightSection>
   )
