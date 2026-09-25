@@ -209,6 +209,45 @@
 
   track("page_view", { path: window.location.pathname });
 
+  // Navigation SPA (Next.js, etc.) : l'URL change sans rechargement. On clot
+  // la page vue en cours (page_leave) et on en ouvre une nouvelle.
+  var currentPath = window.location.pathname;
+  function onRouteChange() {
+    if (window.location.pathname === currentPath) return;
+    if (visibleSince !== null) {
+      visibleMs += Date.now() - visibleSince;
+    }
+    // page_leave rattache a l'ancienne URL
+    var leave = basePayload("page_leave", { seconds_on_page: Math.round(visibleMs / 1000) });
+    leave.page_url = lastUrl;
+    leave.page_title = lastTitle;
+    send(leave);
+    currentPath = window.location.pathname;
+    pageviewId = randomId();
+    visibleMs = 0;
+    visibleSince = document.visibilityState === "hidden" ? null : Date.now();
+    lastUrl = window.location.href;
+    // Laisse le temps au framework de mettre a jour document.title
+    setTimeout(function () {
+      lastTitle = document.title || null;
+      track("page_view", { path: window.location.pathname });
+    }, 50);
+  }
+  var lastUrl = window.location.href;
+  var lastTitle = document.title || null;
+  ["pushState", "replaceState"].forEach(function (method) {
+    var original = history[method];
+    if (typeof original !== "function") return;
+    history[method] = function () {
+      var result = original.apply(this, arguments);
+      try { onRouteChange(); } catch (_e) {}
+      return result;
+    };
+  });
+  window.addEventListener("popstate", function () {
+    try { onRouteChange(); } catch (_e) {}
+  });
+
   window.DiplomaTracker = {
     track: track,
     visitorId: visitorId,
