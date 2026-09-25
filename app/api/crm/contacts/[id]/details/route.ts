@@ -119,6 +119,7 @@ export async function GET(
     preInscriptionsRes,
     smsRecipients,
     emailRecipients,
+    nativeFormSubmissions,
   ] = await Promise.all([
     wantCore
       ? db.from('crm_deals').select('*')
@@ -182,7 +183,33 @@ export async function GET(
           .order('sent_at', { ascending: false, nullsFirst: false })
           .limit(200))
       : emptyArr,
+
+    // Formulaires natifs du CRM (/api/forms/[slug]/submit) : le contact est
+    // stocké dans data._contact_id (crm_form_submissions = historique HubSpot).
+    wantCore
+      ? safeRows(db.from('form_submissions')
+          .select('id, form_id, source_url, submitted_at, forms(name, title)')
+          .eq('data->>_contact_id', contactId)
+          .neq('status', 'spam')
+          .order('submitted_at', { ascending: false })
+          .limit(50))
+      : emptyArr,
   ])
+
+  const allFormSubmissions = [
+    ...formSubmissions,
+    ...nativeFormSubmissions.map(f => {
+      const form = f.forms as { name?: string; title?: string } | null
+      return {
+        id: f.id,
+        form_id: f.form_id,
+        form_title: form?.title || form?.name || null,
+        form_type: 'native',
+        page_url: f.source_url,
+        submitted_at: f.submitted_at,
+      }
+    }),
+  ].sort((a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at)))
 
   const deals = dealsRes.data ?? []
   let preInscriptions = preInscriptionsRes.data ?? []
@@ -456,7 +483,7 @@ export async function GET(
     payload.deals = deals
     payload.appointments = appointments
     payload.activities = activities
-    payload.formSubmissions = formSubmissions
+    payload.formSubmissions = allFormSubmissions
     payload.tasks = tasks
     payload.preInscriptions = dedupedPreInsc
     payload.duplicateContactIds = linkedContactIds.filter(id => id !== contactId)

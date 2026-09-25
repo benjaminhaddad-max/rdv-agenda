@@ -328,6 +328,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }, [])
   const [timelineTab, setTimelineTab] = useState<TimelineTab>('all')
   const [timelineSearch, setTimelineSearch] = useState('')
+  // Parcours web (diploma-tracker.js) : section dédiée + visites dans la timeline
+  const [webActivity, setWebActivity] = useState<WebActivity | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/crm/contacts/${id}/web-activity`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setWebActivity(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [id])
   const [showAllProps, setShowAllProps] = useState(false)
   const [propSearch, setPropSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -735,7 +745,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // ── Timeline ──────────────────────────────────────────────────────────
   type TimelineItem = {
     id: string
-    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task'
+    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task' | 'web'
     timestamp: number
     title: string
     body?: string
@@ -751,6 +761,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     // Renseigné pour les activités natives (crm_activities) → édition/suppression
     activityId?: string
     editable?: boolean
+    webPages?: WebActivityPage[]
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -793,6 +804,17 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       timestamp: new Date(f.submitted_at).getTime(),
       title: f.form_title || f.form_id,
       subtitle: f.page_url,
+    })
+  }
+  for (const v of webActivity?.visits ?? []) {
+    const n = v.pages.length
+    timeline.push({
+      id: `web-${v.session_id}`,
+      type: 'web',
+      timestamp: new Date(v.started_at).getTime(),
+      title: `Visite du site · ${n} page${n > 1 ? 's' : ''} · ${formatSeconds(v.total_seconds)}`,
+      subtitle: `Source : ${visitSourceLabel(v)}`,
+      webPages: v.pages,
     })
   }
   for (const a of appointments) {
@@ -1241,6 +1263,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                   isVoicemail={t.isVoicemail}
                                 />
                               )}
+                              {t.type === 'web' && t.webPages && <WebVisitPages pages={t.webPages} />}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
                                   Erreur : {t.sms.error_message}
@@ -1348,7 +1371,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <AdTrackingSection raw={contact.hubspot_raw as Record<string, unknown> | null | undefined} />
 
           {/* Parcours web (diploma-tracker.js) — pages vues + temps passé */}
-          <WebActivitySection contactId={id} />
+          <WebActivitySection data={webActivity} />
 
           {/* Inscription par saison — alimenté par la plateforme externe */}
           {preInscriptions.map(pi => {
@@ -1788,6 +1811,7 @@ function TypeDot({ type }: { type: string }) {
     meeting: 'bg-purple-500',
     rdv: 'bg-[#C9A84C]',
     form: 'bg-rose-500',
+    web: 'bg-sky-500',
   }
   return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
 }
@@ -1802,6 +1826,7 @@ function TypeBadge({ type }: { type: string }) {
     meeting: { icon: <Calendar size={11} />,   bg: 'bg-purple-100 text-purple-700' },
     rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#C9A84C]/15 text-[#0e1e35]' },
     form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
+    web:     { icon: <Globe size={11} />,      bg: 'bg-sky-100 text-sky-700' },
   }
   const m = map[type] ?? map.note
   return (
@@ -2923,7 +2948,7 @@ function PropertiesModal({
 /* ═════════ Helpers ═════════ */
 
 function labelForType(t: string) {
-  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire' }
+  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web' }
   return labels[t] ?? t
 }
 
@@ -3345,17 +3370,32 @@ function visitSourceLabel(v: { referrer: string | null; utm_source: string | nul
   return 'Accès direct'
 }
 
-function WebActivitySection({ contactId }: { contactId: string }) {
-  const [data, setData] = useState<WebActivity | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/crm/contacts/${contactId}/web-activity`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) setData(d) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [contactId])
+function WebVisitPages({ pages }: { pages: WebActivityPage[] }) {
+  return (
+    <ul className="mt-2 space-y-0.5 text-xs bg-[#f7f4ee] p-2 rounded">
+      {pages.map((p, i) => (
+        <li key={i} className="flex items-start justify-between gap-3">
+          <a
+            href={p.url ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-[#0e1e35] hover:underline"
+            title={p.title ?? p.url ?? ''}
+          >
+            {p.title?.split(' | ')[0] || p.path || p.url}
+            {p.path && p.title && <span className="ml-1 text-[#a89e8a]">{p.path}</span>}
+            {p.submitted_form && (
+              <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">formulaire</span>
+            )}
+          </a>
+          <span className="shrink-0 text-[#4a6070]">{p.seconds !== null ? formatSeconds(p.seconds) : '—'}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
+function WebActivitySection({ data }: { data: WebActivity | null }) {
   if (!data?.totals || data.visits.length === 0) return null
   const { totals, first_touch: first } = data
 
