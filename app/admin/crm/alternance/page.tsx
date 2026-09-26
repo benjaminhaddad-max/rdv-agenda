@@ -6,12 +6,13 @@ import { Building2, GraduationCap, FileSignature, AlertCircle, Clock, CheckCircl
 import AlternanceShell, { AlternanceCard, StatusPill } from '@/components/alternance/AlternanceShell'
 import { CONTRACT_STATUS_META, STUDENT_STATUS_META } from '@/lib/alternance/constants'
 import type { AlternanceDashboard } from '@/lib/alternance/types'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 function StatBox({ label, value, color, icon: Icon }: { label: string; value: number; color: string; icon: typeof Building2 }) {
   return (
     <AlternanceCard>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 4 }}>{label}</div>
           <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
         </div>
@@ -24,6 +25,7 @@ function StatBox({ label, value, color, icon: Icon }: { label: string; value: nu
 export default function AlternanceDashboardPage() {
   const [data, setData] = useState<AlternanceDashboard | null>(null)
   const [loading, setLoading] = useState(true)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     fetch('/api/alternance/dashboard')
@@ -39,7 +41,7 @@ export default function AlternanceDashboardPage() {
       title="Tableau de bord"
       subtitle="Suivi des dossiers alternance — Diploma Santé"
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: isMobile ? 10 : 14, marginBottom: isMobile ? 16 : 24 }}>
         <StatBox label="Dossiers incomplets" value={data?.dossiers_incomplets ?? 0} color="#f59e0b" icon={AlertCircle} />
         <StatBox label="Sans formulaire" value={data?.etudiants_sans_formulaire ?? 0} color="#4a6070" icon={GraduationCap} />
         <StatBox label="Relances à faire" value={data?.relances_a_faire ?? 0} color="#0ea5e9" icon={Clock} />
@@ -49,7 +51,7 @@ export default function AlternanceDashboardPage() {
         <StatBox label="Terminés" value={data?.contrats_termines ?? 0} color="#4a6070" icon={Building2} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 12 : 20 }}>
         <AlternanceCard>
           <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Derniers étudiants</h3>
           {(data?.recent_students ?? []).length === 0 ? (

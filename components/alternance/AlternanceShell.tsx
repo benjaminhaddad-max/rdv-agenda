@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { FileSignature } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import { ALTERNANCE_COLORS, ALTERNANCE_NAV } from '@/lib/alternance/constants'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function AlternanceShell({
   title,
@@ -18,6 +19,7 @@ export default function AlternanceShell({
   actions?: React.ReactNode
 }) {
   const pathname = usePathname()
+  const isMobile = useIsMobile()
 
   return (
     <div style={{
@@ -27,22 +29,26 @@ export default function AlternanceShell({
       fontFamily: 'Inter, system-ui, sans-serif',
     }}>
       <div style={{
-        padding: '0 20px',
+        padding: isMobile ? '0 12px' : '0 20px',
         height: 52,
+        gap: 8,
         background: '#ffffff',
         borderBottom: `1px solid ${ALTERNANCE_COLORS.border}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, minWidth: 0 }}>
           <Link href="/admin/crm" style={{ color: ALTERNANCE_COLORS.muted, textDecoration: 'none', fontSize: 12 }}>
             ← CRM
           </Link>
           <div style={{ width: 1, height: 22, background: ALTERNANCE_COLORS.border }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileSignature size={16} style={{ color: ALTERNANCE_COLORS.accent }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Alternance — Diploma Santé</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <FileSignature size={16} style={{ color: ALTERNANCE_COLORS.accent, flexShrink: 0 }} />
+            {/* Mobile : libellé raccourci pour laisser la place au bouton de déconnexion */}
+            <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isMobile ? 'Alternance' : 'Alternance — Diploma Santé'}
+            </span>
           </div>
         </div>
         <LogoutButton />
@@ -51,9 +57,9 @@ export default function AlternanceShell({
       <div style={{
         background: '#ffffff',
         borderBottom: `1px solid ${ALTERNANCE_COLORS.border}`,
-        padding: '0 20px',
+        padding: isMobile ? '0 8px' : '0 20px',
         display: 'flex',
-        gap: 4,
+        gap: isMobile ? 0 : 4,
         overflowX: 'auto',
       }}>
         {ALTERNANCE_NAV.map(item => {
@@ -72,6 +78,8 @@ export default function AlternanceShell({
                 textDecoration: 'none',
                 borderBottom: active ? `2px solid ${ALTERNANCE_COLORS.accent}` : '2px solid transparent',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
+                ...(isMobile ? { padding: '12px 10px' } : {}),
               }}
             >
               {item.label}
@@ -80,13 +88,18 @@ export default function AlternanceShell({
         })}
       </div>
 
-      <div style={{ padding: '24px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 16 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{title}</h1>
+      <div style={{ padding: isMobile ? '16px 12px' : '24px', maxWidth: 1400, margin: '0 auto' }}>
+        {/* Mobile : titre et actions passent à la ligne si besoin ; les boutons ne rétrécissent jamais */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          marginBottom: isMobile ? 14 : 20, gap: isMobile ? 10 : 16,
+          ...(isMobile ? { flexWrap: 'wrap' as const } : {}),
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: isMobile ? 19 : 22, fontWeight: 700, margin: 0, wordBreak: 'break-word' }}>{title}</h1>
             {subtitle && <p style={{ margin: '6px 0 0', color: ALTERNANCE_COLORS.muted, fontSize: 13 }}>{subtitle}</p>}
           </div>
-          {actions}
+          {actions && <div style={{ flexShrink: 0, maxWidth: '100%' }}>{actions}</div>}
         </div>
         {children}
       </div>
@@ -137,6 +150,13 @@ export function AlternanceBtn({
         borderRadius: 8,
         fontSize: 13,
         fontWeight: 600,
+        // Icône + libellé toujours sur une seule ligne (les SVG sont en
+        // display:block via le preflight Tailwind)
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.6 : 1,
       }}

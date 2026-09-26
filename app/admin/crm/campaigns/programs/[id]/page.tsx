@@ -12,6 +12,7 @@ import { BRAND_FORM_CTA_LABEL } from '@/lib/marketing/last-chance-medecine-steps
 import { getBrandFormUrl } from '@/lib/marketing/brand-form-links'
 import { ChevronDown, ChevronUp, Code, Eye, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Step {
   id: string
@@ -51,6 +52,7 @@ const FIELD: React.CSSProperties = {
 
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [program, setProgram] = useState<Program | null>(null)
   const [saving, setSaving] = useState(false)
   usePageTitle(program?.name)
@@ -119,7 +121,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div style={{ color: PAGE_TEXT }}>
       <MarketingNav title={program.name} />
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
           <button type="button" onClick={enroll} style={btn}>
             <Play size={14} /> Inscrire l&apos;audience
@@ -166,6 +168,7 @@ function StepEditor({
 }) {
   const [showHtml, setShowHtml] = useState(false)
   const [contentOpen, setContentOpen] = useState(false)
+  const isMobile = useIsMobile()
   const brand = step.email_brands
   const charter = brand?.slug ? getBrandCharter(brand.slug) : null
 
@@ -202,13 +205,13 @@ function StepEditor({
     : previewInner
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 18, marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
+    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? 12 : 18, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <strong style={{ fontSize: 16, color: PAGE_TEXT }}>{step.label}</strong>
           <span style={{ marginLeft: 8, fontSize: 12, color: PAGE_MUTED }}>J+{step.day_offset}</span>
           {brand && (
-            <span style={{ marginLeft: 8, fontSize: 11, background: '#f0f4ff', color: PAGE_TEXT, padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ marginLeft: isMobile ? 0 : 8, marginTop: isMobile ? 6 : 0, display: isMobile ? 'block' : 'inline', overflowWrap: 'anywhere', fontSize: 11, background: '#f0f4ff', color: PAGE_TEXT, padding: '3px 8px', borderRadius: 4 }}>
               {brand.name} · expéditeur : {brand.sender_email}
               {!brand.active && ' (inactif)'}
             </span>

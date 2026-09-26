@@ -36,8 +36,9 @@ export default function DocumentsPage() {
         <div style={{ display: 'grid', gap: 10 }}>
           {items.map(d => (
             <AlternanceCard key={d.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
+              {/* Passe à la ligne sur petit écran (sans effet sur desktop) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 8 }}>
+                <div style={{ minWidth: 0, wordBreak: 'break-word' }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{d.label}</div>
                   <div style={{ fontSize: 12, color: '#4a6070', marginTop: 4 }}>
                     {DOCUMENT_TYPE_META[d.doc_type]?.label}

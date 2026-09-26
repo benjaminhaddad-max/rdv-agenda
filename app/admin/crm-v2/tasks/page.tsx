@@ -19,6 +19,7 @@ import {
   CrmV2Th,
 } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface CRMTask {
   id: number
@@ -72,6 +73,7 @@ export default function TasksV2Page() {
   const [loading, setLoading] = useState(true)
   const [sortAsc, setSortAsc] = useState(true)
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -177,15 +179,15 @@ export default function TasksV2Page() {
         subtitle="Suivi des tâches de l’équipe"
       />
 
-      <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '16px 28px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: isMobile ? '12px 12px' : '16px 28px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14, minWidth: 0 }}>
           <CrmV2PillTabs
             items={pillItems}
             value={filterDue}
             onChange={id => setFilterDue(id as FilterDue)}
           />
 
-          <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, ...(isMobile ? { display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 } : {}) }}>
             Attribué à :{' '}
             <select
               value={filterOwner}
@@ -193,6 +195,7 @@ export default function TasksV2Page() {
               style={{
                 border: 'none', background: 'transparent', color: crmV2.link,
                 fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
+                ...(isMobile ? { flex: 1, minWidth: 0, maxWidth: '100%' } : {}),
               }}
             >
               <option value="">Toutes les personnes à qui la tâche est attribuée</option>
@@ -204,12 +207,12 @@ export default function TasksV2Page() {
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, flexWrap: 'wrap' }}>
             <CrmV2Search
               placeholder="Recherche"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: 260 }}
+              style={{ width: isMobile ? '100%' : 260 }}
             />
             <button
               type="button"
@@ -235,7 +238,7 @@ export default function TasksV2Page() {
         </div>
       </div>
 
-      <div style={{ padding: '20px 28px 40px' }}>
+      <div style={{ padding: isMobile ? '12px 12px 32px' : '20px 28px 40px' }}>
         <div style={{
           background: crmV2.bg,
           border: `1px solid ${crmV2.border}`,
@@ -256,6 +259,93 @@ export default function TasksV2Page() {
                 </CrmV2Button>
               }
             />
+          ) : isMobile ? (
+            // Mobile : liste de cartes (statut, titre, contact, échéance, assigné)
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {filtered.map(task => {
+                const due = formatDue(task.due_at)
+                const owner = task.owner_id ? ownerById.get(task.owner_id) : null
+                const oName = ownerName(owner)
+                const contact = task.hubspot_contact_id ? contacts[task.hubspot_contact_id] : null
+                const contactLabel = contact
+                  ? [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email
+                  : null
+                const done = task.status === 'completed'
+                return (
+                  <div
+                    key={task.id}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      padding: '12px 12px', borderBottom: `1px solid ${crmV2.border}`,
+                      background: selected.has(task.id) ? '#f0fafb' : undefined,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => !done && completeTask(task.id)}
+                      title={done ? 'Terminée' : 'Marquer comme terminée'}
+                      disabled={done}
+                      style={{
+                        width: 36, height: 36, flexShrink: 0, marginTop: -6, marginLeft: -6,
+                        background: 'transparent', border: 'none', padding: 0,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: done ? 'default' : 'pointer',
+                      }}
+                    >
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        border: `2px solid ${done ? crmV2.success : crmV2.borderStrong}`,
+                        background: done ? crmV2.success : 'transparent',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                      }}>
+                        {done ? <Circle size={8} fill="#fff" /> : null}
+                      </span>
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ fontSize: 14, wordBreak: 'break-word' }}>
+                        {task.hubspot_contact_id ? (
+                          <CrmV2Link href={`/admin/crm-v2/contacts/${task.hubspot_contact_id}`}>{task.title}</CrmV2Link>
+                        ) : (
+                          <span style={{ color: crmV2.link, fontWeight: 600 }}>{task.title}</span>
+                        )}
+                      </div>
+                      {contactLabel && (
+                        <span style={{ fontSize: 12, color: crmV2.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {contactLabel}
+                        </span>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12, marginTop: 2 }}>
+                        <span style={{ color: due.overdue ? crmV2.danger : crmV2.textMuted, fontWeight: due.overdue ? 600 : 400 }}>
+                          {due.label}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: oName ? crmV2.text : crmV2.textMuted, minWidth: 0 }}>
+                          <CrmV2Avatar name={oName || '?'} color={oName ? (owner?.avatar_color || crmV2.gold) : crmV2.borderStrong} size={20} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{oName || 'Non attribué'}</span>
+                        </span>
+                      </div>
+                      {task.description && (
+                        <div style={{ fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {task.description}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => duplicateTask(task.id)}
+                      title="Dupliquer la tâche"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                        border: `1px solid ${crmV2.border}`, background: 'transparent',
+                        color: crmV2.textMuted, cursor: 'pointer', padding: 0,
+                      }}
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
           ) : (
             <CrmV2Table>
               <thead>

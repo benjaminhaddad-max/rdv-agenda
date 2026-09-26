@@ -6,6 +6,7 @@ import {
   RefreshCw, X,
 } from 'lucide-react'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface Dashboard {
@@ -56,6 +57,7 @@ const TIME_RANGE_LABELS: Record<string, string> = {
 // ─── Page ────────────────────────────────────────────────────────────────
 export default function DashboardViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(dashboard?.name)
@@ -88,38 +90,46 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/admin/crm/reports" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ChevronLeft size={14} /> Dashboards
+      {/* Mobile : retour + nom sur une ligne (description masquée), boutons compacts à droite */}
+      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0, flex: isMobile ? 1 : undefined }}>
+          <a href="/admin/crm/reports" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }} title="Dashboards">
+            <ChevronLeft size={14} />{!isMobile && ' Dashboards'}
           </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <BarChart3 size={16} style={{ color: dashboard.color }} />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>{dashboard.name}</span>
-          {dashboard.description && (
+          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
+          <BarChart3 size={16} style={{ color: dashboard.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined, minWidth: 0 }}>{dashboard.name}</span>
+          {dashboard.description && !isMobile && (
             <span style={{ fontSize: 11, color: '#4a6070', marginLeft: 4 }}>· {dashboard.description}</span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
           <button
             onClick={refresh}
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#4a6070', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
+            title="Actualiser"
+            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: isMobile ? '6px 8px' : '6px 12px', color: '#4a6070', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
           >
-            <RefreshCw size={12} /> Actualiser
+            <RefreshCw size={12} />{!isMobile && ' Actualiser'}
           </button>
           <button
             onClick={() => setShowAddWidget(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '6px 14px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            title="Ajouter un widget"
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: isMobile ? '6px 8px' : '6px 14px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
           >
-            <Plus size={14} /> Ajouter un widget
+            <Plus size={14} />{isMobile ? ' Widget' : ' Ajouter un widget'}
           </button>
         </div>
       </div>
 
+      {/* Mobile : description affichée sous la barre */}
+      {isMobile && dashboard.description && (
+        <div style={{ padding: '8px 12px 0', fontSize: 12, color: '#4a6070' }}>{dashboard.description}</div>
+      )}
+
       {/* Grid widgets */}
-      <div style={{ padding: 20, maxWidth: 1600, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? 12 : 20, maxWidth: 1600, margin: '0 auto' }}>
         {dashboard.widgets.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 80, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? 32 : 80, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
             <BarChart3 size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Dashboard vide</div>
             <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
@@ -130,17 +140,19 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
             </button>
           </div>
         ) : (
+          // Mobile : grille 2 colonnes — petits widgets côte à côte, les autres en pleine largeur
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 16,
-            gridAutoRows: 'minmax(160px, auto)',
+            gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)',
+            gap: isMobile ? 10 : 16,
+            gridAutoRows: isMobile ? 'minmax(120px, auto)' : 'minmax(160px, auto)',
           }}>
             {dashboard.widgets.map(w => (
               <WidgetContainer
                 key={w.id + '-' + refreshKey}
                 widget={w}
                 onDelete={() => deleteWidget(w)}
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -159,7 +171,7 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
 }
 
 // ─── Widget container ────────────────────────────────────────────────────
-function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () => void }) {
+function WidgetContainer({ widget, onDelete, isMobile }: { widget: Widget; onDelete: () => void; isMobile: boolean }) {
   const [data, setData] = useState<WidgetData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -190,22 +202,24 @@ function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () =>
     normal: { gridRow: 'span 1' },
     tall:   { gridRow: 'span 2' },
   }
+  // Mobile : seuls les petits widgets (métriques) restent sur 1 colonne, le reste prend toute la largeur
+  const mobileSpan: React.CSSProperties = { gridColumn: widget.size === 'small' ? 'span 1' : '1 / -1', gridRow: 'auto' }
 
   return (
     <div style={{
-      ...sizeMap[widget.size],
-      ...heightMap[widget.height],
+      ...(isMobile ? mobileSpan : { ...sizeMap[widget.size], ...heightMap[widget.height] }),
       background: '#ffffff',
       border: '1px solid #e5ddc8',
       borderRadius: 12,
-      padding: 18,
+      padding: isMobile ? 12 : 18,
       position: 'relative',
       display: 'flex',
       flexDirection: 'column',
-      minHeight: 160,
+      minHeight: isMobile ? 120 : 160,
+      minWidth: isMobile ? 0 : undefined,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: isMobile ? 6 : undefined, flexWrap: isMobile && widget.size === 'small' ? 'wrap' : undefined }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
             {widget.title}
@@ -214,8 +228,8 @@ function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () =>
             <div style={{ fontSize: 11, color: '#4a6070' }}>{widget.description}</div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <span style={{ fontSize: 10, color: '#4a6070', padding: '2px 8px', background: '#f7f4ee', borderRadius: 999 }}>
+        <div style={{ display: 'flex', gap: 4, flexShrink: isMobile ? 0 : undefined }}>
+          <span style={{ fontSize: 10, color: '#4a6070', padding: '2px 8px', background: '#f7f4ee', borderRadius: 999, whiteSpace: isMobile ? 'nowrap' : undefined }}>
             {TIME_RANGE_LABELS[widget.time_range] || widget.time_range}
           </span>
           <button
@@ -239,7 +253,7 @@ function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () =>
         ) : !data ? (
           <div style={{ textAlign: 'center', color: '#4a6070', fontSize: 12 }}>Pas de données</div>
         ) : (
-          <WidgetRenderer widget={widget} data={data} />
+          <WidgetRenderer widget={widget} data={data} isMobile={isMobile} />
         )}
       </div>
     </div>
@@ -247,30 +261,30 @@ function WidgetContainer({ widget, onDelete }: { widget: Widget; onDelete: () =>
 }
 
 // ─── Renderer selon le type de widget ─────────────────────────────────────
-function WidgetRenderer({ widget, data }: { widget: Widget; data: WidgetData }) {
+function WidgetRenderer({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   switch (widget.widget_type) {
-    case 'metric':     return <MetricWidget widget={widget} data={data} />
+    case 'metric':     return <MetricWidget widget={widget} data={data} isMobile={isMobile} />
     case 'bar_chart':  return <BarChartWidget widget={widget} data={data} />
     case 'line_chart': return <LineChartWidget widget={widget} data={data} />
-    case 'pie_chart':  return <PieChartWidget widget={widget} data={data} />
-    case 'funnel':     return <FunnelWidget widget={widget} data={data} />
+    case 'pie_chart':  return <PieChartWidget widget={widget} data={data} isMobile={isMobile} />
+    case 'funnel':     return <FunnelWidget widget={widget} data={data} isMobile={isMobile} />
     case 'table':      return <TableWidget data={data} />
     default:           return <div style={{ color: '#4a6070' }}>Type non supporté: {widget.widget_type}</div>
   }
 }
 
 // ─── Metric (big number) ─────────────────────────────────────────────────
-function MetricWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
+function MetricWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   const t = data.trend
   const up = (t?.delta || 0) > 0
   const down = (t?.delta || 0) < 0
   return (
     <div>
-      <div style={{ fontSize: 36, fontWeight: 700, color: widget.color, lineHeight: 1 }}>
+      <div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 700, color: widget.color, lineHeight: 1 }}>
         {data.total.toLocaleString('fr-FR')}
       </div>
       {widget.show_trend && t && t.previous !== 0 && (
-        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, flexWrap: isMobile ? 'wrap' : undefined }}>
           {up && <TrendingUp size={12} style={{ color: '#22c55e' }} />}
           {down && <TrendingDown size={12} style={{ color: '#ef4444' }} />}
           <span style={{ color: up ? '#22c55e' : down ? '#ef4444' : '#4a6070', fontWeight: 600 }}>
@@ -346,7 +360,7 @@ function LineChartWidget({ widget, data }: { widget: Widget; data: WidgetData })
 }
 
 // ─── Pie chart (SVG inline) ──────────────────────────────────────────────
-function PieChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
+function PieChartWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   void widget
   if (data.breakdown.length === 0) {
     return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
@@ -360,8 +374,8 @@ function PieChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) 
   const R = 40, C = 2 * Math.PI * R
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-      <svg viewBox="0 0 100 100" width="120" height="120" style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20 }}>
+      <svg viewBox="0 0 100 100" width={isMobile ? 96 : 120} height={isMobile ? 96 : 120} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
         {data.breakdown.map((b, i) => {
           const pct = b.value / total
           const dash = pct * C
@@ -399,7 +413,7 @@ function PieChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) 
 }
 
 // ─── Funnel (étapes successives) ──────────────────────────────────────────
-function FunnelWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
+function FunnelWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   void widget
   if (data.breakdown.length === 0) {
     return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
@@ -414,12 +428,13 @@ function FunnelWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            padding: '10px 14px',
+            padding: isMobile ? '8px 10px' : '10px 14px',
             background: b.color ? `${b.color}15` : '#f7f4ee',
             borderLeft: `3px solid ${b.color || '#C9A84C'}`,
             borderRadius: 6,
-            width: `${Math.max(40, pct)}%`,
-            minWidth: 200,
+            width: isMobile ? `${Math.max(55, pct)}%` : `${Math.max(40, pct)}%`,
+            minWidth: isMobile ? 0 : 200,
+            boxSizing: isMobile ? 'border-box' : undefined,
           }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
             <span style={{ fontSize: 16, fontWeight: 700, color: b.color || '#C9A84C' }}>{b.value}</span>
@@ -483,6 +498,7 @@ const GROUP_BY_LABELS: Record<string, string> = {
 }
 
 function AddWidgetModal({ dashboardId, onClose, onAdded }: { dashboardId: string; onClose: () => void; onAdded: () => void }) {
+  const isMobile = useIsMobile()
   const [widgetType, setWidgetType] = useState('metric')
   const [title, setTitle] = useState('')
   const [dataSource, setDataSource] = useState('contacts')
@@ -522,14 +538,14 @@ function AddWidgetModal({ dashboardId, onClose, onAdded }: { dashboardId: string
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 640, maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 640, maxWidth: 'calc(100vw - 80px)', maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Ajouter un widget</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
         <Section title="1. Type de widget">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, 1fr)', gap: 8 }}>
             {WIDGET_TYPES.map(wt => (
               <button
                 key={wt.key}

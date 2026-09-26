@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   BarChart3, ChevronLeft, ChevronRight, Phone, RefreshCw, TrendingDown, TrendingUp,
 } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface TeleproWeekRow {
   telepro_id: string
@@ -65,6 +66,7 @@ function currentWeekStart(): string {
 }
 
 export default function TeleproWeeklyReportPage() {
+  const isMobile = useIsMobile()
   const [weekStart, setWeekStart] = useState(currentWeekStart)
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,32 +92,35 @@ export default function TeleproWeeklyReportPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BarChart3 size={16} style={{ color: '#C9A84C' }} />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>RDV placés par télépro</span>
-          <span style={{ fontSize: 11, color: '#4a6070' }}>
-            Semaine par semaine — basé sur la date de prise du RDV
-          </span>
+      {/* Mobile : en-tête compacté (sous-titre masqué, lien retour court) */}
+      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <BarChart3 size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>RDV placés par télépro</span>
+          {!isMobile && (
+            <span style={{ fontSize: 11, color: '#4a6070' }}>
+              Semaine par semaine — basé sur la date de prise du RDV
+            </span>
+          )}
         </div>
         <Link
           href="/admin/crm/reports"
-          style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none' }}
+          style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none', whiteSpace: isMobile ? 'nowrap' : undefined, flexShrink: isMobile ? 0 : undefined }}
         >
-          ← Dashboards & Rapports
+          {isMobile ? '← Rapports' : '← Dashboards & Rapports'}
         </Link>
       </div>
 
-      <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '16px 12px' : '24px', maxWidth: 1200, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Rapport hebdomadaire télépros</h1>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Rapport hebdomadaire télépros</h1>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: '#4a6070' }}>
               Nombre de rendez-vous pris par chaque téléprospecteur, semaine du lundi au dimanche.
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : undefined }}>
             <button
               onClick={() => setWeekStart(w => addWeeks(w, -1))}
               style={navBtnStyle}
@@ -127,10 +132,11 @@ export default function TeleproWeeklyReportPage() {
               background: '#ffffff',
               border: '1px solid #e5ddc8',
               borderRadius: 8,
-              padding: '8px 16px',
-              fontSize: 14,
               fontWeight: 600,
-              minWidth: 220,
+              minWidth: isMobile ? 0 : 220,
+              flex: isMobile ? 1 : undefined,
+              padding: isMobile ? '8px 10px' : '8px 16px',
+              fontSize: isMobile ? 13 : 14,
               textAlign: 'center',
             }}>
               {loading && !data ? 'Chargement…' : data?.week_label ?? '—'}
@@ -162,7 +168,7 @@ export default function TeleproWeeklyReportPage() {
 
         {data && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 16 : 24 }}>
               <KpiCard label="Total RDV placés" value={data.total} color="#C9A84C" />
               <KpiCard label="Télépros actifs" value={data.telepros.filter(t => t.total > 0).length} color="#2ea3f2" />
               <KpiCard
@@ -177,8 +183,9 @@ export default function TeleproWeeklyReportPage() {
               )}
             </div>
 
-            <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            {/* Mobile : tableau scrollable horizontalement */}
+            <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden', overflowX: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: isMobile ? 640 : undefined }}>
                 <thead>
                   <tr style={{ background: '#f7f4ee', borderBottom: '1px solid #e5ddc8' }}>
                     <Th align="left">Télépro</Th>
@@ -200,11 +207,11 @@ export default function TeleproWeeklyReportPage() {
                             background: `${row.avatar_color || '#C9A84C'}22`,
                             color: row.avatar_color || '#C9A84C',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 12, fontWeight: 700,
+                            fontSize: 12, fontWeight: 700, flexShrink: 0,
                           }}>
                             {row.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
-                          <span style={{ fontWeight: 600 }}>{row.name}</span>
+                          <span style={{ fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined }}>{row.name}</span>
                         </div>
                       </td>
                       <Td highlight={row.total > 0}>{row.total}</Td>
@@ -282,10 +289,11 @@ const navBtnStyle: React.CSSProperties = {
 }
 
 function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: '16px 18px' }}>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? '12px 12px' : '16px 18px', minWidth: isMobile ? 0 : undefined }}>
       <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color }}>{value}</div>
+      <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color }}>{value}</div>
     </div>
   )
 }

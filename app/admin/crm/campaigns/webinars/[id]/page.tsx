@@ -9,6 +9,7 @@ import MarketingNav from '@/components/crm/MarketingNav'
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { SlideCanvas } from '@/components/webinar-presentations/SlideCanvas'
 import GuideFileDrop from '@/components/webinar-presentations/GuideFileDrop'
 import { HtmlDeckPreview } from '@/components/webinar-presentations/HtmlDeckPreview'
@@ -41,6 +42,7 @@ const LAYOUTS: { id: SlideLayout; label: string }[] = [
 type Detail = WebinarPresentation & { feedback: WebinarPresentationFeedback[] }
 
 export default function WebinarPresentationDetailPage() {
+  const isMobile = useIsMobile()
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [data, setData] = useState<Detail | null>(null)
@@ -198,10 +200,10 @@ export default function WebinarPresentationDetailPage() {
   return (
     <div>
       <MarketingNav title={data.title} />
-      <CrmV2Page style={{ padding: 24 }}>
+      <CrmV2Page style={{ padding: isMobile ? 12 : 24 }}>
         <div style={{ maxWidth: 1220, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18 }}>
-            <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <div style={{ minWidth: 0 }}>
               <button
                 type="button"
                 onClick={() => router.push('/admin/crm/campaigns/webinars')}
@@ -209,7 +211,7 @@ export default function WebinarPresentationDetailPage() {
               >
                 <ArrowLeft size={14} /> Toutes les présentations
               </button>
-              <h1 style={{ margin: '8px 0 6px', fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: crmV2.text }}>{data.title}</h1>
+              <h1 style={{ margin: '8px 0 6px', fontSize: isMobile ? 21 : 26, overflowWrap: 'anywhere', fontWeight: 700, letterSpacing: '-0.03em', color: crmV2.text }}>{data.title}</h1>
               {data.subtitle && (
                 <p style={{ margin: '0 0 10px', fontSize: 14, color: crmV2.textMuted, lineHeight: 1.45, maxWidth: 720 }}>
                   {data.subtitle}
@@ -221,7 +223,7 @@ export default function WebinarPresentationDetailPage() {
                 <span style={{ fontSize: 12, color: crmV2.textFaint }}>{htmlSrc ? '23 slides · 45 min' : `${data.slides.length} slides`}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
               {!htmlSrc && (
                 <CrmV2Button onClick={() => patch({ slides: data.slides, brief: data.brief, source_guide: data.source_guide, title: data.title, subtitle: data.subtitle, brand: data.brand, webinar_date: data.webinar_date }, 'Sauvegardé')} disabled={saving}>
                   <Save size={14} /> Sauver
@@ -265,7 +267,7 @@ export default function WebinarPresentationDetailPage() {
           )}
 
           {tab === 'slides' && slide && !htmlSrc && (
-            <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(280px, 1fr) 320px', gap: 14, marginTop: 16, overflowX: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '220px minmax(280px, 1fr) 320px', gap: 14, marginTop: 16, overflowX: 'auto' }}>
               <CrmV2Card style={{ padding: 10, maxHeight: '72vh', overflow: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Slides</span>
@@ -396,7 +398,7 @@ export default function WebinarPresentationDetailPage() {
           )}
 
           {tab === 'brief' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14, marginTop: 16 }}>
               <CrmV2Card style={{ padding: 18 }}>
                 <div style={{ display: 'grid', gap: 12 }}>
                   <Field label="Titre">
@@ -452,7 +454,7 @@ export default function WebinarPresentationDetailPage() {
           )}
 
           {tab === 'feedback' && (
-            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 }}>
               <CrmV2Card style={{ padding: 18, border: presented ? `1px solid ${crmV2.goldBorder}` : undefined, background: presented ? '#fffdf6' : undefined }}>
                 <h2 style={{ margin: '0 0 8px', fontSize: 16, color: crmV2.text }}>
                   {presented ? 'La présentation a été faite — tes retours' : 'Retours pour ajuster le deck'}
@@ -509,7 +511,7 @@ export default function WebinarPresentationDetailPage() {
       </CrmV2Page>
       {toast && (
         <div style={{
-          position: 'fixed', bottom: 24, right: 24, background: crmV2.text, color: '#fff',
+          position: 'fixed', bottom: isMobile ? 72 : 24, right: isMobile ? 12 : 24, background: crmV2.text, color: '#fff',
           padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 40,
         }}>
           {toast}

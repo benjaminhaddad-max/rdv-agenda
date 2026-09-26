@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 import MarketingNav from '@/components/crm/MarketingNav'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { Upload } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Member {
   id: string
@@ -14,6 +15,7 @@ interface Member {
 
 export default function MarketingListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [name, setName] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   usePageTitle(name)
@@ -50,7 +52,7 @@ export default function MarketingListDetailPage({ params }: { params: Promise<{ 
   return (
     <div>
       <MarketingNav title={name || 'Liste marketing'} />
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
         <p style={{ color: '#5f6368', marginBottom: 16 }}>{count} contacts · hors CRM</p>
 
         <label style={{ ...box, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -60,6 +62,8 @@ export default function MarketingListDetailPage({ params }: { params: Promise<{ 
         </label>
         {msg && <p style={{ fontSize: 13, marginBottom: 16 }}>{msg}</p>}
 
+        {/* Mobile : tableau scrollable horizontalement plutôt que coupé */}
+        <div style={isMobile ? { overflowX: 'auto', borderRadius: 12 } : undefined}>
         <table style={{ width: '100%', background: '#fff', borderRadius: 12, borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #e5ddc8', textAlign: 'left' }}>
@@ -78,6 +82,7 @@ export default function MarketingListDetailPage({ params }: { params: Promise<{ 
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

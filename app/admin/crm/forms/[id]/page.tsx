@@ -10,6 +10,7 @@ import {
 import LogoutButton from '@/components/LogoutButton'
 import { fileNameFromUrl, isFormStoragePath } from '@/lib/form-downloads'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface FormData {
@@ -210,6 +211,7 @@ function mapCrmFieldTypeToFormType(crmFieldType: string, crmType: string): strin
 
 export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [form, setForm] = useState<FormData | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(form?.title || form?.name)
@@ -444,6 +446,34 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
+      {isMobile ? (
+        // Mobile : en-tête sur 2 lignes (retour + nom, puis actions)
+        <div style={{ padding: '8px 12px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <a href="/admin/crm/forms" title="Formulaires" style={{ color: '#4a6070', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, flexShrink: 0, borderRadius: 8, border: '1px solid #e5ddc8' }}>
+              <ChevronLeft size={16} />
+            </a>
+            <input
+              value={form.name}
+              onChange={e => update({ name: e.target.value })}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', fontSize: 14, fontWeight: 600, outline: 'none', textOverflow: 'ellipsis', height: 36, padding: 0 }}
+            />
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0, color: form.status === 'published' ? '#22c55e' : '#4a6070', background: form.status === 'published' ? 'rgba(34,197,94,0.15)' : '#f7f4ee' }}>
+              {form.status === 'published' ? '● Publié' : 'Brouillon'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={save} disabled={!dirty || saving} style={{ flex: '1 1 0', minWidth: 0, minHeight: 36, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'inherit', opacity: !dirty || saving ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+              <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+              {dirty && <span style={{ color: '#f59e0b' }}>●</span>}
+            </button>
+            <button onClick={togglePublish} style={{ flex: '1 1 0', minWidth: 0, minHeight: 36, background: form.status === 'published' ? 'rgba(139,143,168,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${form.status === 'published' ? '#e5ddc8' : 'rgba(34,197,94,0.3)'}`, borderRadius: 8, padding: '6px 10px', color: form.status === 'published' ? '#4a6070' : '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              {form.status === 'published' ? 'Dépublier' : 'Publier'}
+            </button>
+            <LogoutButton />
+          </div>
+        </div>
+      ) : (
       <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <a href="/admin/crm/forms" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -471,9 +501,11 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
           <LogoutButton />
         </div>
       </div>
+      )}
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4 }}>
+      {/* Mobile : onglets en rangée scrollable horizontalement */}
+      <div style={{ padding: isMobile ? '0 8px' : '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4, ...(isMobile ? { overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' } as const : {}) }}>
         <Tab active={tab === 'builder'} onClick={() => setTab('builder')} icon={FileText} label="Champs" />
         <Tab active={tab === 'settings'} onClick={() => setTab('settings')} icon={Settings} label="Réglages" />
         <Tab active={tab === 'embed'} onClick={() => setTab('embed')} icon={Code} label="Intégration" />
@@ -481,7 +513,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Contenu */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
         {tab === 'builder' && (
           <BuilderTab
             form={form}
@@ -495,6 +527,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
             selectedFieldIdx={selectedFieldIdx}
             setSelectedFieldIdx={setSelectedFieldIdx}
             crmProperties={crmProperties}
+            isMobile={isMobile}
           />
         )}
         {tab === 'settings' && <SettingsTab form={form} formId={id} update={update} onSaveNotifyEmails={saveNotifyEmails} />}
@@ -506,7 +539,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
 }
 
 // ─── Tab Builder ─────────────────────────────────────────────────────────
-function BuilderTab({ form, update, updateField, addField, addCrmField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx, crmProperties }: {
+function BuilderTab({ form, update, updateField, addField, addCrmField, removeField, moveField, duplicateField, selectedFieldIdx, setSelectedFieldIdx, crmProperties, isMobile = false }: {
   form: FormData
   update: (p: Partial<FormData>) => void
   updateField: (i: number, p: Partial<FormField>) => void
@@ -518,8 +551,11 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
   selectedFieldIdx: number | null
   setSelectedFieldIdx: (i: number | null) => void
   crmProperties: CrmPropertyOption[]
+  isMobile?: boolean
 }) {
   const [crmSearch, setCrmSearch] = useState('')
+  // Mobile : palette "Ajouter un champ" repliable (fermée par défaut)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const usedCrmFields = new Set(form.fields.map(f => f.crm_field).filter(Boolean) as string[])
   const filteredCrmProps = (() => {
     const q = crmSearch.trim().toLowerCase()
@@ -531,22 +567,41 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
       (p.group_name || '').toLowerCase().includes(q),
     )
   })()
+  const selectedField = selectedFieldIdx !== null ? form.fields[selectedFieldIdx] : undefined
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
+    // Mobile : zones empilées (aperçu d'abord, puis palette repliable) ; éditeur en plein écran
+    <div style={isMobile
+      ? { display: 'flex', flexDirection: 'column', gap: 12 }
+      : { display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: 20 }}>
       {/* Palette des champs */}
-      <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={isMobile
+        ? { order: 2, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 12 }
+        : { background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 14, height: 'fit-content', position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
+        {isMobile ? (
+          <button
+            onClick={() => setPaletteOpen(o => !o)}
+            style={{ width: '100%', minHeight: 36, background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, color: '#0e1e35', fontWeight: 700, textTransform: 'uppercase' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} style={{ color: '#C9A84C' }} /> Ajouter un champ</span>
+            <span style={{ color: '#4a6070', fontSize: 14 }}>{paletteOpen ? '▲' : '▼'}</span>
+          </button>
+        ) : (
+          <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Ajouter un champ</div>
+        )}
+        {(!isMobile || paletteOpen) && (<>
+        <div style={isMobile
+          ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 10 }
+          : { display: 'flex', flexDirection: 'column', gap: 4 }}>
           {FIELD_TYPES.map(ft => {
             const Icon = ft.icon
             return (
               <button
                 key={ft.type}
                 onClick={() => addField(ft.type)}
-                style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit' }}
+                style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 10px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', fontFamily: 'inherit', ...(isMobile ? { minHeight: 40, minWidth: 0 } : {}) }}
               >
-                <Icon size={13} style={{ color: '#C9A84C' }} />
-                {ft.label}
+                <Icon size={13} style={{ color: '#C9A84C', flexShrink: 0 }} />
+                {isMobile ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ft.label}</span> : ft.label}
               </button>
             )
           })}
@@ -572,7 +627,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
               value={crmSearch}
               onChange={e => setCrmSearch(e.target.value)}
               placeholder="Rechercher une propriété…"
-              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px 6px 26px', fontSize: 11, color: '#0e1e35', fontFamily: 'inherit' }}
+              style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px 6px 26px', fontSize: 11, color: '#0e1e35', fontFamily: 'inherit', ...(isMobile ? { boxSizing: 'border-box' as const, minHeight: 36, fontSize: 13 } : {}) }}
             />
           </div>
           {crmProperties.length === 0 ? (
@@ -592,7 +647,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
                   key={p.name}
                   onClick={() => addCrmField(p)}
                   title={`${p.name} — ${p.field_type}${p.options?.length ? ` (${p.options.length} options)` : ''}`}
-                  style={{ background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', fontSize: 11, color: '#0e1e35', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3 }}
+                  style={{ background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', fontSize: 11, color: '#0e1e35', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3, ...(isMobile ? { minHeight: 36, minWidth: 0, wordBreak: 'break-word' as const } : {}) }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#f7f4ee'; e.currentTarget.style.borderColor = '#e5ddc8' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
                 >
@@ -608,17 +663,18 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
             </div>
           )}
         </div>
+        </>)}
       </div>
 
       {/* Canvas : le formulaire en édition */}
-      <div>
-        <div style={{ background: form.bg_color, border: '1px solid #e5ddc8', borderRadius: 12, padding: 32, minHeight: 400 }}>
+      <div style={isMobile ? { order: 1, minWidth: 0 } : undefined}>
+        <div style={{ background: form.bg_color, border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? 14 : 32, minHeight: isMobile ? 200 : 400 }}>
           {form.title && <h2 style={{ color: form.text_color, margin: '0 0 8px', fontSize: 22 }}>{form.title}</h2>}
           {form.subtitle && <p style={{ color: form.text_color, opacity: 0.7, margin: '0 0 24px', fontSize: 14 }}>{form.subtitle}</p>}
 
           {form.fields.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#4a6070', border: '2px dashed #e5ddc8', borderRadius: 8 }}>
-              Ajoute des champs depuis le panneau de gauche
+              {isMobile ? 'Ajoute des champs via « Ajouter un champ » ci-dessous' : 'Ajoute des champs depuis le panneau de gauche'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -635,6 +691,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
                   canMoveUp={idx > 0}
                   canMoveDown={idx < form.fields.length - 1}
                   textColor={form.text_color}
+                  isMobile={isMobile}
                   fieldStyle={{
                     borderColor: form.field_border_color,
                     borderWidth: form.field_border_width,
@@ -663,6 +720,7 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 width: form.submit_full_width ? '100%' : 'auto',
+                ...(isMobile ? { maxWidth: '100%' } : {}),
               }}>
                 {form.submit_label || 'Envoyer'}
               </button>
@@ -672,6 +730,20 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
       </div>
 
       {/* Panneau paramètres du champ sélectionné */}
+      {isMobile ? (
+        // Mobile : éditeur du champ en plein écran par-dessus la page
+        selectedFieldIdx !== null && selectedField ? (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#f7f4ee', overflowY: 'auto', padding: 12 }}>
+            <FieldEditor
+              field={selectedField}
+              onUpdate={p => updateField(selectedFieldIdx, p)}
+              onClose={() => setSelectedFieldIdx(null)}
+              crmProperties={crmProperties}
+              isMobile
+            />
+          </div>
+        ) : null
+      ) : (
       <div style={{ position: 'sticky', top: 24, height: 'fit-content' }}>
         {selectedFieldIdx !== null && form.fields[selectedFieldIdx] ? (
           <FieldEditor
@@ -686,11 +758,12 @@ function BuilderTab({ form, update, updateField, addField, addCrmField, removeFi
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
 
-function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove, canMoveUp, canMoveDown, textColor, fieldStyle }: {
+function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove, canMoveUp, canMoveDown, textColor, fieldStyle, isMobile = false }: {
   field: FormField
   selected: boolean
   onSelect: () => void
@@ -702,6 +775,7 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
   canMoveDown: boolean
   textColor: string
   fieldStyle?: { borderColor?: string | null; borderWidth?: number | null; borderRadius?: number | null; bgColor?: string | null }
+  isMobile?: boolean
 }) {
   const TypeIcon = FIELD_TYPES.find(ft => ft.type === field.field_type)?.icon || Type
 
@@ -715,11 +789,21 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
         padding: 12,
         cursor: 'pointer',
         position: 'relative',
+        ...(isMobile ? { padding: 10, minWidth: 0 } : {}),
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <TypeIcon size={12} style={{ color: '#888' }} />
-        <label style={{ fontSize: 13, fontWeight: 600, color: textColor }}>
+      {/* Mobile : actions dans le flux (au-dessus du label) pour ne pas chevaucher le texte */}
+      {isMobile && (
+        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 6 }}>
+          <MiniBtn onClick={onMoveUp} disabled={!canMoveUp} size={32}>↑</MiniBtn>
+          <MiniBtn onClick={onMoveDown} disabled={!canMoveDown} size={32}>↓</MiniBtn>
+          <MiniBtn onClick={onDuplicate} size={32}><Copy size={13} /></MiniBtn>
+          <MiniBtn onClick={onRemove} danger size={32}><Trash2 size={13} /></MiniBtn>
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, minWidth: 0 }}>
+        <TypeIcon size={12} style={{ color: '#888', flexShrink: 0 }} />
+        <label style={{ fontSize: 13, fontWeight: 600, color: textColor, ...(isMobile ? { minWidth: 0, wordBreak: 'break-word' as const } : {}) }}>
           {field.label} {field.required && <span style={{ color: '#ef4444' }}>*</span>}
         </label>
       </div>
@@ -727,6 +811,7 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
       {field.help_text && <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{field.help_text}</div>}
 
       {/* Actions */}
+      {!isMobile && (
       <div
         onClick={e => e.stopPropagation()}
         style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 2, background: '#f4f4f7', borderRadius: 6, padding: 2 }}
@@ -736,6 +821,7 @@ function FieldCard({ field, selected, onSelect, onMoveUp, onMoveDown, onDuplicat
         <MiniBtn onClick={onDuplicate}><Copy size={11} /></MiniBtn>
         <MiniBtn onClick={onRemove} danger><Trash2 size={11} /></MiniBtn>
       </div>
+      )}
     </div>
   )
 }
@@ -746,7 +832,7 @@ function FieldPreview({ field, fieldStyle }: { field: FormField; fieldStyle?: { 
   const borderRadius = fieldStyle?.borderRadius ?? 8
   const bg = fieldStyle?.bgColor || '#ffffff'
   const style: React.CSSProperties = {
-    width: '100%', padding: '8px 10px',
+    width: '100%', padding: '8px 10px', boxSizing: 'border-box', maxWidth: '100%',
     border: `${borderWidth}px solid ${borderColor}`,
     borderRadius,
     fontSize: 13, color: '#222', background: bg,
@@ -788,18 +874,18 @@ function FieldPreview({ field, fieldStyle }: { field: FormField; fieldStyle?: { 
   }
 }
 
-function MiniBtn({ children, onClick, disabled, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+function MiniBtn({ children, onClick, disabled, danger, size }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean; size?: number }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      style={{ background: 'transparent', border: 'none', padding: 4, borderRadius: 4, cursor: disabled ? 'default' : 'pointer', color: danger ? '#ef4444' : '#555', fontSize: 12, opacity: disabled ? 0.3 : 1 }}
+      style={{ background: 'transparent', border: 'none', padding: 4, borderRadius: 4, cursor: disabled ? 'default' : 'pointer', color: danger ? '#ef4444' : '#555', fontSize: 12, opacity: disabled ? 0.3 : 1, ...(size ? { width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f4f7', borderRadius: 6 } : {}) }}
     >{children}</button>
   )
 }
 
 // ─── Éditeur de champ ────────────────────────────────────────────────────
-function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormField; onUpdate: (p: Partial<FormField>) => void; onClose: () => void; crmProperties: CrmPropertyOption[] }) {
+function FieldEditor({ field, onUpdate, onClose, crmProperties, isMobile = false }: { field: FormField; onUpdate: (p: Partial<FormField>) => void; onClose: () => void; crmProperties: CrmPropertyOption[]; isMobile?: boolean }) {
   const hasOptions = ['select', 'radio', 'checkbox'].includes(field.field_type)
 
   // Fusion : options statiques (CRM_FIELDS) + propriétés CRM dynamiques
@@ -832,7 +918,13 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
     <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase' }}>Éditer le champ</span>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={16} /></button>
+        {isMobile ? (
+          <button onClick={onClose} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#22c55e', cursor: 'pointer', minHeight: 36, padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Check size={14} /> Terminé
+          </button>
+        ) : (
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={16} /></button>
+        )}
       </div>
 
       <MiniField label="Label visible">
@@ -915,7 +1007,7 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
       {hasOptions && (
         <>
           <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginTop: 16, marginBottom: 6 }}>Options</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
             <span style={{ fontSize: 11, color: '#7d8c9e' }}>Pré-remplir :</span>
             <select
               value=""
@@ -930,7 +1022,7 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
                 ]
                 onUpdate({ options: merged })
               }}
-              style={{ ...miniInput, flex: 1 }}
+              style={{ ...miniInput, flex: 1, minWidth: 0 }}
             >
               <option value="">— Choisir un preset —</option>
               {OPTION_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
@@ -946,7 +1038,7 @@ function FieldEditor({ field, onUpdate, onClose, crmProperties }: { field: FormF
                   onUpdate({ options: newOpts })
                 }}
                 placeholder="Libellé"
-                style={{ ...miniInput, flex: 1 }}
+                style={{ ...miniInput, flex: 1, minWidth: 0 }}
               />
               <button
                 onClick={() => onUpdate({ options: field.options.filter((_, i) => i !== idx) })}
@@ -977,6 +1069,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
   const [pdfUploading, setPdfUploading] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
+  const isMobile = useIsMobile()
 
   const persistNotifyEmails = async () => {
     setNotifySaveStatus('saving')
@@ -1051,7 +1144,8 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 1000 }}>
+    // Mobile : une seule colonne
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 0 : 20, maxWidth: 1000 }}>
       <Card title="Contenu">
         <Field label="Nom interne"><input value={form.name} onChange={e => update({ name: e.target.value })} style={inputStyle} /></Field>
         <Field label="Slug (URL publique)">
@@ -1068,19 +1162,19 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
       <Card title="Apparence">
         <Field label="Couleur principale">
           <div style={{ display: 'flex', gap: 8 }}>
-            <input type="color" value={form.primary_color} onChange={e => update({ primary_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }} />
+            <input type="color" value={form.primary_color} onChange={e => update({ primary_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
             <input value={form.primary_color} onChange={e => update({ primary_color: e.target.value })} style={inputStyle} />
           </div>
         </Field>
         <Field label="Couleur du texte">
           <div style={{ display: 'flex', gap: 8 }}>
-            <input type="color" value={form.text_color} onChange={e => update({ text_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }} />
+            <input type="color" value={form.text_color} onChange={e => update({ text_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
             <input value={form.text_color} onChange={e => update({ text_color: e.target.value })} style={inputStyle} />
           </div>
         </Field>
         <Field label="Couleur de fond">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="color" value={form.bg_color === 'transparent' ? '#ffffff' : form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }} />
+            <input type="color" value={form.bg_color === 'transparent' ? '#ffffff' : form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} />
             <input value={form.bg_color} onChange={e => update({ bg_color: e.target.value })} style={inputStyle} placeholder="#ffffff ou transparent" />
             <button
               type="button"
@@ -1107,7 +1201,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
               type="color"
               value={form.field_border_color || '#dddddd'}
               onChange={e => update({ field_border_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
             />
             <input
               value={form.field_border_color || '#dddddd'}
@@ -1123,7 +1217,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
               type="color"
               value={form.field_bg_color || '#ffffff'}
               onChange={e => update({ field_bg_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
             />
             <input
               value={form.field_bg_color || '#ffffff'}
@@ -1154,7 +1248,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
             onChange={e => update({ field_border_radius: parseInt(e.target.value) })}
             style={{ width: '100%' }}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
             {[0, 4, 8, 12, 16, 24].map(r => (
               <button
                 key={r}
@@ -1182,7 +1276,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
               type="color"
               value={form.submit_bg_color || form.primary_color}
               onChange={e => update({ submit_bg_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
             />
             <input
               value={form.submit_bg_color || ''}
@@ -1212,7 +1306,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
               type="color"
               value={form.submit_text_color || '#ffffff'}
               onChange={e => update({ submit_text_color: e.target.value })}
-              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ width: 40, height: 36, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
             />
             <input
               value={form.submit_text_color || '#ffffff'}
@@ -1232,7 +1326,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
             onChange={e => update({ submit_border_radius: parseInt(e.target.value) })}
             style={{ width: '100%' }}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
             {[
               { v: 0, label: 'Carré' },
               { v: 4, label: '4px' },
@@ -1290,7 +1384,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
             onChange={e => update({ submit_font_size: parseInt(e.target.value) })}
             style={{ width: '100%' }}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
             {[
               { v: 12, label: 'XS' },
               { v: 13, label: 'S' },
@@ -1481,6 +1575,7 @@ function SettingsTab({ form, formId, update, onSaveNotifyEmails }: {
 // ─── Tab Intégration ─────────────────────────────────────────────────────
 function EmbedTab({ form }: { form: FormData }) {
   const [copied, setCopied] = useState<string | null>(null)
+  const isMobile = useIsMobile()
   const host = typeof window !== 'undefined' ? window.location.origin : ''
   const publicUrl = `${host}/forms/${form.slug}`
   const isDiplomaFolder = (form.folder ?? 'Diploma Santé') === 'Diploma Santé'
@@ -1511,8 +1606,8 @@ function EmbedTab({ form }: { form: FormData }) {
   return (
     <div style={{ maxWidth: 900 }}>
       <Card title="Lien public">
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input value={publicUrl} readOnly style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 12 }} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', ...(isMobile ? { flexWrap: 'wrap' as const } : {}) }}>
+          <input value={publicUrl} readOnly style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 12, ...(isMobile ? { flex: '1 1 100%', minWidth: 0 } : {}) }} />
           <button onClick={() => copy(publicUrl, 'url')} style={copyBtn}>{copied === 'url' ? '✓ Copié' : 'Copier'}</button>
           <a href={publicUrl} target="_blank" rel="noreferrer" style={{ ...copyBtn, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
             <ExternalLink size={12} /> Ouvrir
@@ -1621,7 +1716,7 @@ function SubmissionsTab({ formId, fields }: { formId: string; fields: FormField[
 // ─── Helpers ─────────────────────────────────────────────────────────────
 function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof FileText; label: string }) {
   return (
-    <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
+    <button onClick={onClick} style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#22c55e' : 'transparent'}`, padding: '12px 16px', color: active ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
       <Icon size={14} /> {label}
     </button>
   )
@@ -1680,7 +1775,7 @@ function slugifyOpt(s: string): string {
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
   padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none',
-  fontFamily: 'inherit', boxSizing: 'border-box',
+  fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0,
 }
 
 const miniInput: React.CSSProperties = { ...inputStyle, fontSize: 12, padding: '6px 10px' }

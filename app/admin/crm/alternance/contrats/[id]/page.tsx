@@ -7,6 +7,7 @@ import AlternanceShell, { AlternanceBtn, AlternanceCard, StatusPill } from '@/co
 import { CONTRACT_STATUS_META } from '@/lib/alternance/constants'
 import type { AlternanceContract, AlternanceDocument } from '@/lib/alternance/types'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 const CONTRACT_FIELDS: { key: string; label: string; type?: string }[] = [
   { key: 'date_signature', label: 'Date signature', type: 'date' },
@@ -39,6 +40,7 @@ export default function ContratDetailPage() {
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     Promise.all([
@@ -102,7 +104,7 @@ export default function ContratDetailPage() {
       title={`${student?.prenom} ${student?.nom} — ${company?.raison_sociale}`}
       subtitle="Détail du contrat d'apprentissage"
       actions={
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <AlternanceBtn variant="secondary" onClick={generateCerfa} disabled={generating}>
             <FileDown size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
             {generating ? 'Génération…' : 'Générer CERFA'}
@@ -115,7 +117,7 @@ export default function ContratDetailPage() {
         <StatusPill label={meta.label} color={meta.color} bg={meta.bg} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 12 : 20 }}>
         <AlternanceCard>
           <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>Informations contrat</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -149,8 +151,8 @@ export default function ContratDetailPage() {
               <p style={{ fontSize: 12, color: '#4a6070' }}>Aucun document. Générez le CERFA ou ajoutez des pièces.</p>
             ) : (
               docs.map(d => (
-                <div key={d.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0ebe0', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
+                <div key={d.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0ebe0', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div style={{ minWidth: 0, wordBreak: 'break-word' }}>
                     <strong>{d.label}</strong>
                     <span style={{ marginLeft: 8, fontSize: 11, color: '#4a6070' }}>{d.doc_type}{d.generated ? ' (auto)' : ''}</span>
                   </div>

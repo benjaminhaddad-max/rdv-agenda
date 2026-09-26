@@ -3,6 +3,7 @@
 import { type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export function CrmV2Page({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
@@ -30,24 +31,37 @@ export function CrmV2Header({
   subtitle?: ReactNode
   actions?: ReactNode
 }) {
+  const isMobile = useIsMobile()
   return (
     <div
       style={{
         background: crmV2.bg,
         borderBottom: `1px solid ${crmV2.border}`,
-        padding: '20px 28px 0',
+        padding: isMobile ? '14px 12px 0' : '20px 28px 0',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: crmV2.text, letterSpacing: '-0.02em' }}>
+      {/* Mobile : titre et actions passent à la ligne au lieu de déborder */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+        gap: isMobile ? 10 : 16, marginBottom: isMobile ? 12 : 16,
+        ...(isMobile ? { flexWrap: 'wrap' as const } : {}),
+      }}>
+        <div style={isMobile ? { minWidth: 0 } : undefined}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 600, color: crmV2.text, letterSpacing: '-0.02em' }}>
             {title}
           </h1>
           {subtitle && (
             <div style={{ marginTop: 4, fontSize: 13, color: crmV2.textMuted }}>{subtitle}</div>
           )}
         </div>
-        {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>{actions}</div>}
+        {actions && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            ...(isMobile ? { flexWrap: 'wrap' as const, minWidth: 0 } : { flexShrink: 0 }),
+          }}>
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -62,8 +76,14 @@ export function CrmV2Tabs({
   value: string
   onChange: (id: string) => void
 }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${crmV2.border}`, margin: '0 -28px', padding: '0 28px' }}>
+    // Mobile : rangée d'onglets scrollable horizontalement (marges alignées sur le padding 12px du header)
+    <div style={{
+      display: 'flex', gap: 0, borderBottom: `1px solid ${crmV2.border}`,
+      margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px',
+      ...(isMobile ? { overflowX: 'auto' as const, scrollbarWidth: 'none' as const } : {}),
+    }}>
       {items.map(item => {
         const active = item.id === value
         return (
@@ -83,6 +103,7 @@ export function CrmV2Tabs({
               color: active ? crmV2.text : crmV2.textMuted,
               cursor: 'pointer',
               fontFamily: 'inherit',
+              ...(isMobile ? { flexShrink: 0, whiteSpace: 'nowrap' as const, padding: '10px 12px' } : {}),
             }}
           >
             {item.label}
@@ -105,6 +126,7 @@ export function CrmV2PillTabs({
   value: string
   onChange: (id: string) => void
 }) {
+  const isMobile = useIsMobile()
   return (
     <div
       style={{
@@ -115,6 +137,8 @@ export function CrmV2PillTabs({
         border: `1px solid ${crmV2.border}`,
         borderRadius: crmV2.radiusPill,
         padding: 3,
+        // Mobile : pilules scrollables horizontalement plutôt que coupées
+        ...(isMobile ? { maxWidth: '100%', overflowX: 'auto' as const, scrollbarWidth: 'none' as const } : {}),
       }}
     >
       {items.map(item => {
@@ -137,6 +161,7 @@ export function CrmV2PillTabs({
               cursor: 'pointer',
               fontFamily: 'inherit',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             {item.label}
@@ -202,6 +227,7 @@ export function CrmV2Search({
   style,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
+  const isMobile = useIsMobile()
   return (
     <div
       style={{
@@ -212,7 +238,7 @@ export function CrmV2Search({
         border: `1px solid ${crmV2.borderStrong}`,
         borderRadius: crmV2.radiusPill,
         padding: '0 14px',
-        minWidth: 220,
+        minWidth: isMobile ? 0 : 220,
         height: 36,
         ...style,
       }}

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { SMS_SENDERS } from '@/lib/smsfactor'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Wf {
   id: string
@@ -55,6 +56,7 @@ const STEP_DEFS: Record<string, { label: string; icon: typeof Mail; color: strin
 
 export default function WorkflowEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [wf, setWf] = useState<Wf | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(wf?.name)
@@ -137,25 +139,25 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
-      {/* Topbar */}
-      <div style={{ padding: '0 24px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Link href="/admin/crm/workflows" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
+      {/* Topbar — mobile : nom sur la 1re ligne (champ flexible), boutons en dessous */}
+      <div style={{ padding: isMobile ? '8px 12px' : '0 24px', height: isMobile ? 'auto' : 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 8 : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0, flex: isMobile ? '1 1 100%' : undefined }}>
+          <Link href="/admin/crm/workflows" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <ChevronLeft size={14} /> Workflows
           </Link>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <Workflow size={16} style={{ color: '#0038f0' }} />
+          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
+          {!isMobile && <Workflow size={16} style={{ color: '#0038f0' }} />}
           <input
             value={wf.name}
             onChange={e => update({ name: e.target.value })}
-            style={{ fontSize: 14, fontWeight: 600, border: 'none', outline: 'none', background: 'transparent', minWidth: 200, fontFamily: 'inherit', color: '#0e1e35' }}
+            style={{ fontSize: 14, fontWeight: 600, border: 'none', outline: 'none', background: 'transparent', minWidth: isMobile ? 0 : 200, flex: isMobile ? 1 : undefined, width: isMobile ? '100%' : undefined, fontFamily: 'inherit', color: '#0e1e35', textOverflow: 'ellipsis' }}
           />
-          <span style={{ fontSize: 11, color: wf.status === 'active' ? '#22c55e' : '#4a6070', background: wf.status === 'active' ? 'rgba(34,197,94,0.12)' : '#f7f4ee', padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: wf.status === 'active' ? '#22c55e' : '#4a6070', background: wf.status === 'active' ? 'rgba(34,197,94,0.12)' : '#f7f4ee', padding: '3px 8px', borderRadius: 999, fontWeight: 600, flexShrink: 0 }}>
             {wf.status}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           {dirty && <span style={{ fontSize: 11, color: '#f59e0b' }}>● Modifié</span>}
           <button onClick={save} disabled={!dirty || saving} style={{ background: '#fff', border: '1px solid #e5ddc8', padding: '6px 12px', borderRadius: 6, cursor: !dirty || saving ? 'not-allowed' : 'pointer', fontSize: 12, opacity: !dirty || saving ? 0.5 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
@@ -176,9 +178,10 @@ export default function WorkflowEditorPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', maxWidth: 1400, margin: '0 auto', gap: 20, padding: 24 }}>
+      {/* Mobile : canvas puis panneau latéral empilés sur une seule colonne */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 320px', maxWidth: 1400, margin: '0 auto', gap: isMobile ? 12 : 20, padding: isMobile ? 12 : 24 }}>
         {/* Builder — flowchart vertical */}
-        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #e5ddc8 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #e5ddc8', padding: '24px 0' }}>
+        <div style={{ background: '#fafbfd', backgroundImage: 'radial-gradient(circle, #e5ddc8 1px, transparent 1px)', backgroundSize: '20px 20px', borderRadius: 12, border: '1px solid #e5ddc8', padding: isMobile ? '16px 8px' : '24px 0', minWidth: 0 }}>
           <div style={{ maxWidth: 540, margin: '0 auto', position: 'relative' }}>
             {/* Trigger */}
             <FlowTrigger wf={wf} update={update} forms={forms} />
@@ -580,7 +583,7 @@ function FlowInsertButton({ onAdd }: { onAdd: (type: string) => void }) {
           position: 'absolute', top: '120%', left: '50%', transform: 'translateX(-50%)',
           background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 6,
           display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4,
-          minWidth: 360, zIndex: 30, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+          minWidth: 'min(360px, calc(100vw - 32px))', zIndex: 30, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
         }}>
           {Object.entries(STEP_DEFS).map(([type, def]) => {
             const Ic = def.icon

@@ -7,6 +7,7 @@ import CRMFilterBuilder from '@/components/crm/CRMFilterBuilder'
 import type { CRMFilterGroup } from '@/lib/crm-constants'
 import { normalizeFilterGroups } from '@/lib/crm-constants'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Segment {
   id: string
@@ -30,6 +31,7 @@ interface PreviewContact {
 
 export default function SegmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [segment, setSegment] = useState<Segment | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(segment?.name)
@@ -145,16 +147,17 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/admin/crm/campaigns/segments" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12 }}>← Segments</a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>{segment.name}</span>
-          {dirty && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600 }}>non sauvegardé</span>}
-          {saveMsg && <span style={{ fontSize: 10, color: '#166534', fontWeight: 600 }}>{saveMsg}</span>}
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* En-tête — mobile : nom tronqué + Sauvegarder, déconnexion masquée (dispo dans le menu CRM) */}
+      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
+          <a href="/admin/crm/campaigns/segments" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, flexShrink: 0 }}>{isMobile ? '←' : '← Segments'}</a>
+          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{segment.name}</span>
+          {dirty && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600, flexShrink: 0 }}>{isMobile ? '●' : 'non sauvegardé'}</span>}
+          {saveMsg && <span style={{ fontSize: 10, color: '#166534', fontWeight: 600, flexShrink: 0 }}>{saveMsg}</span>}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <button
             onClick={save}
             disabled={saving || !dirty}
@@ -162,12 +165,12 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           >
             <Save size={13} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
-          <LogoutButton />
+          {!isMobile && <LogoutButton />}
         </div>
       </div>
 
-      <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ padding: isMobile ? 12 : 24, maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 320px', gap: isMobile ? 12 : 20, alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, minWidth: 0 }}>
           <Card>
             <label style={labelStyle}>Nom</label>
             <input value={segment.name} onChange={e => patch({ name: e.target.value })} style={inputStyle} />
@@ -177,7 +180,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
 
           <Card>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Type d&apos;audience</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
               <TypeBtn active={segment.segment_type === 'dynamic'} onClick={() => patch({ segment_type: 'dynamic' })} icon={Filter} label="Segment dynamique" sub="Filtres CRM — se met à jour automatiquement" />
               <TypeBtn active={segment.segment_type === 'static'} onClick={() => patch({ segment_type: 'static' })} icon={List} label="Liste statique" sub="Contacts figés par ID HubSpot" />
             </div>
@@ -186,10 +189,12 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           {segment.segment_type === 'dynamic' ? (
             <Card>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Filtres CRM</div>
-              <CRMFilterBuilder
-                groups={segment.filter_groups}
-                onChange={groups => patch({ filter_groups: groups })}
-              />
+              <div style={{ minWidth: 0, overflowX: isMobile ? 'auto' : undefined }}>
+                <CRMFilterBuilder
+                  groups={segment.filter_groups}
+                  onChange={groups => patch({ filter_groups: groups })}
+                />
+              </div>
             </Card>
           ) : (
             <Card>
@@ -211,7 +216,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'sticky', top: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: isMobile ? 'static' : 'sticky', top: 16, minWidth: 0 }}>
           <Card>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <Users size={14} style={{ color: '#0038f0' }} />
@@ -255,7 +260,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
                 {preview.sample.map(c => (
                   <div key={c.contact_id} style={{ fontSize: 11, padding: '6px 8px', background: '#f7f4ee', borderRadius: 4, marginBottom: 4 }}>
                     <div style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_id}</div>
-                    {c.email && <div style={{ color: '#4a6070' }}>{c.email}</div>}
+                    {c.email && <div style={{ color: '#4a6070', overflowWrap: 'anywhere' }}>{c.email}</div>}
                     {c.phone && <div style={{ color: '#4a6070' }}>{c.phone}</div>}
                   </div>
                 ))}
@@ -279,7 +284,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
+    <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
       {children}
     </div>
   )
@@ -293,7 +298,7 @@ function TypeBtn({ active, onClick, icon: Icon, label, sub }: {
       type="button"
       onClick={onClick}
       style={{
-        flex: 1, textAlign: 'left', padding: 12, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+        flex: 1, minWidth: 0, textAlign: 'left', padding: 12, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
         border: `1px solid ${active ? '#0038f0' : '#e5ddc8'}`,
         background: active ? 'rgba(46,163,242,0.06)' : '#fff',
       }}

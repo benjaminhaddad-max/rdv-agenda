@@ -6,6 +6,7 @@ import {
   Users, Plus, Trash2, Copy, Search, Filter, List, RefreshCw,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -25,6 +26,7 @@ const TYPE_META = {
 }
 
 export default function SegmentsPage() {
+  const isMobile = useIsMobile()
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -82,32 +84,32 @@ export default function SegmentsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12 }}>← Campagnes</a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users size={16} style={{ color: '#0038f0' }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Segments & listes</span>
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, minWidth: 0 }}>
+          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, flexShrink: 0 }}>← Campagnes</a>
+          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <Users size={16} style={{ color: '#0038f0', flexShrink: 0 }} />
+            <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Segments & listes</span>
           </div>
         </div>
-        <LogoutButton />
+        {!isMobile && <LogoutButton />}
       </div>
 
-      <div style={{ padding: '24px 24px 16px', maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '12px 12px 16px' : '24px 24px 16px', maxWidth: 1100, margin: '0 auto' }}>
         <p style={{ fontSize: 13, color: '#4a6070', margin: '0 0 16px', lineHeight: 1.5 }}>
           Créez des audiences réutilisables pour vos campagnes email et SMS — comme les segments et listes HubSpot.
         </p>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: '1 1 240px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: isMobile ? '1 1 100%' : '1 1 240px', minWidth: 0 }}>
             <Search size={14} style={{ color: '#4a6070' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher…"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
             />
           </div>
           <select
@@ -149,6 +151,39 @@ export default function SegmentsPage() {
             {filtered.map(s => {
               const meta = TYPE_META[s.segment_type] ?? TYPE_META.dynamic
               const Icon = meta.icon
+              // Mobile : carte empilée — nom pleine ligne + actions, puis compteur / type / date
+              if (isMobile) {
+                return (
+                  <div key={s.id} style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${meta.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon size={15} style={{ color: meta.color }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Link href={`/admin/crm/campaigns/segments/${s.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', textDecoration: 'none', overflowWrap: 'anywhere' }}>
+                          {s.name}
+                        </Link>
+                        {s.description && (
+                          <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                        <button onClick={() => duplicate(s)} title="Dupliquer" style={{ ...iconBtnStyle, width: 36, height: 36, justifyContent: 'center' }}><Copy size={14} /></button>
+                        <button onClick={() => remove(s)} title="Supprimer" style={{ ...iconBtnStyle, width: 36, height: 36, justifyContent: 'center', color: '#ef4444' }}><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#4a6070' }}>
+                      <span><strong style={{ fontSize: 14, color: '#0038f0' }}>{(s.contact_count ?? 0).toLocaleString('fr-FR')}</strong> contacts</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: `${meta.color}15`, padding: '3px 8px', borderRadius: 999 }}>
+                        {meta.label}
+                      </span>
+                      <span style={{ marginLeft: 'auto' }}>
+                        {formatDistanceToNow(new Date(s.updated_at), { addSuffix: true, locale: fr })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div
                   key={s.id}

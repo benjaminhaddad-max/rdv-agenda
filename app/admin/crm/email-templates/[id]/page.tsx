@@ -141,11 +141,11 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
   if (!tpl) return <div className="p-8 text-red-600">Modèle introuvable.</div>
 
   return (
-    <div className="min-h-screen bg-[#f7f4ee] flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <Link href="/admin/crm/email-templates" className="text-sm text-[#4a6070] hover:text-slate-700 flex items-center gap-1">
+    <div className="min-h-full md:min-h-screen bg-[#f7f4ee] flex flex-col">
+      {/* Header — mobile : retour + nom sur une ligne, boutons qui passent à la ligne */}
+      <div className="bg-white border-b md:sticky md:top-0 z-10">
+        <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-4">
+          <Link href="/admin/crm/email-templates" className="text-sm text-[#4a6070] hover:text-slate-700 flex items-center gap-1 shrink-0">
             <ChevronLeft size={14} /> Modèles
           </Link>
           <div className="flex-1 min-w-0">
@@ -155,7 +155,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
               className="text-lg font-bold text-[#0e1e35] bg-transparent border-0 outline-none focus:bg-[#f7f4ee] px-2 py-1 rounded w-full"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto">
             {dirty && <span className="text-xs text-amber-600">Non enregistré</span>}
             <button
               onClick={() => setShowTest(true)}
@@ -181,8 +181,8 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
         </div>
 
         {/* Méta */}
-        <div className="max-w-[1600px] mx-auto px-6 pb-3 grid grid-cols-12 gap-3">
-          <div className="col-span-7">
+        <div className="max-w-[1600px] mx-auto px-3 md:px-6 pb-3 grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="md:col-span-7">
             <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Objet de l&apos;e-mail</label>
             <input
               value={tpl.subject}
@@ -191,7 +191,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
               className="w-full px-3 py-1.5 border rounded-md text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="md:col-span-2">
             <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Catégorie</label>
             <select
               value={tpl.category || 'general'}
@@ -201,7 +201,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
               {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
-          <div className="col-span-3">
+          <div className="md:col-span-3">
             <label className="block text-[10px] uppercase tracking-wide text-[#a89e8a] mb-0.5">Description (interne)</label>
             <input
               value={tpl.description || ''}
@@ -214,7 +214,7 @@ export default function EmailTemplateEditorPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Variables disponibles */}
-      <div className="bg-blue-50 border-b border-blue-100 px-6 py-1.5">
+      <div className="bg-blue-50 border-b border-blue-100 px-3 md:px-6 py-1.5">
         <div className="max-w-[1600px] mx-auto text-xs text-[#0038f0]">
           Variables : <code>{'{{prenom}}'}</code>{' '}
           <code>{'{{nom}}'}</code>{' '}

@@ -94,6 +94,23 @@ body {
   background: #f5f8fa;
 }
 
+/* Mobile : pages fixes — pas de glissement horizontal ni d'effet élastique.
+   Seules les zones prévues (onglets, kanban, tableaux) défilent en interne. */
+@media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    overscroll-behavior: none;
+  }
+  .crm-root, .crm-v2 {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  .crm-mobile-scroll {
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+  }
+}
+
 /* iOS zoome sur les champs < 16px au focus : 16px forcé sur mobile dans le CRM */
 @media (max-width: 768px) {
   .crm-root input:not([type="checkbox"]):not([type="radio"]),

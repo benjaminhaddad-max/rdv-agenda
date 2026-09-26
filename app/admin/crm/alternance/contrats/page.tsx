@@ -64,8 +64,8 @@ export default function ContratsPage() {
             return (
               <Link key={c.id} href={`/admin/crm/alternance/contrats/${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                 <AlternanceCard>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{student?.prenom} {student?.nom}</div>
                       <div style={{ fontSize: 12, color: '#4a6070' }}>{company?.raison_sociale}</div>
                       {c.date_debut && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>{c.date_debut} → {c.date_fin || '…'}</div>}
@@ -81,7 +81,8 @@ export default function ContratsPage() {
 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 440 }}>
+          {/* maxWidth : la modale tient dans l'écran sur mobile */}
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 440, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100vh - 24px)', overflowY: 'auto', boxSizing: 'border-box' }}>
             <h2 style={{ margin: '0 0 16px' }}>Nouveau contrat</h2>
             <label style={{ display: 'block', marginBottom: 10, fontSize: 12 }}>
               Entreprise *

@@ -18,6 +18,7 @@ import {
   CrmV2Spinner,
 } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Stats {
   generated_at: string
@@ -49,6 +50,7 @@ export default function DashboardV2Page() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  const isMobile = useIsMobile()
 
   const load = async () => {
     setLoading(true)
@@ -78,13 +80,18 @@ export default function DashboardV2Page() {
         }
       />
 
-      <div style={{ padding: '20px 28px 40px', display: 'grid', gap: 16, maxWidth: 1400 }}>
+      {/* Mobile : colonne unique bornée (minmax(0,1fr)) pour qu'un contenu long n'élargisse pas la grille */}
+      <div style={{
+        padding: isMobile ? '14px 12px 32px' : '20px 28px 40px',
+        display: 'grid', gap: isMobile ? 12 : 16, maxWidth: 1400,
+        ...(isMobile ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}),
+      }}>
         {loading && !stats && <CrmV2Spinner />}
         {err && <div style={{ color: crmV2.danger, fontSize: 13 }}>Erreur : {err}</div>}
 
         {stats && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: isMobile ? 8 : 12 }}>
               <Kpi
                 icon={<TrendingUp size={16} />}
                 label="Nouveaux leads"
@@ -92,6 +99,7 @@ export default function DashboardV2Page() {
                 sub={`${stats.leads.last_7_days} / 7j · ${stats.leads.last_30_days} / 30j`}
                 href="/admin/crm-v2"
                 accent={crmV2.link}
+                compact={isMobile}
               />
               <Kpi
                 icon={<Briefcase size={16} />}
@@ -100,6 +108,7 @@ export default function DashboardV2Page() {
                 sub={`${stats.deals.won_month} gagnées ce mois`}
                 href="/admin/crm-v2/transactions"
                 accent={crmV2.success}
+                compact={isMobile}
               />
               <Kpi
                 icon={<CheckSquare size={16} />}
@@ -108,6 +117,7 @@ export default function DashboardV2Page() {
                 sub={`${stats.tasks.today} aujourd'hui · ${stats.tasks.week} semaine`}
                 href="/admin/crm-v2/tasks"
                 accent={stats.tasks.overdue > 0 ? crmV2.danger : crmV2.textMuted}
+                compact={isMobile}
               />
               <Kpi
                 icon={<Workflow size={16} />}
@@ -116,10 +126,11 @@ export default function DashboardV2Page() {
                 sub={`${stats.workflows.running_executions} contacts en cours`}
                 href="/admin/crm-v2/workflows"
                 accent={crmV2.gold}
+                compact={isMobile}
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
               <Panel title="Sources (30j)" icon={<TrendingUp size={12} />}>
                 <BarList items={stats.sources.map(s => ({ label: s.label, value: s.count }))} color={crmV2.link} />
               </Panel>
@@ -134,7 +145,7 @@ export default function DashboardV2Page() {
                     {stats.top_owners.map(o => (
                       <div key={o.owner_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <CrmV2Avatar name={o.name} />
-                        <span style={{ flex: 1, fontSize: 13 }}>{o.name}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</span>
                         <strong style={{ fontSize: 13, color: crmV2.link }}>{o.count}</strong>
                       </div>
                     ))}
@@ -150,6 +161,34 @@ export default function DashboardV2Page() {
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {stats.last_submissions.map((s, i) => {
                     const name = [s.firstname, s.lastname].filter(Boolean).join(' ') || s.email || 'Anonyme'
+                    const when = s.recent_conversion_date
+                      ? formatDistanceToNow(new Date(s.recent_conversion_date), { locale: fr, addSuffix: true })
+                      : '—'
+                    // Mobile : ligne empilée (nom + date, puis email, puis formulaire · statut)
+                    if (isMobile) {
+                      return (
+                        <div
+                          key={s.hubspot_contact_id + i}
+                          style={{ padding: '10px 2px', borderBottom: `1px solid ${crmV2.border}`, fontSize: 13, minWidth: 0 }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <CrmV2Link href={`/admin/crm-v2/contacts/${s.hubspot_contact_id}`}>{name}</CrmV2Link>
+                            </div>
+                            <div style={{ color: crmV2.textFaint, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                              <Clock size={10} />
+                              {when}
+                            </div>
+                          </div>
+                          {s.email && (
+                            <div style={{ fontSize: 12, color: crmV2.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
+                          )}
+                          <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.recent_conversion_event || '—'} · {s.hs_lead_status || '—'}
+                          </div>
+                        </div>
+                      )
+                    }
                     return (
                       <div
                         key={s.hubspot_contact_id + i}
@@ -173,9 +212,7 @@ export default function DashboardV2Page() {
                         <div style={{ color: crmV2.textMuted }}>{s.hs_lead_status || '—'}</div>
                         <div style={{ color: crmV2.textFaint, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                           <Clock size={11} />
-                          {s.recent_conversion_date
-                            ? formatDistanceToNow(new Date(s.recent_conversion_date), { locale: fr, addSuffix: true })
-                            : '—'}
+                          {when}
                         </div>
                       </div>
                     )
@@ -195,7 +232,7 @@ export default function DashboardV2Page() {
 }
 
 function Kpi({
-  icon, label, value, sub, href, accent,
+  icon, label, value, sub, href, accent, compact = false,
 }: {
   icon: React.ReactNode
   label: string
@@ -203,22 +240,24 @@ function Kpi({
   sub: string
   href: string
   accent: string
+  /** Version resserrée pour le mobile (grille 2 colonnes) */
+  compact?: boolean
 }) {
   return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
-      <CrmV2Card style={{ padding: 16, height: '100%' }}>
+    <Link href={href} style={{ textDecoration: 'none', minWidth: 0 }}>
+      <CrmV2Card style={{ padding: compact ? 12 : 16, height: '100%', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <div style={{
-            width: 28, height: 28, borderRadius: 6, background: crmV2.bgSoft,
+            width: 28, height: 28, borderRadius: 6, background: crmV2.bgSoft, flexShrink: 0,
             color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             {icon}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          <div style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, minWidth: 0 }}>
             {label}
           </div>
         </div>
-        <div style={{ fontSize: 28, fontWeight: 700, color: accent, letterSpacing: '-0.02em' }}>
+        <div style={{ fontSize: compact ? 22 : 28, fontWeight: 700, color: accent, letterSpacing: '-0.02em' }}>
           {value.toLocaleString('fr-FR')}
         </div>
         <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 4 }}>{sub}</div>
@@ -229,7 +268,7 @@ function Kpi({
 
 function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <CrmV2Card style={{ padding: 16 }}>
+    <CrmV2Card style={{ padding: 16, minWidth: 0 }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
         fontSize: 11, fontWeight: 700, color: crmV2.text, textTransform: 'uppercase', letterSpacing: 0.4,

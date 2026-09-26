@@ -244,13 +244,14 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="min-h-screen bg-[#f7f4ee] text-[#0e1e35]">
-      <div className="bg-white border-b px-5 py-2 flex items-center gap-3 text-sm">
+      <div className="bg-white border-b px-3 md:px-5 py-2 flex items-center gap-3 text-sm">
         <Link href="/admin/crm" className="text-[#506e91] hover:text-[#0070e0]">← Transactions</Link>
       </div>
 
-      <div className="grid grid-cols-12 min-h-[calc(100vh-40px)]">
+      {/* Mobile : les 3 colonnes s'empilent (infos, timeline, associations) */}
+      <div className="grid grid-cols-1 md:grid-cols-12 md:min-h-[calc(100vh-40px)]">
         {/* ══ Gauche ══ */}
-        <aside className="col-span-3 bg-white border-r px-5 py-5 overflow-y-auto">
+        <aside className="min-w-0 md:col-span-3 bg-white border-b md:border-b-0 md:border-r px-4 md:px-5 py-4 md:py-5 overflow-y-auto">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] text-white flex items-center justify-center">
               <DollarSign size={22} />
@@ -330,7 +331,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         </aside>
 
         {/* ══ Centre ══ */}
-        <section className="col-span-6 bg-[#f7f4ee] p-5 overflow-y-auto">
+        <section className="min-w-0 md:col-span-6 bg-[#f7f4ee] p-3 md:p-5 overflow-y-auto">
           <div className="bg-white rounded-lg border">
             <div className="flex border-b px-2 overflow-x-auto">
               <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes les activités" count={counts.all} />
@@ -368,8 +369,8 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                             <TypeIcon type={t.type} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="text-sm font-medium">{t.title}</div>
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                  <div className="text-sm font-medium max-md:break-words max-md:min-w-0">{t.title}</div>
                                   {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
                                       <User size={10} />
@@ -384,7 +385,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
                               {t.subtitle && <div className="text-xs text-[#4a6070] mt-0.5">{t.subtitle}</div>}
                               {t.body && (
                                 <div
-                                  className="text-sm text-[#0e1e35] mt-1.5 whitespace-pre-wrap"
+                                  className="text-sm text-[#0e1e35] mt-1.5 whitespace-pre-wrap max-md:[overflow-wrap:anywhere]"
                                   dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
                                 />
                               )}
@@ -401,7 +402,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         </section>
 
         {/* ══ Droite ══ */}
-        <aside className="col-span-3 bg-white border-l px-5 py-5 overflow-y-auto">
+        <aside className="min-w-0 md:col-span-3 bg-white border-t md:border-t-0 md:border-l px-4 md:px-5 py-4 md:py-5 overflow-y-auto">
           <Section title="Contact" count={contact ? 1 : 0}>
             {!contact ? (
               <EmptySection text="Aucun contact associé." />
@@ -450,7 +451,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Modal props */}
       {showAllProps && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAllProps(false)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 md:p-4" onClick={() => setShowAllProps(false)}>
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h2 className="text-lg font-semibold">Toutes les propriétés ({properties.length})</h2>

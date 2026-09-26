@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Workflow, Plus, Play, Trash2, FileText, X, Copy, Sparkles } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Wf {
   id: string
@@ -234,6 +235,7 @@ const SYSTEM_LOGICS: SystemLogic[] = [
 ]
 
 export default function WorkflowsPage() {
+  const isMobile = useIsMobile()
   const [workflows, setWorkflows] = useState<Wf[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -279,22 +281,23 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
-      {/* Header */}
-      <div style={{ padding: '24px 32px', background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
+    // Mobile : pas de 100vh, la page reste dans le conteneur scrollable du layout (nav basse visible)
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
+      {/* Header — mobile : les boutons passent sous le titre */}
+      <div style={{ padding: isMobile ? '16px 12px' : '24px 32px', background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 12 : undefined }}>
+          <div style={{ minWidth: 0, flex: isMobile ? '1 1 100%' : undefined }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, opacity: 0.85, marginBottom: 4 }}>
               <Link href="/admin/crm" style={{ color: '#fff', textDecoration: 'none' }}>CRM</Link> / Workflows
             </div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
               <Workflow size={22} /> Workflows
             </h1>
             <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>
               Automatise les actions répétitives : envoi d&apos;emails, création de tâches, mise à jour de propriétés.
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={() => setShowAI(true)}
               style={{ background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(168,85,247,0.35)' }}
@@ -312,20 +315,20 @@ export default function WorkflowsPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 32 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? 12 : 32 }}>
         <div
           style={{
             background: '#fff',
             border: '1px solid #cbd6e2',
             borderRadius: 12,
-            padding: 18,
+            padding: isMobile ? 12 : 18,
             marginBottom: 16,
             boxShadow: '0 4px 20px rgba(17,24,39,0.04)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <FileText size={15} style={{ color: '#ccac71' }} />
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#33475b' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <FileText size={15} style={{ color: '#ccac71', flexShrink: 0 }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#33475b', minWidth: 0 }}>
               Logiques système déjà en place (vue pédagogique)
             </div>
             <span
@@ -398,7 +401,7 @@ export default function WorkflowsPage() {
                   background: '#fafcfe',
                 }}
               >
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <span
                     style={{
                       borderRadius: 999,
@@ -415,7 +418,7 @@ export default function WorkflowsPage() {
                   >
                     {CATEGORY_UI[logic.category].label}
                   </span>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#33475b', flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#33475b', flex: 1, minWidth: isMobile ? '60%' : undefined, order: isMobile ? 3 : undefined }}>
                     {logic.name}
                   </div>
                   <button
@@ -492,6 +495,7 @@ export default function WorkflowsPage() {
                           key={s}
                           style={{
                             fontSize: 10,
+                            wordBreak: 'break-all',
                             color: '#1f3553',
                             background: '#edf3f9',
                             border: '1px solid #d5e3f1',
@@ -528,20 +532,23 @@ export default function WorkflowsPage() {
           <div style={{ display: 'grid', gap: 12 }}>
             {workflows.map(wf => (
               <Link key={wf.id} href={`/admin/crm/workflows/${wf.id}`} style={{ textDecoration: 'none' }}>
-                <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 16, alignItems: 'center', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+                <div style={isMobile
+                  // Mobile : carte empilée (nom pleine largeur, puis compteurs / statut / actions)
+                  ? { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', cursor: 'pointer' }
+                  : { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 16, alignItems: 'center', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
                   onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)')}
                   onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
                 >
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 4 }}>{wf.name}</div>
-                    <div style={{ fontSize: 12, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ minWidth: 0, flex: isMobile ? '1 1 100%' : undefined }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 4, overflowWrap: 'anywhere' }}>{wf.name}</div>
+                    <div style={{ fontSize: 12, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <Play size={11} /> {TRIGGER_LABELS[wf.trigger_type] || wf.trigger_type}
                       </span>
-                      {wf.description && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400 }}>{wf.description}</span>}
+                      {wf.description && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400, minWidth: 0 }}>{wf.description}</span>}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#4a6070', textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#4a6070', textAlign: isMobile ? 'left' : 'right', flex: isMobile ? 1 : undefined }}>
                     <div><strong style={{ color: '#0e1e35', fontSize: 14 }}>{wf.total_enrolled}</strong> entrés</div>
                     <div>{wf.total_completed} ✓ · {wf.total_failed} ✗</div>
                   </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense, Fragment } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { Facebook, RefreshCw, AlertCircle, CheckCircle2, Power, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Search, Link2, X } from 'lucide-react'
 
 export default function MetaAdsPageWrapper() {
@@ -73,6 +74,7 @@ function MetaAdsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
   const [formSearch, setFormSearch] = useState<Record<string, string>>({})
+  const isMobile = useIsMobile()
 
   function toggleExpanded(pageId: string) {
     setExpandedPages(prev => {
@@ -179,10 +181,10 @@ function MetaAdsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Meta Lead Ads</h1>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px 60px' : '24px 24px 80px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 12 : 16, marginBottom: isMobile ? 14 : 20, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Meta Lead Ads</h1>
             <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Connecte tes pages Facebook / Instagram pour recevoir les leads de tes pubs en temps réel.
             </p>
@@ -237,16 +239,17 @@ function MetaAdsPage() {
                 const isExpanded = expandedPages.has(p.page_id)
                 const pageFormCount = forms.filter(f => f.page_id === p.page_id).length
                 return (
-                <div key={p.page_id} style={card({ padding: 16 })}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
+                <div key={p.page_id} style={card({ padding: isMobile ? 12 : 16, minWidth: 0 })}>
+                  {/* Mobile : les actions passent sous le nom de la page */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 10 : 12, ...(isMobile ? { flexDirection: 'column' as const, alignItems: 'stretch' } : {}) }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         onClick={() => toggleExpanded(p.page_id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none', ...(isMobile ? { flexWrap: 'wrap' as const, rowGap: 2 } : {}) }}
                       >
                         {isExpanded ? <ChevronDown size={14} style={{ color: '#4a6070' }} /> : <ChevronRight size={14} style={{ color: '#4a6070' }} />}
                         <Facebook size={14} style={{ color: '#1877F2' }} />
-                        <strong>{p.page_name}</strong>
+                        <strong style={isMobile ? { minWidth: 0, wordBreak: 'break-word' } : undefined}>{p.page_name}</strong>
                         <span style={{ fontSize: 10, color: '#a89e8a' }}>· {p.page_id}</span>
                         {pageFormCount > 0 && (
                           <span style={{ fontSize: 10, color: '#4a6070', background: '#f7f4ee', padding: '2px 6px', borderRadius: 999 }}>
@@ -266,7 +269,7 @@ function MetaAdsPage() {
                         {!p.active && <span style={badge('#dc2626')}>Désactivée</span>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', ...(isMobile ? { alignItems: 'center' } : {}) }}>
                       {!p.subscribed && (
                         <button onClick={() => subscribe(p.page_id)} disabled={busy === p.page_id} style={btn('primary')}>
                           <Power size={12} /> Abonner webhook
@@ -306,7 +309,7 @@ function MetaAdsPage() {
                           <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase' }}>
                             Formulaires ({filteredForms.length}{search && filteredForms.length !== pageForms.length ? ` / ${pageForms.length}` : ''})
                           </div>
-                          <div style={{ position: 'relative', flex: '0 1 280px' }}>
+                          <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 280px' }}>
                             <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
                             <input
                               type="text"
@@ -322,7 +325,9 @@ function MetaAdsPage() {
                             Aucun formulaire ne correspond à « {search} »
                           </div>
                         ) : (
-                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                        // Mobile : tableau des formulaires scrollable horizontalement
+                        <div style={isMobile ? { overflowX: 'auto', margin: '0 -12px', padding: '0 12px' } : undefined}>
+                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { minWidth: 720 } : {}) }}>
                           <thead>
                             <tr style={{ background: '#fafbfc' }}>
                               <th style={th}>Nom</th>
@@ -385,6 +390,7 @@ function MetaAdsPage() {
                             ))}
                           </tbody>
                         </table>
+                        </div>
                         )}
                       </div>
                     )
@@ -399,8 +405,8 @@ function MetaAdsPage() {
         {!loading && events.length > 0 && (
           <section>
             <h2 style={sectionTitle}>Derniers leads reçus ({events.length})</h2>
-            <div style={card({ padding: 0, overflow: 'hidden' })}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <div style={card({ padding: 0, overflow: 'hidden', ...(isMobile ? { overflowX: 'auto' as const } : {}) })}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { minWidth: 640 } : {}) }}>
                 <thead>
                   <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
                     <th style={th}>Reçu</th>
@@ -617,6 +623,7 @@ function MappingModal({
   })
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const isMobile = useIsMobile()
 
   function setField(key: string, crmField: string) {
     setMappings(prev => {
@@ -679,7 +686,7 @@ function MappingModal({
       style={{
         position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: 20,
+        zIndex: 1000, padding: isMobile ? 10 : 20,
       }}
     >
       <div
@@ -697,9 +704,9 @@ function MappingModal({
           color: '#fff', borderRadius: '12px 12px 0 0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>Mappage de champs</div>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>{form.name || form.form_id}</div>
+            <div style={{ fontSize: 11, opacity: 0.9, wordBreak: 'break-word' }}>{form.name || form.form_id}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
             <X size={18} />
@@ -707,7 +714,7 @@ function MappingModal({
         </div>
 
         {/* Search */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e5ddc8' }}>
+        <div style={{ padding: isMobile ? '10px 12px' : '10px 20px', borderBottom: '1px solid #e5ddc8' }}>
           <div style={{ position: 'relative' }}>
             <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
             <input
@@ -721,13 +728,14 @@ function MappingModal({
         </div>
 
         {/* Body — table de mapping */}
-        <div style={{ overflowY: 'auto', padding: '12px 20px', flex: 1 }}>
+        <div style={{ overflowY: 'auto', padding: isMobile ? '10px 12px' : '12px 20px', flex: 1 }}>
           {questions.length === 0 ? (
             <div style={{ padding: 20, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
               Aucune question trouvée pour ce form. Refresh forms d&apos;abord.
             </div>
           ) : (
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            // Mobile : largeur fixe des colonnes pour que les selects ne poussent pas la modale
+            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
               <thead>
                 <tr>
                   <th style={th}>Champ Facebook</th>
@@ -743,7 +751,7 @@ function MappingModal({
                     <Fragment key={q.key}>
                       <tr style={{ borderBottom: isEnum ? 'none' : '1px solid #f7f4ee' }}>
                         <td style={{ ...td, width: '50%' }}>
-                          <div style={{ fontWeight: 600 }}>{q.label || q.key}</div>
+                          <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{q.label || q.key}</div>
                           <div style={{ fontSize: 10, color: '#a89e8a' }}>{q.key}{q.type ? ` · ${q.type}` : ''}</div>
                         </td>
                         <td style={td}>
@@ -772,7 +780,7 @@ function MappingModal({
                             <div style={{ fontSize: 10, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', marginBottom: 6 }}>
                               Mappage des valeurs
                             </div>
-                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', ...(isMobile ? { tableLayout: 'fixed' as const } : {}) }}>
                               <tbody>
                                 {q.options!.map(opt => (
                                   <tr key={opt.value}>
@@ -808,7 +816,7 @@ function MappingModal({
 
         {/* Footer */}
         <div style={{
-          padding: '12px 20px', borderTop: '1px solid #e5ddc8',
+          padding: isMobile ? '10px 12px' : '12px 20px', borderTop: '1px solid #e5ddc8',
           display: 'flex', justifyContent: 'flex-end', gap: 8,
         }}>
           <button onClick={onClose} style={btn('secondary')} disabled={saving}>

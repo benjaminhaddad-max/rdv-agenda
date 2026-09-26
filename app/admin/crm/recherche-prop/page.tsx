@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Search, ChevronDown, Loader2, ExternalLink } from 'lucide-react'
 import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type Property = {
   name: string
@@ -72,6 +73,7 @@ export default function RecherchePropPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [owners, setOwners] = useState<Owner[]>([])
+  const isMobile = useIsMobile()
 
   const isUserProp = pickedProp ? isUserTypeProperty(pickedProp.name) : false
   const userIndex = useMemo(() => buildUserNameIndex(owners), [owners])
@@ -144,9 +146,9 @@ export default function RecherchePropPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Recherche par propriété</h1>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px 60px' : '24px 24px 80px' }}>
+        <div style={{ marginBottom: isMobile ? 14 : 20 }}>
+          <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Recherche par propriété</h1>
           <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
             Filtre tes contacts sur n&apos;importe laquelle des {properties.length || 829} propriétés. Utile pour vérifier des données
             ou trouver des contacts avec une valeur précise.
@@ -154,10 +156,15 @@ export default function RecherchePropPage() {
         </div>
 
         {/* Builder filtre */}
-        <div style={card({ padding: 16, marginBottom: 16 })}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={card({ padding: isMobile ? 12 : 16, marginBottom: 16 })}>
+          {/* Mobile : propriété pleine largeur, puis opérateur + valeur, puis bouton pleine largeur */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'minmax(0, 2fr) minmax(0, 3fr)' : '2fr 1fr 2fr auto',
+            gap: 10, alignItems: 'flex-end', flexWrap: 'wrap',
+          }}>
             {/* Picker de propriété */}
-            <div>
+            <div style={isMobile ? { gridColumn: '1 / -1', minWidth: 0 } : undefined}>
               <label style={labelStyle}>Propriété</label>
               <PropertyPicker
                 properties={filteredProps}
@@ -171,7 +178,7 @@ export default function RecherchePropPage() {
             </div>
 
             {/* Opérateur */}
-            <div>
+            <div style={isMobile ? { minWidth: 0 } : undefined}>
               <label style={labelStyle}>Opérateur</label>
               <select value={operator} onChange={e => setOperator(e.target.value)} style={input} disabled={!pickedProp}>
                 {ops.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -179,7 +186,7 @@ export default function RecherchePropPage() {
             </div>
 
             {/* Valeur */}
-            <div>
+            <div style={isMobile ? { minWidth: 0 } : undefined}>
               <label style={labelStyle}>Valeur</label>
               {!opNeedsValue ? (
                 <input value="(pas de valeur requise)" disabled style={{ ...input, color: '#a89e8a' }} />
@@ -222,6 +229,7 @@ export default function RecherchePropPage() {
                 color: '#fff', fontSize: 13, fontWeight: 600,
                 cursor: (!pickedProp || (opNeedsValue && !value)) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6, height: 36,
+                ...(isMobile ? { gridColumn: '1 / -1', justifyContent: 'center', height: 40 } : {}),
               }}
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
@@ -230,7 +238,7 @@ export default function RecherchePropPage() {
           </div>
 
           {pickedProp && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#a89e8a' }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: '#a89e8a', wordBreak: 'break-word' }}>
               <strong>{pickedProp.label}</strong> · <code>{pickedProp.name}</code> · type {pickedProp.type}
               {pickedProp.group_name && <> · groupe {pickedProp.group_name}</>}
             </div>
@@ -242,7 +250,7 @@ export default function RecherchePropPage() {
         {/* Résultats */}
         {!pickedProp ? null : (
           <div style={card({ padding: 0, overflow: 'hidden' })}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: isMobile ? '10px 12px' : '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(isMobile ? { flexWrap: 'wrap' as const, gap: 4 } : {}) }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
                 Résultats {total > 0 && <span style={{ color: '#4a6070', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
                 {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#a89e8a' }}>(via hubspot_raw)</span>}
@@ -259,6 +267,48 @@ export default function RecherchePropPage() {
             ) : results.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
                 {pickedProp ? 'Aucun contact ne correspond. Essaye un autre opérateur ou une autre valeur.' : 'Choisis une propriété ci-dessus.'}
+              </div>
+            ) : isMobile ? (
+              // Mobile : un contact par carte
+              <div>
+                {results.map(c => (
+                  <a
+                    key={c.hubspot_contact_id}
+                    href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'block', padding: '10px 12px', borderBottom: '1px solid #f7f4ee', color: 'inherit', textDecoration: 'none', fontSize: 12, minWidth: 0 }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {[c.firstname, c.lastname].filter(Boolean).join(' ') || '—'}
+                      </div>
+                      <span style={{ flexShrink: 0, fontSize: 11, color: '#a89e8a' }}>
+                        {c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'}
+                      </span>
+                    </div>
+                    <div style={{ color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                    </div>
+                    {(c.classe_actuelle || c.formation_souhaitee) && (
+                      <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {[c.classe_actuelle, c.formation_souhaitee].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                    <div style={{ marginTop: 3, fontSize: 11, wordBreak: 'break-all' }}>
+                      {c.matched_value ? (
+                        isUserProp && userIndex.get(c.matched_value) ? (
+                          <span style={{ fontWeight: 500 }}>{userIndex.get(c.matched_value)}</span>
+                        ) : (
+                          <span style={{ fontFamily: 'monospace', color: '#4a6070' }}>{c.matched_value}</span>
+                        )
+                      ) : (
+                        <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>(vide)</span>
+                      )}
+                      <ExternalLink size={10} style={{ marginLeft: 6, color: '#2ea3f2', verticalAlign: 'middle' }} />
+                    </div>
+                  </a>
+                ))}
               </div>
             ) : (
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>

@@ -173,33 +173,108 @@ export default function UsersPage() {
     <div className="min-h-screen bg-[#f7f4ee]">
       {/* Header */}
       <div className="bg-white border-b border-[#e5ddc8]">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
+        <div className="max-w-[1400px] mx-auto px-3 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
               <Users size={18} className="text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg font-bold text-[#0e1e35]">Utilisateurs</h1>
               <p className="text-xs text-[#4a6070]">{users.length} {users.length > 1 ? 'comptes' : 'compte'} ayant accès au CRM</p>
             </div>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 bg-[#C9A84C] hover:bg-[#b89a5e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            className="shrink-0 whitespace-nowrap inline-flex items-center gap-2 bg-[#C9A84C] hover:bg-[#b89a5e] text-white text-sm font-semibold px-3 md:px-4 py-2 rounded-lg transition-colors"
           >
-            <Plus size={14} /> Ajouter un utilisateur
+            {/* Libellé raccourci sur mobile */}
+            <Plus size={14} /> <span className="md:hidden">Ajouter</span><span className="hidden md:inline">Ajouter un utilisateur</span>
           </button>
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-6">
+      <div className="max-w-[1400px] mx-auto px-3 md:px-6 py-4 md:py-6">
         {notice && (
           <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
             {notice}
           </div>
         )}
 
-        <div className="bg-white border border-[#e5ddc8] rounded-xl overflow-hidden">
+        {/* Mobile : une carte par utilisateur (le tableau est réservé au desktop) */}
+        <div className="md:hidden flex flex-col gap-2">
+          {loading && (
+            <div className="bg-white border border-[#e5ddc8] rounded-xl px-4 py-10 text-center text-sm text-[#a89e8a]">Chargement…</div>
+          )}
+          {!loading && users.length === 0 && (
+            <div className="bg-white border border-[#e5ddc8] rounded-xl px-4 py-10 text-center text-sm text-[#a89e8a]">Aucun utilisateur.</div>
+          )}
+          {users.map(u => (
+            <div key={u.id} className="bg-white border border-[#e5ddc8] rounded-xl p-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  style={{ background: u.avatar_color || '#3b82f6' }}
+                >
+                  {u.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm text-[#0e1e35] truncate">{u.name}</div>
+                  <div className="text-xs text-[#4a6070] break-all">{u.email}</div>
+                </div>
+                <button
+                  onClick={() => handleDelete(u)}
+                  title="Supprimer"
+                  className="shrink-0 w-9 h-9 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <select
+                  value={u.role}
+                  onChange={e => handleRoleChange(u, e.target.value as User['role'])}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-full border cursor-pointer ${ROLE_BADGE[u.role] ?? ROLE_BADGE.closer}`}
+                >
+                  {ROLES.map(r => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  ))}
+                </select>
+                <select
+                  value={u.crm_brand ?? ''}
+                  onChange={e => handleBrandChange(u, e.target.value)}
+                  className="text-xs border border-slate-300 rounded px-2 py-1.5 text-slate-700 bg-white"
+                >
+                  {BRAND_OPTIONS.map(b => (
+                    <option key={b.id} value={b.id}>{b.label}</option>
+                  ))}
+                </select>
+                {u.role === 'telepro' && (
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={!!u.is_default_brand_telepro}
+                      disabled={!u.crm_brand}
+                      onChange={e => handleDefaultBrandTeleproChange(u, e.target.checked)}
+                    />
+                    Défaut
+                  </label>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
+                {u.auth_id ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                    <Shield size={11} /> Activé
+                  </span>
+                ) : (
+                  <span className="text-amber-600">Non lié</span>
+                )}
+                <span className="text-[#4a6070] font-mono">Owner : {u.hubspot_owner_id || '—'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block bg-white border border-[#e5ddc8] rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-[#f7f4ee] border-b border-[#e5ddc8]">
               <tr className="text-xs uppercase tracking-wide text-[#4a6070]">
@@ -301,9 +376,9 @@ export default function UsersPage() {
       {showCreate && (
         <div
           onClick={() => !creating && setShowCreate(false)}
-          className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4 max-md:p-3"
         >
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-md:p-4 max-md:max-h-[90vh] max-md:overflow-y-auto">
             <div className="flex items-center gap-2 mb-2">
               <Mail size={16} className="text-[#C9A84C]" />
               <h2 className="text-base font-bold text-[#0e1e35]">Ajouter un utilisateur</h2>

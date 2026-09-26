@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy, Phone, PhoneCall,
 } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Dashboard {
   id: string
@@ -19,6 +20,7 @@ interface Dashboard {
 }
 
 export default function DashboardsListPage() {
+  const isMobile = useIsMobile()
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -51,22 +53,29 @@ export default function DashboardsListPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BarChart3 size={16} style={{ color: '#C9A84C' }} />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Dashboards & Rapports</span>
-          <span style={{ fontSize: 11, color: '#4a6070' }}>
-            Crée des tableaux de bord personnalisés avec tes KPIs
-          </span>
+      {/* Mobile : titre sur une ligne, sous-titre masqué, boutons en rangée scrollable */}
+      <div style={isMobile
+        ? { padding: '10px 12px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }
+        : { padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <BarChart3 size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dashboards & Rapports</span>
+          {!isMobile && (
+            <span style={{ fontSize: 11, color: '#4a6070' }}>
+              Crée des tableaux de bord personnalisés avec tes KPIs
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={isMobile
+          ? { display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }
+          : { display: 'flex', alignItems: 'center', gap: 8 }}>
           <Link
             href="/admin/crm/reports/suivi-commercial"
             style={{
               background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.35)',
               borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none',
+              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none', flexShrink: 0,
             }}
           >
             <PhoneCall size={14} /> Suivi commercial
@@ -77,14 +86,14 @@ export default function DashboardsListPage() {
               background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.35)',
               borderRadius: 8, padding: '8px 16px', color: '#2ea3f2', fontSize: 13,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none',
+              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none', flexShrink: 0,
             }}
           >
             <Phone size={14} /> RDV par télépro
           </Link>
           <button
             onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', flexShrink: 0 }}
           >
             <Plus size={14} /> Nouveau dashboard
           </button>
@@ -92,7 +101,7 @@ export default function DashboardsListPage() {
       </div>
 
       {/* Rapport télépros — accès rapide */}
-      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 10 }}>
+      <div style={{ padding: isMobile ? '12px 12px 0' : '16px 24px 0', maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 10 }}>
         <Link
           href="/admin/crm/reports/suivi-commercial"
           style={{
@@ -110,13 +119,13 @@ export default function DashboardsListPage() {
           }}>
             <PhoneCall size={20} style={{ color: '#C9A84C' }} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Suivi commercial (Aircall)</div>
             <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
               Appels, RDV et conversions par télépro et par commercial
             </div>
           </div>
-          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>Voir →</span>
+          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, flexShrink: 0 }}>Voir →</span>
         </Link>
         <Link
           href="/admin/crm/reports/telepro-rdv"
@@ -135,18 +144,18 @@ export default function DashboardsListPage() {
           }}>
             <BarChart3 size={20} style={{ color: '#C9A84C' }} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>RDV placés par télépro (hebdo)</div>
             <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
               Tableau chiffré semaine par semaine — qui a pris combien de RDV
             </div>
           </div>
-          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>Voir →</span>
+          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, flexShrink: 0 }}>Voir →</span>
         </Link>
       </div>
 
       {/* Recherche */}
-      <div style={{ padding: '20px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '16px 12px 12px' : '20px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', maxWidth: 400 }}>
           <Search size={14} style={{ color: '#4a6070' }} />
           <input
@@ -159,14 +168,14 @@ export default function DashboardsListPage() {
       </div>
 
       {/* Grid des dashboards */}
-      <div style={{ padding: '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 40px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
             <SuiviCommercialCard />
             <TeleproReportCard />
-            <div style={{ textAlign: 'center', padding: 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
+            <div style={{ textAlign: 'center', padding: isMobile ? 24 : 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
               <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun dashboard personnalisé</div>
               <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
@@ -178,7 +187,7 @@ export default function DashboardsListPage() {
             </div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
             <SuiviCommercialCard />
             <TeleproReportCard />
             {filtered.map(d => (
@@ -334,7 +343,7 @@ function NewDashboardModal({ onClose, onCreated }: { onClose: () => void; onCrea
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxWidth: 'calc(100vw - 80px)', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouveau dashboard</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>

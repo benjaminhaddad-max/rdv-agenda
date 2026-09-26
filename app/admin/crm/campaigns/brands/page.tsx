@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import MarketingNav from '@/components/crm/MarketingNav'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { getBrandCharter, wrapCharterEmailHtml } from '@/lib/brand-charter'
 import { getBrandSenderConfig } from '@/lib/marketing/brand-senders'
 
@@ -24,6 +25,9 @@ const TEXT = '#0e1e35'
 const MUTED = '#4a6070'
 
 export default function BrandsPage() {
+  const isMobile = useIsMobile()
+  // Mobile : les valeurs longues (emails, URLs) passent à la ligne au lieu de déborder
+  const valWrap: React.CSSProperties = isMobile ? { overflowWrap: 'anywhere', wordBreak: 'break-word' } : {}
   const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [previewSlug, setPreviewSlug] = useState<string | null>(null)
@@ -59,7 +63,7 @@ export default function BrandsPage() {
   return (
     <div>
       <MarketingNav title="Marques email" />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
         <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, marginBottom: 20 }}>
           <h2 style={{ margin: '0 0 8px', fontSize: 16, color: TEXT }}>Configuration expéditeurs (Brevo)</h2>
           <p style={{ margin: 0, fontSize: 14, color: MUTED, lineHeight: 1.6 }}>
@@ -71,8 +75,8 @@ export default function BrandsPage() {
         {loading ? (
           <p style={{ color: TEXT }}>Chargement…</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: previewSlug ? '1fr 380px' : '1fr', gap: 20 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : (previewSlug ? '1fr 380px' : '1fr'), gap: isMobile ? 12 : 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 14, minWidth: 0 }}>
               {brands
                 .filter(b => ['afem', 'hermione', 'prepamedecine', 'numerus'].includes(b.slug))
                 .map(b => {
@@ -87,14 +91,14 @@ export default function BrandsPage() {
                         background: '#fff',
                         borderRadius: 12,
                         border: previewSlug === b.slug ? `2px solid ${primary}` : '1px solid #e5ddc8',
-                        padding: 18,
+                        padding: isMobile ? 12 : 18,
                       }}
                     >
-                      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', gap: isMobile ? 12 : 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                         <div
                           style={{
-                            width: 56,
-                            height: 56,
+                            width: isMobile ? 44 : 56,
+                            height: isMobile ? 44 : 56,
                             borderRadius: 10,
                             background: `linear-gradient(135deg, ${primary}, ${accent})`,
                             display: 'flex',
@@ -112,23 +116,29 @@ export default function BrandsPage() {
                             </span>
                           )}
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 17, color: TEXT }}>{b.name}</div>
-                          <table style={{ fontSize: 13, color: MUTED, marginTop: 8, borderCollapse: 'collapse' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 17, color: TEXT, ...valWrap }}>{b.name}</div>
+                          <table style={{ fontSize: isMobile ? 12 : 13, color: MUTED, marginTop: 8, borderCollapse: 'collapse', ...(isMobile ? { width: '100%', tableLayout: 'fixed' } : {}) }}>
+                            {isMobile && (
+                              <colgroup>
+                                <col style={{ width: 82 }} />
+                                <col />
+                              </colgroup>
+                            )}
                             <tbody>
                               <tr>
                                 <td style={{ padding: '3px 12px 3px 0', fontWeight: 600 }}>Expéditeur</td>
-                                <td style={{ color: TEXT }}>
+                                <td style={{ color: TEXT, ...valWrap }}>
                                   {b.sender_name} &lt;{b.sender_email}&gt;
                                 </td>
                               </tr>
                               <tr>
                                 <td style={{ padding: '3px 12px 3px 0', fontWeight: 600 }}>Reply-to</td>
-                                <td style={{ color: TEXT }}>{b.reply_to || b.sender_email}</td>
+                                <td style={{ color: TEXT, ...valWrap }}>{b.reply_to || b.sender_email}</td>
                               </tr>
                               <tr>
                                 <td style={{ padding: '3px 12px 3px 0', fontWeight: 600 }}>Site</td>
-                                <td>
+                                <td style={valWrap}>
                                   <a href={b.website_url || '#'} target="_blank" rel="noreferrer">
                                     {b.website_url?.replace(/^https?:\/\//, '')}
                                   </a>
@@ -137,7 +147,7 @@ export default function BrandsPage() {
                               <tr>
                                 <td style={{ padding: '3px 12px 3px 0', fontWeight: 600 }}>Charte</td>
                                 <td>
-                                  <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                                  <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                                     <span style={{ width: 14, height: 14, borderRadius: 3, background: primary, display: 'inline-block' }} />
                                     {primary}
                                     {charter && b.charter_source_url && (
@@ -150,20 +160,21 @@ export default function BrandsPage() {
                               </tr>
                               <tr>
                                 <td style={{ padding: '3px 12px 3px 0', fontWeight: 600 }}>Brevo</td>
-                                <td style={{ color: b.active ? '#15803d' : '#b45309' }}>
+                                <td style={{ color: b.active ? '#15803d' : '#b45309', ...valWrap }}>
                                   {b.active ? '✓ Domaine validé — envois autorisés' : '⚠ Valider le domaine dans Brevo puis activer'}
                                 </td>
                               </tr>
                             </tbody>
                           </table>
                           {senderCfg && !b.active && (
-                            <p style={{ fontSize: 12, color: '#b45309', margin: '10px 0 0', background: '#fffbeb', padding: '8px 10px', borderRadius: 6 }}>
+                            <p style={{ fontSize: 12, color: '#b45309', margin: '10px 0 0', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, ...valWrap }}>
                               Domaine à authentifier dans Brevo : <strong>{b.sender_email.split('@')[1]}</strong>
                             </p>
                           )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <button type="button" onClick={() => setPreviewSlug(previewSlug === b.slug ? null : b.slug)} style={btn}>
+                        {/* Mobile : actions en rangée sous la fiche */}
+                        <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: 8, flex: isMobile ? '1 1 100%' : undefined }}>
+                          <button type="button" onClick={() => setPreviewSlug(previewSlug === b.slug ? null : b.slug)} style={isMobile ? { ...btn, flex: 1, minHeight: 36 } : btn}>
                             Aperçu
                           </button>
                           <button
@@ -171,6 +182,7 @@ export default function BrandsPage() {
                             onClick={() => toggleActive(b)}
                             style={{
                               ...btn,
+                              ...(isMobile ? { flex: 1, minHeight: 36 } : {}),
                               fontWeight: 600,
                               background: b.active ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
                               color: b.active ? '#15803d' : '#b91c1c',
@@ -187,7 +199,7 @@ export default function BrandsPage() {
             </div>
 
             {previewSlug && previewHtml && (
-              <div style={{ position: 'sticky', top: 16 }}>
+              <div style={{ position: isMobile ? 'static' : 'sticky', top: 16, minWidth: 0 }}>
                 <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid #e5ddc8', fontSize: 13, fontWeight: 600, color: TEXT }}>
                     Template {previewBrand?.name}

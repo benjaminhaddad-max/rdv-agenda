@@ -21,6 +21,7 @@ import EventsAgendaCalendar, { EVENT_TYPE_COLORS } from '@/components/crm/Events
 import { CrmV2Button, CrmV2Card, CrmV2Page, CrmV2PillTabs } from '@/components/crm-v2/primitives'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 import {
   BRAND_CONFIG,
   EVENT_TYPES,
@@ -103,6 +104,9 @@ function isEventPast(ev: EventRow, nowMs = Date.now()): boolean {
 }
 
 export default function EventsListPage() {
+  const isMobile = useIsMobile()
+  // Marge latérale des blocs de la page (réduite sur mobile)
+  const padX = isMobile ? 12 : 28
   const [brand, setBrand] = useState<EventBrand>('diploma')
   const [allEvents, setAllEvents] = useState<EventRow[]>([])
   usePageTitle(`Événements ${BRAND_CONFIG[brand].name}`)
@@ -512,7 +516,7 @@ export default function EventsListPage() {
     <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
       <MarketingNav title="Événements" />
       <CrmV2Page style={{ paddingBottom: 48 }}>
-        <div style={{ padding: '20px 28px 0', display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+        <div style={{ padding: `20px ${padX}px 0`, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: isMobile ? 12 : 16, alignItems: isMobile ? 'stretch' : 'flex-start' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <CalendarDays size={20} color={crmV2.gold} />
@@ -541,7 +545,7 @@ export default function EventsListPage() {
           </div>
         </div>
 
-        <div style={{ padding: '16px 28px' }}>
+        <div style={{ padding: `16px ${padX}px` }}>
           <CrmV2PillTabs
             items={BRANDS.map((b) => ({ id: b, label: BRAND_CONFIG[b].name }))}
             value={brand}
@@ -553,7 +557,7 @@ export default function EventsListPage() {
         </div>
 
         {toast && (
-          <div style={{ padding: '0 28px 12px' }}>
+          <div style={{ padding: `0 ${padX}px 12px` }}>
             <div
               style={{
                 padding: '8px 12px',
@@ -568,12 +572,12 @@ export default function EventsListPage() {
           </div>
         )}
 
-        <div style={{ padding: '0 28px 16px' }}>
+        <div style={{ padding: `0 ${padX}px 16px` }}>
           <EventsAgendaCalendar events={allEvents} loading={loading} />
         </div>
 
         {brand === 'diploma' && (
-          <div style={{ padding: '0 28px 16px' }}>
+          <div style={{ padding: `0 ${padX}px 16px` }}>
             <CrmV2Card style={{ padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -657,7 +661,7 @@ export default function EventsListPage() {
           </div>
         )}
 
-        <div style={{ padding: '0 28px' }}>
+        <div style={{ padding: `0 ${padX}px` }}>
           {error && (
             <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: crmV2.radius, background: crmV2.dangerSoft, color: crmV2.danger, fontSize: 13 }}>
               {error}

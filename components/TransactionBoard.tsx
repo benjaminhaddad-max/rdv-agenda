@@ -630,6 +630,8 @@ export default function TransactionBoard({
           padding: '8px 16px',
           background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
           borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
+          // Passe à la ligne sur petit écran (sans effet sur desktop)
+          flexWrap: 'wrap', rowGap: 6,
         }}>
           <span style={{ fontSize: 12, color: '#ef4444' }}>
             {undoAction.label}
@@ -655,8 +657,10 @@ export default function TransactionBoard({
           padding: '8px 16px',
           background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
           borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
+          // Passe à la ligne sur petit écran (sans effet sur desktop)
+          flexWrap: 'wrap', rowGap: 6,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', rowGap: 2 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>
               {selectedDeals.size} transaction{selectedDeals.size > 1 ? 's' : ''} sélectionnée{selectedDeals.size > 1 ? 's' : ''}
             </span>

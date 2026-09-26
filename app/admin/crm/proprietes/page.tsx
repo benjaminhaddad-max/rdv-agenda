@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Search, Plus, FileText, Hash, Calendar, ListChecks, ToggleLeft, Phone, X, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type Property = {
   name: string
@@ -51,6 +52,7 @@ export default function ProprietesPage() {
   const [doneMessage, setDoneMessage] = useState<string | null>(null)
   const [detail, setDetail] = useState<Property | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const isMobile = useIsMobile()
 
   async function resyncFromHubSpot() {
     if (!confirm(`Re-synchroniser toutes les propriétés ${object} depuis HubSpot ? Met à jour notamment les options (valeurs prédéfinies).`)) return
@@ -110,10 +112,10 @@ export default function ProprietesPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Propriétés CRM</h1>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px 60px' : '24px 24px 80px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 12 : 16, marginBottom: isMobile ? 14 : 20, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Propriétés CRM</h1>
             <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
               Toutes les propriétés (contacts / deals) — synchronisées depuis HubSpot ou créées en interne.
             </p>
@@ -165,7 +167,7 @@ export default function ProprietesPage() {
               </button>
             ))}
           </div>
-          <div style={{ position: 'relative', flex: 1, minWidth: 240 }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 240 }}>
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#a89e8a' }} />
             <input
               type="text"
@@ -205,6 +207,38 @@ export default function ProprietesPage() {
                 <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginBottom: 8, marginTop: 0 }}>
                   {groupName} <span style={{ color: '#a89e8a' }}>({props.length})</span>
                 </h2>
+                {isMobile ? (
+                  // Mobile : cartes compactes (label, nom technique, type, options)
+                  <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
+                    {props.map((p, i) => {
+                      const Icon = TYPE_ICONS[p.type] || FileText
+                      return (
+                        <div
+                          key={p.name}
+                          onClick={() => setDetail(p)}
+                          style={{ padding: '10px 12px', borderBottom: i < props.length - 1 ? '1px solid #f7f4ee' : 'none', cursor: 'pointer', minWidth: 0 }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, minWidth: 0, wordBreak: 'break-word' }}>{p.label}</div>
+                            <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: '#eef2f7', fontSize: 11, fontWeight: 600 }}>
+                              <Icon size={11} /> {p.field_type}
+                            </span>
+                          </div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#4a6070', marginTop: 2, wordBreak: 'break-all' }}>{p.name}</div>
+                          {p.description && (
+                            <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.description}</div>
+                          )}
+                          {p.options && Array.isArray(p.options) && p.options.length > 0 && (
+                            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.options.slice(0, 4).map(o => o.label).join(', ')}
+                              {p.options.length > 4 && <span style={{ color: '#a89e8a' }}> +{p.options.length - 4}</span>}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
                 <div style={{ background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
                   <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                     <thead>
@@ -258,6 +292,7 @@ export default function ProprietesPage() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             ))}
             {grouped.length === 0 && (
@@ -326,11 +361,12 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
   }, [property.name, property.object_type])
 
   const totalCount = actualValues?.reduce((sum, v) => sum + Number(v.count), 0) || 0
+  const isMobile = useIsMobile()
 
   return (
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 10 : 20 }}
     >
       <div style={{
         background: '#fff', borderRadius: 12, width: '100%', maxWidth: 720,
@@ -344,9 +380,9 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
           color: '#fff', borderRadius: '12px 12px 0 0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
         }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{property.label}</div>
-            <div style={{ fontSize: 11, opacity: 0.9, fontFamily: 'monospace' }}>{property.name}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-word' }}>{property.label}</div>
+            <div style={{ fontSize: 11, opacity: 0.9, fontFamily: 'monospace', wordBreak: 'break-all' }}>{property.name}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
             <X size={18} />
@@ -354,9 +390,9 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
         </div>
 
         {/* Body */}
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: isMobile ? 14 : 20, overflowY: 'auto', flex: 1 }}>
           {/* Métadonnées */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
             <Meta label="Type technique">{property.type}</Meta>
             <Meta label="Field type">{property.field_type}</Meta>
             <Meta label="Groupe">{property.group_name || '—'}</Meta>
@@ -531,6 +567,7 @@ function CreateModal({ objectType, onClose, onCreated }: {
 
   const ftMeta = FIELD_TYPES.find(f => f.value === fieldType)
   const needsOptions = ftMeta && ['select', 'radio', 'checkbox'].includes(fieldType)
+  const isMobile = useIsMobile()
 
   async function submit() {
     setErr(null)
@@ -582,11 +619,11 @@ function CreateModal({ objectType, onClose, onCreated }: {
       style={{
         position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
         zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
-        padding: '60px 16px', overflowY: 'auto',
+        padding: isMobile ? '24px 10px' : '60px 16px', overflowY: 'auto',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, padding: 24, position: 'relative' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, padding: isMobile ? 16 : 24, position: 'relative' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#a89e8a', padding: 6 }}>
           <X size={18} />
         </button>

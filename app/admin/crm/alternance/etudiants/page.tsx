@@ -93,13 +93,13 @@ export default function EtudiantsPage() {
             return (
               <AlternanceCard key={s.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>{s.prenom} {s.nom}</div>
-                    <div style={{ fontSize: 12, color: '#4a6070' }}>{s.email}</div>
+                    <div style={{ fontSize: 12, color: '#4a6070', wordBreak: 'break-all' }}>{s.email}</div>
                   </div>
                   <StatusPill label={meta.label} color={meta.color} bg={meta.bg} />
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   {s.dossier_status !== 'validated' && (
                     <AlternanceBtn variant="secondary" onClick={() => sendLink(s.id)}>
                       <Send size={12} style={{ marginRight: 4, verticalAlign: -1 }} />
@@ -118,7 +118,8 @@ export default function EtudiantsPage() {
 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 400 }}>
+          {/* maxWidth : la modale tient dans l'écran sur mobile */}
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 400, maxWidth: 'calc(100vw - 24px)', boxSizing: 'border-box' }}>
             <h2 style={{ margin: '0 0 16px' }}>Nouvel étudiant</h2>
             {(['nom', 'prenom', 'email'] as const).map(k => (
               <label key={k} style={{ display: 'block', marginBottom: 10, fontSize: 12 }}>

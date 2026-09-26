@@ -9,6 +9,7 @@ import LogoutButton from '@/components/LogoutButton'
 import EmailEditorVisual, { type EmailEditorVisualRef } from '@/components/EmailEditorVisual'
 import CampaignRecipientsTab from '@/components/crm/CampaignRecipientsTab'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Campaign {
   id: string
@@ -83,6 +84,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const isMobile = useIsMobile()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
   usePageTitle(campaign?.name)
@@ -232,25 +234,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const statusMeta = STATUS_META[campaign.status] || STATUS_META.draft
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ChevronLeft size={14} /> Campagnes
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* Topbar — mobile : nom tronqué, déconnexion masquée (dispo dans le menu CRM) */}
+      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
+          <a href="/admin/crm/campaigns" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <ChevronLeft size={14} /> {!isMobile && 'Campagnes'}
           </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
+          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <Mail size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
             <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: statusMeta.color, background: statusMeta.bg, padding: '3px 8px', borderRadius: 999 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: statusMeta.color, background: statusMeta.bg, padding: '3px 8px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
               {statusMeta.label}
             </span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {dirty && (
-            <span style={{ fontSize: 11, color: '#f59e0b' }}>● Modifié</span>
+            <span style={{ fontSize: 11, color: '#f59e0b' }}>{isMobile ? '●' : '● Modifié'}</span>
           )}
           <button
             onClick={save}
@@ -259,12 +261,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           >
             <Save size={12} /> {saving ? 'Sauvegarde…' : 'Sauvegarder'}
           </button>
-          <LogoutButton />
+          {!isMobile && <LogoutButton />}
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4 }}>
+      <div style={{ padding: isMobile ? '0 8px' : '0 24px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', gap: 4, ...(isMobile ? { overflowX: 'auto', whiteSpace: 'nowrap' } : {}) }}>
         <Tab active={tab === 'content'} onClick={() => setTab('content')} icon={FileText} label="Contenu" />
         <Tab active={tab === 'preview'} onClick={() => setTab('preview')} icon={Eye} label="Prévisualisation" />
         <Tab active={tab === 'recipients'} onClick={() => setTab('recipients')} icon={Users} label="Destinataires" />
@@ -274,7 +276,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Contenu */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? 12 : 24 }}>
         {tab === 'content' && (
           <ContentTab
             campaign={campaign}
@@ -459,10 +461,12 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sendStatus: { ok: boolean; sent: number; failed: number; pending: number; errors?: any[] } | null
 }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+    // Mobile : éditeur puis panneau latéral empilés
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 360px', gap: isMobile ? 12 : 24 }}>
       {/* Éditeur */}
-      <div>
+      <div style={{ minWidth: 0 }}>
         <Card title="Informations">
           <Field label="Nom interne">
             <input value={campaign.name} onChange={e => update({ name: e.target.value })} style={inputStyle} />
@@ -481,7 +485,7 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
               style={inputStyle}
             />
           </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 0 : 12 }}>
             <Field label="Nom expéditeur">
               <input value={campaign.sender_name} onChange={e => update({ sender_name: e.target.value })} style={inputStyle} />
             </Field>
@@ -500,13 +504,13 @@ function ContentTab({ campaign, update, testEmail, setTestEmail, sendTest, testS
         </Card>
 
         <Card title="Design de l'email" icon={Palette}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-            <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.5, flex: isMobile ? '1 1 100%' : 1 }}>
               Drag & drop des blocs depuis la palette à gauche :
               <strong> Texte, Image, Bouton, Diviseur, Colonnes, Vidéo, Réseaux sociaux</strong>.
               Utilise les <strong>Merge Tags</strong> pour insérer <code style={{ color: '#C9A84C' }}>{'{{prenom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{nom}}'}</code>, <code style={{ color: '#C9A84C' }}>{'{{email}}'}</code>.
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             <CrmTemplateButton
               onPick={(tpl) => {
                 update({
@@ -682,10 +686,11 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
   const openRate = campaign.total_sent > 0 ? (campaign.total_unique_opens / campaign.total_sent * 100).toFixed(1) : '0.0'
   const clickRate = campaign.total_sent > 0 ? (campaign.total_unique_clicks / campaign.total_sent * 100).toFixed(1) : '0.0'
   const bounceRate = campaign.total_sent > 0 ? (campaign.total_bounces / campaign.total_sent * 100).toFixed(1) : '0.0'
+  const isMobile = useIsMobile()
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 16, marginBottom: isMobile ? 16 : 24 }}>
         <BigStat label="Envoyés" value={campaign.total_sent} color="#06b6d4" />
         <BigStat label="Taux d'ouverture" value={`${openRate}%`} color="#a855f7" sub={`${campaign.total_unique_opens} uniques`} />
         <BigStat label="Taux de clic" value={`${clickRate}%`} color="#22c55e" sub={`${campaign.total_unique_clicks} uniques`} />
@@ -708,8 +713,8 @@ function StatsTab({ campaign }: { campaign: Campaign }) {
 
 function BigStat({ label, value, color, sub }: { label: string; value: number | string; color: string; sub?: string }) {
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20 }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{label}</div>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, overflowWrap: 'anywhere' }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4 }}>{sub}</div>}
     </div>
@@ -730,6 +735,7 @@ function Tab({ active, onClick, icon: Icon, label }: { active: boolean; onClick:
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
+        flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
         gap: 6,
@@ -854,7 +860,7 @@ function CrmTemplateButton({ onPick }: { onPick: (tpl: {
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 70 }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxHeight: '80vh', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 71, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px, calc(100vw - 24px))', maxHeight: '80vh', background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 71, display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>Modèles CRM</div>
               <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4a6070' }}><X size={16} /></button>
@@ -937,6 +943,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
   const [previewHtml, setPreviewHtml] = useState<string>('')
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [importing, setImporting] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     fetch('/api/brevo/templates?templateStatus=true')
@@ -977,7 +984,7 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 80 }} />
-      <div style={{ position: 'fixed', top: '5vh', left: '5vw', right: '5vw', bottom: '5vh', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', top: isMobile ? 12 : '5vh', left: isMobile ? 12 : '5vw', right: isMobile ? 12 : '5vw', bottom: isMobile ? 12 : '5vh', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, zIndex: 81, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -992,9 +999,10 @@ function BrevoTemplatesModal({ onClose, onImport }: { onClose: () => void; onImp
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', minHeight: 0 }}>
+        {/* Mobile : liste en haut, aperçu en dessous */}
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '340px 1fr', gridTemplateRows: isMobile ? 'minmax(0, 45%) minmax(0, 1fr)' : undefined, minHeight: 0 }}>
           {/* Liste à gauche */}
-          <div style={{ borderRight: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ borderRight: isMobile ? 'none' : '1px solid #e5ddc8', borderBottom: isMobile ? '1px solid #e5ddc8' : 'none', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
             <div style={{ padding: 12, borderBottom: '1px solid #e5ddc8' }}>
               <input
                 value={search}

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { AgentMetrics, SuiviCommercialResponse, SuiviRole } from '@/lib/suivi-commercial'
 import PlanningPanel from './PlanningPanel'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type PeriodMode = 'week' | 'day' | 'month' | 'custom'
 
@@ -81,6 +82,7 @@ function initials(name: string): string {
 
 export default function SuiviCommercialPage() {
   const pathname = usePathname()
+  const isMobile = useIsMobile()
   const base = pathname?.includes('/crm-v2') ? '/admin/crm-v2' : '/admin/crm'
   const today = parisToday()
 
@@ -157,27 +159,33 @@ export default function SuiviCommercialPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <PhoneCall size={16} style={{ color: '#C9A84C' }} />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Suivi commercial</span>
-          <span style={{ fontSize: 11, color: '#4a6070' }}>
-            Appels Aircall, RDV et conversions par personne
-          </span>
+      {/* Mobile : en-tête compacté (sous-titre masqué, lien retour court) */}
+      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <PhoneCall size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>Suivi commercial</span>
+          {!isMobile && (
+            <span style={{ fontSize: 11, color: '#4a6070' }}>
+              Appels Aircall, RDV et conversions par personne
+            </span>
+          )}
         </div>
-        <Link href={`${base}/reports`} style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none' }}>
-          ← Dashboards & Rapports
+        <Link href={`${base}/reports`} style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none', whiteSpace: isMobile ? 'nowrap' : undefined, flexShrink: isMobile ? 0 : undefined }}>
+          {isMobile ? '← Rapports' : '← Dashboards & Rapports'}
         </Link>
       </div>
 
-      <div style={{ padding: '24px', maxWidth: 1320, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Suivi commercial</h1>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#4a6070' }}>
-              Qui appelle, qui prend des RDV, qui convertit — vision directeur.
-            </p>
-          </div>
+      <div style={{ padding: isMobile ? '16px 12px' : '24px', maxWidth: 1320, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: isMobile ? 12 : 16, marginBottom: isMobile ? 14 : 20 }}>
+          {/* Mobile : le titre est déjà dans la barre du haut */}
+          {!isMobile && (
+            <div>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Suivi commercial</h1>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#4a6070' }}>
+                Qui appelle, qui prend des RDV, qui convertit — vision directeur.
+              </p>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Segmented
               value={role}
@@ -210,22 +218,23 @@ export default function SuiviCommercialPage() {
               { value: 'custom', label: 'Plage' },
             ]}
           />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : undefined, minWidth: 0 }}>
             {mode !== 'custom' && (
               <button onClick={() => shift(-1)} style={navBtnStyle} title="Période précédente">
                 <ChevronLeft size={16} />
               </button>
             )}
             {mode === 'custom' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={dateInputStyle} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: isMobile ? 1 : undefined, minWidth: 0 }}>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={isMobile ? { ...dateInputStyle, flex: 1, minWidth: 0 } : dateInputStyle} />
                 <span style={{ color: '#4a6070', fontSize: 13 }}>→</span>
-                <input type="date" value={to} max={today} onChange={e => setTo(e.target.value)} style={dateInputStyle} />
+                <input type="date" value={to} max={today} onChange={e => setTo(e.target.value)} style={isMobile ? { ...dateInputStyle, flex: 1, minWidth: 0 } : dateInputStyle} />
               </div>
             ) : (
               <div style={{
                 background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '8px 16px', fontSize: 14, fontWeight: 600, minWidth: 240, textAlign: 'center',
+                padding: isMobile ? '8px 10px' : '8px 16px', fontSize: isMobile ? 13 : 14, fontWeight: 600, minWidth: isMobile ? 0 : 240, textAlign: 'center',
+                flex: isMobile ? 1 : undefined,
               }}>
                 {formatRange(from, to)}
               </div>
@@ -261,6 +270,7 @@ export default function SuiviCommercialPage() {
           <div style={{
             padding: 16, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10,
             marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            flexWrap: isMobile ? 'wrap' : undefined,
           }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>Choisis les lignes Aircall à suivre</div>
@@ -278,6 +288,7 @@ export default function SuiviCommercialPage() {
           <div style={{
             padding: 16, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10,
             marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            flexWrap: isMobile ? 'wrap' : undefined,
           }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>Choisis les utilisateurs Aircall à suivre</div>
@@ -303,8 +314,9 @@ export default function SuiviCommercialPage() {
 
         {data && (
           <>
-            <KpiStrip data={data} />
+            <KpiStrip data={data} isMobile={isMobile} />
             <AgentsTable
+              isMobile={isMobile}
               data={data}
               expanded={expanded}
               onToggle={id => setExpanded(e => e === id ? null : id)}
@@ -328,12 +340,12 @@ export default function SuiviCommercialPage() {
   )
 }
 
-function KpiStrip({ data }: { data: SuiviCommercialResponse }) {
+function KpiStrip({ data, isMobile }: { data: SuiviCommercialResponse; isMobile: boolean }) {
   const t = data.totals
   const p = data.previous_totals
   const isCloser = data.role === 'closer'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(150px, 1fr))', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 16 : 20 }}>
       <KpiCard label="Sortants" value={t.calls_outbound} hint={`${t.calls_outbound_unanswered} non décrochés`} color="#C9A84C" />
       <KpiCard
         label="Décrochés > 2 min"
@@ -373,15 +385,18 @@ function AgentsTable({
   data,
   expanded,
   onToggle,
+  isMobile,
 }: {
   data: SuiviCommercialResponse
   expanded: string | null
   onToggle: (id: string) => void
+  isMobile: boolean
 }) {
   const isCloser = data.role === 'closer'
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    // Mobile : tableau scrollable horizontalement (10 colonnes)
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden', overflowX: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: isMobile ? 920 : undefined }}>
         <thead>
           <tr style={{ background: '#f7f4ee', borderBottom: '1px solid #e5ddc8' }}>
             <Th align="left">{isCloser ? 'Commercial' : 'Télépro'}</Th>
@@ -400,7 +415,7 @@ function AgentsTable({
           {data.agents.map(row => {
             const open = expanded === row.user_id
             return (
-              <AgentBlock key={row.user_id} row={row} open={open} isCloser={isCloser} onToggle={onToggle} colSpan={10} />
+              <AgentBlock key={row.user_id} row={row} open={open} isCloser={isCloser} onToggle={onToggle} colSpan={10} isMobile={isMobile} />
             )
           })}
           {data.agents.length === 0 && (
@@ -417,13 +432,14 @@ function AgentsTable({
 }
 
 function AgentBlock({
-  row, open, isCloser, onToggle, colSpan,
+  row, open, isCloser, onToggle, colSpan, isMobile,
 }: {
   row: AgentMetrics
   open: boolean
   isCloser: boolean
   onToggle: (id: string) => void
   colSpan: number
+  isMobile: boolean
 }) {
   return (
     <>
@@ -448,7 +464,7 @@ function AgentBlock({
               {initials(row.name)}
             </span>
             <div>
-              <div style={{ fontWeight: 600 }}>{row.name}</div>
+              <div style={{ fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined }}>{row.name}</div>
               {row.unmapped && (
                 <div style={{ fontSize: 10, color: '#d97706', fontWeight: 700 }}>NON MAPPÉ AIRCALL</div>
               )}
@@ -469,8 +485,15 @@ function AgentBlock({
       </tr>
       {open && (
         <tr style={{ background: '#faf8f4', borderBottom: '1px solid #e5ddc8' }}>
-          <td colSpan={colSpan} style={{ padding: '8px 16px 18px 58px' }}>
-            <ExpandedStats row={row} isCloser={isCloser} />
+          <td colSpan={colSpan} style={{ padding: isMobile ? '8px 0 14px' : '8px 16px 18px 58px' }}>
+            {isMobile ? (
+              // Mobile : le détail reste collé à gauche, à la largeur de l'écran, même si le tableau défile
+              <div style={{ position: 'sticky', left: 0, width: 'calc(100vw - 26px)', padding: '0 12px', boxSizing: 'border-box' }}>
+                <ExpandedStats row={row} isCloser={isCloser} isMobile />
+              </div>
+            ) : (
+              <ExpandedStats row={row} isCloser={isCloser} />
+            )}
           </td>
         </tr>
       )}
@@ -478,7 +501,7 @@ function AgentBlock({
   )
 }
 
-function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean }) {
+function ExpandedStats({ row, isCloser, isMobile = false }: { row: AgentMetrics; isCloser: boolean; isMobile?: boolean }) {
   const outbound = row.calls_outbound
   const parts = [
     { key: 'none', label: 'Pas de réponse', hint: 'Sonnerie, messagerie ou moins de 10 s de conversation', n: row.calls_outbound_unanswered, color: '#c4b8a5', extra: null as string | null },
@@ -489,7 +512,7 @@ function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean
   const matched = Math.max(0, row.calls_total - row.calls_unmatched)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? 12 : 16 }}>
       <div style={{ background: '#fff', border: '1px solid #eee6d6', borderRadius: 10, padding: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', marginBottom: 4 }}>
           Les {outbound} appels sortants
@@ -506,7 +529,7 @@ function ExpandedStats({ row, isCloser }: { row: AgentMetrics; isCloser: boolean
           {parts.map(p => (
             <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{p.n} {p.label}</div>
                 <div style={{ fontSize: 11, color: '#a89e8a' }}>{p.hint}{p.extra ? ` · ${p.extra}` : ''}</div>
               </div>
@@ -737,7 +760,7 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
                 />
                 Tout cocher / décocher
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 8, marginBottom: 20 }}>
                 {numbers.map(n => (
                   <label
                     key={n.id}
@@ -775,7 +798,7 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
                 />
                 Tout cocher / décocher
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 8, marginBottom: 14 }}>
                 {aircallUsers.map(u => (
                   <div
                     key={u.id}
@@ -787,7 +810,7 @@ function LinesPanel({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
                   >
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                       <input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={() => toggleUser(u.id)} />
-                      <span>
+                      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                         <span style={{ fontWeight: 600 }}>{u.name || `User ${u.id}`}</span>
                         {u.email && <span style={{ color: '#4a6070', marginLeft: 6 }}>{u.email}</span>}
                       </span>
@@ -866,10 +889,11 @@ function Segmented({
 }
 
 function KpiCard({ label, value, hint, color }: { label: string; value: number | string; hint?: string; color: string }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: '14px 16px' }}>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? '12px 12px' : '14px 16px', minWidth: isMobile ? 0 : undefined }}>
       <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color, lineHeight: 1.1 }}>{value}</div>
       {hint && <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 4 }}>{hint}</div>}
     </div>
   )

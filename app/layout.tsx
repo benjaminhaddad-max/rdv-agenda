@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { DocumentTitleProvider } from '@/components/DocumentTitle'
 import './globals.css'
 
@@ -14,6 +14,15 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: '/apple-icon.png', type: 'image/png', sizes: '180x180' }],
   },
+}
+
+// Mobile : largeur de l'écran, pas de zoom automatique ni de dézoom possible
+// (les pages restent fixes), et prise en compte de l'encoche iPhone.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

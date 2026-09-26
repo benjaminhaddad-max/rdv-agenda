@@ -6,6 +6,7 @@ import {
   Eye, MousePointerClick, X, FileText, Users, Calendar, Trash2, Copy, Edit3, Repeat2, List, Palette, Presentation,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface Campaign {
@@ -51,6 +52,7 @@ const STATUS_META: Record<Campaign['status'], { label: string; color: string; bg
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
+  const isMobile = useIsMobile()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -120,12 +122,14 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      <div style={{ padding: '0 20px', minHeight: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflowX: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+    // Mobile : pas de 100vh (la page vit dans le conteneur scrollable du layout,
+    // au-dessus de la nav basse fixe) — on se contente de remplir ce conteneur.
+    <div style={{ minHeight: isMobile ? '100%' : '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* Topbar — mobile : titre sur une ligne, liens sur une rangée scrollable */}
+      <div style={{ padding: isMobile ? '8px 12px' : '0 20px', minHeight: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : 12, overflowX: isMobile ? 'visible' : 'auto', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexShrink: 0 }}>
           <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            ← Retour CRM
+            {isMobile ? '← CRM' : '← Retour CRM'}
           </a>
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -133,11 +137,13 @@ export default function CampaignsPage() {
             <span style={{ fontSize: 14, fontWeight: 600 }}>Campagnes Email</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <a href="/admin/crm/campaigns/webinars" style={{ background: '#C9A84C', border: '1px solid #C9A84C', borderRadius: 8, padding: '5px 12px', color: '#0e1e35', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
+        <div style={isMobile
+          ? { display: 'flex', alignItems: 'center', gap: 6, width: '100%', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }
+          : { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <a href="/admin/crm/campaigns/webinars" style={{ background: '#C9A84C', border: '1px solid #C9A84C', borderRadius: 8, padding: '5px 12px', color: '#0e1e35', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, fontWeight: 700 }}>
             <Presentation size={12} /> Présentation
           </a>
-          <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+          <a href="/admin/crm/campaigns/programs" style={{ background: '#0e1e35', border: '1px solid #0e1e35', borderRadius: 8, padding: '5px 12px', color: '#fff', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, fontWeight: 600 }}>
             <Repeat2 size={12} /> Programmes J1–Jn
           </a>
           <a href="/admin/crm/campaigns/marketing-lists" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -152,29 +158,29 @@ export default function CampaignsPage() {
           <a href="/admin/crm/campaigns/segments" style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Users size={12} /> Segments
           </a>
-          <LogoutButton />
+          <div style={{ flexShrink: 0 }}><LogoutButton /></div>
         </div>
       </div>
 
       {/* Accès présentation webinaire */}
-      <div style={{ padding: '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '12px 12px 0' : '16px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
         <a href="/admin/crm/campaigns/webinars" style={{
           display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none',
           background: 'linear-gradient(90deg, rgba(201,168,76,0.18), rgba(201,168,76,0.05))',
-          border: '1px solid #C9A84C', borderRadius: 12, padding: '14px 18px',
+          border: '1px solid #C9A84C', borderRadius: 12, padding: isMobile ? '12px 12px' : '14px 18px',
         }}>
           <Presentation size={22} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35' }}>Présentation webinaire</div>
             <div style={{ fontSize: 13, color: '#4a6070', marginTop: 2 }}>Créer un deck interactif à partir d’un guide PDF ou Word</div>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', background: '#C9A84C', borderRadius: 8, padding: '6px 12px' }}>Ouvrir</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', background: '#C9A84C', borderRadius: 8, padding: '6px 12px', flexShrink: 0 }}>Ouvrir</span>
         </a>
       </div>
 
       {/* Stats */}
-      <div style={{ padding: '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+      <div style={{ padding: isMobile ? '16px 12px 12px' : '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, 1fr)', gap: isMobile ? 10 : 16 }}>
           <StatCard label="Total" value={stats.total} color="#C9A84C" icon={Mail} />
           <StatCard label="Brouillons" value={stats.draft} color="#4a6070" icon={FileText} />
           <StatCard label="Envoyées" value={stats.sent} color="#22c55e" icon={Check} />
@@ -184,15 +190,15 @@ export default function CampaignsPage() {
       </div>
 
       {/* Barre d'actions */}
-      <div style={{ padding: '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 12px' : '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: '1 1 280px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: isMobile ? '1 1 100%' : '1 1 280px', minWidth: 0 }}>
             <Search size={14} style={{ color: '#4a6070' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher par nom ou sujet…"
-              style={{ flex: 1, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
             />
           </div>
           <select
@@ -216,7 +222,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Liste */}
-      <div style={{ padding: '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 24px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
         {loading ? (
           <Empty message="Chargement…" />
         ) : filtered.length === 0 ? (
@@ -241,6 +247,7 @@ export default function CampaignsPage() {
               <CampaignRow
                 key={c.id}
                 campaign={c}
+                isMobile={isMobile}
                 onOpen={() => window.location.href = `/admin/crm/campaigns/${c.id}`}
                 onDuplicate={() => duplicate(c)}
                 onDelete={() => remove(c)}
@@ -266,10 +273,10 @@ export default function CampaignsPage() {
 // ─── Composants ──────────────────────────────────────────────────────────
 function StatCard({ label, value, color, icon: Icon }: { label: string; value: number | string; color: string; icon: typeof Mail }) {
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <Icon size={14} style={{ color }} />
-        <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minWidth: 0 }}>
+        <Icon size={14} style={{ color, flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
       </div>
       <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
     </div>
@@ -282,8 +289,9 @@ function Empty({ message }: { message: string }) {
   )
 }
 
-function CampaignRow({ campaign: c, onOpen, onDuplicate, onDelete }: {
+function CampaignRow({ campaign: c, isMobile = false, onOpen, onDuplicate, onDelete }: {
   campaign: Campaign
+  isMobile?: boolean
   onOpen: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -296,15 +304,15 @@ function CampaignRow({ campaign: c, onOpen, onDuplicate, onDelete }: {
   return (
     <div
       onClick={onOpen}
-      style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, transition: 'all .15s' }}
+      style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: isMobile ? '12px' : '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexWrap: isMobile ? 'wrap' : 'nowrap', transition: 'all .15s' }}
     >
       {/* Icône statut */}
       <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <Icon size={16} style={{ color: meta.color }} />
       </div>
 
-      {/* Nom + sujet */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Nom + sujet — mobile : occupe toute la ligne à côté de l'icône */}
+      <div style={{ flex: isMobile ? '1 1 calc(100% - 46px)' : 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
         <div style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</div>
       </div>
@@ -319,7 +327,7 @@ function CampaignRow({ campaign: c, onOpen, onDuplicate, onDelete }: {
       )}
 
       {/* Date */}
-      <div style={{ fontSize: 11, color: '#4a6070', textAlign: 'right', minWidth: 100 }}>
+      <div style={{ fontSize: 11, color: '#4a6070', textAlign: isMobile ? 'left' : 'right', minWidth: isMobile ? 0 : 100, flex: isMobile ? 1 : undefined }}>
         {c.sent_at ? (
           <>Envoyée le<br /><span style={{ color: '#0e1e35', fontWeight: 600 }}>{formatDate(c.sent_at)}</span></>
         ) : c.scheduled_at ? (
@@ -395,7 +403,7 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px, calc(100vw - 72px))', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouvelle campagne</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>

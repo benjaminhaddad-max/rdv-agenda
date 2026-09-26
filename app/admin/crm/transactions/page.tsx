@@ -14,6 +14,7 @@ import type { UndoAction } from '@/components/TransactionBoard'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
 import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 // Panel detail ouvert seulement quand on selectionne une transaction.
 const TransactionDetailPanel = dynamic(() => import('@/components/TransactionDetailPanel'), { ssr: false })
@@ -385,6 +386,7 @@ const SEASONS: { id: string; label: string }[] = [
 
 export default function TransactionsPage() {
   const router = useRouter()
+  const isMobile = useIsMobile()
   // View mode — default board, persisted in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   // Saison selectionnee (pipeline HubSpot)
@@ -943,16 +945,22 @@ export default function TransactionsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f7f4ee', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
+      {/* Mobile : logo masqué, recherche sur sa propre ligne en pleine largeur */}
       <div style={{
-        padding: '0 20px', height: 52, background: '#ffffff',
+        padding: isMobile ? '8px 12px' : '0 20px', height: isMobile ? 'auto' : 52, background: '#ffffff',
         borderBottom: '1px solid #e5ddc8',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+        ...(isMobile ? { flexWrap: 'wrap' as const, gap: 8 } : {}),
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
-          <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          {!isMobile && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
+              <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <GraduationCap size={14} style={{ color: '#C9A84C' }} />
             <span style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700 }}>Transactions</span>
             <select
@@ -962,6 +970,7 @@ export default function TransactionsPage() {
                 fontSize: 12, fontWeight: 600, color: '#C9A84C',
                 background: '#fff', border: '1px solid #e5ddc8', borderRadius: 6,
                 padding: '3px 6px', cursor: 'pointer', marginLeft: 4,
+                ...(isMobile ? { minWidth: 0, maxWidth: 130 } : {}),
               }}
             >
               {SEASONS.map(s => (
@@ -970,9 +979,9 @@ export default function TransactionsPage() {
             </select>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...(isMobile ? { display: 'contents' } : {}) }}>
           {/* Recherche transactions (par nom de transaction OU contact) */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', ...(isMobile ? { order: 10, flex: '1 1 100%' } : {}) }}>
             <Search size={13} style={{ position: 'absolute', left: 8, color: '#4a6070', pointerEvents: 'none' }} />
             <input
               type="text"
@@ -981,8 +990,8 @@ export default function TransactionsPage() {
               onChange={e => setSearch(e.target.value)}
               style={{
                 background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '5px 28px 5px 28px', color: '#0e1e35', fontSize: 12,
-                width: 220, outline: 'none',
+                padding: isMobile ? '8px 28px' : '5px 28px 5px 28px', color: '#0e1e35', fontSize: isMobile ? 16 : 12,
+                width: isMobile ? '100%' : 220, outline: 'none',
               }}
             />
             {search && (
@@ -998,38 +1007,41 @@ export default function TransactionsPage() {
               </button>
             )}
           </div>
-          <a href="/admin/crm" style={{
+          {/* Mobile : liens réduits à l'icône, regroupés à droite */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...(isMobile ? { marginLeft: 'auto' } : { display: 'contents' }) }}>
+          <a href="/admin/crm" title="CRM Contacts" style={{
             background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
+            padding: isMobile ? '7px 9px' : '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
-            <Users size={12} /> CRM Contacts
+            <Users size={12} />{!isMobile && ' CRM Contacts'}
           </a>
-          <a href="/admin" style={{
+          <a href="/admin" title="Dashboard" style={{
             background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
+            padding: isMobile ? '7px 9px' : '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
-            <LayoutDashboard size={12} /> Dashboard
+            <LayoutDashboard size={12} />{!isMobile && ' Dashboard'}
           </a>
           <LogoutButton />
+          </div>
         </div>
       </div>
 
       {/* ── Stats bar ────────────────────────────────────────────────────────── */}
       <div style={{
-        padding: '10px 20px', background: '#ffffff',
+        padding: isMobile ? '8px 12px' : '10px 20px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0, gap: 12, flexWrap: 'wrap',
+        flexShrink: 0, gap: isMobile ? 8 : 12, flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexWrap: 'wrap', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
             <span style={{ fontSize: 20, fontWeight: 800, color: '#0e1e35' }}>{displayTotal.toLocaleString('fr-FR')}</span>
             <span style={{ fontSize: 12, color: '#4a6070' }}>transactions</span>
           </div>
           {displayStats && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap', minWidth: 0 }}>
               {Object.entries(displayStats.stages).sort((a, b) => b[1] - a[1]).map(([id, count]) => {
                 const s = STAGE_MAP[id]
                 if (!s) return null
@@ -1111,7 +1123,7 @@ export default function TransactionsPage() {
 
       {/* ── Views Tab Bar ───────────────────────────────────────────────────── */}
       <div style={{
-        padding: '0 20px', background: '#ffffff',
+        padding: isMobile ? '0 8px' : '0 20px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8', flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 0,
         overflowX: 'auto', overflowY: 'hidden',
@@ -1302,8 +1314,9 @@ export default function TransactionsPage() {
       {/* ── Advanced Filter Panel ─────────────────────────────────────────────── */}
       {filterPanelOpen && (
         <div style={{
-          padding: '16px 20px', background: '#f7f4ee',
+          padding: isMobile ? '12px' : '16px 20px', background: '#f7f4ee',
           borderBottom: '1px solid #e5ddc8', flexShrink: 0,
+          ...(isMobile ? { maxHeight: '50vh', overflowY: 'auto' as const } : {}),
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1351,7 +1364,8 @@ export default function TransactionsPage() {
                 <div key={rule.id} style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   background: '#ffffff', borderRadius: 8,
-                  border: '1px solid #e5ddc8', padding: '8px 12px',
+                  border: '1px solid #e5ddc8', padding: isMobile ? '8px' : '8px 12px',
+                  ...(isMobile ? { flexWrap: 'wrap' as const } : {}),
                 }}>
                   {/* AND label */}
                   <span style={{
@@ -1370,6 +1384,7 @@ export default function TransactionsPage() {
                       padding: '5px 8px', color: '#4a6070', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 130,
+                      ...(isMobile ? { flex: 1, minWidth: 0 } : {}),
                     }}
                   >
                     {FILTER_FIELDS.map(f => (
@@ -1386,6 +1401,7 @@ export default function TransactionsPage() {
                       padding: '5px 8px', color: '#4a6070', fontSize: 12,
                       fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                       minWidth: 120,
+                      ...(isMobile ? { flex: 1, minWidth: 0 } : {}),
                     }}
                   >
                     {operators.map(op => (
@@ -1404,6 +1420,7 @@ export default function TransactionsPage() {
                           padding: '5px 8px', color: rule.value ? '#C9A84C' : '#4a6070', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
                           flex: 1, minWidth: 140,
+                          ...(isMobile ? { flexBasis: '100%', minWidth: 0 } : {}),
                         }}
                       >
                         <option value="">Sélectionner…</option>
@@ -1424,6 +1441,7 @@ export default function TransactionsPage() {
                           padding: '5px 8px', color: '#0e1e35', fontSize: 12,
                           fontFamily: 'inherit', outline: 'none',
                           flex: 1, minWidth: 120,
+                          ...(isMobile ? { flexBasis: '100%', minWidth: 0 } : {}),
                         }}
                       />
                     )
@@ -1472,7 +1490,7 @@ export default function TransactionsPage() {
       )}
 
       {/* ── Content Area ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflow: viewMode === 'board' ? 'hidden' : 'auto', padding: viewMode === 'board' ? '0 12px' : '0 20px 20px' }}>
+      <div style={{ flex: 1, overflow: viewMode === 'board' ? 'hidden' : 'auto', padding: viewMode === 'board' ? (isMobile ? '0 8px' : '0 12px') : (isMobile ? '0 12px 20px' : '0 20px 20px') }}>
 
         {/* ── Board View ──────────────────────────────────────────────────────── */}
         {viewMode === 'board' && (
@@ -1518,7 +1536,8 @@ export default function TransactionsPage() {
                 <div style={{ fontSize: 12 }}>Modifiez vos filtres ou lancez une synchronisation CRM</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
+              // Mobile : le conteneur scrolle horizontalement, largeur mini pour garder les colonnes lisibles
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6, ...(isMobile ? { minWidth: 820 } : {}) }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #e5ddc8' }}>
                     {[

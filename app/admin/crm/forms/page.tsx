@@ -6,6 +6,7 @@ import {
   CheckCircle2, FileEdit, Archive, X, Eye, Send, Inbox, Download, Loader2,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Form {
   id: string
@@ -48,6 +49,7 @@ function getFolder(f: Form): Folder {
 }
 
 export default function FormsPage() {
+  const isMobile = useIsMobile()
   const [forms, setForms] = useState<Form[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -127,7 +129,7 @@ export default function FormsPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Topbar */}
-      <div style={{ padding: '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: isMobile ? '0 12px' : '0 20px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             ← Retour CRM
@@ -142,8 +144,9 @@ export default function FormsPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ padding: '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div style={{ padding: isMobile ? '14px 12px 12px' : '24px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
+        {/* Mobile : grille 2 colonnes pour éviter que les cartes soient coupées */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 16 }}>
           <StatCard label="Total" value={stats.total} color="#C9A84C" icon={FileText} />
           <StatCard label="Publiés" value={stats.published} color="#22c55e" icon={CheckCircle2} />
           <StatCard label="Vues totales" value={stats.totalViews.toLocaleString('fr-FR')} color="#06b6d4" icon={Eye} />
@@ -152,7 +155,7 @@ export default function FormsPage() {
       </div>
 
       {/* Tabs dossiers */}
-      <div style={{ padding: '0 24px 12px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 12px' : '0 24px 12px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e5ddc8', overflowX: 'auto', flexWrap: 'wrap' }}>
           {FOLDERS.map(f => {
             const active = folderFilter === f
@@ -194,37 +197,37 @@ export default function FormsPage() {
       </div>
 
       {/* Barre d'action */}
-      <div style={{ padding: '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 16px' : '0 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: '1 1 280px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', flex: '1 1 280px', minWidth: 0, minHeight: isMobile ? 36 : undefined, boxSizing: 'border-box' }}>
             <Search size={14} style={{ color: '#4a6070' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher un formulaire…"
-              style={{ flex: 1, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
             />
           </div>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', minHeight: isMobile ? 36 : undefined }}
           >
             <option value="">Tous statuts</option>
             {Object.entries(STATUS_META).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
             ))}
           </select>
-          <div style={{ flex: 1 }} />
+          {!isMobile && <div style={{ flex: 1 }} />}
           <button
             onClick={() => setShowImportModal(true)}
-            style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '8px 14px', color: '#f59e0b', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '8px 14px', color: '#f59e0b', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', ...(isMobile ? { flex: '1 1 100%', minHeight: 40 } : {}) }}
           >
             <Download size={14} /> Importer depuis HubSpot
           </button>
           <button
             onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '8px 16px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
+            style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '8px 16px', color: '#22c55e', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', ...(isMobile ? { flex: '1 1 100%', minHeight: 40 } : {}) }}
           >
             <Plus size={14} /> Nouveau formulaire
           </button>
@@ -232,7 +235,7 @@ export default function FormsPage() {
       </div>
 
       {/* Liste */}
-      <div style={{ padding: '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 12px 60px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
         ) : filtered.length === 0 ? (
@@ -251,7 +254,7 @@ export default function FormsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filtered.map(f => (
-              <FormRow key={f.id} form={f} onDuplicate={() => duplicate(f)} onDelete={() => remove(f)} onMove={(target) => moveToFolder(f, target)} />
+              <FormRow key={f.id} form={f} isMobile={isMobile} onDuplicate={() => duplicate(f)} onDelete={() => remove(f)} onMove={(target) => moveToFolder(f, target)} />
             ))}
           </div>
         )}
@@ -344,7 +347,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
   return (
     <>
       <div onClick={step !== 'importing' ? onClose : undefined} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 560, maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 560, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Download size={16} style={{ color: '#f59e0b' }} />
@@ -505,21 +508,84 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
 
 function StatCard({ label, value, color, icon: Icon }: { label: string; value: number | string; color: string; icon: typeof FileText }) {
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <Icon size={14} style={{ color }} />
-        <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
+    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 16, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minWidth: 0 }}>
+        <Icon size={14} style={{ color, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
       </div>
       <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
     </div>
   )
 }
 
-function FormRow({ form, onDuplicate, onDelete, onMove }: { form: Form; onDuplicate: () => void; onDelete: () => void; onMove: (target: Folder) => void }) {
+function FormRow({ form, onDuplicate, onDelete, onMove, isMobile = false }: { form: Form; onDuplicate: () => void; onDelete: () => void; onMove: (target: Folder) => void; isMobile?: boolean }) {
   const meta = STATUS_META[form.status]
   const Icon = meta.icon
   const conversionRate = form.view_count > 0 ? Math.round((form.submission_count / form.view_count) * 100) : 0
   const currentFolder = getFolder(form)
+
+  const folderSelect = (
+    <select
+      value={currentFolder}
+      onChange={(e) => {
+        const v = e.target.value as Folder
+        if (v !== currentFolder) onMove(v)
+      }}
+      style={{
+        background: `${FOLDER_COLOR[currentFolder]}12`,
+        border: `1px solid ${FOLDER_COLOR[currentFolder]}40`,
+        borderRadius: 8,
+        padding: '5px 8px',
+        color: FOLDER_COLOR[currentFolder],
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        ...(isMobile ? { minHeight: 36, maxWidth: '100%' } : {}),
+      }}
+      title="Déplacer dans un autre dossier"
+    >
+      {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
+    </select>
+  )
+
+  // Mobile : carte empilée — titre pleine largeur, ligne de compteurs, puis actions
+  if (isMobile) {
+    return (
+      <div
+        onClick={() => window.location.href = `/admin/crm/forms/${form.id}`}
+        style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon size={15} style={{ color: meta.color }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35', marginBottom: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{form.name}</div>
+            <div style={{ fontSize: 11, color: '#4a6070', fontFamily: 'ui-monospace, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/forms/{form.slug}</div>
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {meta.label}
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, background: '#f7f4ee', borderRadius: 8, padding: '8px 4px' }}>
+          <Metric label="Vues" value={form.view_count} compact />
+          <Metric label="Soumissions" value={form.submission_count} color="#a855f7" compact />
+          <Metric label="Conversion" value={`${conversionRate}%`} color="#22c55e" compact />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>{folderSelect}</div>
+          {form.status === 'published' && (
+            <IconBtn title="Voir la page publique" onClick={() => window.open(`/forms/${form.slug}`, '_blank')} size={36}><ExternalLink size={14} /></IconBtn>
+          )}
+          <IconBtn title="Dupliquer" onClick={onDuplicate} size={36}><Copy size={14} /></IconBtn>
+          <IconBtn title="Supprimer" onClick={onDelete} color="#ef4444" size={36}><Trash2 size={14} /></IconBtn>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -545,27 +611,7 @@ function FormRow({ form, onDuplicate, onDelete, onMove }: { form: Form; onDuplic
 
       {/* Sélecteur de dossier */}
       <div onClick={e => e.stopPropagation()}>
-        <select
-          value={currentFolder}
-          onChange={(e) => {
-            const v = e.target.value as Folder
-            if (v !== currentFolder) onMove(v)
-          }}
-          style={{
-            background: `${FOLDER_COLOR[currentFolder]}12`,
-            border: `1px solid ${FOLDER_COLOR[currentFolder]}40`,
-            borderRadius: 8,
-            padding: '5px 8px',
-            color: FOLDER_COLOR[currentFolder],
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-          title="Déplacer dans un autre dossier"
-        >
-          {FOLDERS.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        {folderSelect}
       </div>
 
       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -579,18 +625,18 @@ function FormRow({ form, onDuplicate, onDelete, onMove }: { form: Form; onDuplic
   )
 }
 
-function Metric({ label, value, color = '#0e1e35' }: { label: string; value: number | string; color?: string }) {
+function Metric({ label, value, color = '#0e1e35', compact = false }: { label: string; value: number | string; color?: string; compact?: boolean }) {
   return (
-    <div style={{ minWidth: 80, textAlign: 'center' }}>
+    <div style={{ minWidth: compact ? 0 : 80, textAlign: 'center' }}>
       <div style={{ fontSize: 14, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, ...(compact ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }}>{label}</div>
     </div>
   )
 }
 
-function IconBtn({ children, onClick, title, color = '#4a6070' }: { children: React.ReactNode; onClick: () => void; title: string; color?: string }) {
+function IconBtn({ children, onClick, title, color = '#4a6070', size }: { children: React.ReactNode; onClick: () => void; title: string; color?: string; size?: number }) {
   return (
-    <button onClick={onClick} title={title} style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: 6, color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <button onClick={onClick} title={title} style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: 6, color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...(size ? { width: size, height: size, flexShrink: 0, boxSizing: 'border-box' as const } : {}) }}>
       {children}
     </button>
   )
@@ -622,7 +668,7 @@ function NewFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouveau formulaire</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
