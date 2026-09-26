@@ -1057,6 +1057,10 @@
         </div>
         <input type="email" id="staff-email" placeholder="Email *" style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #E5E0D5;border-radius:10px;font-size:14px;font-family:inherit;outline:none;margin-bottom:12px;" onfocus="this.style.borderColor='#C2AB82'" onblur="this.style.borderColor='#E5E0D5'">
         <input type="tel" id="staff-phone" placeholder="Téléphone" style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #E5E0D5;border-radius:10px;font-size:14px;font-family:inherit;outline:none;margin-bottom:12px;" onfocus="this.style.borderColor='#C2AB82'" onblur="this.style.borderColor='#E5E0D5'">
+        <div id="staff-days" style="display:none;margin:8px 0 16px;">
+          <p style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;font-weight:700;margin:0 0 10px;">Vos disponibilités *</p>
+          <div id="staff-days-options" style="display:grid;gap:8px;"></div>
+        </div>
         <select id="staff-role" style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #E5E0D5;border-radius:10px;font-size:14px;font-family:inherit;outline:none;background:#FFF;color:#3D4B5C;margin-bottom:20px;">
           <option value="">Rôle souhaité (optionnel)</option>
           <option value="Accueil">Accueil des participants</option>
@@ -2981,7 +2985,7 @@ function renderStaffRows() {
   }
   tbody.innerHTML = currentStaffRows.map(s => `
     <tr class="hover:bg-gray-50">
-      <td class="px-6 py-3.5 text-sm font-medium text-gray-900">${esc(s.first_name || '')} ${esc(s.last_name || '')}</td>
+      <td class="px-6 py-3.5 text-sm font-medium text-gray-900">${esc(s.first_name || '')} ${esc(s.last_name || '')}${s.note && /^Dispo/.test(s.note) ? `<div class="text-xs font-semibold mt-0.5" style="color:var(--accent);">${esc(s.note)}</div>` : ''}</td>
       <td class="px-6 py-3.5 text-sm text-gray-500">${esc(s.email)}</td>
       <td class="px-6 py-3.5 text-sm text-gray-500">${esc(s.phone || '-')}</td>
       <td class="px-6 py-3.5">${s.role ? `<span class="text-xs px-2.5 py-1 rounded-full bg-accent-soft font-semibold" style="color:var(--accent);">${esc(s.role)}</span>` : '<span class="text-sm text-gray-400">-</span>'}</td>
@@ -3014,9 +3018,9 @@ function copyStaffLink() {
 function exportStaffCSV() {
   if (currentStaffRows.length === 0) { showToast('Aucun staff à exporter', 'warning'); return; }
   const evName = document.getElementById('detail-event-name').textContent || 'evenement';
-  let csv = '\ufeffPrenom,Nom,Email,Telephone,Role,Date inscription\n';
+  let csv = '\ufeffPrenom,Nom,Email,Telephone,Role,Note,Date inscription\n';
   currentStaffRows.forEach(s => {
-    csv += `"${s.first_name || ''}","${s.last_name || ''}","${s.email || ''}","${s.phone || ''}","${s.role || ''}","${s.created_at ? formatDateTime(s.created_at) : ''}"\n`;
+    csv += `"${s.first_name || ''}","${s.last_name || ''}","${s.email || ''}","${s.phone || ''}","${s.role || ''}","${s.note || ''}","${s.created_at ? formatDateTime(s.created_at) : ''}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -3028,6 +3032,37 @@ function exportStaffCSV() {
 
 // ---- Page publique d'inscription staff (?staff=EVENT_ID) ----
 let staffPageEvent = null;
+let staffPageDays = [];
+
+/** Jours calendaires (Europe/Paris) couverts par l'événement, via [date_end=YYYY-MM-DD]. */
+function staffEventDays(ev) {
+  const startKey = new Date(ev.event_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  const m = (ev.description || '').match(/\[date_end=(\d{4}-\d{2}-\d{2})\]/);
+  const endKey = m && m[1] > startKey ? m[1] : startKey;
+  const days = [];
+  for (let d = new Date(startKey + 'T12:00:00Z'); days.length < 14; d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    if (key > endKey) break;
+    const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+    days.push({ key, label, short: d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) });
+  }
+  return days;
+}
+
+function renderStaffDayOptions(days) {
+  const wrap = document.getElementById('staff-days');
+  const list = document.getElementById('staff-days-options');
+  if (!wrap || !list) return;
+  if (days.length < 2) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
+  const opts = days.map(d => ({ value: d.key, label: 'Dispo le ' + d.label }));
+  opts.push({ value: 'all', label: days.length === 2 ? 'Dispo les deux jours' : `Dispo tous les jours (${days.length})` });
+  list.innerHTML = opts.map(o => `
+    <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid #E5E0D5;border-radius:10px;cursor:pointer;font-size:14px;color:#1C2436;">
+      <input type="radio" name="staff-day" value="${esc(o.value)}" style="width:18px;height:18px;accent-color:#1C2436;flex-shrink:0;">
+      <span>${esc(o.label)}</span>
+    </label>`).join('');
+  wrap.style.display = 'block';
+}
 
 async function loadStaffPage(eventId) {
   try {
@@ -3057,11 +3092,16 @@ async function loadStaffPage(eventId) {
 
     // Details evenement
     const dateObj = new Date(ev.event_date);
-    const dateStr = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const timeStart = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    staffPageDays = staffEventDays(ev);
+    renderStaffDayOptions(staffPageDays);
+    const year = dateObj.toLocaleDateString('fr-FR', { year: 'numeric', timeZone: 'Europe/Paris' });
+    const dateStr = staffPageDays.length > 1
+      ? staffPageDays.map(d => d.label).join(staffPageDays.length === 2 ? ' et ' : ', ') + ' ' + year
+      : dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+    const timeStart = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
     const timeStr = timeStart + (ev.event_time_end ? ' - ' + ev.event_time_end : '');
     const rows = [
-      ['📅', 'Date', dateStr.charAt(0).toUpperCase() + dateStr.slice(1)],
+      ['📅', staffPageDays.length > 1 ? 'Dates' : 'Date', dateStr.charAt(0).toUpperCase() + dateStr.slice(1)],
       ['🕐', 'Horaires', timeStr],
       ['📍', 'Lieu', ev.location || 'À confirmer'],
     ];
@@ -3097,6 +3137,19 @@ async function submitStaffForm() {
     status.style.color = '#ef4444';
     return;
   }
+  let note = null;
+  if (staffPageDays.length > 1) {
+    const picked = document.querySelector('input[name="staff-day"]:checked');
+    if (!picked) {
+      status.textContent = 'Indiquez vos disponibilités';
+      status.style.color = '#ef4444';
+      return;
+    }
+    const day = staffPageDays.find(d => d.key === picked.value);
+    note = day
+      ? 'Dispo : ' + day.short
+      : 'Dispo : ' + (staffPageDays.length === 2 ? 'les deux jours' : 'tous les jours') + ' (' + staffPageDays.map(d => d.short).join(' + ') + ')';
+  }
 
   const btn = document.getElementById('staff-submit-btn');
   btn.disabled = true;
@@ -3109,6 +3162,7 @@ async function submitStaffForm() {
       email,
       phone: phone || null,
       role: role || null,
+      note,
     });
     if (error) {
       if (error.code === '23505') {

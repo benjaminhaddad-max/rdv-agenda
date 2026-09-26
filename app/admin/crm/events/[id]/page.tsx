@@ -66,7 +66,7 @@ function csvCell(value: string | null | undefined): string {
 }
 
 function downloadStaffCsv(eventName: string, staff: StaffRow[]) {
-  const header = 'Prenom,Nom,Email,Telephone,Role,Date inscription'
+  const header = 'Prenom,Nom,Email,Telephone,Role,Note,Date inscription'
   const rows = staff.map((s) =>
     [
       csvCell(s.first_name),
@@ -74,6 +74,7 @@ function downloadStaffCsv(eventName: string, staff: StaffRow[]) {
       csvCell(s.email),
       csvCell(s.phone),
       csvCell(s.role),
+      csvCell(s.note),
       csvCell(formatParisDateTime(s.created_at)),
     ].join(','),
   )
@@ -2192,6 +2193,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                               </span>
                             ) : null}
                           </div>
+                          {s.note?.startsWith('Dispo') ? (
+                            <div style={{ fontSize: 12, fontWeight: 600, color: crmV2.gold }}>{s.note}</div>
+                          ) : null}
                           {s.email ? (
                             <div style={{ fontSize: 11, color: crmV2.textFaint }}>
                               {s.email.includes('@') ? (
