@@ -72,7 +72,9 @@ function Inner({ children }: { children: React.ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null)
   useV2LinkRewriter(rootRef)
   const embed = searchParams.get('embed') === '1'
-  const hideSearchBar = pathname?.startsWith('/admin/crm-v2/agenda')
+  // Liste contacts sur mobile : elle a déjà sa propre recherche, on évite
+  // d'empiler deux barres dans la hauteur d'écran.
+  const hideSearchBar = pathname?.startsWith('/admin/crm-v2/agenda') || (isMobile && pathname === '/admin/crm-v2')
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
@@ -109,7 +111,7 @@ function Inner({ children }: { children: React.ReactNode }) {
       {showAdminChrome && <CRMSidebarV2 />}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
-        maxHeight: '100vh', boxSizing: 'border-box', gap: 12,
+        maxHeight: isMobile ? '100dvh' : '100vh', boxSizing: 'border-box', gap: isMobile ? 0 : 12,
         padding: isMobile ? `0 0 ${mobileBottomPad}px` : (showAdminChrome ? '12px 12px 12px 0' : 0),
       }}>
         {showAdminChrome && !hideSearchBar && (

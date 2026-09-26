@@ -11,6 +11,7 @@ import {
 } from '@/lib/parcoursup-verdict'
 import { isUserTypeProperty } from '@/lib/crm-user-resolver'
 import { telHref } from '@/lib/phone-e164'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
@@ -75,8 +76,9 @@ function InlineCellSelect({
     e.stopPropagation()
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      // Positionner sous le bouton, aligner à gauche
-      setPos({ top: rect.bottom + 4, left: rect.left })
+      // Positionner sous le bouton, aligner à gauche (sans déborder de
+      // l'écran à droite, utile sur mobile)
+      setPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.left, window.innerWidth - 238)) })
     }
     setOpen(o => !o)
   }
@@ -1140,10 +1142,13 @@ export default function CRMContactsTable({
     setRenderedCount(RENDER_CHUNK)
   }, [listIdentity, RENDER_CHUNK])
 
+  const isMobile = useIsMobile()
   const loadMoreRef = useRef<HTMLTableRowElement | null>(null)
+  const loadMoreMobileRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (renderedCount >= contacts.length) return
-    if (!loadMoreRef.current || typeof IntersectionObserver === 'undefined') return
+    const sentinel = loadMoreRef.current ?? loadMoreMobileRef.current
+    if (!sentinel || typeof IntersectionObserver === 'undefined') return
 
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0]
@@ -1151,9 +1156,9 @@ export default function CRMContactsTable({
       setRenderedCount((prev) => Math.min(prev + RENDER_CHUNK, contacts.length))
     }, { root: null, rootMargin: '300px 0px', threshold: 0 })
 
-    observer.observe(loadMoreRef.current)
+    observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [renderedCount, contacts.length, RENDER_CHUNK])
+  }, [renderedCount, contacts.length, RENDER_CHUNK, isMobile])
 
   // Liste avec les overrides optimistes appliqués (instantanés à l'écran).
   const effectiveContacts = useMemo(() => {
@@ -2054,6 +2059,187 @@ export default function CRMContactsTable({
         <div style={{ fontWeight: 600, marginBottom: 4, color: '#4a6070' }}>Aucun contact trouvé</div>
         <div style={{ fontSize: 12 }}>Essayez de modifier vos filtres</div>
       </div>
+    )
+  }
+
+  // ── Mobile : liste de cartes (le tableau à colonnes est illisible < 768px) ──
+  if (isMobile) {
+    const labelStyle: React.CSSProperties = {
+      fontSize: 9, fontWeight: 700, color: '#7d8c9e',
+      textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 2px',
+    }
+    return (
+      <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px' }}>
+          {visibleContacts.map(contact => {
+            const name = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
+            const deal = contact.deal
+            const selected = selectedIds?.has(contact.hubspot_contact_id) || false
+            const chips = [contact.formation_souhaitee, contact.classe_actuelle, contact.zone_localite].filter(Boolean) as string[]
+            return (
+              <div
+                key={contact.hubspot_contact_id}
+                style={{
+                  background: '#ffffff',
+                  border: `1px solid ${selected ? BLUE : '#e5ddc8'}`,
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 8,
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: '0 170px',
+                } as React.CSSProperties}
+              >
+                {/* Identité */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  {onToggleSelect && (
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => onToggleSelect(contact.hubspot_contact_id)}
+                      style={{ width: 18, height: 18, accentColor: BLUE, flexShrink: 0 }}
+                    />
+                  )}
+                  <a
+                    href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1, textDecoration: 'none' }}
+                  >
+                    <ContactAvatar name={name} size={36} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {name}
+                      </div>
+                      {contact.email && (
+                        <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {contact.email}
+                        </div>
+                      )}
+                    </div>
+                  </a>
+                  <ActionsMenu
+                    contact={contact}
+                    name={name}
+                    mode={mode}
+                    onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
+                    onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                    onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
+                  />
+                </div>
+
+                {/* Téléphone + étape */}
+                {(contact.phone || deal) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {contact.phone && (
+                      <a
+                        href={telHref(contact.phone)}
+                        className="crm-phone-cell"
+                        onClick={() => {
+                          void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', borderRadius: 999,
+                          background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.30)',
+                          color: '#15803d', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <Phone size={13} />{formatPhone(contact.phone)}
+                      </a>
+                    )}
+                    {deal && <div style={{ minWidth: 0 }}>{renderCell('etape', contact)}</div>}
+                  </div>
+                )}
+
+                {chips.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {chips.map((chip, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: 11, fontWeight: i === 0 && contact.formation_souhaitee ? 700 : 500,
+                          color: i === 0 && contact.formation_souhaitee ? GOLD : '#4a6070',
+                          background: '#f7f4ee', border: '1px solid #ece4d2',
+                          borderRadius: 6, padding: '2px 8px',
+                        }}
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Attribution + origine (éditables) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={labelStyle}>Télépro</div>
+                    {renderCell('telepro', contact)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={labelStyle}>Closer</div>
+                    {renderCell('closer', contact)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={labelStyle}>Origine</div>
+                    {renderCell('origine', contact)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={labelStyle}>Statut du lead</div>
+                    {renderCell('lead_status', contact)}
+                  </div>
+                </div>
+
+                {contact.recent_conversion_date && (
+                  <div style={{ borderTop: '1px solid #f0e9da', paddingTop: 6 }}>
+                    {renderCell('form_submission', contact)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {renderedCount < contacts.length && (
+            <div
+              ref={loadMoreMobileRef}
+              style={{ padding: '14px 12px', textAlign: 'center', fontSize: 12, color: '#4a6070' }}
+            >
+              Chargement de lignes...
+            </div>
+          )}
+        </div>
+
+        {noteModal && (
+          <CRMNoteModal
+            dealId={noteModal.dealId}
+            contactName={noteModal.name}
+            onClose={() => setNoteModal(null)}
+            onSaved={onRefresh}
+          />
+        )}
+        {assignPanel && (
+          <CRMAssignPanel
+            dealId={assignPanel.dealId}
+            contactName={assignPanel.name}
+            mode={assignPanel.mode}
+            currentCloserHsId={assignPanel.currentCloserHsId}
+            currentTeleproHsId={assignPanel.currentTeleproHsId}
+            onClose={() => setAssignPanel(null)}
+            onAssigned={onRefresh}
+          />
+        )}
+        {saveToast && (
+          <div
+            role="status"
+            style={{
+              position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 2000, display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 999, fontSize: 13, fontWeight: 600,
+              color: '#ffffff', background: saveToast.kind === 'success' ? '#0f7b43' : '#b3261e',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.28)', pointerEvents: 'none', whiteSpace: 'nowrap',
+            }}
+          >
+            {saveToast.kind === 'success' ? <Check size={15} /> : <AlertTriangle size={15} />}
+            {saveToast.msg}
+          </div>
+        )}
+      </>
     )
   }
 

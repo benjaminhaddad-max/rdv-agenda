@@ -21,7 +21,9 @@ function Inner({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
   const embed = searchParams.get('embed') === '1'
   // Page agenda : pas de barre de recherche globale (gain de hauteur).
-  const hideSearchBar = pathname?.startsWith('/admin/crm/agenda')
+  // Liste contacts sur mobile : elle a déjà sa propre recherche, on évite
+  // d'empiler deux barres dans la hauteur d'écran.
+  const hideSearchBar = pathname?.startsWith('/admin/crm/agenda') || (isMobile && pathname === '/admin/crm')
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
@@ -54,11 +56,11 @@ function Inner({ children }: { children: React.ReactNode }) {
         : '/'
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
+    <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
       {showAdminChrome && <CRMSidebar />}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
-        maxHeight: '100vh', paddingBottom: mobileBottomPad,
+        maxHeight: isMobile ? '100dvh' : '100vh', paddingBottom: mobileBottomPad,
       }}>
         {showAdminChrome && !hideSearchBar && <CRMGlobalSearchBar />}
 

@@ -913,20 +913,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div className="min-h-screen bg-[#f7f4ee] text-slate-700">
       {/* ═════ Header banner avec gradient Diploma Santé ═════ */}
-      <div className={`${BRAND_GRADIENT} text-white px-6 pt-3 pb-20 relative`}>
+      <div className={`${BRAND_GRADIENT} text-white px-4 md:px-6 pt-3 pb-16 md:pb-20 relative`}>
         <div className="max-w-[1600px] mx-auto flex items-center gap-2 text-xs text-white/80">
           <Link href="/admin/crm" className="hover:text-white">Contacts</Link>
           <ChevronRight size={12} />
           <span>{fullName}</span>
         </div>
-        <div className="max-w-[1600px] mx-auto flex items-start gap-5 mt-4">
-          <div className="w-20 h-20 rounded-full bg-white/25 backdrop-blur-sm border-2 border-white/60 flex items-center justify-center text-3xl font-bold shadow-xl">
+        <div className="max-w-[1600px] mx-auto flex items-start gap-3 md:gap-5 mt-3 md:mt-4">
+          <div className="w-14 h-14 md:w-20 md:h-20 shrink-0 rounded-full bg-white/25 backdrop-blur-sm border-2 border-white/60 flex items-center justify-center text-xl md:text-3xl font-bold shadow-xl">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight drop-shadow-sm">{fullName}</h1>
+            <h1 className="text-xl md:text-3xl font-bold tracking-tight drop-shadow-sm break-words">{fullName}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-white/90 text-sm">
-              {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-white"><Mail size={14} /> {contact.email}</a>}
+              {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-white min-w-0 break-all"><Mail size={14} /> {contact.email}</a>}
               {contact.phone && (
                 <a
                   href={telHref(contact.phone)}
@@ -944,8 +944,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* ═════ KPI row ═════ */}
-      <div className="max-w-[1600px] mx-auto px-6 -mt-14 relative z-10">
-        <div className="grid grid-cols-4 gap-3">
+      <div className="max-w-[1600px] mx-auto px-3 md:px-6 -mt-12 md:-mt-14 relative z-10">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
           <KpiCard
             icon={<Briefcase size={18} />}
             label="Transactions"
@@ -978,9 +978,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* ═════ Layout 3 colonnes ═════ */}
-      <div className="max-w-[1600px] mx-auto px-6 py-6 grid grid-cols-12 gap-4">
+      <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-4 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Colonne gauche */}
-        <aside className="col-span-3">
+        <aside className="lg:col-span-3 min-w-0">
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-sm">
@@ -1106,7 +1106,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         </aside>
 
         {/* Colonne centrale */}
-        <section className="col-span-6">
+        <section className="lg:col-span-6 min-w-0">
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="flex items-center border-b">
               <div className="flex px-2 overflow-x-auto flex-1 min-w-0">
@@ -1294,7 +1294,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         </section>
 
         {/* Colonne droite */}
-        <aside className="col-span-3 space-y-3">
+        <aside className="lg:col-span-3 space-y-3 min-w-0">
           {/* Tâches en cours */}
           <RightSection icon={<CheckSquare size={14} />} title="Tâches" count={tasks.filter(t => t.status === 'pending').length} accent="brand">
             <PendingTasks
@@ -1627,8 +1627,8 @@ function KpiCard({ icon, label, value, hint, color, pillColor }: {
   icon: React.ReactNode; label: string; value: string; hint?: string; color: string; pillColor?: string
 }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-4 flex gap-3 items-start hover:shadow-md transition-shadow">
-      <div className={`${color} w-10 h-10 rounded-lg flex items-center justify-center text-white shadow-sm`}>
+    <div className="bg-white rounded-xl shadow-sm border p-3 md:p-4 flex gap-2 md:gap-3 items-start hover:shadow-md transition-shadow min-w-0">
+      <div className={`${color} w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg flex items-center justify-center text-white shadow-sm`}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
@@ -1638,7 +1638,7 @@ function KpiCard({ icon, label, value, hint, color, pillColor }: {
             <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full border ${pillColor}`}>{value}</span>
           </div>
         ) : (
-          <div className="text-base font-bold text-[#0e1e35] truncate mt-0.5">{value}</div>
+          <div className="text-sm md:text-base font-bold text-[#0e1e35] truncate mt-0.5">{value}</div>
         )}
         {hint && <div className="text-[11px] text-[#4a6070] truncate mt-0.5">{hint}</div>}
       </div>

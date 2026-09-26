@@ -1062,7 +1062,7 @@ export default function CRMEditDrawer({ contact, closers, telepros, allUsers, hu
         top: 0,
         right: 0,
         bottom: 0,
-        width: 420,
+        width: 'min(420px, 100vw)',
         background: '#ffffff',
         borderLeft: `1px solid ${NAVY_BORDER}`,
         zIndex: 201,

@@ -195,6 +195,8 @@ export default function CRMPage() {
   // Advanced filter panel
   const [filterGroups, setFilterGroups] = useState<CRMFilterGroup[]>([])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  // Mobile : filtres rapides + actions de vue repliés derrière un bouton
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   // CSV export
   const [exportModalOpen, setExportModalOpen] = useState(false)
@@ -2047,10 +2049,15 @@ export default function CRMPage() {
   ], [allUsers, mergeOwnersWithUsers])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F5F0E8', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      // Mobile : on retire la barre de nav basse (56px) pour éviter un double scroll
+      height: isMobile ? 'calc(100dvh - 56px)' : '100vh',
+      background: '#F5F0E8', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    }}>
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
-      <div style={{
+      {!isMobile && <div style={{
         padding: '0 20px',
         height: 96,
         background: '#ffffff',
@@ -2072,11 +2079,11 @@ export default function CRMPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Navigation déplacée dans la sidebar gauche */}
         </div>
-      </div>
+      </div>}
 
       {/* ── Sync bar ────────────────────────────────────────────────────────── */}
       <div style={{
-        padding: '8px 20px',
+        padding: isMobile ? '8px 12px' : '8px 20px',
         background: '#ffffff',
         borderBottom: '1px solid #e5ddc8',
         display: 'flex',
@@ -2084,8 +2091,9 @@ export default function CRMPage() {
         justifyContent: 'flex-start',
         flexShrink: 0,
         gap: 12,
+        overflowX: isMobile ? 'auto' : undefined,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 8 }}>
           {ingestionHealth && (
             <span
               title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
@@ -2103,12 +2111,14 @@ export default function CRMPage() {
         </div>
 
         {/* ── Outils + actions principales ───────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
-          <div style={{ width: 1, height: 20, background: '#D4C4A0', marginRight: 4 }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#0F1F3D', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
-          <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 4, marginLeft: isMobile ? 0 : 'auto', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+          {!isMobile && <>
+            <div style={{ width: 1, height: 20, background: '#D4C4A0', marginRight: 4 }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#0F1F3D', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
+            <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
 
-          <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 4px' }} />
+          </>}
 
           <button
             onClick={() => setExportModalOpen(true)}
@@ -2122,7 +2132,7 @@ export default function CRMPage() {
               whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
-            <Download size={12} /> Exporter CSV
+            <Download size={12} /> {isMobile ? 'Export' : 'Exporter CSV'}
           </button>
 
           <button
@@ -2137,7 +2147,7 @@ export default function CRMPage() {
               whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
-            <Plus size={12} /> Nouveau contact
+            <Plus size={12} /> {isMobile ? 'Contact' : 'Nouveau contact'}
           </button>
 
           <a
@@ -2152,7 +2162,7 @@ export default function CRMPage() {
               whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
             }}
           >
-            <Upload size={12} /> Importer CSV
+            <Upload size={12} /> {isMobile ? 'Import' : 'Importer CSV'}
           </a>
 
           <a
@@ -2165,7 +2175,7 @@ export default function CRMPage() {
               alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
-            <GraduationCap size={13} /> Transactions 2026-2027
+            <GraduationCap size={13} /> {isMobile ? 'Transactions' : 'Transactions 2026-2027'}
           </a>
         </div>
 
@@ -2175,7 +2185,7 @@ export default function CRMPage() {
       <div
         className="crm-views-tab-bar"
         style={{
-        padding: '8px 16px 10px', background: '#ffffff',
+        padding: isMobile ? '6px 12px 8px' : '8px 16px 10px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8', flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 6,
         overflowX: 'auto', overflowY: 'hidden',
@@ -2399,14 +2409,15 @@ export default function CRMPage() {
 
       {/* ── Search + actions + quick dropdowns ──────────────────────────────── */}
       <div style={{
-        padding: '10px 20px', background: '#ffffff',
+        padding: isMobile ? '8px 12px' : '10px 20px', background: '#ffffff',
         borderBottom: '1px solid #e5ddc8', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isMobile && !mobileFiltersOpen ? 0 : 8, flexWrap: 'wrap' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: '7px 12px', flex: '0 1 240px', maxWidth: 240,
+            padding: isMobile ? '9px 12px' : '7px 12px',
+            flex: isMobile ? '1 1 0' : '0 1 240px', maxWidth: isMobile ? undefined : 240, minWidth: 0,
           }}>
             <Search size={13} style={{ color: '#0F1F3D', flexShrink: 0 }} />
             <input
@@ -2414,7 +2425,7 @@ export default function CRMPage() {
               value={search}
               onChange={e => { setSearch(e.target.value) }}
               onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
-              style={{ background: 'transparent', border: 'none', color: '#0F1F3D', fontSize: 13, outline: 'none', flex: 1, fontFamily: 'inherit' }}
+              style={{ background: 'transparent', border: 'none', color: '#0F1F3D', fontSize: isMobile ? 16 : 13, outline: 'none', flex: 1, minWidth: 0, fontFamily: 'inherit' }}
             />
             {search && (
               <button onClick={() => { setSearch('') }} style={{ background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', padding: 0, display: 'flex' }}>
@@ -2422,7 +2433,22 @@ export default function CRMPage() {
               </button>
             )}
           </div>
-          {hasActiveFilters && (
+          {isMobile && (
+            <button
+              onClick={() => setMobileFiltersOpen(o => !o)}
+              style={{
+                padding: '9px 12px',
+                background: mobileFiltersOpen ? 'rgba(204,172,113,0.12)' : '#ffffff',
+                border: `1px solid ${mobileFiltersOpen || hasActiveFilters ? 'rgba(204,172,113,0.5)' : '#e5ddc8'}`,
+                borderRadius: 8, color: hasActiveFilters ? '#C9A84C' : '#0F1F3D',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 13, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <SlidersHorizontal size={13} /> Filtres
+            </button>
+          )}
+          {hasActiveFilters && (!isMobile || mobileFiltersOpen) && (
             <button onClick={() => { resetAll(); scheduleRefetch() }} style={{
               background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
               borderRadius: 8, padding: '7px 12px', color: '#ef4444', fontSize: 12,
@@ -2434,7 +2460,7 @@ export default function CRMPage() {
           )}
 
           {/* Action bar — visible à côté de la recherche */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+          <div style={{ display: isMobile && !mobileFiltersOpen ? 'none' : 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0, flexBasis: isMobile ? '100%' : undefined }}>
             <button
               onClick={() => setFilterPanelOpen(o => !o)}
               style={{
@@ -2497,13 +2523,13 @@ export default function CRMPage() {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: isMobile && !mobileFiltersOpen ? 'none' : 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
           <FilterMultiSelect value={closerContactHsId} onChange={v => { setCloserContactHsId(v); scheduleRefetch() }} options={closerOptions} />
           <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         </div>
-        {hasActiveFilters && (
+        {hasActiveFilters && (!isMobile || mobileFiltersOpen) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: '#0F1F3D' }}>Filtres :</span>
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
@@ -2527,7 +2553,7 @@ export default function CRMPage() {
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div ref={tableScrollRef} style={{ flex: 1, overflow: 'auto', padding: '0 0 20px', WebkitOverflowScrolling: 'touch' }}>
         {/* Compteur contacts */}
-        <div style={{ padding: '10px 20px 6px' }}>
+        <div style={{ padding: isMobile ? '8px 12px 6px' : '10px 20px 6px' }}>
           {loading ? (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -2833,7 +2859,7 @@ export default function CRMPage() {
           </div>
         )}
 
-        <div style={{ padding: '0 20px' }}>
+        <div style={{ padding: isMobile ? 0 : '0 20px' }}>
         {!loading && displayed.length === 0 && totalFilterRules > 0 && (
           <div style={{
             margin: '0 0 10px',
@@ -2893,9 +2919,9 @@ export default function CRMPage() {
         /></div>
 
         {/* Pagination */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, paddingBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: isMobile ? 16 : 28, flexWrap: 'wrap', padding: isMobile ? '0 12px 20px' : '0 0 20px' }}>
           {/* Sélecteur nb par page */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, flexBasis: isMobile ? '100%' : undefined, justifyContent: 'center' }}>
             <span style={{ fontSize: 11, color: '#0F1F3D' }}>Par page :</span>
             {[25, 50, 100].map(n => (
               <button
@@ -2925,7 +2951,7 @@ export default function CRMPage() {
                 disabled={page === 0}
                 style={{ background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#D4C4A0' : '#3D5275', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
               >
-                ← Précédent
+                {isMobile ? '←' : '← Précédent'}
               </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
@@ -2963,7 +2989,7 @@ export default function CRMPage() {
                 disabled={page >= totalPages - 1}
                 style={{ background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#D4C4A0' : '#3D5275', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
               >
-                Suivant →
+                {isMobile ? '→' : 'Suivant →'}
               </button>
             </>
           )}
@@ -2973,10 +2999,11 @@ export default function CRMPage() {
       {/* ── Advanced Filter Side Panel — RIGHT (HubSpot-style) ────────────── */}
       {filterPanelOpen && (
         <div style={{
-          width: 380, flexShrink: 0,
+          width: isMobile ? '100%' : 380, flexShrink: 0,
           background: '#ffffff', borderLeft: '1px solid #e5ddc8',
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
+          ...(isMobile ? { position: 'fixed' as const, inset: 0, bottom: 56, zIndex: 60 } : {}),
         }}>
           {/* Panel header */}
           <div style={{

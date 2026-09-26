@@ -94,6 +94,18 @@ body {
   background: #f5f8fa;
 }
 
+/* iOS zoome sur les champs < 16px au focus : 16px forcé sur mobile dans le CRM */
+@media (max-width: 768px) {
+  .crm-root input:not([type="checkbox"]):not([type="radio"]),
+  .crm-root select,
+  .crm-root textarea,
+  .crm-v2 input:not([type="checkbox"]):not([type="radio"]),
+  .crm-v2 select,
+  .crm-v2 textarea {
+    font-size: 16px !important;
+  }
+}
+
 .crm-views-tab-bar {
   background: #ffffff !important;
 }
