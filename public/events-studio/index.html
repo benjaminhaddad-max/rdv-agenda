@@ -1061,16 +1061,7 @@
           <p style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#C2AB82;font-weight:700;margin:0 0 10px;">Vos disponibilités *</p>
           <div id="staff-days-options" style="display:grid;gap:8px;"></div>
         </div>
-        <select id="staff-role" style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #E5E0D5;border-radius:10px;font-size:14px;font-family:inherit;outline:none;background:#FFF;color:#3D4B5C;margin-bottom:20px;">
-          <option value="">Rôle souhaité (optionnel)</option>
-          <option value="Accueil">Accueil des participants</option>
-          <option value="Scan QR">Scan des QR codes</option>
-          <option value="Orientation">Orientation / conseils</option>
-          <option value="Logistique">Logistique</option>
-          <option value="Animation">Animation / présentation</option>
-          <option value="Autre">Autre</option>
-        </select>
-        <button id="staff-submit-btn" onclick="submitStaffForm()" style="width:100%;background:#1C2436;color:#FFF;font-size:15px;font-weight:700;padding:15px;border:none;border-radius:100px;cursor:pointer;font-family:inherit;transition:opacity .2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+        <button id="staff-submit-btn" onclick="submitStaffForm()" style="margin-top:8px;width:100%;background:#1C2436;color:#FFF;font-size:15px;font-weight:700;padding:15px;border:none;border-radius:100px;cursor:pointer;font-family:inherit;transition:opacity .2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
           Je m'inscris comme staff
         </button>
         <p id="staff-form-status" style="font-size:13px;text-align:center;margin:12px 0 0;color:#8B95A5;"></p>
@@ -3124,7 +3115,6 @@ async function submitStaffForm() {
   const lastName = document.getElementById('staff-lastname').value.trim();
   const email = document.getElementById('staff-email').value.trim().toLowerCase();
   const phone = document.getElementById('staff-phone').value.trim();
-  const role = document.getElementById('staff-role').value;
   const status = document.getElementById('staff-form-status');
 
   if (!firstName || !lastName || !email) {
@@ -3161,7 +3151,7 @@ async function submitStaffForm() {
       last_name: lastName,
       email,
       phone: phone || null,
-      role: role || null,
+      role: null,
       note,
     });
     if (error) {
