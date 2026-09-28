@@ -9,23 +9,27 @@
  *
  * Body (JSON ou form-urlencoded, 1 lead par requête — un tableau est accepté) :
  *   {
- *     "date":        "15/05/2021",
- *     "souhait":     "Demande d'information, Brochure",
- *     "civilite":    "Madame",
- *     "prenom":      "Carole",
- *     "nom":         "Didier",
- *     "email":       "carole.didier@nomadeducation.fr",
- *     "telephone":   "+33666666666",
- *     "departement": "75 - Paris",
- *     "codePostal":  "75013",
- *     "pays":        "France",
- *     "diplome":     "Bac général et technologique",
- *     "niveau":      "Terminale",
- *     "filiere":     "Bac Général",
- *     "domaine":     "Santé",
- *     "specialite":  "Mathématiques, Physique",
- *     "option":      "Mathématiques complémentaires",
- *     "langues":     "Anglais, Espagnol"
+ *     // Clés = noms internes des propriétés CRM (cf. sheet de mapping Nomad)
+ *     "createdate":                   "15/05/2021",
+ *     "recent_conversion_event_name": "Demande d'information, Brochure",
+ *     "civilite":                     "Madame",            // → Mme / Mr
+ *     "firstname":                    "Carole",
+ *     "lastname":                     "Didier",
+ *     "email":                        "carole.didier@nomadeducation.fr",
+ *     "phone":                        "+33666666666",
+ *     "departement":                  "75 - Paris",        // → 75
+ *     "zip":                          "75013",
+ *     "country":                      "France",
+ *     "dernier_diplome_obtenu___niveau_d_etude": "Bac général et technologique",
+ *     "classe_actuelle":              "Terminale",
+ *     "specialites_terminale":        "Mathématiques, Physique",
+ *     // Sans équivalent CRM → stockés tels quels sur la fiche
+ *     "nomad_filiere":                "Bac Général",
+ *     "nomad_domaine":                "Santé",
+ *     "nomad_option":                 "Mathématiques complémentaires",
+ *     "nomad_langues":                "Anglais, Espagnol"
+ *
+ *   Les anciens noms (date, prenom, nom, telephone, codePostal…) restent acceptés.
  *   }
  *
  * Réponse :
@@ -154,17 +158,24 @@ export async function POST(req: NextRequest) {
 
   const firstname = pick(fieldMap, ['prenom', 'firstname', 'first_name'])
   const lastname = pick(fieldMap, ['nom', 'lastname', 'last_name'])
-  const civilite = pick(fieldMap, ['civilite', 'civility'])
-  const souhait = pick(fieldMap, ['souhait', 'engagements', 'engagement'])
-  const codePostal = pick(fieldMap, ['codePostal', 'code_postal', 'cp', 'zip'])
-  const pays = pick(fieldMap, ['pays', 'country'])
-  const diplome = pick(fieldMap, ['diplome', 'diplomeencours'])
-  const niveauRaw = pick(fieldMap, ['niveau', 'classe_actuelle', 'classe'])
-  const filiere = pick(fieldMap, ['filiere'])
-  const domaine = pick(fieldMap, ['domaine', 'domaines', 'domainesdetudesouhaites'])
-  const specialite = pick(fieldMap, ['specialite', 'specialites'])
-  const option = pick(fieldMap, ['option', 'options'])
-  const langues = pick(fieldMap, ['langues', 'langue'])
+  const civiliteRaw = pick(fieldMap, ['civilite', 'civility'])
+  // Enum CRM `civilite` : Mr / Mme.
+  const civilite = civiliteRaw
+    ? (/^(mme|madame|mlle|mademoiselle)/i.test(civiliteRaw) ? 'Mme'
+      : /^(m|mr|m\.|monsieur)$/i.test(civiliteRaw) ? 'Mr' : civiliteRaw)
+    : null
+  const souhait = pick(fieldMap, ['recent_conversion_event_name', 'souhait', 'engagements', 'engagement'])
+  const codePostal = pick(fieldMap, ['zip', 'codePostal', 'code_postal', 'cp'])
+  const pays = pick(fieldMap, ['country', 'pays'])
+  const diplome = pick(fieldMap, ['dernier_diplome_obtenu___niveau_d_etude', 'diplome', 'diplomeencours'])
+  const niveauRaw = pick(fieldMap, ['classe_actuelle', 'niveau', 'classe'])
+  // ⚠️ `filiere` dans notre CRM = marque (Diploma Santé, Medibox…) : la filière
+  // bac Nomad n'y est jamais écrite, seulement dans nomad_filiere.
+  const filiere = pick(fieldMap, ['nomad_filiere', 'filiere'])
+  const domaine = pick(fieldMap, ['nomad_domaine', 'domaine', 'domaines', 'domainesdetudesouhaites'])
+  const specialite = pick(fieldMap, ['specialites_terminale', 'specialite', 'specialites'])
+  const option = pick(fieldMap, ['nomad_option', 'option', 'options'])
+  const langues = pick(fieldMap, ['nomad_langues', 'langues', 'langue'])
 
   // "75 - Paris" → "75" ; à défaut, déduit du code postal.
   const departement =
@@ -175,7 +186,7 @@ export async function POST(req: NextRequest) {
   const classeActuelle = niveauRaw ? (normalizeClasseActuelle(niveauRaw) ?? niveauRaw) : null
 
   const nowIso = new Date().toISOString()
-  const conversionDate = parseNomadDate(pick(fieldMap, ['date', 'createdat'])) ?? nowIso
+  const conversionDate = parseNomadDate(pick(fieldMap, ['createdate', 'date', 'createdat'])) ?? nowIso
   const eventName = souhait ? `Nomad Education - ${souhait}` : 'Nomad Education'
 
   const db = createServiceClient()
@@ -218,6 +229,11 @@ export async function POST(req: NextRequest) {
     ...(classeActuelle ? { classe_actuelle: classeActuelle } : {}),
     ...(departement ? { departement } : {}),
     ...(zoneLocalite ? { zone_localite: zoneLocalite } : {}),
+    ...(civilite ? { civilite } : {}),
+    ...(codePostal ? { zip: codePostal } : {}),
+    ...(pays ? { country: pays } : {}),
+    ...(diplome ? { dernier_diplome_obtenu___niveau_d_etude: diplome } : {}),
+    ...(specialite ? { specialites_terminale: specialite } : {}),
     ...(existing ? {} : { hs_lead_status: 'Nouveau' }),
     origine: ORIGINE_NOMAD,
     source: 'Nomad Education',
