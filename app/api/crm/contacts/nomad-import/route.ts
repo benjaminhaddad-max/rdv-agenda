@@ -10,7 +10,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // Clé utilisée par le script Apps Script partagé avec Nomad. À retirer le jour
 // où leur script passera sur NOMAD_IMPORT_KEY (prévoir la rotation avec eux).
 const LEGACY_NOMAD_IMPORT_KEY = 'nomad_import_2026_05_30_9Kq7mP2Z'
-function normalizeDepartement(value: string): string {
+export function normalizeDepartement(value: string): string {
   const compact = String(value || '').trim().toUpperCase().replace(/\s+/g, '')
   if (!compact) return ''
   const pref = compact.match(/^(2A|2B|[0-9]{2,3})/)
@@ -23,7 +23,7 @@ function normalizeDepartement(value: string): string {
   return compact
 }
 
-function computeZoneFromDepartement(value: string): string | null {
+export function computeZoneFromDepartement(value: string): string | null {
   const code = normalizeDepartement(value)
   if (!code) return null
   if (['75', '77', '78', '91', '92', '93', '94', '95'].includes(code)) return 'IDF'
