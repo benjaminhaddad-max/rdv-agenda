@@ -95,65 +95,69 @@ export default function EventLandingPage({
 
           <div className="ev-hero" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 400px', gap: 'clamp(32px,4vw,64px)', alignItems: 'start' }}>
             <div className="ev-hero-txt">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 26, flexWrap: 'wrap' }}>
-                <span style={{ background: '#d3ab67', borderRadius: 20, padding: '13px 19px', textAlign: 'center', flex: 'none' }}>
-                  <span style={{ display: 'block', fontFamily: "'PP Pangaia',serif", fontWeight: 700, fontSize: 34, color: '#12314d', lineHeight: 1 }}>
-                    {fmt.jour}
+              <div className="ev-hero-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 26, flexWrap: 'wrap' }}>
+                  <span style={{ background: '#d3ab67', borderRadius: 20, padding: '13px 19px', textAlign: 'center', flex: 'none' }}>
+                    <span style={{ display: 'block', fontFamily: "'PP Pangaia',serif", fontWeight: 700, fontSize: 34, color: '#12314d', lineHeight: 1 }}>
+                      {fmt.jour}
+                    </span>
+                    <span style={{ display: 'block', fontFamily: "'Clash Display',sans-serif", fontWeight: 600, fontSize: 11, letterSpacing: '0.1em', color: '#12314d', marginTop: 2 }}>
+                      {fmt.mois}
+                    </span>
                   </span>
-                  <span style={{ display: 'block', fontFamily: "'Clash Display',sans-serif", fontWeight: 600, fontSize: 11, letterSpacing: '0.1em', color: '#12314d', marginTop: 2 }}>
-                    {fmt.mois}
-                  </span>
-                </span>
-                <div>
-                  <div style={{ fontFamily: "'Clash Display',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.72)', marginBottom: 6 }}>
-                    {fmt.weekday} · {fmt.horaires}
+                  <div>
+                    <div style={{ fontFamily: "'Clash Display',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.72)', marginBottom: 6 }}>
+                      {fmt.weekday} · {fmt.horaires}
+                    </div>
+                    <div style={{ fontSize: 14, color: '#fff' }}>{lieu || copy.acces.split('\n')[0]}</div>
                   </div>
-                  <div style={{ fontSize: 14, color: '#fff' }}>{lieu || copy.acces.split('\n')[0]}</div>
                 </div>
-              </div>
 
-              <h1 style={{ fontFamily: "'PP Pangaia',serif", fontWeight: 700, color: '#fff', fontSize: 'clamp(34px,4.2vw,56px)', lineHeight: 1.05, letterSpacing: '-0.015em', margin: '0 0 22px' }}>
-                {copy.heroAccent ? (
-                  <>
-                    {copy.heroTitle} <span style={{ color: '#4fabdb' }}>{copy.heroAccent}</span>
-                  </>
-                ) : (
-                  copy.heroTitle
-                )}
-              </h1>
-              {copy.chapeaux.map((p, i) => (
-                <p
-                  key={i}
-                  style={{
-                    fontSize: 16.5,
-                    color: 'rgba(255,255,255,.82)',
-                    lineHeight: 1.7,
-                    margin: i === copy.chapeaux.length - 1 ? '0 0 28px' : '0 0 16px',
-                    maxWidth: '56ch',
-                  }}
-                >
-                  <RichNavy text={p} />
-                </p>
-              ))}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {copy.badges.map((b) => (
-                  <span
-                    key={b}
+                <h1 style={{ fontFamily: "'PP Pangaia',serif", fontWeight: 700, color: '#fff', fontSize: 'clamp(34px,4.2vw,56px)', lineHeight: 1.05, letterSpacing: '-0.015em', margin: '0 0 22px' }}>
+                  {copy.heroAccent ? (
+                    <>
+                      {copy.heroTitle} <span style={{ color: '#4fabdb' }}>{copy.heroAccent}</span>
+                    </>
+                  ) : (
+                    copy.heroTitle
+                  )}
+                </h1>
+              </div>
+              <div className="ev-hero-body">
+                {copy.chapeaux.map((p, i) => (
+                  <p
+                    key={i}
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 9,
-                      border: '1px solid rgba(255,255,255,.22)',
-                      borderRadius: 999,
-                      padding: '10px 18px',
-                      fontSize: 13.5,
-                      color: '#fff',
+                      fontSize: 16.5,
+                      color: 'rgba(255,255,255,.82)',
+                      lineHeight: 1.7,
+                      margin: i === copy.chapeaux.length - 1 ? '0 0 28px' : '0 0 16px',
+                      maxWidth: '56ch',
                     }}
                   >
-                    <GoldCheck />
-                    {b}
-                  </span>
+                    <RichNavy text={p} />
+                  </p>
                 ))}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {copy.badges.map((b) => (
+                    <span
+                      key={b}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        border: '1px solid rgba(255,255,255,.22)',
+                        borderRadius: 999,
+                        padding: '10px 18px',
+                        fontSize: 13.5,
+                        color: '#fff',
+                      }}
+                    >
+                      <GoldCheck />
+                      {b}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 

@@ -212,7 +212,11 @@ body:has(.event-landing){
 
 @media (max-width:1040px){
   .event-landing .ev-hero{grid-template-columns:1fr !important;gap:32px !important}
-  .event-landing .ev-hero-form{order:-1}
+  .event-landing .ev-hero-txt{display:contents}
+  .event-landing .ev-hero-head{order:0}
+  .event-landing .ev-hero-form{order:1}
+  .event-landing .ev-hero-body{order:2}
+  .event-landing .ev-hero-head h1{margin-bottom:0 !important}
   .event-landing .ev-hero-wrap{padding-top:36px !important;padding-bottom:40px !important}
   .event-landing .ev-split{grid-template-columns:1fr !important}
   .event-landing .ev-g4{grid-template-columns:repeat(2,1fr) !important}
