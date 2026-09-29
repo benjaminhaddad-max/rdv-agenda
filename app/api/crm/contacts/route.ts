@@ -834,6 +834,10 @@ export async function GET(req: NextRequest) {
       const vals = fastSplit(departement)
       fastQ = vals.length > 1 ? fastQ.in('departement', vals) : fastQ.eq('departement', departement)
     }
+    // Exclusions « n'est aucun de » (alignées sur le chemin SQL principal).
+    if (sourceNot) fastQ = fastQ.not('origine', 'in', toPostgrestInList(expandOrigineFilterValues(fastSplit(sourceNot))))
+    if (zoneNot) fastQ = fastQ.not('zone_localite', 'in', toPostgrestInList(fastSplit(zoneNot)))
+    if (deptNot) fastQ = fastQ.not('departement', 'in', toPostgrestInList(fastSplit(deptNot)))
     if (search) fastQ = applySearchFilter(fastQ, search)
     const { count: totalCount, error } = await fastQ
     if (error) return withPerfHeader(NextResponse.json({ error: error.message }, { status: 500 }))
@@ -1000,6 +1004,11 @@ export async function GET(req: NextRequest) {
         const vals = splitMultiFast(departement)
         fastMvQ = vals.length > 1 ? fastMvQ.in('departement', vals) : fastMvQ.eq('departement', departement)
       }
+      // Exclusions « n'est aucun de » (alignées sur le chemin SQL principal).
+      if (leadStatusNot) fastMvQ = applyLeadStatusNotFilter(fastMvQ, leadStatusNot)
+      if (sourceNot) fastMvQ = fastMvQ.not('origine', 'in', toPostgrestInList(expandOrigineFilterValues(splitMultiFast(sourceNot))))
+      if (zoneNot) fastMvQ = fastMvQ.not('zone_localite', 'in', toPostgrestInList(splitMultiFast(zoneNot)))
+      if (deptNot) fastMvQ = fastMvQ.not('departement', 'in', toPostgrestInList(splitMultiFast(deptNot)))
       if (stage) {
         const vals = splitMultiFast(stage)
         fastMvQ = vals.length > 1 ? fastMvQ.in('dealstage', vals) : fastMvQ.eq('dealstage', stage)
