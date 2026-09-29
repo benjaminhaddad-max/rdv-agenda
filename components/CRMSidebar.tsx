@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
   Rocket, ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
-  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall, ClipboardList,
+  ExternalLink, BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon, Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List, Palette, Repeat2, FileSignature, Phone, Sparkles, Presentation, PhoneCall, ClipboardList, Mic,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -56,6 +56,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm/ads-dashboard', icon: BarChart3 },
       { key: 'sms-factor',label: 'SMS Factor',    href: '/admin/crm/sms-factor',      icon: MessageSquare },
       { key: 'events',    label: 'Événements',    href: '/admin/crm/events',          icon: CalendarDays },
+      { key: 'podcast',   label: 'Casting podcast', href: '/admin/crm/podcast',       icon: Mic },
     ],
   },
   {

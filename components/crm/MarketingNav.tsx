@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/admin/crm/email-templates', label: 'Templates' },
   { href: '/admin/crm/campaigns/segments', label: 'Segments CRM' },
   { href: '/admin/crm/events', label: 'Événements' },
+  { href: '/admin/crm/podcast', label: 'Casting podcast' },
 ]
 
 export default function MarketingNav({ title }: { title?: string }) {
