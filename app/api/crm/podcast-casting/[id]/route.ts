@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole } from '@/lib/api-auth'
 import { isPodcastProfileType, isPodcastStatus } from '@/lib/podcast-casting'
 
-const TEXT_FIELDS = ['full_name', 'phone', 'email', 'story', 'notes', 'episode_label'] as const
+const TEXT_FIELDS = ['full_name', 'phone', 'email', 'parcours', 'social', 'story', 'notes', 'episode_label'] as const
 
 /** PATCH /api/crm/podcast-casting/[id] — statut, angle, notes de pré-interview… */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

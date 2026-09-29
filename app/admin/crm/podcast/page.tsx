@@ -6,6 +6,10 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  ExternalLink,
+  Link2,
+  Mail,
+  MessageSquare,
   Mic,
   Phone,
   Plus,
@@ -24,6 +28,10 @@ import { usePageTitle } from '@/components/DocumentTitle'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
   PODCAST_CONFIRMED,
+  PODCAST_DURATION,
+  PODCAST_FEE,
+  PODCAST_NAME,
+  PODCAST_PUBLIC_URL,
   PODCAST_STATUSES,
   PODCAST_TARGETS,
   type PodcastCandidate,
@@ -33,16 +41,31 @@ import {
   type PodcastStatus,
 } from '@/lib/podcast-casting'
 
-type Tab = 'shortlist' | 'eleves' | 'parents' | 'sans_prepa'
+type Tab = 'candidatures' | 'eleves' | 'parents'
 
 const PAGE_SIZE = 50
 const PROFILE_TYPES = Object.keys(PODCAST_TARGETS) as PodcastProfileType[]
 const STATUSES = Object.keys(PODCAST_STATUSES) as PodcastStatus[]
 const SOURCE_LABELS: Record<PodcastSource, string> = {
+  candidature: 'Candidature en ligne',
   ancien_eleve: 'Ancien élève',
   parent: 'Parent d’élève',
-  sans_prepa: 'Sans prépa Diploma',
   externe: 'Ajout manuel',
+}
+
+/** Message d'invitation prêt à coller (SMS / WhatsApp / email). */
+function invitationMessage(firstname?: string | null): string {
+  const hello = firstname ? `Bonjour ${firstname},` : 'Bonjour,'
+  return `${hello}
+
+Diploma Santé lance « ${PODCAST_NAME} », un nouveau podcast où l’on donne la parole à ceux qui ont vécu la première année de médecine de l’intérieur.
+
+Si vous souhaitez y participer, remplissez ce court formulaire : ${PODCAST_PUBLIC_URL}
+
+L’interview dure ${PODCAST_DURATION} et est rémunérée ${PODCAST_FEE}.
+
+À bientôt,
+L’équipe Diploma Santé`
 }
 
 const inputStyle: CSSProperties = {
@@ -113,12 +136,16 @@ type CastingDraft = {
 type ExternalDraft = { full_name: string; profile_type: PodcastProfileType; phone: string; email: string; story: string }
 const EMPTY_EXTERNAL: ExternalDraft = { full_name: '', profile_type: 'prof', phone: '', email: '', story: '' }
 
+function firstNameOf(name: string | null | undefined): string | null {
+  return name?.trim().split(/\s+/)[0] || null
+}
+
 export default function PodcastCastingPage() {
-  usePageTitle('Casting podcast')
+  usePageTitle('Podcast')
   const isMobile = useIsMobile()
   const padX = isMobile ? 12 : 28
 
-  const [tab, setTab] = useState<Tab>('eleves')
+  const [tab, setTab] = useState<Tab>('candidatures')
   const [candidates, setCandidates] = useState<PodcastCandidate[]>([])
   const [casting, setCasting] = useState<PodcastCastingRow[]>([])
   const [castingAvailable, setCastingAvailable] = useState(true)
@@ -168,20 +195,20 @@ export default function PodcastCastingPage() {
   }, [tab, search, promo, strongOnly])
 
   // ── Données dérivées ────────────────────────────────────────────────
-  const inCasting = useMemo(() => {
+  // Contacts CRM qui ont déjà candidaté (pour ne pas les relancer).
+  const alreadyApplied = useMemo(() => {
     const s = new Set<string>()
-    for (const c of casting) if (c.hubspot_contact_id) s.add(`${c.hubspot_contact_id}:${c.profile_type}`)
+    for (const c of casting) if (c.hubspot_contact_id) s.add(c.hubspot_contact_id)
     return s
   }, [casting])
 
-  const eleves = useMemo(() => candidates.filter(c => c.kind === 'ancien_eleve'), [candidates])
-  const sansPrepa = useMemo(() => candidates.filter(c => c.kind === 'sans_prepa'), [candidates])
+  const eleves = candidates
   const parents = useMemo(() => eleves.filter(c => c.parent && (c.parent.phone || c.parent.email)), [eleves])
   const promos = useMemo(() => [...new Set(candidates.map(c => c.promo).filter(Boolean))].sort(), [candidates])
 
   const listForTab = useMemo<PodcastCandidate[]>(
-    () => (tab === 'eleves' ? eleves : tab === 'parents' ? parents : tab === 'sans_prepa' ? sansPrepa : []),
-    [tab, eleves, parents, sansPrepa],
+    () => (tab === 'eleves' ? eleves : tab === 'parents' ? parents : []),
+    [tab, eleves, parents],
   )
 
   const filtered = useMemo(() => {
@@ -200,7 +227,7 @@ export default function PodcastCastingPage() {
     const q = search.trim().toLowerCase()
     const order = (s: PodcastStatus) => STATUSES.indexOf(s)
     return casting
-      .filter(c => !q || [c.full_name, c.email, c.phone, c.story, c.notes].filter(Boolean).join(' ').toLowerCase().includes(q))
+      .filter(c => !q || [c.full_name, c.email, c.phone, c.parcours, c.social, c.story, c.notes].filter(Boolean).join(' ').toLowerCase().includes(q))
       .sort((a, b) => order(a.status) - order(b.status) || b.updated_at.localeCompare(a.updated_at))
   }, [casting, search])
 
@@ -215,46 +242,6 @@ export default function PodcastCastingPage() {
   }, [casting])
 
   // ── Actions ─────────────────────────────────────────────────────────
-  async function addToCasting(c: PodcastCandidate, asParent: boolean) {
-    const key = `${c.contactId}:${asParent ? 'parent' : 'etudiant'}`
-    setSavingId(key)
-    try {
-      const body = asParent
-        ? {
-            hubspot_contact_id: c.contactId,
-            profile_type: 'parent',
-            source: 'parent',
-            full_name: c.parent?.name || `Parent de ${c.name}`,
-            phone: c.parent?.phone,
-            email: c.parent?.email,
-            story: `Parent de ${c.name} (promo ${c.promo}${c.formation ? `, ${c.formation}` : ''})`,
-          }
-        : {
-            hubspot_contact_id: c.contactId,
-            profile_type: 'etudiant',
-            source: c.kind,
-            full_name: c.name,
-            phone: c.phone,
-            email: c.email,
-            story: c.tags.length ? c.tags.join(' · ') : null,
-          }
-      const res = await fetch('/api/crm/podcast-casting', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Erreur')
-      setCasting(prev => [json.casting, ...prev])
-      flash('Ajouté au casting')
-    } catch (e) {
-      flash(e instanceof Error ? e.message : 'Erreur')
-    } finally {
-      setSavingId(null)
-    }
-  }
-
   async function addExternal() {
     if (!external.full_name.trim()) return flash('Nom requis')
     setSavingId('external')
@@ -270,7 +257,7 @@ export default function PodcastCastingPage() {
       setCasting(prev => [json.casting, ...prev])
       setExternal(EMPTY_EXTERNAL)
       setShowExternal(false)
-      setTab('shortlist')
+      setTab('candidatures')
       flash('Profil ajouté au casting')
     } catch (e) {
       flash(e instanceof Error ? e.message : 'Erreur')
@@ -340,6 +327,17 @@ export default function PodcastCastingPage() {
     navigator.clipboard.writeText(text).then(() => flash(`${label} copié`))
   }
 
+  function copyEmails() {
+    const emails = [...new Set(
+      filtered
+        .filter(c => !alreadyApplied.has(c.contactId))
+        .map(c => (tab === 'parents' ? c.parent?.email : c.email))
+        .filter((e): e is string => !!e),
+    )]
+    if (emails.length === 0) return flash('Aucun email à copier')
+    navigator.clipboard.writeText(emails.join(', ')).then(() => flash(`${emails.length} emails copiés`))
+  }
+
   // ── Rendu ───────────────────────────────────────────────────────────
   function renderContactLine(phone: string | null, email: string | null) {
     if (!phone && !email) return <span style={{ color: crmV2.textFaint }}>Pas de coordonnées</span>
@@ -358,9 +356,9 @@ export default function PodcastCastingPage() {
   function renderCandidateCard(c: PodcastCandidate) {
     const asParent = tab === 'parents'
     const key = `${c.contactId}:${asParent ? 'parent' : 'etudiant'}`
-    const already = inCasting.has(key)
+    const already = alreadyApplied.has(c.contactId)
     const open = expandedId === key
-    const accent = asParent ? '#0369a1' : c.kind === 'sans_prepa' ? crmV2.textFaint : crmV2.gold
+    const accent = asParent ? '#0369a1' : crmV2.gold
     const title = asParent ? c.parent?.name || `Parent de ${c.name}` : c.name
 
     return (
@@ -384,7 +382,7 @@ export default function PodcastCastingPage() {
                   <Star size={10} /> {t}
                 </Pill>
               ))}
-              {already && <Pill bg="rgba(0,189,165,0.12)" color={crmV2.success}>Dans le casting</Pill>}
+              {already && <Pill bg="rgba(0,189,165,0.12)" color={crmV2.success}>A déjà candidaté</Pill>}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
               {asParent && <>Parent de <strong>{c.name}</strong> · </>}
@@ -427,10 +425,9 @@ export default function PodcastCastingPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <CrmV2Button
                   variant="gold"
-                  disabled={already || !castingAvailable || savingId === key}
-                  onClick={() => addToCasting(c, asParent)}
+                  onClick={() => copy(invitationMessage(firstNameOf(asParent ? c.parent?.name : c.name)), 'Message d’invitation')}
                 >
-                  <UserPlus size={14} /> {already ? 'Déjà dans le casting' : savingId === key ? '…' : 'Ajouter au casting'}
+                  <MessageSquare size={14} /> Copier l’invitation
                 </CrmV2Button>
                 <Link href={`/admin/crm/contacts/${c.contactId}`} target="_blank" style={{ textDecoration: 'none' }}>
                   <CrmV2Button variant="primary">Ouvrir la fiche</CrmV2Button>
@@ -473,12 +470,20 @@ export default function PodcastCastingPage() {
               {row.episode_label && <Pill bg={crmV2.bgMuted} color={crmV2.textMuted}><Mic size={10} /> {row.episode_label}</Pill>}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: crmV2.textMuted, lineHeight: 1.45 }}>
-              {SOURCE_LABELS[row.source]}
+              {SOURCE_LABELS[row.source]} · reçue le {new Date(row.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+              {row.parcours ? ` · ${row.parcours}` : ''}
               {row.pre_interview_at ? ` · Pré-interview ${formatDateTime(row.pre_interview_at)}` : ''}
               {row.story ? (
                 <>
                   <br />
-                  <span style={{ color: crmV2.text }}>{row.story}</span>
+                  <span
+                    style={{
+                      color: crmV2.text, display: '-webkit-box', WebkitLineClamp: open ? undefined : 2,
+                      WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {row.story}
+                  </span>
                 </>
               ) : null}
             </div>
@@ -491,7 +496,10 @@ export default function PodcastCastingPage() {
         {open && draft && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${crmV2.border}`, background: crmV2.bgSoft }}>
             <div style={{ paddingTop: 14, display: 'grid', gap: 12 }}>
-              <div style={{ fontSize: 13 }}>{renderContactLine(row.phone, row.email)}</div>
+              <div style={{ fontSize: 13, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                {renderContactLine(row.phone, row.email)}
+                {row.social && <span style={{ color: crmV2.textMuted }}>{row.social}</span>}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 10 }}>
                 <div>
                   <label style={labelStyle}>Statut</label>
@@ -515,9 +523,9 @@ export default function PodcastCastingPage() {
                 </div>
               </div>
               <div>
-                <label style={labelStyle}>Angle / histoire forte</label>
+                <label style={labelStyle}>Son histoire / angle de l’épisode</label>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={draft.story}
                   onChange={e => setDraft({ ...draft, story: e.target.value })}
                   placeholder="Ce qui rend son parcours unique…"
@@ -559,32 +567,30 @@ export default function PodcastCastingPage() {
   }
 
   const tabItems = [
-    { id: 'eleves', label: 'Anciens élèves', count: eleves.length },
-    { id: 'parents', label: 'Parents', count: parents.length },
-    { id: 'sans_prepa', label: 'Sans prépa Diploma', count: sansPrepa.length },
-    { id: 'shortlist', label: 'Casting', count: casting.length },
+    { id: 'candidatures', label: 'Candidatures', count: casting.length },
+    { id: 'eleves', label: 'Anciens élèves à inviter', count: eleves.length },
+    { id: 'parents', label: 'Parents à inviter', count: parents.length },
   ]
 
   const tabHelp: Record<Tab, string> = {
-    eleves: 'Élèves inscrits sur une saison terminée (2023-2024 → 2025-2026) : ils ont vécu leur P1. Triés par signaux d’histoire forte.',
-    parents: 'Parents des anciens élèves (coordonnées du responsable légal renseignées).',
-    sans_prepa: 'Leads 2023-2024 / 2024-2025 qui ne se sont pas inscrits : parcours sans prépa Diploma, à qualifier au téléphone.',
-    shortlist: 'Invités retenus : suivi du call de pré-interview jusqu’au tournage.',
+    candidatures: 'Candidatures reçues via le formulaire (et invités ajoutés à la main) : suivez le call de pré-interview jusqu’au tournage.',
+    eleves: 'Élèves inscrits sur une saison terminée (2023-2024 → 2025-2026) : destinataires du lien de candidature. Les profils avec signaux d’histoire forte sont en tête.',
+    parents: 'Parents des anciens élèves (coordonnées du responsable légal renseignées) : destinataires du lien de candidature.',
   }
 
   return (
     <div style={{ minHeight: '100vh', background: crmV2.bgSoft }}>
-      <MarketingNav title="Casting podcast" />
+      <MarketingNav title="Podcast" />
       <CrmV2Page style={{ paddingBottom: 48 }}>
         <div style={{ padding: `20px ${padX}px 0`, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: isMobile ? 12 : 16, alignItems: isMobile ? 'stretch' : 'flex-start' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Mic size={20} color={crmV2.gold} />
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: crmV2.text }}>Casting podcast</h1>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: crmV2.text }}>Podcast « {PODCAST_NAME} »</h1>
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: crmV2.textMuted, maxWidth: 720 }}>
-              Trouvez les invités de l’émission : des gens qui ont vécu la première année de médecine de l’intérieur.
-              Repérez les profils dans le CRM, ajoutez-les au casting, puis suivez le call de pré-interview jusqu’au tournage.
+              Envoyez le lien de candidature aux anciens élèves, parents, profs et praticiens. Les candidatures arrivent ici :
+              suivez le call de pré-interview jusqu’au tournage.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -592,9 +598,48 @@ export default function PodcastCastingPage() {
               <RefreshCw size={14} /> Actualiser
             </CrmV2Button>
             <CrmV2Button variant="gold" onClick={() => setShowExternal(v => !v)} disabled={!castingAvailable}>
-              <Plus size={14} /> Profil externe
+              <Plus size={14} /> Ajouter un invité
             </CrmV2Button>
           </div>
+        </div>
+
+        {/* Lien public de candidature */}
+        <div style={{ padding: `16px ${padX}px 0` }}>
+          <CrmV2Card style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Link2 size={16} color={crmV2.gold} />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>Page de candidature</span>
+                </div>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: crmV2.textMuted }}>
+                  Lien public à envoyer : présentation du podcast, rémunération {PODCAST_FEE} pour {PODCAST_DURATION}, formulaire.
+                </p>
+                <div
+                  style={{
+                    fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: crmV2.link,
+                    wordBreak: 'break-all', padding: '8px 10px', background: crmV2.bgSoft,
+                    borderRadius: crmV2.radius, border: `1px solid ${crmV2.border}`,
+                  }}
+                >
+                  {PODCAST_PUBLIC_URL}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <CrmV2Button variant="gold" onClick={() => copy(PODCAST_PUBLIC_URL, 'Lien')}>
+                  <Copy size={14} /> Copier le lien
+                </CrmV2Button>
+                <CrmV2Button variant="secondary" onClick={() => copy(invitationMessage(), 'Message d’invitation')}>
+                  <MessageSquare size={14} /> Copier le message
+                </CrmV2Button>
+                <a href="/podcast" target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                  <CrmV2Button variant="secondary">
+                    <ExternalLink size={14} /> Ouvrir
+                  </CrmV2Button>
+                </a>
+              </div>
+            </div>
+          </CrmV2Card>
         </div>
 
         {/* Objectif des 13 premiers épisodes */}
@@ -626,7 +671,7 @@ export default function PodcastCastingPage() {
               })}
             </div>
             <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 10 }}>
-              Compte les invités validés, bookés ou tournés. Profs et praticiens ne sont pas dans le CRM : ajoutez-les via « Profil externe ».
+              Compte les invités validés, bookés ou tournés. Profs et praticiens ne sont pas dans le CRM : ajoutez-les via « Ajouter un invité » ou envoyez-leur le lien.
             </div>
           </CrmV2Card>
         </div>
@@ -634,8 +679,8 @@ export default function PodcastCastingPage() {
         {!castingAvailable && !loading && (
           <div style={{ padding: `12px ${padX}px 0` }}>
             <div style={{ padding: '10px 14px', borderRadius: crmV2.radius, background: '#FEF3C7', color: '#92400E', fontSize: 13 }}>
-              La table du casting n’existe pas encore : exécutez <code>supabase-migration-podcast-casting.sql</code> dans Supabase → SQL Editor.
-              La recherche de profils fonctionne déjà.
+              La table des candidatures n’existe pas encore : exécutez <code>supabase-migration-podcast-casting.sql</code> dans Supabase → SQL Editor.
+              Tant que ce n’est pas fait, le formulaire public ne peut pas enregistrer de candidature.
             </div>
           </div>
         )}
@@ -644,7 +689,7 @@ export default function PodcastCastingPage() {
           <div style={{ padding: `12px ${padX}px 0` }}>
             <CrmV2Card style={{ padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Ajouter un profil hors CRM</span>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>Ajouter un invité à la main (prof, praticien…)</span>
                 <button type="button" onClick={() => setShowExternal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: crmV2.textMuted }} aria-label="Fermer">
                   <X size={16} />
                 </button>
@@ -692,7 +737,7 @@ export default function PodcastCastingPage() {
               placeholder="Nom, fac, formation, verbatim…"
               style={{ flex: isMobile ? '1 1 100%' : '0 1 320px' }}
             />
-            {tab !== 'shortlist' && (
+            {tab !== 'candidatures' && (
               <>
                 <select value={promo} onChange={e => setPromo(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '7px 12px', borderRadius: crmV2.radiusPill, fontSize: 13 }}>
                   <option value="">Toutes les promos</option>
@@ -700,6 +745,9 @@ export default function PodcastCastingPage() {
                 </select>
                 <CrmV2Button variant={strongOnly ? 'gold' : 'secondary'} onClick={() => setStrongOnly(v => !v)}>
                   <Star size={14} /> Signaux forts uniquement
+                </CrmV2Button>
+                <CrmV2Button variant="secondary" onClick={copyEmails}>
+                  <Mail size={14} /> Copier les emails ({tab === 'parents' ? 'parents' : 'élèves'})
                 </CrmV2Button>
               </>
             )}
@@ -722,11 +770,11 @@ export default function PodcastCastingPage() {
           )}
           {loading ? (
             <div style={{ color: crmV2.textMuted, fontSize: 13, padding: 24 }}>Chargement des profils…</div>
-          ) : tab === 'shortlist' ? (
+          ) : tab === 'candidatures' ? (
             filteredCasting.length === 0 ? (
               <CrmV2Card style={{ padding: 28, textAlign: 'center' }}>
                 <p style={{ margin: 0, color: crmV2.textMuted, fontSize: 14 }}>
-                  Aucun invité dans le casting pour l’instant. Parcourez les anciens élèves et ajoutez les profils prometteurs.
+                  Aucune candidature pour l’instant. Copiez le lien de candidature et envoyez-le aux anciens élèves.
                 </p>
               </CrmV2Card>
             ) : (

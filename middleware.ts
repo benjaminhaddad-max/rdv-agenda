@@ -46,6 +46,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/q/') || // QR courts Events Studio
     pathname.startsWith('/inscription-salons') || // hub public choix salon + places
     pathname.startsWith('/inscription-staff') || // inscription staff (sous-ensemble d’événements)
+    pathname === '/podcast' || // candidature publique au podcast « Première année »
     pathname.startsWith('/webinars/') // decks HTML webinaires (Cloud Design)
   if (isPublicPath) {
     return NextResponse.next()

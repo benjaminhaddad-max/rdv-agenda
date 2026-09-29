@@ -9,11 +9,9 @@ import {
   type PodcastCastingRow,
 } from '@/lib/podcast-casting'
 
-// Saisons terminées : les élèves ont vécu leur P1 et ont du recul pour raconter.
+// Saisons terminées : les anciens élèves ont vécu leur P1 et ont du recul pour raconter.
 // (2026-2027 = saison en cours, exclue.)
 const PAST_PIPELINES = ['55039960', '322737657', '1329267902']
-// Leads non inscrits : seulement les saisons assez anciennes pour qu'ils aient fait leur P1 ailleurs.
-const SANS_PREPA_PIPELINES = ['55039960', '322737657']
 
 function stageIdByLabel(pipelineId: string, label: string): string | null {
   return PIPELINES[pipelineId]?.stages.find(s => s.label === label)?.id ?? null
@@ -66,38 +64,22 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 async function loadCandidates(): Promise<PodcastCandidate[]> {
   const db = createServiceClient()
   const inscritStages = PAST_PIPELINES.map(p => stageIdByLabel(p, 'Inscription Confirmée')).filter(Boolean) as string[]
-  const perduStages = SANS_PREPA_PIPELINES.map(p => stageIdByLabel(p, 'Fermé Perdu')).filter(Boolean) as string[]
 
   const deals = await fetchAll<DealRow>((from, to) =>
     db.from('crm_deals')
       .select('hubspot_contact_id, pipeline, dealstage, formation, universite_selectionnee, telephone, email, prenom_responsable_legal_1, nom_responsable_legal_1, telephone_responsable_legal, email_responsable_legal')
-      .in('dealstage', [...inscritStages, ...perduStages])
+      .in('dealstage', inscritStages)
       .order('hubspot_deal_id')
       .range(from, to),
   )
 
-  // Regroupe par contact : un contact inscrit une saison n'est jamais "sans prépa".
-  const byContact = new Map<string, { inscrit: DealRow[]; perdu: DealRow[] }>()
+  const byContact = new Map<string, DealRow[]>()
   for (const d of deals) {
     if (!d.hubspot_contact_id) continue
-    const g = byContact.get(d.hubspot_contact_id) ?? { inscrit: [], perdu: [] }
-    if (inscritStages.includes(d.dealstage)) g.inscrit.push(d)
-    else g.perdu.push(d)
-    byContact.set(d.hubspot_contact_id, g)
+    byContact.set(d.hubspot_contact_id, [...(byContact.get(d.hubspot_contact_id) ?? []), d])
   }
 
-  // Un lead perdu en 2023-2024 mais inscrit en 2026-2027 n'est pas "sans prépa" non plus.
-  const currentInscrit = stageIdByLabel('2313043166', 'Inscription Confirmée')
-  const perduOnlyIds = [...byContact.entries()].filter(([, g]) => g.inscrit.length === 0).map(([id]) => id)
-  const excluded = new Set<string>()
-  for (let i = 0; i < perduOnlyIds.length; i += 300) {
-    const { data } = await db.from('crm_deals').select('hubspot_contact_id')
-      .in('hubspot_contact_id', perduOnlyIds.slice(i, i + 300))
-      .in('dealstage', [currentInscrit, ...PAST_PIPELINES.map(p => stageIdByLabel(p, 'Inscription Confirmée'))].filter(Boolean) as string[])
-    for (const r of data ?? []) if (r.hubspot_contact_id) excluded.add(r.hubspot_contact_id)
-  }
-
-  const ids = [...byContact.keys()].filter(id => !excluded.has(id))
+  const ids = [...byContact.keys()]
   const contacts = new Map<string, ContactRow>()
   for (let i = 0; i < ids.length; i += 300) {
     const { data, error } = await db.from('crm_contacts').select(CONTACT_COLS).in('hubspot_contact_id', ids.slice(i, i + 300))
@@ -109,9 +91,7 @@ async function loadCandidates(): Promise<PodcastCandidate[]> {
   for (const id of ids) {
     const c = contacts.get(id)
     if (!c || String(c.contact_de_test) === 'true') continue
-    const g = byContact.get(id)!
-    const kind: PodcastCandidate['kind'] = g.inscrit.length > 0 ? 'ancien_eleve' : 'sans_prepa'
-    const rows = kind === 'ancien_eleve' ? g.inscrit : g.perdu
+    const rows = byContact.get(id)!
     // Plus ancienne saison d'abord (= plus de recul)
     const seasons = [...new Set(rows.map(r => PIPELINES[r.pipeline]?.label).filter(Boolean) as string[])].sort()
     const first = rows.find(r => PIPELINES[r.pipeline]?.label === seasons[0]) ?? rows[0]
@@ -139,14 +119,13 @@ async function loadCandidates(): Promise<PodcastCandidate[]> {
     let score = 0
     if (exPassLas) { tags.push('Déjà passé par PASS/LAS'); score += 3 }
     if (coachReco != null && coachReco >= 9) { tags.push(`Reco coach ${coachReco}/10`); score += 3 }
-    if (kind === 'ancien_eleve' && seasons.length > 1) { tags.push(`${seasons.length} saisons chez Diploma`); score += 2 }
+    if (seasons.length > 1) { tags.push(`${seasons.length} saisons chez Diploma`); score += 2 }
     if (verbatim) { tags.push('Verbatim bilan S1'); score += 1 }
     if (seasons[0] === '2023-2024') { tags.push('2 ans de recul'); score += 1 }
     if (!phone) score -= 5
 
     out.push({
       contactId: id,
-      kind,
       name: joinName(c.firstname, c.lastname) || '(sans nom)',
       phone,
       email: clean(c.email) || clean(first.email),
@@ -169,7 +148,7 @@ async function loadCandidates(): Promise<PodcastCandidate[]> {
 
 /**
  * GET /api/crm/podcast-casting
- * Profils repérés dans le CRM pour le podcast + shortlist de casting.
+ * Candidatures / casting du podcast + anciens élèves à qui envoyer le lien.
  */
 export async function GET() {
   const authz = await requireApiRole(['admin', 'manager'])
@@ -192,7 +171,7 @@ export async function GET() {
   }
 }
 
-/** POST /api/crm/podcast-casting — ajoute un profil à la shortlist. */
+/** POST /api/crm/podcast-casting — ajout manuel d'un invité (prof, praticien…). */
 export async function POST(req: NextRequest) {
   const authz = await requireApiRole(['admin', 'manager'])
   if (!authz.ok) return authz.response
@@ -210,13 +189,12 @@ export async function POST(req: NextRequest) {
     full_name: fullName,
     phone: clean(body.phone),
     email: clean(body.email),
+    parcours: clean(body.parcours),
     story: clean(body.story),
+    status: 'a_contacter',
     created_by: authz.ctx.appUserId,
   }).select('*').single()
 
-  if (error) {
-    const msg = error.code === '23505' ? 'Ce profil est déjà dans le casting' : error.message
-    return NextResponse.json({ error: msg }, { status: error.code === '23505' ? 409 : 500 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ casting: data })
 }

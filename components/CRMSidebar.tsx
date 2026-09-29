@@ -56,7 +56,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'ads-dashboard', label: 'Dashboard Ads', href: '/admin/crm/ads-dashboard', icon: BarChart3 },
       { key: 'sms-factor',label: 'SMS Factor',    href: '/admin/crm/sms-factor',      icon: MessageSquare },
       { key: 'events',    label: 'Événements',    href: '/admin/crm/events',          icon: CalendarDays },
-      { key: 'podcast',   label: 'Casting podcast', href: '/admin/crm/podcast',       icon: Mic },
+      { key: 'podcast',   label: 'Podcast',       href: '/admin/crm/podcast',       icon: Mic },
     ],
   },
   {
