@@ -18,6 +18,7 @@ import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
+import SuiviRdvPanel from '@/components/SuiviRdvPanel'
 import { crmV2 } from '@/lib/crm-v2-theme'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
@@ -484,7 +485,7 @@ export default function TeleproClient({
   const teleproCrmFilterId = teleproUser.id || ''
   // Les transactions restent filtrées côté deal avec l'ID HubSpot existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
+  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
@@ -1336,6 +1337,15 @@ export default function TeleproClient({
                   </span>
                 )}
               </button>
+              <button onClick={() => setActiveTab('suivi')} style={{
+                background: activeTab === 'suivi' ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${activeTab === 'suivi' ? 'rgba(37,99,235,0.4)' : '#475569'}`,
+                borderRadius: 8, padding: '6px 12px', color: activeTab === 'suivi' ? '#2563eb' : '#4a6070',
+                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}>
+                <List size={12} /> Suivi RDV
+              </button>
               <button onClick={() => setActiveTab('agenda')} style={{
                 background: activeTab === 'agenda' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${activeTab === 'agenda' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
@@ -1427,6 +1437,19 @@ export default function TeleproClient({
       {activeTab === 'agenda' && !isAdmin && (
         <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
           <WeekCalendar teamView />
+        </div>
+      )}
+
+      {/* ── Onglet Suivi RDV ─────────────────────────────────────────────── */}
+      {/* Tableau de suivi rempli automatiquement à chaque RDV placé par le
+          télépro ; statut dérivé de l'agenda, modifiable à la main. */}
+      {activeTab === 'suivi' && !isAdmin && (
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 20px' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#0e1e35', marginBottom: 4 }}>Suivi de mes RDV</div>
+          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 16 }}>
+            Une ligne par contact, remplie automatiquement à chaque RDV que tu places.
+          </div>
+          <SuiviRdvPanel teleproId={teleproUser.id} />
         </div>
       )}
 
