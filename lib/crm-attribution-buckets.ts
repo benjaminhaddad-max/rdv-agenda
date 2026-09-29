@@ -126,10 +126,10 @@ export const ATTRIBUTION_BUCKETS: AttributionBucketDef[] = [
   {
     id: 'b_term_hors_idf_hors_medibox',
     name: 'Terminale Hors IDF HORS MEDIBOX',
-    enabled: false,
+    enabled: true,
     filters: {
       classe: ['Terminale'],
-      zoneNot: ['IDF', ...MEDIBOX_ZONES],
+      zoneNot: ['IDF', 'Proche IDF', ...MEDIBOX_ZONES],
     },
   },
   {
