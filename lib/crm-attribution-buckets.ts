@@ -115,6 +115,15 @@ export const ATTRIBUTION_BUCKETS: AttributionBucketDef[] = [
     note: 'Régions Medibox : Lille, Bordeaux, Montpellier, Marseille.',
   },
   {
+    id: 'b_term_idf',
+    name: 'Terminale IDF',
+    enabled: true,
+    filters: {
+      classe: ['Terminale'],
+      zone: ['IDF'],
+    },
+  },
+  {
     id: 'b_term_hors_idf_hors_medibox',
     name: 'Terminale Hors IDF HORS MEDIBOX',
     enabled: false,

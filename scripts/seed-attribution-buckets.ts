@@ -2,7 +2,9 @@
 /**
  * Matérialise les buckets d'attribution enabled (voir lib/crm-attribution-buckets.ts).
  *
- * Usage : bun run scripts/seed-attribution-buckets.ts
+ * Usage : bun run scripts/seed-attribution-buckets.ts [bucketId...]
+ *   Sans argument : tous les buckets enabled (écrase les ajustements manuels).
+ *   Avec des ids : uniquement ces buckets (ex. b_term_idf).
  *
  * Pour ajouter un bucket demain : enabled: true dans le catalogue, relancer ce script.
  */
@@ -44,7 +46,8 @@ async function main() {
   if (!url || !key) throw new Error('Supabase env missing')
 
   const db = createClient(url, key, { auth: { persistSession: false } })
-  const buckets = enabledAttributionBuckets()
+  const only = process.argv.slice(2)
+  const buckets = enabledAttributionBuckets().filter(b => only.length === 0 || only.includes(b.id))
   if (buckets.length === 0) {
     console.log('Aucun bucket enabled.')
     return
