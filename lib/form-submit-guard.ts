@@ -38,6 +38,8 @@ const DEFAULT_ALLOWED_HOSTS = [
   'numerusclub.fr',
   'linova-education.fr',
   'edumove.fr',
+  'medibox.fr',
+  'medibox-site-2026.vercel.app',
 ]
 
 const BLOCKED_UTM_SOURCES = new Set(['debug', 'assessment', 'test', 'qa'])
