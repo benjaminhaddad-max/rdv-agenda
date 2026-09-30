@@ -16,6 +16,7 @@ import { sendBrevoEmail } from '@/lib/brevo'
 import { buildConfirmUrl } from '@/lib/confirm-link'
 import { personalizeVisioUrl } from '@/lib/visio-url'
 import { extraParticipantEmails } from '@/lib/appointment-participants'
+import { brandRdvEmail } from '@/lib/rdv-brand'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -167,14 +168,18 @@ export interface ReminderTarget {
   prospectEmail: string
   emailParent?: string | null
   extraEmails?: string[] | null
+  /** Marque du RDV (rdv_appointments.brand) — adapte logo, nom, couleurs et expéditeur. */
+  brand?: string | null
 }
 
 export function reminderTargetFromAppointment(appt: {
   prospect_email?: string | null
   email_parent?: string | null
   extra_participants?: unknown
+  brand?: string | null
 }): ReminderTarget {
   return {
+    brand: appt.brand || null,
     prospectEmail: appt.prospect_email || '',
     emailParent: appt.email_parent || null,
     extraEmails: extraParticipantEmails(appt.extra_participants),
@@ -692,6 +697,7 @@ export async function sendVisioParticipantInviteEmail(
   meetingLink: string,
   apptId: string,
   prospectName: string,
+  brand?: string | null,
 ): Promise<ReminderResult> {
   const studentLink = personalizeVisioUrl(meetingLink, participantFirstName)
   const visioBlock = `
@@ -725,7 +731,7 @@ export async function sendVisioParticipantInviteEmail(
   `
 
   return sendReminderEmail({
-    target: { prospectEmail: participantEmail },
+    target: { prospectEmail: participantEmail, brand },
     subject: `Invitation visio Diploma Santé — ${dateStr}`,
     html: emailLayout(content, {
       heroTitle: 'Vous êtes invité(e) à une visio',
@@ -742,7 +748,8 @@ async function sendReminderEmail(opts: {
   html: string
   tag: string
 }): Promise<ReminderResult> {
-  const { target, subject, html, tag } = opts
+  const { target, tag } = opts
+  const { subject, html, sender } = brandRdvEmail({ subject: opts.subject, html: opts.html }, target.brand)
   if (!target.prospectEmail) {
     return { ok: false, error: 'Pas d\'email prospect' }
   }
@@ -762,7 +769,7 @@ async function sendReminderEmail(opts: {
   }
   try {
     const res = await sendBrevoEmail({
-      sender: SENDER,
+      sender: sender || SENDER,
       to,
       subject,
       htmlContent: html,

@@ -19,7 +19,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
 import { updateDealStage, STAGES } from '@/lib/hubspot'
-import { sendSms, buildReplanifierSms } from '@/lib/smsfactor'
+import { sendRdvSms, buildReplanifierSms } from '@/lib/smsfactor'
+import { isMediboxBrand, rdvBrandBookingUrl } from '@/lib/rdv-brand'
 
 const REPLANIF_URL = process.env.REPLANIF_URL || process.env.NEXT_PUBLIC_SITE_URL || ''
 
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
 
   const { data: toSmsReplanif, error: fetchSmsErr } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, sms_replanifier_sent_at')
+    .select('id, prospect_name, prospect_phone, sms_replanifier_sent_at, brand')
     .eq('status', 'no_show')
     .not('prospect_phone', 'is', null)
     .is('sms_replanifier_sent_at', null)
@@ -109,8 +110,10 @@ export async function GET(req: NextRequest) {
     if (!appt.prospect_phone || appt.sms_replanifier_sent_at) continue
 
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
-    const message = buildReplanifierSms(firstName, REPLANIF_URL || undefined)
-    const smsResult = await sendSms(appt.prospect_phone, message)
+    // Medibox : on renvoie vers la page de prise de RDV Medibox
+    const replanifUrl = isMediboxBrand(appt.brand) ? rdvBrandBookingUrl(appt.brand) : (REPLANIF_URL || undefined)
+    const message = buildReplanifierSms(firstName, replanifUrl)
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand)
 
     if (smsResult.ok) {
       await db

@@ -20,6 +20,7 @@ export const APPOINTMENT_LIST_SELECT = `
   hubspot_deal_id,
   notes,
   source,
+  brand,
   classe_actuelle,
   departement,
   telepro_id,

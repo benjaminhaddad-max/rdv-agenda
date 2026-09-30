@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Calendar, Users, LayoutDashboard, Plus } from 'lucide-react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -10,6 +10,8 @@ import CloserNewRdvModal from './CloserNewRdvModal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
 import { campusShortLabel } from '@/lib/campus'
+import { RDV_BRANDS, normalizeRdvBrand, type RdvBrand } from '@/lib/rdv-brand'
+import MediboxBadge from './MediboxBadge'
 
 type Appointment = {
   id: string
@@ -20,6 +22,7 @@ type Appointment = {
   end_at: string
   status: AppointmentStatus
   source?: string
+  brand?: string | null
   formation_type?: string | null
   hubspot_deal_id: string | null
   hubspot_contact_id?: string | null
@@ -219,7 +222,15 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
-  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [allAppointments, setAppointments] = useState<Appointment[]>([])
+  // Filtre marque : les RDV Medibox partagent l'agenda mais restent isolables.
+  const [brandFilter, setBrandFilter] = useState<'all' | RdvBrand>('all')
+  const appointments = useMemo(
+    () => brandFilter === 'all'
+      ? allAppointments
+      : allAppointments.filter(a => normalizeRdvBrand(a.brand) === brandFilter),
+    [allAppointments, brandFilter],
+  )
   const [commerciaux, setCommerciaux] = useState<Commercial[]>([])
   // closerId = verrouillé sur un closer, adminMode = 'all', sinon persiste via localStorage
   const [selectedCommercial, setSelectedCommercial] = useState<string>(() => {
@@ -466,7 +477,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     const formation = (appt.formation_type || '').trim()
     const displayName = shortProspectName(appt.prospect_name)
     const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
-    const tooltip = `${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`
+    const tooltip = `${normalizeRdvBrand(appt.brand) === 'medibox' ? '[Medibox] ' : ''}${format(new Date(appt.start_at), 'HH:mm')} ${appt.prospect_name}${niveau ? ` — ${niveau}` : ''}${formation ? ` · ${formation}` : ''}`
 
     const lay = dayLayout.slots.get(appt.id) || { col: 0, cols: 1 }
     const gap = 3
@@ -580,6 +591,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           </span>
           {appt.meeting_type === 'visio' && <span style={{ marginRight: 2 }}>📹</span>}
           {appt.meeting_type === 'presentiel' && <span style={{ marginRight: 2 }}>📍</span>}
+          <MediboxBadge brand={appt.brand} compact={!isDay} style={{ marginRight: 3 }} />
           {displayName}
         </div>
         {niveau && (
@@ -1044,8 +1056,27 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           flexWrap: 'wrap',
           flexShrink: 0,
         }}>
+          <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8' }}>
+            {(['all', 'diploma', 'medibox'] as const).map(b => (
+              <button
+                key={b}
+                onClick={() => setBrandFilter(b)}
+                style={{
+                  background: brandFilter === b ? (b === 'all' ? '#0e1e35' : RDV_BRANDS[b].color) : 'transparent',
+                  border: 'none', borderRadius: 6, padding: '3px 10px',
+                  color: brandFilter === b ? 'white' : '#4a6070',
+                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {b === 'all' ? 'Tous les RDV' : RDV_BRANDS[b].label}
+              </button>
+            ))}
+          </div>
           <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>
             Fond = statut · Contour = closer
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#0e1e35', fontWeight: 500 }}>
+            <MediboxBadge brand="medibox" compact /> RDV Medibox
           </span>
           {POST_RDV_LEGEND.map(item => (
             <span
@@ -1439,6 +1470,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
                       color: statusFillTextColor(getStatusFill(appt)),
                     }}>
                       {appt.prospect_name}
+                      <MediboxBadge brand={appt.brand} style={{ marginLeft: 8 }} />
                     </div>
                     <div style={{
                       fontSize: 12, marginTop: 2,

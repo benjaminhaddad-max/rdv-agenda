@@ -11,6 +11,7 @@ type Appointment = {
   start_at: string
   meeting_type: string | null
   status: string
+  brand?: string | null
 }
 
 type Step = 'loading' | 'success' | 'error'
@@ -65,12 +66,21 @@ export default function ConfirmPage() {
 
   const startDate = appt ? new Date(appt.start_at) : null
   const firstName = appt?.prospect_name.trim().split(/\s+/)[0] ?? ''
+  // Charte selon la marque du RDV (Diploma Santé par défaut, Medibox en violet)
+  const medibox = appt?.brand === 'medibox'
+  const brandName = medibox ? 'Medibox' : 'Diploma Santé'
+  const accent = medibox ? '#A78BFA' : '#c6aa7c'
+  const link = medibox ? '#C4B5FD' : '#4fabdb'
+  const cardBg = medibox ? '#140E2E' : '#152840'
+  const cardBorder = medibox ? '#2A1B6B' : '#25405e'
 
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #0b1a2d 0%, #12314d 100%)',
+        background: medibox
+          ? 'linear-gradient(180deg, #07050D 0%, #1A1040 100%)'
+          : 'linear-gradient(180deg, #0b1a2d 0%, #12314d 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -86,22 +96,24 @@ export default function ConfirmPage() {
           style={{
             fontSize: 12,
             fontWeight: 700,
-            color: '#c6aa7c',
+            color: accent,
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
             marginBottom: 4,
           }}
         >
-          Diploma Santé
+          {step === 'loading' ? '\u00a0' : brandName}
         </div>
-        <div style={{ fontSize: 11, color: '#7e8ca0', fontStyle: 'italic' }}>la prépa médecine</div>
+        <div style={{ fontSize: 11, color: '#7e8ca0', fontStyle: 'italic' }}>
+          {step === 'loading' ? '\u00a0' : medibox ? 'l\u2019accompagnement santé 100\u00a0% en ligne' : 'la prépa médecine'}
+        </div>
       </div>
 
       {/* Carte principale */}
       <div
         style={{
-          background: '#152840',
-          border: '1px solid #25405e',
+          background: cardBg,
+          border: `1px solid ${cardBorder}`,
           borderRadius: 20,
           padding: '36px 30px',
           maxWidth: 460,
@@ -120,7 +132,7 @@ export default function ConfirmPage() {
         >
           <path
             d="M2 13 Q 12 3, 22 13 T 42 13 T 62 13 T 82 13"
-            stroke="#4fabdb"
+            stroke={link}
             strokeWidth="2.4"
             strokeLinecap="round"
             fill="none"
@@ -134,8 +146,8 @@ export default function ConfirmPage() {
               style={{
                 width: 36,
                 height: 36,
-                border: '3px solid #25405e',
-                borderTopColor: '#c6aa7c',
+                border: `3px solid ${cardBorder}`,
+                borderTopColor: accent,
                 borderRadius: '50%',
                 margin: '0 auto 16px',
                 animation: 'spin 0.9s linear infinite',
@@ -172,7 +184,7 @@ export default function ConfirmPage() {
               <br />
               <a
                 href="mailto:admissions@diploma-sante.fr"
-                style={{ color: '#4fabdb', textDecoration: 'none' }}
+                style={{ color: link, textDecoration: 'none' }}
               >
                 admissions@diploma-sante.fr
               </a>{' '}
@@ -190,7 +202,7 @@ export default function ConfirmPage() {
                 width: 64,
                 height: 64,
                 borderRadius: '50%',
-                background: '#c6aa7c',
+                background: accent,
                 margin: '0 auto 22px',
                 display: 'flex',
                 alignItems: 'center',
@@ -225,7 +237,7 @@ export default function ConfirmPage() {
               <p style={{ margin: '0 0 24px', fontSize: 14, color: '#a8b6c8', lineHeight: 1.6 }}>
                 Merci <strong style={{ color: '#e8eaf0' }}>{firstName}</strong>, votre présence est bien
                 enregistrée dans notre agenda.
-                <br />À très bientôt chez Diploma Santé.
+                <br />À très bientôt chez {brandName}.
               </p>
             )}
 
@@ -234,7 +246,7 @@ export default function ConfirmPage() {
               <div
                 style={{
                   background: 'linear-gradient(135deg,#1b324c 0%,#1f3a5b 100%)',
-                  borderLeft: '3px solid #c6aa7c',
+                  borderLeft: `3px solid ${accent}`,
                   borderRadius: '0 12px 12px 0',
                   padding: '16px 20px',
                   textAlign: 'left',
@@ -245,7 +257,7 @@ export default function ConfirmPage() {
                   style={{
                     display: 'inline-block',
                     background: '#3b3024',
-                    color: '#c6aa7c',
+                    color: accent,
                     fontSize: 10,
                     fontWeight: 700,
                     letterSpacing: '0.14em',
@@ -261,7 +273,7 @@ export default function ConfirmPage() {
                   {format(startDate, "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
                 </div>
                 <div style={{ fontSize: 13, color: '#a8b6c8' }}>
-                  <span style={{ color: '#c6aa7c', fontWeight: 700, marginRight: 6 }}>→</span>
+                  <span style={{ color: accent, fontWeight: 700, marginRight: 6 }}>→</span>
                   {getMeetingLabel(appt?.meeting_type ?? null)}
                 </div>
               </div>
@@ -284,7 +296,7 @@ export default function ConfirmPage() {
       </div>
 
       <div style={{ marginTop: 26, fontSize: 11, color: '#5e7088' }}>
-        © Diploma Santé — Prépa médecine
+        © {brandName}{medibox ? '' : ' — Prépa médecine'}
       </div>
     </div>
   )

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
-import { sendSms, buildBookingSms } from '@/lib/smsfactor'
+import { sendRdvSms, buildBookingSms } from '@/lib/smsfactor'
+import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
@@ -39,6 +40,7 @@ async function notifyQueueAlert(appointment: any, source: string): Promise<void>
           ${appointment.formation_type ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Formation</td><td>${appointment.formation_type}</td></tr>` : ''}
           ${appointment.classe_actuelle ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Classe</td><td>${appointment.classe_actuelle}</td></tr>` : ''}
           <tr><td style="padding:4px 12px 4px 0;color:#64748b">Source</td><td>${source}</td></tr>
+          ${appointment.brand === 'medibox' ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Marque</td><td><strong>Medibox</strong></td></tr>` : ''}
         </table>
         <p style="margin:14px 0">
           <a href="${queueLink}" style="display:inline-block;padding:10px 18px;background:#0038f0;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Ouvrir la file d'attente</a>
@@ -150,13 +152,18 @@ export async function POST(req: NextRequest) {
     classe_actuelle,        // classe → mis à jour sur le contact HubSpot
     call_notes,
     booking_note,           // note libre saisie lors de la prise de RDV → activité contact
-    meeting_type,           // 'visio' | 'telephone' | 'presentiel'
-    meeting_link,           // URL du lien visio (si visio)
     telepro_id,             // ID du télépro qui place le RDV
     web_booking,            // true si RDV pris via le widget/lien public (BookingDiploma)
     prospect_firstname,     // prénom séparé (widget web) — pour la fiche contact
     prospect_lastname,      // nom séparé (widget web)
   } = body
+
+  // Marque du RDV : 'medibox' pour la page /book/medibox, sinon Diploma Santé.
+  const brand = normalizeRdvBrand(body.brand)
+  const isMedibox = brand === 'medibox'
+  // Les RDV Medibox se font uniquement à distance (Google Meet).
+  const meeting_type = isMedibox ? 'visio' : body.meeting_type
+  const meeting_link = isMedibox ? null : body.meeting_link
 
   if (!prospect_name || !prospect_email || !start_at || !end_at) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
@@ -254,7 +261,7 @@ export async function POST(req: NextRequest) {
             email: emailClean,
             hubspot_contact_id: nativeId,
             hubspot_owner_id: null,
-            origine: 'Prise de RDV - Site web',
+            origine: RDV_BRANDS[brand].origine,
             contact_createdate: nowIso,
           })
           .select('hubspot_contact_id')
@@ -355,7 +362,7 @@ export async function POST(req: NextRequest) {
 
     if (isGoogleMeetConfigured()) {
       const meet = await createMeetEvent({
-        summary: `RDV Diploma Santé — ${prospect_name}`,
+        summary: `RDV ${RDV_BRANDS[brand].label} — ${prospect_name}`,
         startAtIso: new Date(start_at as string).toISOString(),
         endAtIso: new Date(end_at as string).toISOString(),
         prospectEmail: prospect_email || null,
@@ -388,6 +395,8 @@ export async function POST(req: NextRequest) {
       end_at,
       status: assignedCommercialId ? 'confirme' : 'non_assigne',
       source,
+      // Colonne posée uniquement pour Medibox : défaut DB = 'diploma'
+      ...(isMedibox ? { brand } : {}),
       formation_type: formation_type || null,
       hubspot_contact_id: contactId || null,
       departement: departement ? String(departement) : null,
@@ -423,7 +432,7 @@ export async function POST(req: NextRequest) {
       const dateStr = formatParis(startDate)
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
       const message = buildBookingSms(firstName, dateStr, meeting_type || null, finalMeetingLink)
-      const smsResult = await sendSms(prospect_phone, message)
+      const smsResult = await sendRdvSms(prospect_phone, message, brand)
       if (smsResult.ok) {
         await db
           .from('rdv_appointments')
@@ -444,7 +453,7 @@ export async function POST(req: NextRequest) {
       const dateStr = formatParis(startDate)
       const firstName = String(prospect_name || '').trim().split(/\s+/)[0] || 'bonjour'
       const emailResult = await sendBookingConfirmationEmail(
-        { prospectEmail: prospect_email, emailParent: email_parent || null },
+        { prospectEmail: prospect_email, emailParent: email_parent || null, brand },
         firstName,
         dateStr,
         meeting_type || null,
@@ -527,7 +536,7 @@ export async function POST(req: NextRequest) {
             closedate: start_at,
             createdate: nowIso,
             description: isWebBooking
-              ? `RDV ${meeting_type || ''} pris via le site (widget web)`.trim()
+              ? `RDV ${meeting_type || ''} pris via le site ${isMedibox ? 'Medibox' : '(widget web)'}`.trim()
               : `RDV ${meeting_type || ''} placé par télépro`.trim(),
             supabase_appt_id: appointment.id,
             synced_at: nowIso,
