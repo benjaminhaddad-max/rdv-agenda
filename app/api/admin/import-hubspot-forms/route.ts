@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const prefix = (body.prefix ?? 'NS') as string
   const dryRun = !!body.dryRun
-  // Dossier cible pour les forms importés (Diploma Santé, Edumove, Linova
+  // Dossier cible pour les forms importés (Diploma Santé, Medibox, Edumove, Linova
   // Education, AFEM, Prépa Médecine.fr, Hermione). Diploma Santé par défaut.
   const folder = (body.folder ?? 'Diploma Santé') as string
 

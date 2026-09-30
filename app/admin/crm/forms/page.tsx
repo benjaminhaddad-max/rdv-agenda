@@ -28,14 +28,15 @@ const STATUS_META: Record<Form['status'], { label: string; color: string; bg: st
   archived:  { label: 'Archivé',    color: '#4a6070', bg: 'rgba(139,143,168,0.15)', icon: Archive },
 }
 
-// Dossiers de classement des formulaires (6 marques du groupe)
-const FOLDERS = ['Diploma Santé', 'Edumove', 'Linova Education', 'AFEM', 'Prépa Médecine.fr', 'Hermione'] as const
+// Dossiers de classement des formulaires (7 marques du groupe)
+const FOLDERS = ['Diploma Santé', 'Medibox', 'Edumove', 'Linova Education', 'AFEM', 'Prépa Médecine.fr', 'Hermione'] as const
 type Folder = typeof FOLDERS[number]
 const DEFAULT_FOLDER: Folder = 'Diploma Santé'
 
 // Couleur par dossier (déco)
 const FOLDER_COLOR: Record<Folder, string> = {
   'Diploma Santé':     '#22c55e',
+  'Medibox':           '#14b8a6',
   'Edumove':           '#0ea5e9',
   'Linova Education':  '#a855f7',
   'AFEM':              '#f59e0b',
@@ -83,7 +84,7 @@ export default function FormsPage() {
 
   // Compteurs par dossier (pour les tabs)
   const folderCounts: Record<Folder, number> = {
-    'Diploma Santé': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0, 'Hermione': 0,
+    'Diploma Santé': 0, 'Medibox': 0, 'Edumove': 0, 'Linova Education': 0, 'AFEM': 0, 'Prépa Médecine.fr': 0, 'Hermione': 0,
   }
   for (const f of forms) folderCounts[getFolder(f)]++
 
