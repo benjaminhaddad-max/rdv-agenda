@@ -89,8 +89,10 @@ export function prettyLocation(location: string | null | undefined): string {
 
 export function detectLandingKind(event: EventLandingEvent): LandingKind {
   const name = (event.name || '').toLowerCase()
-  if (/immersion/.test(name)) return 'immersion'
+  // Un webinaire reste un webinaire même s’il s’appelle « Immersion … » :
+  // la page « journée d’immersion » décrit une journée entière sur le campus.
   if (event.event_type === 'webinaire' || /webinaire/.test(name)) return 'webinaire'
+  if (/immersion/.test(name)) return 'immersion'
   if (event.event_type === 'salon' && !isCampusLocation(event.location)) return 'salon'
   if (/salon/.test(name) && !isCampusLocation(event.location)) return 'salon'
   return 'jpo'

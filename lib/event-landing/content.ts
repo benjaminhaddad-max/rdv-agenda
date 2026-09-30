@@ -408,7 +408,122 @@ function salonCopy(event: EventLandingEvent, fmt: EventDateFormat): LandingCopy 
   }
 }
 
+/** Matière d’un webinaire-cours, lue dans le nom (« … - Cours de Biologie Cellulaire »). */
+function coursSubject(event: EventLandingEvent): string | null {
+  const m = (event.name || '').match(/\bcours\s+(?:de\s+|d[’'])(.+)$/i)
+  return m ? m[1].trim().toLowerCase() : null
+}
+
+function isCoursWebinaire(event: EventLandingEvent): boolean {
+  return /\bcours\b|immersion/i.test(event.name || '')
+}
+
+/** Webinaire où l’on suit un vrai cours de première année, en direct (pas une session d’orientation). */
+function webinaireCoursCopy(event: EventLandingEvent, fmt: EventDateFormat): LandingCopy {
+  const cap = limitedBadge(event)
+  const matiere = coursSubject(event)
+  const unCours = matiere ? `un cours de ${matiere}` : 'un cours'
+  return {
+    kind: 'webinaire',
+    breadcrumb: event.name,
+    heroTitle: 'Un vrai cours de',
+    heroAccent: 'première année de médecine',
+    chapeaux: [
+      `Pas une présentation de l’école. **${unCours.charAt(0).toUpperCase()}${unCours.slice(1)} en direct**, tel qu’il est donné à nos étudiants de PASS et de LAS, par un de nos professeurs.`,
+      `Le ${fmt.dateLongue}, ${fmt.timeEnd ? `de ${fmt.timeStart} à ${fmt.timeEnd}` : `à ${fmt.timeStart}`}, depuis chez vous. À la fin du webinaire, vous saurez ce que demande réellement cette année — et où vous en êtes.`,
+    ],
+    badges: ['En ligne', 'Gratuit', cap || fmt.horaires].filter(Boolean) as string[],
+    whyTitle: 'Ce que vous ne pouvez pas savoir',
+    whyAccent: 'avant de l’avoir suivi',
+    whyLead: 'Les plaquettes se ressemblent toutes. Un cours au niveau réel, non.',
+    avantages: [
+      {
+        title: 'Le niveau attendu',
+        text: 'Un chapitre du programme de première année, au rythme réel. Vous verrez ce qu’une brochure ne peut pas décrire : la densité, la vitesse, le volume de notes à prendre.',
+      },
+      {
+        title: 'Votre position de départ',
+        text: 'Ce que vous suivez sans effort, ce qui vous échappe : vous repartez avec un repère concret, et il est souvent plus rassurant qu’on ne le craint.',
+      },
+      {
+        title: 'Vos questions en direct',
+        text: 'Sur le cours, la méthode ou l’année qui vous attend : vous posez la vôtre. Les parents peuvent suivre la session.',
+      },
+    ],
+    derouleTitle: 'Le déroulé du',
+    derouleAccent: 'webinaire',
+    derouleLead: `${fmt.dateLongue}, ${fmt.horaires}. Connexion 10 minutes avant.`,
+    deroule: [
+      {
+        time: fmt.timeStart,
+        title: 'Ouverture',
+        text: 'Le cadre de la session et la place de ce chapitre dans le programme de première année.',
+      },
+      {
+        time: 'Ensuite',
+        title: matiere ? `Le cours de ${matiere}` : 'Le cours',
+        text: 'Le cours tel qu’il est donné à nos étudiants, sans aménagement. Prenez des notes comme vous le feriez en amphi.',
+      },
+      {
+        time: fmt.timeEnd || 'Fin',
+        title: 'Questions',
+        text: 'Un temps est gardé pour vos questions, sur le cours comme sur la première année.',
+      },
+    ],
+    aPrevoir: [
+      'Un ordinateur ou un téléphone, et une connexion stable',
+      'De quoi prendre des notes',
+      'Le lien Zoom arrive par email après inscription',
+      'Se connecter 10 minutes en avance',
+    ],
+    temoinsTitle: 'Ils ont suivi',
+    temoinsAccent: 'Diploma Santé',
+    temoinsLead: 'Et ils ont été admis en études de santé.',
+    temoins: TEMOINS_BRAND,
+    tarif: 'Gratuit\nInscription obligatoire',
+    acces: 'En ligne — lien envoyé après inscription',
+    faq: [
+      {
+        q: 'C’est vraiment gratuit ?',
+        a: 'Oui. L’inscription sert à vous envoyer le lien de connexion, pas à ouvrir un tarif.',
+      },
+      {
+        q: 'Où est le lien Zoom ?',
+        a: 'Il n’est pas public. Il part par email après inscription, avec un rappel avant la session.',
+      },
+      {
+        q: 'Faut-il un niveau particulier pour suivre ?',
+        a: 'Non. Le cours est pensé pour des élèves de Terminale : l’objectif est de découvrir le niveau attendu, pas de tout maîtriser.',
+      },
+      {
+        q: 'Faut-il déjà avoir décidé de faire médecine ?',
+        a: 'Non. Beaucoup viennent précisément pour trancher. Un vrai cours donne une idée concrète de ce que demande l’année.',
+      },
+      {
+        q: 'Mes parents peuvent-ils suivre ?',
+        a: 'Oui. Un seul lien suffit pour le foyer.',
+      },
+      {
+        q: 'Y a-t-il un replay ?',
+        a: 'La session est conçue pour le direct, notamment les questions. Inscrivez-vous pour recevoir le lien le jour J.',
+      },
+    ],
+    ctaKicker: '',
+    ctaTitle: 'Un cours pour savoir',
+    ctaAccent: 'où vous en êtes',
+    ctaLead: `Gratuit, en ligne. ${fmt.dateLongue}, ${fmt.horaires}.`,
+    ctaLabel: 'Je m’inscris',
+    formKicker: 'Inscription gratuite',
+    formTitle: 'Recevoir le lien',
+    formSuccessTitle: 'Inscription enregistrée',
+    formSuccessText: event.has_comms
+      ? 'Le lien de connexion vous est envoyé par email, avec un rappel avant la session.'
+      : 'Votre inscription est enregistrée. Le lien de connexion vous sera communiqué avant la session.',
+  }
+}
+
 function webinaireCopy(event: EventLandingEvent, fmt: EventDateFormat): LandingCopy {
+  if (isCoursWebinaire(event)) return webinaireCoursCopy(event, fmt)
   const cap = limitedBadge(event)
   return {
     kind: 'webinaire',
