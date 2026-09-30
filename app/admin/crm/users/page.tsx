@@ -59,6 +59,7 @@ export default function UsersPage() {
   })
   const [createError, setCreateError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [credentials, setCredentials] = useState<{ name: string; email: string; password: string; emailSent: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,9 +114,11 @@ export default function UsersPage() {
         crm_brand: '',
         is_default_brand_telepro: false,
       })
-      setNotice(d.invited
-        ? `${d.name} a été invité par email — il pourra choisir son mot de passe`
-        : `${d.name} créé`)
+      if (d.password) {
+        setCredentials({ name: d.name, email: d.email, password: d.password, emailSent: !!d.email_sent })
+      } else {
+        setNotice(`${d.name} créé (compte existant — mot de passe inchangé)`)
+      }
       await load()
     } finally {
       setCreating(false)
@@ -194,6 +197,29 @@ export default function UsersPage() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-3 md:px-6 py-4 md:py-6">
+        {credentials && (
+          <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm flex items-start justify-between gap-3">
+            <div>
+              <div className="font-semibold">
+                {credentials.name} créé — {credentials.emailSent
+                  ? 'identifiants envoyés par email'
+                  : "l'email n'a pas pu être envoyé, transmettez-lui ces identifiants"}
+              </div>
+              <div className="mt-1 font-mono text-xs select-all">
+                {credentials.email} / {credentials.password}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => navigator.clipboard.writeText(`${credentials.email} / ${credentials.password}`)}
+                className="text-xs font-semibold underline"
+              >
+                Copier
+              </button>
+              <button onClick={() => setCredentials(null)} className="text-xs underline">Fermer</button>
+            </div>
+          </div>
+        )}
         {notice && (
           <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
             {notice}
@@ -384,7 +410,7 @@ export default function UsersPage() {
               <h2 className="text-base font-bold text-[#0e1e35]">Ajouter un utilisateur</h2>
             </div>
             <p className="text-xs text-[#4a6070] mb-5">
-              Un email d&apos;invitation sera envoyé pour qu&apos;il choisisse son mot de passe.
+              Un mot de passe sera généré et envoyé par email avec le lien de connexion.
             </p>
 
             <div className="space-y-3">
@@ -472,7 +498,7 @@ export default function UsersPage() {
                 disabled={creating}
                 className="px-4 py-2 text-sm font-semibold bg-[#C9A84C] text-white rounded-lg hover:bg-[#b89a5e] transition-colors disabled:opacity-60"
               >
-                {creating ? 'Création…' : 'Inviter par email'}
+                {creating ? 'Création…' : 'Créer et envoyer les accès'}
               </button>
             </div>
           </div>

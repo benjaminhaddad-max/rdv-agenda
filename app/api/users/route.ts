@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiRole, requireApiUser } from '@/lib/api-auth'
+import { sendBrevoEmail } from '@/lib/brevo'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
 const ROLES = new Set(['admin', 'closer', 'manager', 'telepro'])
@@ -9,6 +12,25 @@ const CRM_SCOPES = new Set(['all', 'brand_only'])
 function slugify(s: string): string {
   return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'user'
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function generatePassword(): string {
+  const upper   = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const lower   = 'abcdefghjkmnpqrstuvwxyz'
+  const digits  = '23456789'
+  const special = '!@#$'
+  const all = upper + lower + digits + special
+  const rand = (chars: string) => chars[crypto.getRandomValues(new Uint32Array(1))[0] % chars.length]
+  const pwd = [rand(upper), rand(lower), rand(digits), rand(special), ...Array.from({ length: 12 }, () => rand(all))]
+  for (let i = pwd.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1)
+    ;[pwd[i], pwd[j]] = [pwd[j], pwd[i]]
+  }
+  return pwd.join('')
 }
 
 function normalizeBrand(value: unknown): string | null {
@@ -89,32 +111,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Un utilisateur avec cet email existe deja' }, { status: 409 })
   }
 
-  // 2. Inviter par email via Supabase Auth (mail "Choisir mot de passe")
+  // 2. Creer le compte Supabase Auth avec un mot de passe genere.
+  // (On n'utilise plus inviteUserByEmail : le SMTP integre de Supabase est
+  // limite a quelques emails/heure → "email rate limit exceeded".)
   let authId: string | null = null
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adminAuth = (db as any).auth?.admin
-    if (adminAuth?.inviteUserByEmail) {
-      const { data: invite, error: inviteErr } = await adminAuth.inviteUserByEmail(
-        cleanEmail,
-        { data: { name: cleanName, role } }
-      )
-      if (inviteErr) {
-        if (String(inviteErr.message || '').toLowerCase().includes('already')) {
-          // User auth deja existant : on le retrouve
-          const { data: list } = await adminAuth.listUsers()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const found = list?.users?.find((u: any) => u.email?.toLowerCase() === cleanEmail)
-          authId = found?.id ?? null
-        } else {
-          return NextResponse.json({ error: `Auth: ${inviteErr.message}` }, { status: 500 })
-        }
+  let password: string | null = generatePassword()
+  {
+    const { data: created, error: createErr } = await db.auth.admin.createUser({
+      email: cleanEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { name: cleanName, role },
+    })
+    if (createErr) {
+      if (/already|exists/i.test(String(createErr.message || ''))) {
+        // User auth deja existant : on le retrouve et on garde son mot de passe
+        const { data: list } = await db.auth.admin.listUsers({ perPage: 1000 })
+        const found = list?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
+        authId = found?.id ?? null
+        password = null
       } else {
-        authId = invite?.user?.id ?? null
+        return NextResponse.json({ error: `Auth: ${createErr.message}` }, { status: 500 })
       }
+    } else {
+      authId = created.user?.id ?? null
     }
-  } catch (e) {
-    return NextResponse.json({ error: `Auth invite failed: ${String(e)}` }, { status: 500 })
   }
 
   // 3. Inserer dans rdv_users (avec slug unique)
@@ -155,8 +176,36 @@ export async function POST(req: NextRequest) {
     .select('id, name, email, slug, avatar_color, role, hubspot_owner_id, hubspot_user_id, auth_id, created_at, crm_brand, crm_scope, is_default_brand_telepro')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ...row, invited: !!authId }, { status: 201 })
+  if (error) {
+    if (authId && password) await db.auth.admin.deleteUser(authId).catch(() => {})
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 4. Envoyer les identifiants par email via Brevo (best-effort : l'admin
+  // voit de toute facon le mot de passe a l'ecran).
+  let emailSent = false
+  if (password) {
+    try {
+      await sendBrevoEmail({
+        to: [{ email: cleanEmail, name: cleanName }],
+        subject: 'Votre accès à RDV Agenda',
+        htmlContent: `
+          <p>Bonjour ${escapeHtml(cleanName)},</p>
+          <p>Un compte vient d'être créé pour vous sur RDV Agenda.</p>
+          <p>
+            <strong>Identifiant :</strong> ${escapeHtml(cleanEmail)}<br/>
+            <strong>Mot de passe :</strong> ${escapeHtml(password)}
+          </p>
+          <p><a href="${SITE_URL}/login">Se connecter</a></p>
+        `,
+      })
+      emailSent = true
+    } catch (e) {
+      console.error('[users] envoi email identifiants echoue', e)
+    }
+  }
+
+  return NextResponse.json({ ...row, password, email_sent: emailSent }, { status: 201 })
 }
 
 // PATCH /api/users — Update un utilisateur (name, role, email, hubspot_owner_id)
