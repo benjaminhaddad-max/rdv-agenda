@@ -19,6 +19,7 @@ export const CRM_ORIGINE_OPTIONS: OrigineOption[] = [
   { label: 'Medibox Lab - Marseille', value: 'Medibox Lab - Marseille' },
   { label: 'Medibox Lab - Bordeaux', value: 'Medibox Lab - Bordeaux' },
   { label: 'Medibox Lab - Montpellier', value: 'Medibox Lab - Montpellier' },
+  { label: 'Medibox Lab - Lille', value: 'Medibox Lab - Lille' },
 ]
 
 export const CRM_ORIGINE_VALUES = CRM_ORIGINE_OPTIONS.map(o => o.value)
