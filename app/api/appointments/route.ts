@@ -3,7 +3,7 @@ import { createServerSupabase, createServiceClient } from '@/lib/supabase'
 import { assignCloserForSlot } from '@/lib/closer-assignment'
 import { sendBrevoEmail } from '@/lib/brevo'
 import { sendRdvSms, buildBookingSms } from '@/lib/smsfactor'
-import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
+import { RDV_BRANDS, normalizeRdvBrand, isMediboxBookingOrigin } from '@/lib/rdv-brand'
 import { sendBookingConfirmationEmail } from '@/lib/email-reminders'
 import { formatParis } from '@/lib/date-paris'
 import { STAGES, PIPELINE_2026_2027, formatDealName } from '@/lib/hubspot'
@@ -133,9 +133,38 @@ export async function GET(req: NextRequest) {
   })
 }
 
+// CORS : la page de prise de RDV Medibox peut être hébergée sur un domaine
+// Medibox. Ces requêtes cross-origin créent toujours un RDV de marque Medibox.
+function mediboxCorsHeaders(origin: string): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  }
+}
+
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('origin')
+  if (!isMediboxBookingOrigin(origin)) return new NextResponse(null, { status: 204 })
+  return new NextResponse(null, { status: 204, headers: mediboxCorsHeaders(origin!) })
+}
+
 // POST /api/appointments — Créer un RDV (assigné ou non)
 export async function POST(req: NextRequest) {
+  const origin = req.headers.get('origin')
+  if (!isMediboxBookingOrigin(origin)) return createAppointment(req, null)
+  const res = await createAppointment(req, 'medibox')
+  for (const [k, v] of Object.entries(mediboxCorsHeaders(origin!))) res.headers.set(k, v)
+  return res
+}
+
+async function createAppointment(req: NextRequest, forcedBrand: 'medibox' | null) {
   const body = await req.json()
+  if (forcedBrand) {
+    body.brand = forcedBrand
+    body.web_booking = true
+  }
   const {
     commercial_id,          // optionnel — null si non assigné
     prospect_name,

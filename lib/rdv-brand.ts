@@ -48,7 +48,24 @@ export function isMediboxBrand(value: unknown): boolean {
 }
 
 export function rdvBrandBookingUrl(brand: unknown): string {
-  return `${SITE_URL}${RDV_BRANDS[normalizeRdvBrand(brand)].bookingPath}`
+  const b = normalizeRdvBrand(brand)
+  // Page Medibox hébergée hors du CRM (fichier standalone sur un domaine Medibox).
+  if (b === 'medibox' && process.env.MEDIBOX_BOOKING_URL) return process.env.MEDIBOX_BOOKING_URL
+  return `${SITE_URL}${RDV_BRANDS[b].bookingPath}`
+}
+
+// Origines autorisées à créer un RDV Medibox en cross-origin (page de prise de
+// RDV hébergée sur un domaine Medibox, cf. public/medibox-rdv-standalone.html).
+const MEDIBOX_BOOKING_ORIGIN_HOSTS = ['medibox.fr', 'medibox-site-2026.vercel.app']
+
+export function isMediboxBookingOrigin(origin: string | null): boolean {
+  if (!origin) return false
+  let host: string
+  try { host = new URL(origin).hostname.toLowerCase() } catch { return false }
+  const extra = String(process.env.MEDIBOX_BOOKING_ORIGINS || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  return [...MEDIBOX_BOOKING_ORIGIN_HOSTS, ...extra]
+    .some(h => host === h || host.endsWith(`.${h}`))
 }
 
 /**
