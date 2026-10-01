@@ -11,7 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ token:
 
   const { data, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, start_at, meeting_type, status, sms_confirmed_at')
+    .select('id, prospect_name, start_at, meeting_type, status, sms_confirmed_at, brand')
     .eq('confirmation_token', token)
     .single()
 

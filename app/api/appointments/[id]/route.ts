@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
+import { sendRdvSms, buildBookingSms, buildModeChangeSms } from '@/lib/smsfactor'
+import { RDV_BRANDS, normalizeRdvBrand } from '@/lib/rdv-brand'
 import {
   sendBookingConfirmationEmail,
   sendMeetingModeChangeEmail,
@@ -46,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       prospect_name, prospect_email, prospect_phone,
       start_at, end_at, formation_type,
       meeting_type, meeting_link, google_event_id,
-      hubspot_contact_id, notes, departement, classe_actuelle, email_parent, phone_parent
+      hubspot_contact_id, notes, departement, classe_actuelle, email_parent, phone_parent, brand
     `)
     .eq('id', id)
     .single()
@@ -124,7 +125,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           appointment.meeting_type || null,
           appointment.meeting_link || null,
         )
-        const smsResult = await sendSms(appointment.prospect_phone, message)
+        const smsResult = await sendRdvSms(appointment.prospect_phone, message, appointment.brand)
         if (smsResult.ok) {
           await db
             .from('rdv_appointments')
@@ -385,7 +386,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (isGoogleMeetConfigured()) {
         const extras = await loadExtraParticipants(db, id)
         const meet = await createMeetEvent({
-          summary: `RDV Diploma Santé — ${appointment.prospect_name}`,
+          summary: `RDV ${RDV_BRANDS[normalizeRdvBrand(appointment.brand)].label} — ${appointment.prospect_name}`,
           startAtIso: new Date(appointment.start_at).toISOString(),
           endAtIso: new Date(appointment.end_at).toISOString(),
           prospectEmail: appointment.prospect_email || null,
@@ -442,7 +443,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           newMeetingType,
           finalMeetingLink,
         )
-        const smsResult = await sendSms(appointment.prospect_phone, message, { autoShorten: true })
+        const smsResult = await sendRdvSms(appointment.prospect_phone, message, appointment.brand, { autoShorten: true })
         if (smsResult.ok) {
           await db
             .from('rdv_appointments')
@@ -540,6 +541,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         appointment.meeting_link,
         id,
         appointment.prospect_name,
+        appointment.brand,
       )
       if (!emailResult.ok) {
         console.error('[appointments PATCH participant] Invite email failed:', emailResult.error)

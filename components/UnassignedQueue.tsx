@@ -1,5 +1,6 @@
 'use client'
 
+import MediboxBadge from './MediboxBadge'
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -16,6 +17,7 @@ type Appointment = {
   end_at: string
   status: string
   source?: string
+  brand?: string | null
   formation_type?: string | null
   notes: string | null
   telepro_id?: string | null
@@ -191,6 +193,7 @@ export default function UnassignedQueue({ onAssigned }: { onAssigned?: () => voi
                         <Zap size={10} />
                         {sourceInfo.label}
                       </span>
+                      <MediboxBadge brand={rdv.brand} />
                     </div>
                   </div>
 

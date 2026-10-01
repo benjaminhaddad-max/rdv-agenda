@@ -12,6 +12,7 @@
 
 import { buildConfirmUrl } from '@/lib/confirm-link'
 import { personalizeVisioUrl } from '@/lib/visio-url'
+import { RDV_BRANDS, brandSmsText, normalizeRdvBrand } from '@/lib/rdv-brand'
 
 const SMS_FACTOR_TOKEN = process.env.SMSFACTOR_API_KEY
 const DEFAULT_SENDER = 'Diploma'
@@ -398,6 +399,20 @@ export async function sendSms(
     console.error(`[smsfactor] Exception : ${message}`)
     return { ok: false, error: message }
   }
+}
+
+/**
+ * Envoie un SMS de RDV (confirmation, relances…) au nom de la marque du RDV :
+ * texte et sender adaptés pour Medibox, inchangés pour Diploma Santé.
+ */
+export async function sendRdvSms(
+  to: string,
+  text: string,
+  brand: string | null | undefined,
+  opts: SendSmsOptions = {},
+): Promise<{ ok: boolean; ticket?: string; error?: string }> {
+  const sender = RDV_BRANDS[normalizeRdvBrand(brand)].smsSender
+  return sendSms(to, brandSmsText(text, brand), sender ? { ...opts, sender } : opts)
 }
 
 /**

@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, build24hRelanceSms } from '@/lib/smsfactor'
+import { sendRdvSms, build24hRelanceSms } from '@/lib/smsfactor'
 import { send24hRelanceEmail, reminderTargetFromAppointment } from '@/lib/email-reminders'
 import { extraParticipantEmails, loadExtraParticipantsByIds } from '@/lib/appointment-participants'
 import { format } from 'date-fns'
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // SMS J-1 pour les RDV confirmés côté agenda, y compris déjà confirmés prospect
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, status, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_24h_relance_sent_at, confirmation_token')
+    .select('id, status, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_24h_relance_sent_at, confirmation_token, brand')
     .in('status', ['confirme', 'confirme_prospect'])
     .not('prospect_phone', 'is', null)
     .gte('start_at', windowStart.toISOString())
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
 
     const isConfirmedByProspect = appt.status === 'confirme_prospect'
     const message = build24hRelanceSms(firstName, dateStr, appt.meeting_type, token, isConfirmedByProspect, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message, { autoShorten: true })
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand, { autoShorten: true })
 
     if (smsResult.ok) {
       if (appt.prospect_email) {

@@ -10,6 +10,7 @@ import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
 import MeetingModeSwitcher from './MeetingModeSwitcher'
 import VisioParticipantsBlock from './VisioParticipantsBlock'
 import { appointmentPlacedByTelepro, formatAppointmentPlacementLabel } from '@/lib/appointment-display'
+import MediboxBadge from './MediboxBadge'
 import { presentielCampusLabel } from '@/lib/campus'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 
@@ -24,6 +25,7 @@ type Appointment = {
   end_at: string
   status: AppointmentStatus
   source?: string
+  brand?: string | null
   formation_type?: string | null
   hubspot_deal_id: string | null
   hubspot_contact_id?: string | null
@@ -659,6 +661,7 @@ export default function AppointmentModal({
                 <Zap size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   {formatAppointmentPlacementLabel(appointment)}
+                  <MediboxBadge brand={appointment.brand} />
                   {appointmentPlacedByTelepro(appointment)?.avatar_color && (
                     <span style={{
                       width: 10, height: 10, borderRadius: '50%',

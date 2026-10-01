@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, buildMorningSms } from '@/lib/smsfactor'
+import { sendRdvSms, buildMorningSms } from '@/lib/smsfactor'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, start_at, meeting_type, meeting_link, sms_morning_sent_at')
+    .select('id, prospect_name, prospect_phone, start_at, meeting_type, meeting_link, sms_morning_sent_at, brand')
     .in('status', ['confirme', 'confirme_prospect'])
     .not('prospect_phone', 'is', null)
     .gte('start_at', todayStart.toISOString())
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
 
     const message = buildMorningSms(firstName, heureStr, appt.meeting_type, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message)
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand)
 
     if (smsResult.ok) {
       await db.from('rdv_appointments').update({ sms_morning_sent_at: new Date().toISOString() }).eq('id', appt.id)

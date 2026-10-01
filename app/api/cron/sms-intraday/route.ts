@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, build1hSms, build5minSms } from '@/lib/smsfactor'
+import { sendRdvSms, build1hSms, build5minSms } from '@/lib/smsfactor'
 import { sendVisio1hEmail, sendVisio5minEmail, reminderTargetFromAppointment } from '@/lib/email-reminders'
 import { extraParticipantEmails, loadExtraParticipantsByIds } from '@/lib/appointment-participants'
 import { format } from 'date-fns'
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   // ── 1h avant ─────────────────────────────────────────────────────────────
   const { data: appts1h } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_1h_sent_at')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_1h_sent_at, brand')
     .in('status', ['confirme', 'confirme_prospect'])
     .eq('meeting_type', 'visio')
     .not('prospect_phone', 'is', null)
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   // ── 5min avant ───────────────────────────────────────────────────────────
   const { data: appts5min } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_5min_sent_at')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_5min_sent_at, brand')
     .in('status', ['confirme', 'confirme_prospect'])
     .eq('meeting_type', 'visio')
     .not('prospect_phone', 'is', null)
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     const heureStr = format(startParis, "HH'h'mm", { locale: fr })
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
     const message = build1hSms(firstName, heureStr, appt.meeting_type, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message)
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand)
     if (smsResult.ok) {
       if (appt.prospect_email && appt.meeting_link) {
         const emailResult = await sendVisio1hEmail(
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     if (!appt.prospect_phone) continue
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
     const message = build5minSms(firstName, appt.meeting_type, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message)
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand)
     if (smsResult.ok) {
       if (appt.prospect_email && appt.meeting_link) {
         const emailResult = await sendVisio5minEmail(

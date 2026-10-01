@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/api-auth'
 import { createServiceClient } from '@/lib/supabase'
-import { sendSms, build48hSms } from '@/lib/smsfactor'
+import { sendRdvSms, build48hSms } from '@/lib/smsfactor'
 import { send48hConfirmEmail, reminderTargetFromAppointment } from '@/lib/email-reminders'
 import { extraParticipantEmails, loadExtraParticipantsByIds } from '@/lib/appointment-participants'
 import { format } from 'date-fns'
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const { data: appointments, error } = await db
     .from('rdv_appointments')
-    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_48h_sent_at, confirmation_token')
+    .select('id, prospect_name, prospect_phone, prospect_email, email_parent, start_at, meeting_type, meeting_link, sms_48h_sent_at, confirmation_token, brand')
     .in('status', ['confirme', 'confirme_prospect'])
     .not('prospect_phone', 'is', null)
     .gte('start_at', windowStart.toISOString())
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     const firstName = appt.prospect_name.trim().split(/\s+/)[0]
 
     const message = build48hSms(firstName, dateStr, appt.meeting_type, token, appt.meeting_link)
-    const smsResult = await sendSms(appt.prospect_phone, message, { autoShorten: true })
+    const smsResult = await sendRdvSms(appt.prospect_phone, message, appt.brand, { autoShorten: true })
 
     if (smsResult.ok) {
       if (appt.prospect_email) {
