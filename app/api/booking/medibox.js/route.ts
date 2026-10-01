@@ -46,39 +46,34 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
   var OFFRES = ['Medibox Excellence', 'Medibox Coaching', 'Terminale Santé', 'Stage de pré-rentrée', 'Je ne sais pas encore']
   var OFFRES_CRM = { 'Medibox Excellence': 'Medibox Excellence (PASS / L.AS)' }
 
-  var GRAD = 'linear-gradient(135deg,#4C2FA8 0%,#6D4FD0 55%,#8B5CF6 100%)'
   var CSS = [
     ':host{all:initial}',
     '*{box-sizing:border-box}',
-    '.ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(7,5,13,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;transition:opacity .22s ease;',
+    '.ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(7,5,13,.55);opacity:0;transition:opacity .22s ease;',
     'font-family:"Proxima Nova",system-ui,-apple-system,sans-serif;color:#140E2E;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}',
     '.ov.on{opacity:1}',
     'button,input{font:inherit;color:inherit}',
     'button{cursor:pointer}',
     'button:focus{outline:none}',
     'button:focus-visible,input:focus-visible{outline:2px solid #8B5CF6;outline-offset:2px}',
-    '.win{position:relative;width:100%;max-width:940px;height:min(680px,calc(100vh - 48px));height:min(680px,calc(100dvh - 48px));background:#fff;border-radius:26px;overflow:hidden;display:grid;grid-template-columns:316px minmax(0,1fr);',
-    'box-shadow:0 40px 90px rgba(7,5,13,.45);transform:translateY(16px) scale(.98);transition:transform .28s cubic-bezier(.2,.8,.25,1)}',
+    '.win{position:relative;width:100%;max-width:900px;height:min(640px,calc(100vh - 48px));height:min(640px,calc(100dvh - 48px));background:#fff;border-radius:20px;overflow:hidden;display:grid;grid-template-columns:280px minmax(0,1fr);',
+    'box-shadow:0 24px 60px rgba(7,5,13,.3);transform:translateY(10px);transition:transform .28s cubic-bezier(.2,.8,.25,1)}',
     '.ov.on .win{transform:none}',
 
     /* Panneau gauche */
-    '.side{background-color:#07050D;background-image:radial-gradient(420px 300px at 100% 0%,rgba(109,79,208,.6),rgba(109,79,208,0) 65%),radial-gradient(360px 260px at 0% 100%,rgba(76,47,168,.4),rgba(76,47,168,0) 65%);color:#fff;padding:34px 28px 26px;display:flex;flex-direction:column;gap:22px;overflow-y:auto}',
-    '.logo{height:28px;width:auto;display:block;align-self:flex-start}',
-    '.kick{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#C4B5FD;margin-bottom:8px}',
-    '.side h2{margin:0;font-size:26px;line-height:1.08;letter-spacing:-.02em;font-weight:800}',
-    '.side h2 span{background:linear-gradient(90deg,#FFFFFF,#D9CCFF 45%,#A78BFA);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}',
-    '.side p{margin:10px 0 0;font-size:14.5px;line-height:1.55;color:rgba(255,255,255,.78)}',
-    '.recap{border:1px solid rgba(196,181,253,.22);background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border-radius:16px;padding:6px 16px}',
+    '.side{background:#140E2E;color:#fff;padding:32px 26px 24px;display:flex;flex-direction:column;gap:24px;overflow-y:auto}',
+    '.logo{height:24px;width:auto;display:block;align-self:flex-start}',
+    '.kick{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#A99BE0;margin-bottom:6px}',
+    '.side h2{margin:0;font-size:21px;line-height:1.2;letter-spacing:-.01em;font-weight:700}',
+    '.side p{margin:8px 0 0;font-size:14px;line-height:1.55;color:rgba(255,255,255,.7)}',
+    '.recap{border-top:1px solid rgba(255,255,255,.12);padding:4px 0 0}',
     '.recap div{display:flex;align-items:center;gap:12px;padding:11px 0;font-size:14px}',
-    '.recap div+div{border-top:1px solid rgba(196,181,253,.14)}',
-    '.recap svg{width:17px;height:17px;color:#C4B5FD;flex:none}',
+    '.recap div+div{border-top:1px solid rgba(255,255,255,.08)}',
+    '.recap svg{width:16px;height:16px;color:#A99BE0;flex:none}',
     '.recap .k{color:rgba(255,255,255,.6);min-width:52px}',
     '.recap .v{font-weight:700;margin-left:auto;text-align:right}',
-    '.recap .v.vide{color:rgba(255,255,255,.35);font-weight:600}',
-    '.recap .loc{display:block;font-size:12px;font-weight:600;color:#C4B5FD}',
-    '.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:14px;color:rgba(255,255,255,.88)}',
-    '.checks li{display:flex;gap:10px;align-items:flex-start}',
-    '.checks svg{width:16px;height:16px;color:#C4B5FD;flex:none;margin-top:2px}',
+    '.recap .v.vide{color:rgba(255,255,255,.35);font-weight:400}',
+    '.recap .loc{display:block;font-size:12px;font-weight:400;color:#A99BE0}',
     '.help{margin-top:auto;font-size:13px;color:rgba(255,255,255,.6)}',
     '.help a{color:#D9CCFF;font-weight:700;text-decoration:none;white-space:nowrap}',
 
@@ -89,13 +84,13 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     '.back{width:38px;height:38px;border-radius:50%;border:1px solid #E6E0FA;background:#fff;display:grid;place-items:center;color:#4C2FA8;flex:none}',
     '.back svg{width:18px;height:18px}',
     '.title{flex:1;min-width:0}',
-    '.title strong{display:block;font-size:20px;letter-spacing:-.02em;line-height:1.2}',
+    '.title strong{display:block;font-size:19px;letter-spacing:-.01em;line-height:1.25}',
     '.title span{display:block;font-size:13.5px;color:#685E7E;margin-top:2px}',
     '.x{width:38px;height:38px;border-radius:50%;border:1px solid #E6E0FA;background:#fff;color:#140E2E;display:grid;place-items:center;flex:none}',
     '.x svg{width:18px;height:18px}',
     '.steps{display:flex;gap:6px;margin-top:10px}',
-    '.steps i{height:4px;flex:1;border-radius:2px;background:#EEEAF8;max-width:44px}',
-    '.steps i.on{background:' + GRAD + '}',
+    '.steps i{height:3px;flex:1;border-radius:2px;background:#EEEAF8;max-width:32px}',
+    '.steps i.on{background:#6D4FD0}',
     '.body{flex:1;min-height:0;overflow-y:auto;padding:22px 30px 26px;scroll-behavior:smooth}',
     '.foot{padding:16px 30px 20px;border-top:1px solid #EEEAF8;display:flex;align-items:center;gap:14px;background:#fff}',
     '.foot .sum{flex:1;min-width:0;font-size:14px;color:#685E7E}',
@@ -105,28 +100,26 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     '.lbl{font-size:12px;font-weight:700;letter-spacing:.04em;color:#685E7E;text-transform:uppercase;margin:0 0 10px}',
     '.week{display:flex;align-items:center;gap:10px;margin-bottom:14px}',
     '.week strong{flex:1;font-size:15.5px;text-align:center}',
-    '.nav{width:36px;height:36px;border-radius:10px;border:1.5px solid #E6E0FA;background:#fff;display:grid;place-items:center;color:#4C2FA8}',
+    '.nav{width:34px;height:34px;border-radius:10px;border:1px solid #E6E0FA;background:#fff;display:grid;place-items:center;color:#4C2FA8}',
     '.nav svg{width:18px;height:18px}',
     '.nav:disabled{opacity:.35;cursor:default}',
     '.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}',
-    '.day{border:1.5px solid #E6E0FA;background:#fff;border-radius:14px;padding:10px 0 9px;display:flex;flex-direction:column;align-items:center;gap:1px;transition:border-color .15s,background .15s}',
+    '.day{border:1px solid #E6E0FA;background:#fff;border-radius:12px;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;transition:border-color .15s,background .15s}',
     '.day small{font-size:11.5px;font-weight:700;color:#685E7E;text-transform:uppercase;letter-spacing:.04em}',
-    '.day b{font-size:19px;font-weight:800;line-height:1.2}',
-    '.day em{font-style:normal;font-size:11.5px;color:#8A8C96}',
-    '.day:hover:not(:disabled){border-color:#8B5CF6;background:#F7F5FE}',
+    '.day b{font-size:17px;font-weight:700;line-height:1.2}',
+    '.day:hover:not(:disabled){border-color:#6D4FD0}',
     '.day:disabled{background:#FAFAFC;border-color:#F1EFF6;color:#C9C5D6;cursor:default}',
-    '.day:disabled small,.day:disabled em{color:#C9C5D6}',
-    '.day.on{background:' + GRAD + ';border-color:transparent;color:#fff;box-shadow:0 10px 22px -10px rgba(109,79,208,.9)}',
-    '.day.on small,.day.on em{color:rgba(255,255,255,.82)}',
+    '.day:disabled small{color:#C9C5D6}',
+    '.day.on{background:#6D4FD0;border-color:#6D4FD0;color:#fff}',
+    '.day.on small{color:rgba(255,255,255,.8)}',
     '.slots{margin-top:22px}',
     '.grp+.grp{margin-top:16px}',
-    '.grp .lbl{display:flex;align-items:center;gap:8px;margin-bottom:8px}',
-    '.grp .lbl svg{width:15px;height:15px;color:#8B5CF6}',
+    '.grp .lbl{margin-bottom:8px}',
     '.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}',
-    '.slot{border:1.5px solid #E6E0FA;background:#fff;border-radius:12px;padding:11px 0;font-size:15px;font-weight:700;color:#4C2FA8;font-variant-numeric:tabular-nums;transition:border-color .15s,background .15s}',
-    '.slot:hover{border-color:#8B5CF6;background:#F7F5FE}',
-    '.slot.on{background:' + GRAD + ';border-color:transparent;color:#fff}',
-    '.empty{border:1.5px dashed #E6E0FA;border-radius:16px;padding:26px 20px;text-align:center;color:#685E7E;font-size:14.5px}',
+    '.slot{border:1px solid #E6E0FA;background:#fff;border-radius:10px;padding:10px 0;font-size:14.5px;font-weight:600;color:#140E2E;font-variant-numeric:tabular-nums;transition:border-color .15s,background .15s}',
+    '.slot:hover{border-color:#6D4FD0}',
+    '.slot.on{background:#6D4FD0;border-color:#6D4FD0;color:#fff}',
+    '.empty{border:1px dashed #E6E0FA;border-radius:16px;padding:26px 20px;text-align:center;color:#685E7E;font-size:14.5px}',
     '.tz{display:flex;align-items:center;gap:7px;margin-top:16px;font-size:12.5px;color:#8A8C96}',
     '.tz svg{width:14px;height:14px}',
 
@@ -134,8 +127,8 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     '.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}',
     '.f{display:flex;flex-direction:column;gap:6px;min-width:0}',
     '.f label,.f .lbl{font-size:12px;font-weight:700;letter-spacing:.04em;color:#685E7E;text-transform:none;margin:0}',
-    '.f input{font-size:16px;color:#140E2E;width:100%;padding:13px 15px;border:1.5px solid #E6E0FA;border-radius:12px;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}',
-    '.f input:focus{border-color:#6D4FD0;box-shadow:0 0 0 4px rgba(139,92,246,.12)}',
+    '.f input{font-size:16px;color:#140E2E;width:100%;padding:12px 14px;border:1px solid #DCD6EE;border-radius:12px;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}',
+    '.f input:focus{border-color:#6D4FD0;box-shadow:0 0 0 3px rgba(109,79,208,.12)}',
     '.f input::placeholder{color:#B3ACC6}',
     '.f.bad input{border-color:#E5484D}',
     '.f.bad .pill:not(.on){border-color:#F4B4B6}',
@@ -143,37 +136,37 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     '.f.bad .msg{display:block}',
     '.blk{margin-top:18px}',
     '.pills{display:flex;flex-wrap:wrap;gap:8px}',
-    '.pill{font-size:14px;font-weight:700;padding:10px 15px;border-radius:12px;border:1.5px solid #E6E0FA;background:#fff;color:#140E2E;transition:border-color .15s,background .15s}',
-    '.pill:hover{border-color:#8B5CF6}',
-    '.pill.on{background:' + GRAD + ';border-color:transparent;color:#fff}',
+    '.pill{font-size:14px;font-weight:600;padding:9px 14px;border-radius:10px;border:1px solid #DCD6EE;background:#fff;color:#140E2E;transition:border-color .15s,background .15s}',
+    '.pill:hover{border-color:#6D4FD0}',
+    '.pill.on{background:#F3F0FC;border-color:#6D4FD0;color:#4C2FA8}',
     '.dep{max-width:150px}',
-    '.info{display:flex;gap:10px;align-items:flex-start;margin-top:20px;background:#F5F2FE;border-radius:14px;padding:13px 15px;font-size:13.5px;color:#4C2FA8;font-weight:600;line-height:1.5}',
-    '.info svg{width:18px;height:18px;flex:none;margin-top:1px}',
+    '.info{display:flex;gap:10px;align-items:flex-start;margin-top:20px;font-size:13.5px;color:#685E7E;line-height:1.5}',
+    '.info svg{width:16px;height:16px;flex:none;margin-top:2px;color:#6D4FD0}',
     '.legal{margin:14px 0 0;font-size:12px;line-height:1.5;color:#8A8C96}',
     '.legal a{color:inherit}',
     '.alert{margin-bottom:16px;background:#FEF3F2;border:1px solid #FDA29B;color:#B42318;border-radius:12px;padding:11px 14px;font-size:14px;font-weight:600}',
 
     /* Boutons */
-    '.cta{min-height:52px;border:0;border-radius:12px;background:' + GRAD + ';color:#fff;font-size:16px;font-weight:700;padding:0 26px;display:inline-flex;align-items:center;justify-content:center;gap:10px;white-space:nowrap;box-shadow:0 14px 30px -12px rgba(109,79,208,.85);transition:transform .15s,opacity .15s}',
-    '.cta:hover:not(:disabled){transform:translateY(-1px)}',
-    '.cta:disabled{background:#ECE8F6;color:#A8A1BC;box-shadow:none;cursor:not-allowed}',
+    '.cta{min-height:48px;border:0;border-radius:12px;background:#6D4FD0;color:#fff;font-size:15.5px;font-weight:700;padding:0 24px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;transition:background .15s}',
+    '.cta:hover:not(:disabled){background:#5B3FC0}',
+    '.cta:disabled{background:#ECE8F6;color:#A8A1BC;cursor:not-allowed}',
     '.cta svg{width:18px;height:18px}',
-    '.ghost{min-height:48px;border-radius:12px;border:1.5px solid #D6D7E6;background:#fff;color:#241A36;font-size:15px;font-weight:700;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:9px;text-decoration:none;transition:border-color .15s}',
-    '.ghost:hover{border-color:#8B5CF6}',
+    '.ghost{min-height:44px;border-radius:10px;border:1px solid #DCD6EE;background:#fff;color:#241A36;font-size:15px;font-weight:700;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:9px;text-decoration:none;transition:border-color .15s}',
+    '.ghost:hover{border-color:#6D4FD0}',
     '.ghost svg{width:17px;height:17px;color:#6D4FD0}',
     '.spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp .7s linear infinite}',
     '@keyframes sp{to{transform:rotate(360deg)}}',
 
     /* Étape 3 : confirmation */
     '.ok{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 0 8px}',
-    '.ok .badge{width:66px;height:66px;border-radius:50%;background:' + GRAD + ';color:#fff;display:grid;place-items:center;box-shadow:0 16px 34px -12px rgba(109,79,208,.9);margin-bottom:18px}',
-    '.ok .badge svg{width:30px;height:30px}',
-    '.ok h3{margin:0;font-size:26px;letter-spacing:-.02em;line-height:1.15}',
+    '.ok .badge{width:52px;height:52px;border-radius:50%;background:#F3F0FC;color:#6D4FD0;display:grid;place-items:center;margin-bottom:16px}',
+    '.ok .badge svg{width:24px;height:24px}',
+    '.ok h3{margin:0;font-size:22px;letter-spacing:-.01em;line-height:1.2}',
     '.ok p{margin:8px auto 0;max-width:420px;color:#685E7E;font-size:15px}',
-    '.card{margin:22px auto 0;width:100%;max-width:440px;text-align:left;border:1.5px solid #E6E0FA;border-radius:18px;padding:6px 18px;background:#FBFAFF}',
+    '.card{margin:22px auto 0;width:100%;max-width:420px;text-align:left;border:1px solid #E6E0FA;border-radius:14px;padding:4px 16px;background:#fff}',
     '.card div{display:flex;gap:12px;align-items:center;padding:12px 0;font-size:14.5px}',
     '.card div+div{border-top:1px solid #EEEAF8}',
-    '.card svg{width:17px;height:17px;color:#8B5CF6;flex:none}',
+    '.card svg{width:16px;height:16px;color:#6D4FD0;flex:none}',
     '.card b{font-weight:700}',
     '.adds{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:20px}',
 
@@ -193,7 +186,6 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     '.days{gap:5px}',
     '.day{border-radius:12px;padding:8px 0 7px}',
     '.day b{font-size:17px}',
-    '.day em{display:none}',
     '.chips{grid-template-columns:repeat(4,minmax(0,1fr))}',
     '.cta{padding:0 18px}',
     '}',
@@ -211,9 +203,6 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     right: '<path d="m9 18 6-6-6-6"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
-    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
-    sunset: '<path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m16 6-4 4-4-4"/><path d="M16 18a4 4 0 0 0-8 0"/>',
-    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     plus: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/>',
     dl: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
     arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'
@@ -335,8 +324,8 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     var heure = S.slot ? S.slot.label : null
     return '<img class="logo" src="' + LOGO + '" alt="Medibox" onerror="this.style.display=\'none\'">' +
       '<div><div class="kick">Entretien individuel</div>' +
-      '<h2>Parlons de <span>votre projet</span></h2>' +
-      '<p>Un conseiller Medibox fait le point avec vous sur votre parcours, votre faculté et l’accompagnement le plus adapté.</p></div>' +
+      '<h2>Rendez-vous avec un conseiller</h2>' +
+      '<p>Faisons le point sur votre parcours et l’accompagnement le plus adapté. Gratuit et sans engagement.</p></div>' +
       '<div class="recap">' +
       '<div>' + ic('cal') + '<span class="k">Date</span><span class="v' + (date ? '' : ' vide') + '">' + (date ? cap(date) : 'À choisir') + '</span></div>' +
       '<div>' + ic('clock') + '<span class="k">Heure</span><span class="v' + (heure ? '' : ' vide') + '">' + (heure ? heure + ' – ' + hm(parisParts(S.slot.end)) +
@@ -344,18 +333,13 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
       '<div>' + ic('hour') + '<span class="k">Durée</span><span class="v">' + DURATION_MIN + ' min</span></div>' +
       '<div>' + ic('video') + '<span class="k">Lieu</span><span class="v">Google Meet</span></div>' +
       '</div>' +
-      '<ul class="checks">' +
-      '<li>' + ic('check', 2.5) + 'Gratuit et sans engagement</li>' +
-      '<li>' + ic('check', 2.5) + 'Lien de visio envoyé par e-mail et SMS</li>' +
-      '<li>' + ic('check', 2.5) + 'Un conseiller dédié, pas un robot</li>' +
-      '</ul>' +
       '<div class="help">Une question ? <a href="' + PHONE_HREF + '">' + PHONE + '</a></div>'
   }
 
   var TITLES = {
     1: ['Choisissez un créneau', 'Entretien de ' + DURATION_MIN + ' min en visioconférence'],
     2: ['Vos coordonnées', 'Pour vous envoyer la confirmation et le lien de visio'],
-    3: ['Rendez-vous confirmé', 'À très vite !']
+    3: ['Rendez-vous confirmé', 'Entretien de ' + DURATION_MIN + ' min en visioconférence']
   }
   function headHtml() {
     var t = TITLES[S.step]
@@ -378,18 +362,18 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
       var k = wk + i * 86400000, p = kParts(k)
       var ok = k >= S.first && k <= S.last
       h += '<button class="day' + (S.day === k ? ' on' : '') + '" data-a="day" data-v="' + k + '" role="option" aria-selected="' + (S.day === k) + '"' +
-        (ok ? '' : ' disabled') + ' aria-label="' + longDay(k) + '"><small>' + JOURS_C[p.w] + '</small><b>' + p.d + '</b><em>' + MOIS_C[p.m] + '</em></button>'
+        (ok ? '' : ' disabled') + ' aria-label="' + longDay(k) + '"><small>' + JOURS_C[p.w] + '</small><b>' + p.d + '</b></button>'
     }
     h += '</div><div class="slots" id="mbx-slots">'
     if (!S.day) {
       h += '<div class="empty">Sélectionnez un jour pour voir les horaires disponibles.</div>'
     } else {
-      var groups = [['Matin', 'sun', 0, 12], ['Après-midi', 'sunset', 12, 18], ['Soir', 'moon', 18, 24]]
+      var groups = [['Matin', 0, 12], ['Après-midi', 12, 18], ['Soir', 18, 24]]
       var all = slotsOf(S.day)
       groups.forEach(function (g) {
-        var list = all.filter(function (s) { return s.h >= g[2] && s.h < g[3] })
+        var list = all.filter(function (s) { return s.h >= g[1] && s.h < g[2] })
         if (!list.length) return
-        h += '<div class="grp"><div class="lbl">' + ic(g[1]) + g[0] + '</div><div class="chips">' +
+        h += '<div class="grp"><div class="lbl">' + g[0] + '</div><div class="chips">' +
           list.map(function (s) {
             var on = S.slot && S.slot.start === s.start
             return '<button class="slot' + (on ? ' on' : '') + '" data-a="slot" data-v="' + s.start + '" aria-pressed="' + !!on + '">' + s.label + '</button>'
@@ -426,7 +410,7 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
       pills('classe', 'Vous êtes', CLASSES) +
       pills('offre', 'Accompagnement qui vous intéresse', OFFRES) +
       '<div class="blk">' + field('dep', 'Département', 'class="dep" inputmode="numeric" maxlength="3" autocomplete="postal-code" placeholder="75"') + '</div>' +
-      '<div class="info">' + ic('video') + '<span>L’entretien a lieu en visioconférence Google Meet. Le lien vous est envoyé par e-mail et SMS dès la confirmation.</span></div>' +
+      '<div class="info">' + ic('video') + '<span>Le lien Google Meet vous est envoyé par e-mail et SMS dès la confirmation.</span></div>' +
       '<p class="legal">En confirmant, vous acceptez que Medibox utilise ces informations pour organiser votre entretien. <a href="/confidentialite/">Politique de confidentialité</a></p>'
   }
 
@@ -434,7 +418,7 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     var s = S.slot, endP = parisParts(s.end)
     var prenom = S.f.prenom.trim()
     return '<div class="ok"><div class="badge">' + ic('check', 3) + '</div>' +
-      '<h3>C’est noté' + (prenom ? ', ' + esc(prenom) : '') + ' !</h3>' +
+      '<h3>C’est confirmé' + (prenom ? ', ' + esc(prenom) : '') + '</h3>' +
       '<p>Votre entretien est réservé. La confirmation et le lien Google Meet arrivent par e-mail et par SMS.</p>' +
       '<div class="card">' +
       '<div>' + ic('cal') + '<b>' + cap(longDay(S.day)) + '</b></div>' +
