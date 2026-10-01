@@ -521,6 +521,7 @@ export async function processExecution(db: SupabaseClient, execution: Execution)
 /**
  * Crée une nouvelle execution pour un contact donné.
  * Si re_enroll=false et qu'une execution existe déjà, ne fait rien.
+ * Si re_enroll=true, relance l'execution existante une fois celle-ci terminée.
  */
 export async function enrollContact(
   db: SupabaseClient,
@@ -547,7 +548,6 @@ export async function enrollContact(
     }
   }
 
-  // Si re_enroll=false, le UNIQUE(workflow_id, contact_id) protège déjà.
   const { data: insert, error } = await db
     .from('crm_workflow_executions')
     .insert({
@@ -561,10 +561,35 @@ export async function enrollContact(
     .select()
     .single()
 
+  let executionId = insert?.id as string | undefined
   if (error) {
-    // Probablement violation unique → ignore
-    if (String(error.code) === '23505') return { enrolled: false, reason: 'already enrolled' }
-    return { enrolled: false, reason: error.message }
+    if (String(error.code) !== '23505') return { enrolled: false, reason: error.message }
+    if (!wf.re_enroll) return { enrolled: false, reason: 'already enrolled' }
+
+    // re_enroll=true : le UNIQUE(workflow_id, contact_id) empêche une 2e ligne,
+    // on relance donc l'execution existante depuis le début si elle est terminée.
+    // Si elle tourne encore, on ne la redémarre pas (pas d'étapes en double).
+    const now = new Date().toISOString()
+    const { data: restarted, error: restartErr } = await db
+      .from('crm_workflow_executions')
+      .update({
+        status: 'running',
+        current_step_seq: 0,
+        started_at: now,
+        next_run_at: now,
+        completed_at: null,
+        failed_at: null,
+        error_message: null,
+        trigger_context: triggerContext,
+      })
+      .eq('workflow_id', workflowId)
+      .eq('hubspot_contact_id', contactId)
+      .in('status', ['completed', 'failed', 'cancelled'])
+      .select('id')
+      .maybeSingle()
+    if (restartErr) return { enrolled: false, reason: restartErr.message }
+    if (!restarted) return { enrolled: false, reason: 'already running' }
+    executionId = restarted.id
   }
 
   // Update enrolled counter
@@ -572,5 +597,5 @@ export async function enrollContact(
     total_enrolled: (wf.total_enrolled ?? 0) + 1,
   }).eq('id', workflowId)
 
-  return { enrolled: true, execution_id: insert.id }
+  return { enrolled: true, execution_id: executionId }
 }
