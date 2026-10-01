@@ -121,3 +121,23 @@ export function expandOrigineFilterValues(values: string[]): string[] {
   }
   return [...out]
 }
+
+/**
+ * Origine « Lab » déclarée par l'application qui envoie le formulaire
+ * (`data.origine`) : Medibox Lab - Marseille, Medibox LAB, Diploma LAB…
+ *
+ * Sans elle, un contact créé par un formulaire recevait toujours « Formulaire
+ * web » et l'équipe ne savait pas de quel Lab venait le prospect (Thierry,
+ * 01/10/2026). Seules les origines Lab de `CRM_ORIGINE_OPTIONS` sont
+ * acceptées, rendues sous leur orthographe exacte : un formulaire public ne
+ * peut pas s'attribuer une origine partenaire (Thotis, Edumove…).
+ */
+export function origineLabDeclaree(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  const key = normalizeKey(String(value))
+  if (!key) return null
+  const option = CRM_ORIGINE_OPTIONS.find(
+    o => /^(medibox|diploma) lab\b/.test(normalizeKey(o.value)) && normalizeKey(o.value) === key,
+  )
+  return option?.value ?? null
+}

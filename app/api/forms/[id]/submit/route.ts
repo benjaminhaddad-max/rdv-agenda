@@ -14,6 +14,7 @@ import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
 import { deriveSiteUrl } from '@/lib/site-url'
 import { loadFormExtraSettings, mergeFormWithExtra } from '@/lib/form-extra-settings'
 import { canOverrideOrigine, collectAdAttribution, detectAdOrigine } from '@/lib/ad-attribution'
+import { origineLabDeclaree } from '@/lib/origine-normalization'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -258,6 +259,9 @@ export async function POST(req: Request, { params }: Params) {
   // ── Origine derivee du tracking ─────────────────────────────────────────
   // Click ID ou UTM Google → "Campagne ADS Google", Meta → "Campagne ADS META".
   const origineFromTracking = detectAdOrigine(adAttribution)
+  // Origine déclarée par un Lab (« Medibox Lab - Marseille »…) : elle prime,
+  // c'est elle qui dit à l'équipe d'où vient le prospect.
+  const origineDeclaree = origineLabDeclaree(data.origine)
 
   // 1. Récupère le formulaire + ses champs
   const { data: form, error: fErr } = await db
@@ -466,7 +470,7 @@ export async function POST(req: Request, { params }: Params) {
       // origine vide ou generique ("Formulaire web"…), mais pas sur un
       // partenaire / salon deja attribue.
       const originePatch: Record<string, string> = {}
-      const origineCandidate = origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : null)
+      const origineCandidate = origineDeclaree ?? origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : null)
       if (origineCandidate) {
         const currentOrigine = (existingRow as { origine?: string | null } | null)?.origine
         if (canOverrideOrigine(currentOrigine)) {
@@ -496,7 +500,7 @@ export async function POST(req: Request, { params }: Params) {
         contact_createdate: nowIso,
         hubspot_contact_id: nativeId,
         hubspot_owner_id:   null,
-        origine:            origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : 'Formulaire web'),
+        origine:            origineDeclaree ?? origineFromTracking ?? (salonStandForm ? ORIGINE_SALONS : 'Formulaire web'),
       }
       insertData.hubspot_raw = mergeSafeHubspotRaw(
         { ...insertData, hubspot_contact_id: nativeId },
