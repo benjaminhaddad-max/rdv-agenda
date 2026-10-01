@@ -14,6 +14,8 @@ export const CRM_ORIGINE_OPTIONS: OrigineOption[] = [
   { label: 'Thotis Prospect', value: 'Thotis Prospect' },
   { label: 'Thotis Suspect', value: 'Thotis Suspect' },
   { label: 'Edumove', value: 'Edumove' },
+  { label: 'Medibox LAB', value: 'Medibox LAB' },
+  { label: 'Diploma LAB', value: 'Diploma LAB' },
 ]
 
 export const CRM_ORIGINE_VALUES = CRM_ORIGINE_OPTIONS.map(o => o.value)
