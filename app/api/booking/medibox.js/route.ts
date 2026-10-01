@@ -53,6 +53,9 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     'opacity:0;transition:opacity .2s ease}',
     '.ov.on{opacity:1}',
     'button,input,select{font-family:inherit}',
+    'button:focus{outline:none}',
+    'button:focus-visible{outline:2px solid #8B5CF6;outline-offset:2px}',
+    '.panel:focus{outline:none}',
     '.panel{position:relative;width:100%;max-width:780px;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;border-radius:26px;border:1.5px solid transparent;',
     'background:linear-gradient(#fff,#fff) padding-box,linear-gradient(140deg,#C4B5FD 0%,#8B5CF6 45%,#E6E0FA 100%) border-box;',
     'box-shadow:0 30px 70px -26px rgba(7,5,13,.85),0 0 70px -24px rgba(167,139,250,.75);transform:translateY(12px);transition:transform .2s ease}',
@@ -353,7 +356,7 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     host.id = 'medibox-rdv-popup'
     root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host
     root.innerHTML = '<style>' + CSS + '</style><div class="ov" role="dialog" aria-modal="true" aria-labelledby="mbx-title">' +
-      '<div class="panel"></div></div>'
+      '<div class="panel" tabindex="-1"></div></div>'
     ov = root.querySelector('.ov')
     app = root.querySelector('.panel')
 
@@ -401,7 +404,7 @@ const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
     document.documentElement.style.overflow = 'hidden'
     document.addEventListener('keydown', onKey)
     render()
-    requestAnimationFrame(function () { ov.classList.add('on'); var x = root.querySelector('.x'); if (x) x.focus() })
+    requestAnimationFrame(function () { ov.classList.add('on'); app.focus({ preventScroll: true }) })
   }
 
   function close() {
