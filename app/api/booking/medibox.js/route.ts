@@ -1,28 +1,35 @@
-/*!
- * Medibox — pop-up de prise de RDV (entretien en visio, 30 min).
+import { NextResponse } from 'next/server'
+
+/**
+ * Pop-up de prise de RDV Medibox à intégrer sur le site Medibox.
  *
- * INSTALLATION
- *   1. Charger ce fichier sur toutes les pages qui ont un CTA :
- *        <script src="/medibox-rdv-popup.js" defer></script>
- *      (Next.js : déposer le fichier dans /public puis
- *       <Script src="/medibox-rdv-popup.js" strategy="afterInteractive" /> dans le layout)
+ *   <script src="https://hub.diploma-sante.fr/api/booking/medibox.js" defer></script>
+ *   <a href="#rdv" data-medibox-rdv>Prendre rendez-vous</a>
  *
- *   2. Sur le bouton / lien CTA, ajouter l'attribut data-medibox-rdv :
- *        <a href="#rdv" data-medibox-rdv>Prendre rendez-vous</a>
- *        <button data-medibox-rdv>Réserver mon entretien</button>
- *      Ou ouvrir en JS : window.MediboxRDV.open()
- *
- * Les RDV arrivent directement dans le CRM (fiche contact, attribution conseiller,
- * lien Google Meet, SMS + e-mail de confirmation au nom de Medibox).
- * Les UTM de l'URL de la page (utm_source, utm_medium, utm_campaign, utm_content, ref)
- * sont transmis. Autonome : aucune dépendance, styles isolés (Shadow DOM).
+ * Tout élément [data-medibox-rdv] (ou lien vers #rdv-medibox) ouvre la pop-up ;
+ * en JS : window.MediboxRDV.open(). Styles isolés (Shadow DOM), aucune dépendance.
+ * Les RDV sont créés via POST /api/appointments (CORS autorisé pour les domaines
+ * Medibox, cf. isMediboxBookingOrigin) → toujours en marque Medibox.
  */
+
+export async function GET(req: Request) {
+  const host = new URL(req.url).origin
+  return new NextResponse(SCRIPT.replace('__HOST__', JSON.stringify(host)), {
+    headers: {
+      'content-type': 'application/javascript; charset=utf-8',
+      'cache-control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600',
+      'access-control-allow-origin': '*',
+    },
+  })
+}
+
+const SCRIPT = String.raw`/* Medibox — pop-up de prise de RDV */
 (function () {
   'use strict'
   if (window.MediboxRDV) return
 
   // ─── Réglages ───────────────────────────────────────────────────────────────
-  var API_URL = 'https://hub.diploma-sante.fr/api/appointments'
+  var API_URL = __HOST__ + '/api/appointments'
   var EVENT_TITLE = "Rendez-vous d'entretien Medibox"
   var EVENT_DURATION_MIN = 30
   var EVENT_DESCRIPTION =
@@ -417,3 +424,4 @@
   window.MediboxRDV = { open: open, close: close }
   if (location.hash === '#rdv-medibox') open()
 })()
+`
