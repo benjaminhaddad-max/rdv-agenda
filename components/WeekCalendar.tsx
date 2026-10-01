@@ -224,7 +224,22 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
   )
   const [allAppointments, setAppointments] = useState<Appointment[]>([])
   // Filtre marque : les RDV Medibox partagent l'agenda mais restent isolables.
-  const [brandFilter, setBrandFilter] = useState<'all' | RdvBrand>('all')
+  const [brandFilter, setBrandFilterState] = useState<'all' | RdvBrand>('all')
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('rdv-brand-filter')
+      if (saved === 'diploma' || saved === 'medibox') setBrandFilterState(saved)
+    } catch { /* stockage indisponible */ }
+  }, [])
+  const setBrandFilter = useCallback((b: 'all' | RdvBrand) => {
+    setBrandFilterState(b)
+    try { localStorage.setItem('rdv-brand-filter', b) } catch { /* stockage indisponible */ }
+  }, [])
+  const brandCounts = useMemo(() => {
+    let medibox = 0
+    for (const a of allAppointments) if (normalizeRdvBrand(a.brand) === 'medibox') medibox++
+    return { all: allAppointments.length, diploma: allAppointments.length - medibox, medibox }
+  }, [allAppointments])
   const appointments = useMemo(
     () => brandFilter === 'all'
       ? allAppointments
@@ -701,6 +716,39 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
     )
   }
 
+  // Filtre RDV Diploma / RDV Medibox, dans la barre d'outils de toutes les vues.
+  const brandToggle = (
+    <div
+      role="group"
+      aria-label="Filtrer par marque"
+      style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8', flexShrink: 0 }}
+    >
+      {(['all', 'diploma', 'medibox'] as const).map(b => {
+        const active = brandFilter === b
+        return (
+          <button
+            key={b}
+            onClick={() => setBrandFilter(b)}
+            aria-pressed={active}
+            style={{
+              background: active ? (b === 'all' ? '#0e1e35' : RDV_BRANDS[b].color) : 'transparent',
+              border: 'none', borderRadius: 6, padding: '4px 10px',
+              color: active ? 'white' : '#4a6070',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            {b !== 'all' && !active && (
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: RDV_BRANDS[b].color }} />
+            )}
+            {b === 'all' ? 'Tous' : b === 'diploma' ? 'RDV Diploma' : 'RDV Medibox'}
+            <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{brandCounts[b]}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f7f4ee' }}>
       {/* Top bar — masquée en mode admin et en mode closer (le parent gère le header) */}
@@ -876,6 +924,7 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {brandToggle}
             <Users size={13} style={{ color: '#4a6070' }} />
             <select
               value={selectedCommercial}
@@ -974,6 +1023,8 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           Aujourd&apos;hui
         </button>
 
+        {brandToggle}
+
         {/* Contrôles closer */}
         {closerId && !adminMode && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1056,22 +1107,6 @@ export default function WeekCalendar({ adminMode = false, closerId, closerColor,
           flexWrap: 'wrap',
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', background: '#f0e9da', borderRadius: 8, padding: 2, border: '1px solid #e5ddc8' }}>
-            {(['all', 'diploma', 'medibox'] as const).map(b => (
-              <button
-                key={b}
-                onClick={() => setBrandFilter(b)}
-                style={{
-                  background: brandFilter === b ? (b === 'all' ? '#0e1e35' : RDV_BRANDS[b].color) : 'transparent',
-                  border: 'none', borderRadius: 6, padding: '3px 10px',
-                  color: brandFilter === b ? 'white' : '#4a6070',
-                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {b === 'all' ? 'Tous les RDV' : RDV_BRANDS[b].label}
-              </button>
-            ))}
-          </div>
           <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>
             Fond = statut · Contour = closer
           </span>
