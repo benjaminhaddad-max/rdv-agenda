@@ -5,12 +5,15 @@ import { logger } from '@/lib/logger'
 /**
  * POST /api/external/app-activity — code de suivi des applications (Diplomalab…).
  *
+ * Chaque app a sa propre clé : c'est la clé qui dit de quelle app vient
+ * l'événement (Diplomalab, Medibox Lab…).
+ *
  * Appelé par le BACKEND de l'application (la clé ne doit jamais être dans le
  * navigateur) à chaque action d'un inscrit : connexion, exercice commencé /
  * terminé, cours consulté… Les événements remontent dans l'activité centrale
  * de la fiche contact, regroupés par session.
  *
- * Auth : Authorization: Bearer <DIPLOMALAB_TRACKING_KEY> (ou X-API-Key).
+ * Auth : Authorization: Bearer <DIPLOMALAB_TRACKING_KEY | MEDIBOXLAB_TRACKING_KEY> (ou X-API-Key).
  *
  * Body : un événement, ou { events: [...] } (100 max). Un événement :
  *   {
@@ -33,6 +36,7 @@ import { logger } from '@/lib/logger'
 
 const APPS: Record<string, string | undefined> = {
   diplomalab: process.env.DIPLOMALAB_TRACKING_KEY,
+  mediboxlab: process.env.MEDIBOXLAB_TRACKING_KEY,
 }
 
 const MAX_EVENTS = 100

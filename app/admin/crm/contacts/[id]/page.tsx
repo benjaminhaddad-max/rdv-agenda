@@ -1150,7 +1150,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
                 <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
                 {counts.app > 0 && (
-                  <TimelineTabBtn active={timelineTab === 'app'} onClick={() => setTimelineTab('app')} label="Diplomalab" count={counts.app} />
+                  <TimelineTabBtn active={timelineTab === 'app'} onClick={() => setTimelineTab('app')} label={appTabLabel(appSessions)} count={counts.app} />
                 )}
               </div>
               {(() => {
@@ -2978,7 +2978,7 @@ function PropertiesModal({
 /* ═════════ Helpers ═════════ */
 
 function labelForType(t: string) {
-  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web', app: 'Diplomalab' }
+  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web', app: 'Appli' }
   return labels[t] ?? t
 }
 
@@ -3464,6 +3464,12 @@ function WebVisitPages({ visit }: { visit: WebActivityVisit }) {
 // Activité Diplomalab (et autres apps) — envoyée par le backend de l'app via
 // /api/external/app-activity, une entrée de timeline par session.
 // ────────────────────────────────────────────────────────────────────────────
+
+/** Onglet de la timeline : nom de l'app si une seule, sinon « Applis ». */
+function appTabLabel(sessions: AppActivitySession[]): string {
+  const apps = new Set(sessions.map(s => s.app))
+  return apps.size === 1 ? appName([...apps][0]) : 'Applis'
+}
 
 function appSessionTitle(s: AppActivitySession): string {
   const done = appSessionCompletedCount(s)

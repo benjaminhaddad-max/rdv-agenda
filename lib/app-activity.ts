@@ -19,7 +19,7 @@ export type AppActivitySession = {
   events: AppActivityEvent[]
 }
 
-const APP_NAMES: Record<string, string> = { diplomalab: 'Diplomalab' }
+const APP_NAMES: Record<string, string> = { diplomalab: 'Diplomalab', mediboxlab: 'Medibox Lab' }
 
 const EVENT_LABELS: Record<string, string> = {
   signup: 'Inscription',
