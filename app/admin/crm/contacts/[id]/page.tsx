@@ -19,6 +19,7 @@ import { getCached, prefetch, refetch, invalidate, jsonFetcher } from '@/lib/cli
 import { telHref } from '@/lib/phone-e164'
 import { usePageTitle } from '@/components/DocumentTitle'
 import { mergeCrmOrigineOptions } from '@/lib/origine-normalization'
+import { appEventLabel, appName, appSessionCompletedCount, appSessionSeconds, type AppActivitySession } from '@/lib/app-activity'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -218,7 +219,7 @@ interface ParcoursupPayload {
   updated_at?: string | null
 }
 
-type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting'
+type TimelineTab = 'all' | 'note' | 'email' | 'sms' | 'call' | 'task' | 'meeting' | 'app'
 
 function timelineTabToQuickAction(tab: TimelineTab): QuickActionType | null {
   const map: Partial<Record<TimelineTab, QuickActionType>> = {
@@ -335,6 +336,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     fetch(`/api/crm/contacts/${id}/web-activity`)
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!cancelled) setWebActivity(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [id])
+  // Activité dans les applications (Diplomalab…) : sessions dans la timeline
+  const [appSessions, setAppSessions] = useState<AppActivitySession[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/crm/contacts/${id}/app-activity`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && Array.isArray(d?.sessions)) setAppSessions(d.sessions) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [id])
@@ -745,7 +756,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   // ── Timeline ──────────────────────────────────────────────────────────
   type TimelineItem = {
     id: string
-    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task' | 'web'
+    type: 'note' | 'call' | 'email' | 'sms' | 'meeting' | 'form' | 'rdv' | 'task' | 'web' | 'app'
     timestamp: number
     title: string
     body?: string
@@ -762,6 +773,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     activityId?: string
     editable?: boolean
     webVisit?: WebActivityVisit
+    appSession?: AppActivitySession
+    searchText?: string
   }
   const timeline: TimelineItem[] = []
   for (const a of activities) {
@@ -815,6 +828,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       title: `Visite du site · ${n} page${n > 1 ? 's' : ''} · ${formatSeconds(v.total_seconds)}`,
       subtitle: `Source : ${visitSourceLabel(v)}`,
       webVisit: v,
+    })
+  }
+  for (const s of appSessions) {
+    timeline.push({
+      id: `app-${s.key}`,
+      type: 'app',
+      timestamp: new Date(s.started_at).getTime(),
+      title: appSessionTitle(s),
+      appSession: s,
+      searchText: s.events.map(e => `${appEventLabel(e)} ${e.title ?? ''} ${e.details.subject ?? ''}`).join(' '),
     })
   }
   for (const a of appointments) {
@@ -879,7 +902,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }).filter(t => {
     if (!timelineSearch) return true
     const s = timelineSearch.toLowerCase()
-    return t.title.toLowerCase().includes(s) || (t.body ?? '').toLowerCase().includes(s)
+    return t.title.toLowerCase().includes(s) || (t.body ?? '').toLowerCase().includes(s) || (t.searchText ?? '').toLowerCase().includes(s)
   })
 
   const grouped: Record<string, TimelineItem[]> = {}
@@ -897,6 +920,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     call: timeline.filter(t => t.type === 'call').length,
     task: timeline.filter(t => t.type === 'task').length,
     meeting: timeline.filter(t => t.type === 'meeting' || t.type === 'rdv').length,
+    app: timeline.filter(t => t.type === 'app').length,
   }
 
   const lastActivity = timeline[0]?.timestamp ? new Date(timeline[0].timestamp) : lastFormDate
@@ -1125,6 +1149,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 />
                 <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"    count={counts.task} />
                 <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions"  count={counts.meeting} />
+                {counts.app > 0 && (
+                  <TimelineTabBtn active={timelineTab === 'app'} onClick={() => setTimelineTab('app')} label="Diplomalab" count={counts.app} />
+                )}
               </div>
               {(() => {
                 const addAction = timelineTabToQuickAction(timelineTab)
@@ -1264,6 +1291,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                                 />
                               )}
                               {t.type === 'web' && t.webVisit && <WebVisitPages visit={t.webVisit} />}
+                              {t.type === 'app' && t.appSession && <AppSessionEvents session={t.appSession} />}
                               {t.type === 'sms' && t.sms?.error_message && (
                                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
                                   Erreur : {t.sms.error_message}
@@ -1812,6 +1840,7 @@ function TypeDot({ type }: { type: string }) {
     rdv: 'bg-[#C9A84C]',
     form: 'bg-rose-500',
     web: 'bg-sky-500',
+    app: 'bg-indigo-500',
   }
   return <div className={`w-3 h-3 rounded-full ring-4 ring-white ${map[type] ?? 'bg-slate-400'}`} />
 }
@@ -1827,6 +1856,7 @@ function TypeBadge({ type }: { type: string }) {
     rdv:     { icon: <Calendar size={11} />,   bg: 'bg-[#C9A84C]/15 text-[#0e1e35]' },
     form:    { icon: <FileText size={11} />,   bg: 'bg-rose-100 text-rose-700' },
     web:     { icon: <Globe size={11} />,      bg: 'bg-sky-100 text-sky-700' },
+    app:     { icon: <GraduationCap size={11} />, bg: 'bg-indigo-100 text-indigo-700' },
   }
   const m = map[type] ?? map.note
   return (
@@ -2948,7 +2978,7 @@ function PropertiesModal({
 /* ═════════ Helpers ═════════ */
 
 function labelForType(t: string) {
-  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web' }
+  const labels: Record<string, string> = { note: 'Note', call: 'Appel', email: 'E-mail', sms: 'SMS', meeting: 'Réunion', task: 'Tâche', rdv: 'RDV', form: 'Formulaire', web: 'Site web', app: 'Diplomalab' }
   return labels[t] ?? t
 }
 
@@ -3425,6 +3455,69 @@ function WebVisitPages({ visit }: { visit: WebActivityVisit }) {
             )}
           </li>
         ))}
+      </ol>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Activité Diplomalab (et autres apps) — envoyée par le backend de l'app via
+// /api/external/app-activity, une entrée de timeline par session.
+// ────────────────────────────────────────────────────────────────────────────
+
+function appSessionTitle(s: AppActivitySession): string {
+  const done = appSessionCompletedCount(s)
+  const seconds = appSessionSeconds(s)
+  const parts = [appName(s.app)]
+  if (done > 0) parts.push(`${done} exercice${done > 1 ? 's' : ''} terminé${done > 1 ? 's' : ''}`)
+  else parts.push(`${s.events.length} action${s.events.length > 1 ? 's' : ''}`)
+  if (seconds > 0) parts.push(formatSeconds(seconds))
+  return parts.join(' · ')
+}
+
+function scoreOf(d: Record<string, unknown>): { text: string; good: boolean | null } | null {
+  const score = typeof d.score === 'number' ? d.score : null
+  if (score === null) return null
+  const max = typeof d.max_score === 'number' && d.max_score > 0 ? d.max_score : null
+  const ratio = max ? score / max : null
+  const good = typeof d.success === 'boolean' ? d.success : ratio !== null ? ratio >= 0.5 : null
+  return { text: max ? `${score}/${max}` : String(score), good }
+}
+
+/** Détail d'une session : action par action, exercice, matière, score, durée. */
+function AppSessionEvents({ session }: { session: AppActivitySession }) {
+  return (
+    <div className="mt-2 space-y-2 text-xs">
+      <div className="text-[#4a6070]">
+        Horaires <span className="text-[#0e1e35]">{hms(session.started_at)} → {hms(session.ended_at)}</span>
+      </div>
+      <ol className="space-y-1.5 bg-[#f7f4ee] p-2 rounded">
+        {session.events.map((e, i) => {
+          const subject = [e.details.subject, e.details.chapter].filter(v => typeof v === 'string' && v).join(' › ')
+          const score = scoreOf(e.details)
+          return (
+            <li key={i} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-mono text-[11px] text-[#4a6070] mr-1.5">{hms(e.at)}</span>
+                <span className="font-medium text-[#0e1e35]">{appEventLabel(e)}</span>
+                {e.title && e.title !== appEventLabel(e) && <span className="text-[#0e1e35]"> — {e.title}</span>}
+                {subject && <span className="ml-1 text-[#a89e8a]">{subject}</span>}
+              </div>
+              <div className="shrink-0 text-right text-[#4a6070] flex items-center gap-2">
+                {score && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${
+                    score.good === true ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : score.good === false ? 'bg-red-50 text-red-700 border-red-200'
+                      : 'bg-white text-[#0e1e35] border-[#e5ddc8]'
+                  }`}>
+                    {score.text}
+                  </span>
+                )}
+                {e.seconds !== null && e.seconds > 0 && <span className="font-medium text-[#0e1e35]">{formatSeconds(e.seconds)}</span>}
+              </div>
+            </li>
+          )
+        })}
       </ol>
     </div>
   )
