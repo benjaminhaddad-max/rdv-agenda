@@ -107,6 +107,27 @@ export function detectAdOrigine(attr: AdAttribution): string | null {
   return null
 }
 
+export const ORIGINE_CHATGPT = 'Chat GPT'
+
+const CHATGPT_SOURCE = /chatgpt|openai/i
+const CHATGPT_REFERRER_HOSTS = /(^|\.)(chatgpt\.com|chat\.openai\.com)$/i
+
+/**
+ * Lead venu de ChatGPT (pub ChatGPT ou lien organique) : utm_source
+ * chatgpt / chatgpt.com, ou referrer chatgpt.com.
+ */
+export function detectChatGptOrigine(attr: AdAttribution, referrers: Array<string | null | undefined> = []): string | null {
+  if (CHATGPT_SOURCE.test(attr.utm.utm_source || '')) return ORIGINE_CHATGPT
+  for (const r of referrers) {
+    const s = clean(r)
+    if (!s) continue
+    try {
+      if (CHATGPT_REFERRER_HOSTS.test(new URL(s).hostname)) return ORIGINE_CHATGPT
+    } catch { /* referrer invalide */ }
+  }
+  return null
+}
+
 /**
  * Origines qu'un signal publicitaire peut remplacer sur une fiche existante.
  * Les origines partenaires / salons / imports sont conservées : le lead a été

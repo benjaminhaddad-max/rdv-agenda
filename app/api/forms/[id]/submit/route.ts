@@ -13,7 +13,8 @@ import {
 import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
 import { deriveSiteUrl } from '@/lib/site-url'
 import { loadFormExtraSettings, mergeFormWithExtra } from '@/lib/form-extra-settings'
-import { canOverrideOrigine, collectAdAttribution, detectAdOrigine } from '@/lib/ad-attribution'
+import { canOverrideOrigine, collectAdAttribution, detectAdOrigine, detectChatGptOrigine } from '@/lib/ad-attribution'
+import { loadVisitorAttribution } from '@/lib/web-visitor-attribution'
 import { origineLabDeclaree } from '@/lib/origine-normalization'
 
 type Params = { params: Promise<{ id: string }> }
@@ -233,6 +234,12 @@ export async function POST(req: Request, { params }: Params) {
     utm: body as Record<string, unknown>,
     urls: [sourceUrlForAttribution, req.headers.get('referer')],
   })
+  // Visiteur diploma-tracker.js (cookie _dpv) : si le formulaire n'a pas
+  // transmis d'UTM, on les relit dans son parcours web (web_events).
+  const visitorId = typeof body.attribution?.dp_visitor_id === 'string' ? body.attribution.dp_visitor_id.trim() : ''
+  const validVisitorId = /^[A-Za-z0-9_.-]{6,64}$/.test(visitorId)
+  const visitorAttribution = validVisitorId ? await loadVisitorAttribution(db, visitorId).catch(() => null) : null
+  if (visitorAttribution && !adAttribution.utm.utm_source) Object.assign(adAttribution.utm, visitorAttribution.utm)
   const adClickIds = adAttribution.clickIds
   // Mapping vers les memes cles que HubSpot pour que la section "Tracking
   // publicitaire" sur la fiche contact affiche ces IDs sans modif UI.
@@ -258,7 +265,12 @@ export async function POST(req: Request, { params }: Params) {
 
   // ── Origine derivee du tracking ─────────────────────────────────────────
   // Click ID ou UTM Google → "Campagne ADS Google", Meta → "Campagne ADS META".
+  // Puis ChatGPT (utm_source chatgpt ou referrer chatgpt.com) → "Chat GPT".
   const origineFromTracking = detectAdOrigine(adAttribution)
+    ?? detectChatGptOrigine(adAttribution, [
+      typeof body.referrer === 'string' ? body.referrer : null,
+      ...(visitorAttribution?.referrers ?? []),
+    ])
   // Origine déclarée par un Lab (« Medibox Lab - Marseille »…) : elle prime,
   // c'est elle qui dit à l'équipe d'où vient le prospect.
   const origineDeclaree = origineLabDeclaree(data.origine)
@@ -636,8 +648,7 @@ export async function POST(req: Request, { params }: Params) {
 
   // Rattache le visiteur diploma-tracker.js (cookie _dpv) au contact : son
   // parcours web (pages vues, temps passé) remonte sur la fiche contact.
-  const visitorId = typeof body.attribution?.dp_visitor_id === 'string' ? body.attribution.dp_visitor_id.trim() : ''
-  if (contactId && /^[A-Za-z0-9_.-]{6,64}$/.test(visitorId)) {
+  if (contactId && validVisitorId) {
     const { error: linkErr } = await db
       .from('web_visitor_contacts')
       .upsert(
