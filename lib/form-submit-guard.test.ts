@@ -8,6 +8,7 @@ import {
   isBlockedTestEmail,
   isBlockedTestEmailLocalPart,
   isBlockedTestSourceUrl,
+  isPlaceholderEmail,
   validateFormContactIdentity,
 } from '@/lib/form-submit-guard'
 
@@ -26,6 +27,19 @@ describe('form-submit-guard', () => {
     expect(isBlockedTestEmail('security-test-20260706@example.com')).toBe(true)
     expect(isBlockedTestEmailLocalPart('test.debug.nav@gmail.com')).toBe(true)
     expect(isBlockedTestEmail('marie.dupont@gmail.com')).toBe(false)
+  })
+
+  test('detects placeholder emails typed on salon stands', () => {
+    expect(isPlaceholderEmail('xx@gmail.com')).toBe(true)
+    expect(isPlaceholderEmail(' XX@Gmail.com ')).toBe(true)
+    expect(isPlaceholderEmail('w@w')).toBe(true)
+    expect(isPlaceholderEmail('a@a.a')).toBe(true)
+    expect(isPlaceholderEmail('aucun@gmail.com')).toBe(true)
+    expect(isPlaceholderEmail('pasdemail@hotmail.fr')).toBe(true)
+    expect(isPlaceholderEmail('marie.dupont@gmail.com')).toBe(false)
+    expect(isPlaceholderEmail('xavier@gmail.com')).toBe(false)
+    expect(isPlaceholderEmail('j.fettane@hotmail.fr')).toBe(false)
+    expect(isPlaceholderEmail('')).toBe(false)
   })
 
   test('blocks fake phone numbers', () => {

@@ -118,6 +118,27 @@ export function isBlockedTestEmail(email: string | null | undefined): boolean {
   return BLOCKED_EMAIL_DOMAINS.has(domain)
 }
 
+// Emails « bouche-trou » saisis quand le prospect n'en donne pas (stand salon) :
+// xx@gmail.com, w@w, aucun@… Partagés par des dizaines de personnes, ils
+// fusionnaient leurs fiches CRM et leurs inscriptions.
+const PLACEHOLDER_EMAIL_LOCALS = new Set([
+  'aucun', 'aucunmail', 'aucun.mail', 'inconnu', 'na', 'nc', 'non', 'none', 'null',
+  'noemail', 'no.email', 'nomail', 'pasdemail', 'pas.de.mail', 'pas-de-mail',
+  'rien', 'sansmail', 'sans.mail', 'sans-mail', 'vide',
+])
+
+export function isPlaceholderEmail(email: string | null | undefined): boolean {
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized) return false
+  const at = normalized.lastIndexOf('@')
+  if (at <= 0) return true
+  const local = normalized.slice(0, at)
+  const domain = normalized.slice(at + 1)
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(domain)) return true
+  if (/^(.)\1*$/.test(local)) return true
+  return PLACEHOLDER_EMAIL_LOCALS.has(local)
+}
+
 export function isBlockedFakePhone(phone: string | null | undefined): boolean {
   const digits = String(phone || '').replace(/\D/g, '')
   if (!digits) return false

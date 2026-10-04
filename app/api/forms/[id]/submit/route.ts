@@ -8,6 +8,7 @@ import { enqueueAndDeliverFormWebhook } from '@/lib/form-webhook'
 import { valuesFromTokenPayload, verifyFormContactToken } from '@/lib/form-contact-link'
 import {
   checkFormSubmitGuard,
+  isPlaceholderEmail,
   validateFormContactIdentity,
 } from '@/lib/form-submit-guard'
 import { fileNameFromUrl, looksLikeFileUrl } from '@/lib/form-downloads'
@@ -183,6 +184,15 @@ export async function POST(req: Request, { params }: Params) {
     if (tokenValues.phone && !data.phone) data.phone = tokenValues.phone
   }
 
+  // Email bouche-trou (xx@gmail.com, w@w…) : on l'écarte, sinon tous les
+  // prospects qui l'ont reçu sont fusionnés sur une seule fiche CRM.
+  let placeholderEmail: string | null = null
+  if (isPlaceholderEmail(String(data.email || ''))) {
+    placeholderEmail = String(data.email).trim()
+    data._email_saisi = placeholderEmail
+    delete data.email
+  }
+
   const guard = checkFormSubmitGuard({
     req,
     hasContactToken: Boolean(forcedContactId),
@@ -332,13 +342,29 @@ export async function POST(req: Request, { params }: Params) {
 
   // 3. Validation des champs requis (identité masquée via token = valeurs déjà injectées)
   const missingRequired: string[] = []
+  let missingEmail = false
+  const phoneProvided = String(data.phone || data.mobilephone || '').trim() !== ''
   for (const f of (fields || [])) {
     if (f.required) {
       const v = data[f.field_key]
       if (v === undefined || v === null || String(v).trim() === '') {
+        const isEmailField = f.field_key === 'email' || f.crm_field === 'email'
+        // Stand salon : sans email, le téléphone suffit à identifier le prospect.
+        if (isEmailField && salonStandForm && phoneProvided) continue
+        if (isEmailField) missingEmail = true
         missingRequired.push(f.label)
       }
     }
+  }
+  if (placeholderEmail && missingEmail) {
+    return NextResponse.json(
+      {
+        error: salonStandForm
+          ? 'Sans adresse email, merci de renseigner le téléphone.'
+          : 'Merci de saisir une adresse email valide.',
+      },
+      { status: 400, headers: CORS_HEADERS },
+    )
   }
   if (missingRequired.length > 0) {
     return NextResponse.json(

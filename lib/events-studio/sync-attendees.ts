@@ -5,6 +5,24 @@
 
 import { createServiceClient } from '@/lib/supabase'
 import { createEventsClient } from '@/lib/events-studio/client'
+import { isPlaceholderEmail } from '@/lib/form-submit-guard'
+
+/**
+ * Clé d'unicité d'un inscrit : son email, sinon (absent ou bouche-trou type
+ * xx@gmail.com saisi sur un stand) son téléphone. null = inidentifiable.
+ */
+export function attendeeKey(email: unknown, phone: unknown): string | null {
+  const em = String(email || '').trim().toLowerCase()
+  if (em && !isPlaceholderEmail(em)) return em
+  const digits = String(phone || '').replace(/\D/g, '').slice(-9)
+  return digits.length === 9 ? `tel:${digits}` : null
+}
+
+/** Email exploitable (vide si bouche-trou) pour la sync vers `registrations`. */
+function realEmail(email: unknown): string {
+  const em = String(email || '').trim().toLowerCase()
+  return em && !isPlaceholderEmail(em) ? em : ''
+}
 
 export type AttendeeRow = {
   id?: string
@@ -90,9 +108,10 @@ export async function listEventAttendees(eventId: string): Promise<{
     const email = String(r.email || '')
       .trim()
       .toLowerCase()
-    if (!email) continue
+    const key = attendeeKey(email, r.phone)
+    if (!key) continue
     const isMeta = String(r.hubspot_form_id || '').startsWith('meta:')
-    byEmail.set(email, {
+    byEmail.set(key, {
       id: r.id,
       source: isMeta ? 'meta' : 'events',
       email,
@@ -123,21 +142,23 @@ export async function listEventAttendees(eventId: string): Promise<{
     for (const s of subs) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = ((s as any).data || {}) as Record<string, unknown>
-      const email = emailFromSubmissionData(data)
-      if (!email) continue
-      if (byEmail.has(email)) {
-        const cur = byEmail.get(email)!
+      const phone = (data.phone || data.telephone || null) as string | null
+      const key = attendeeKey(emailFromSubmissionData(data), phone)
+      if (!key) continue
+      if (byEmail.has(key)) {
+        const cur = byEmail.get(key)!
         if (cur.source === 'events') cur.source = 'crm'
         continue
       }
-      byEmail.set(email, {
+      byEmail.set(key, {
         source: 'crm',
-        email,
+        email: realEmail(emailFromSubmissionData(data)),
         first_name: String(data.firstname || data.first_name || data.prenom || ''),
         last_name: String(data.lastname || data.last_name || data.nom || ''),
-        phone: (data.phone || data.telephone || null) as string | null,
+        phone,
         created_at: s.submitted_at,
-        contact_id: s.contact_id,
+        // L'API formulaires range l'id CRM (texte) dans data._contact_id.
+        contact_id: s.contact_id || (data._contact_id as string | undefined) || null,
       })
     }
   }
@@ -357,15 +378,22 @@ export async function countRegisteredByEventIds(
   const crmIds = [...crmFormToEvents.keys()]
   if (crmIds.length > 0) {
     const subs = await fetchAllPages((from, to) =>
-      crmDb.from('form_submissions').select('form_id').in('form_id', crmIds).range(from, to),
+      crmDb
+        .from('form_submissions')
+        .select('form_id, email:data->>email, phone:data->>phone')
+        .in('form_id', crmIds)
+        .range(from, to),
     )
-    const byForm: Record<string, number> = {}
+    // Personnes uniques (email, sinon téléphone) : même compte que la fiche événement.
+    const byForm: Record<string, Set<string>> = {}
     for (const s of subs) {
       const fid = String(s.form_id || '')
-      byForm[fid] = (byForm[fid] || 0) + 1
+      const key = attendeeKey(s.email, s.phone)
+      if (!key) continue
+      ;(byForm[fid] ??= new Set()).add(key)
     }
     for (const [fid, eids] of crmFormToEvents) {
-      const n = byForm[fid] || 0
+      const n = byForm[fid]?.size || 0
       if (!n) continue
       for (const eid of eids) formLeadCounts[eid] = (formLeadCounts[eid] || 0) + n
     }
