@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, LayoutDashboard, Users, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers } from 'lucide-react'
+import { Search, LayoutDashboard, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers } from 'lucide-react'
 import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
 import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
@@ -313,6 +313,8 @@ export default function CRMPage() {
 
   // ── Outils modals ──────────────────────────────────────────────────────────
   const [showRepop,         setShowRepop]         = useState(false)
+  // Emplacement du bouton « Colonnes » dans la barre d'outils (style HubSpot)
+  const [columnsSlot,       setColumnsSlot]       = useState<HTMLDivElement | null>(null)
 
   // ─── Modal "Nouveau contact" ─────────────────────────────────────────────
   const [showNewContact, setShowNewContact] = useState(false)
@@ -2056,36 +2058,10 @@ export default function CRMPage() {
       background: '#F5F0E8', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     }}>
 
-      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
-      {!isMobile && <div style={{
-        padding: '0 20px',
-        height: 96,
-        background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-diploma-2026.png" alt="Diploma Santé" style={{ height: 72, width: 'auto' }} />
-          <div style={{ width: 1, height: 56, background: '#D4C4A0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Users size={13} style={{ color: '#C9A84C' }} />
-            <span style={{ fontSize: 12, color: '#3D5275', fontWeight: 600 }}>CRM — Contacts & Transactions</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Navigation déplacée dans la sidebar gauche */}
-        </div>
-      </div>}
-
-      {/* ── Sync bar ────────────────────────────────────────────────────────── */}
+      {/* ── En-tête compact (style HubSpot) : titre + santé ingestion + actions ── */}
       <div style={{
-        padding: isMobile ? '8px 12px' : '8px 20px',
+        padding: isMobile ? '8px 12px' : '10px 20px 6px',
         background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-start',
@@ -2093,14 +2069,18 @@ export default function CRMPage() {
         gap: 12,
         overflowX: isMobile ? 'auto' : undefined,
       }}>
-        <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#0F1F3D', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+            Contacts
+          </h1>
           {ingestionHealth && (
             <span
               title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
               style={{
                 fontSize: 11,
-                color: ingestionHealth.is_stale ? '#b45309' : '#0F1F3D',
+                color: ingestionHealth.is_stale ? '#b45309' : '#516f90',
                 fontWeight: ingestionHealth.is_stale ? 700 : 500,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}
             >
               {ingestionHealth.is_stale ? '⚠' : '●'} Dernier lead {formatSignalTime(
@@ -2111,14 +2091,10 @@ export default function CRMPage() {
         </div>
 
         {/* ── Outils + actions principales ───────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 4, marginLeft: isMobile ? 0 : 'auto', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
-          {!isMobile && <>
-            <div style={{ width: 1, height: 20, background: '#D4C4A0', marginRight: 4 }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#0F1F3D', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Outils</span>
-            <CRMToolBtn icon={<BookOpen size={11} />}      label="Journal Repop"     onClick={() => setShowRepop(true)} />
-
-            <div style={{ width: 1, height: 20, background: '#D4C4A0', margin: '0 4px' }} />
-          </>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: isMobile ? 0 : 'auto', flexWrap: 'nowrap' }}>
+          {!isMobile && (
+            <CRMToolBtn icon={<BookOpen size={11} />} label="Journal Repop" onClick={() => setShowRepop(true)} />
+          )}
 
           <button
             onClick={() => setExportModalOpen(true)}
@@ -2133,21 +2109,6 @@ export default function CRMPage() {
             }}
           >
             <Download size={12} /> {isMobile ? 'Export' : 'Exporter CSV'}
-          </button>
-
-          <button
-            onClick={() => setShowNewContact(true)}
-            style={{
-              padding: '7px 12px',
-              background: '#12314d',
-              border: '1px solid #12314d',
-              borderRadius: 8, color: '#ffffff',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <Plus size={12} /> {isMobile ? 'Contact' : 'Nouveau contact'}
           </button>
 
           <a
@@ -2177,6 +2138,21 @@ export default function CRMPage() {
           >
             <GraduationCap size={13} /> {isMobile ? 'Transactions' : 'Transactions 2026-2027'}
           </a>
+
+          <button
+            onClick={() => setShowNewContact(true)}
+            style={{
+              padding: '7px 12px',
+              background: '#12314d',
+              border: '1px solid #12314d',
+              borderRadius: 8, color: '#ffffff',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <Plus size={12} /> {isMobile ? 'Contact' : 'Nouveau contact'}
+          </button>
         </div>
 
       </div>
@@ -2185,10 +2161,10 @@ export default function CRMPage() {
       <div
         className="crm-views-tab-bar"
         style={{
-        padding: isMobile ? '6px 12px 8px' : '8px 16px 10px', background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8', flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 6,
-        overflowX: 'auto', overflowY: 'hidden',
+        padding: isMobile ? '0 12px' : '0 20px', background: '#ffffff',
+        borderBottom: '1px solid #dfe3eb', flexShrink: 0,
+        display: 'flex', alignItems: 'stretch', gap: 2,
+        overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'thin',
       }}>
         {topLevelViews.map(view => {
           const isBucket = view.kind === 'bucket' || isAttributionBucketId(view.id)
@@ -2236,23 +2212,23 @@ export default function CRMPage() {
               }}
               className={`crm-view-tab${isActive ? ' is-active' : ''}${isBucket ? ' is-bucket' : ''}`}
               style={{
-                padding: '8px 16px',
-                borderRadius: 999,
-                border: isActive
-                  ? '1px solid #C9A84C'
+                padding: '9px 14px 8px',
+                borderRadius: '6px 6px 0 0',
+                border: '1px solid transparent',
+                borderBottom: isActive
+                  ? '2px solid #C9A84C'
                   : isDragOver
-                    ? '1px solid #C9A84C'
-                    : '1px solid #dfe3eb',
+                    ? '2px solid rgba(201,168,76,0.5)'
+                    : '2px solid transparent',
                 background: isActive
-                  ? '#C9A84C'
+                  ? '#f5f8fa'
                   : isDragOver
-                    ? 'rgba(201,168,76,0.12)'
-                    : '#f5f8fa',
-                boxShadow: isActive ? '0 1px 4px rgba(18,49,77,0.18)' : 'none',
+                    ? 'rgba(201,168,76,0.08)'
+                    : 'transparent',
                 cursor: isRenaming ? 'text' : isDraggable ? 'grab' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7,
                 whiteSpace: 'nowrap',
-                transition: 'all 0.15s',
+                transition: 'background 0.15s, border-color 0.15s',
                 flexShrink: 0,
                 opacity: draggedViewId === view.id ? 0.5 : 1,
               }}
@@ -2279,9 +2255,8 @@ export default function CRMPage() {
                 />
               ) : (
                 <span style={{
-                  fontSize: 14, fontWeight: isActive ? 800 : 600,
-                  color: isActive ? '#12314d' : '#0F1F3D',
-                  letterSpacing: isActive ? '-0.01em' : undefined,
+                  fontSize: 13, fontWeight: isActive ? 700 : 600,
+                  color: isActive ? '#0F1F3D' : '#33475b',
                 }}>
                   {view.name}
                 </span>
@@ -2290,11 +2265,11 @@ export default function CRMPage() {
               {/* Badge count — tous les onglets */}
               {viewCounts[view.id] !== undefined && viewCounts[view.id] > 0 && (
                 <span style={{
-                  fontSize: 11, fontWeight: 800,
-                  color: isActive ? '#12314d' : '#3D5275',
-                  background: isActive ? 'rgba(18,49,77,0.12)' : '#ffffff',
-                  border: `1px solid ${isActive ? 'rgba(18,49,77,0.18)' : '#dfe3eb'}`,
-                  borderRadius: 6, padding: '1px 7px',
+                  fontSize: 10.5, fontWeight: 700,
+                  color: isActive ? '#8a6e3a' : '#516f90',
+                  background: isActive ? 'rgba(201,168,76,0.16)' : '#eaf0f6',
+                  border: 'none',
+                  borderRadius: 999, padding: '1px 7px',
                   letterSpacing: '0.01em',
                   fontVariantNumeric: 'tabular-nums',
                   transition: 'all 0.2s',
@@ -2379,13 +2354,12 @@ export default function CRMPage() {
             onClick={() => setManageViewsOpen(true)}
             title="Ajouter une vue existante ou en créer une"
             style={{
-              padding: '8px 14px',
-              background: '#f5f8fa',
-              border: '1px dashed #cbd6e2',
-              borderRadius: 999,
+              padding: '6px 12px', alignSelf: 'center',
+              background: 'transparent',
+              border: 'none',
               color: '#3D5275', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 13, fontFamily: 'inherit', fontWeight: 700,
+              fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
               whiteSpace: 'nowrap', flexShrink: 0,
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
@@ -2409,19 +2383,19 @@ export default function CRMPage() {
 
       {/* ── Search + actions + quick dropdowns ──────────────────────────────── */}
       <div style={{
-        padding: isMobile ? '8px 12px' : '10px 20px', background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8', flexShrink: 0,
+        padding: isMobile ? '8px 12px' : '10px 20px 8px', background: '#ffffff',
+        borderBottom: '1px solid #eaf0f6', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isMobile && !mobileFiltersOpen ? 0 : 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isMobile && !mobileFiltersOpen ? 0 : 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: isMobile ? '9px 12px' : '7px 12px',
-            flex: isMobile ? '1 1 0' : '0 1 240px', maxWidth: isMobile ? undefined : 240, minWidth: 0,
+            background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 999,
+            padding: isMobile ? '9px 14px' : '6px 14px',
+            flex: isMobile ? '1 1 0' : '0 1 260px', maxWidth: isMobile ? undefined : 260, minWidth: 0,
           }}>
             <Search size={13} style={{ color: '#0F1F3D', flexShrink: 0 }} />
             <input
-              type="text" placeholder="Nom, email, téléphone…"
+              type="text" placeholder="Rechercher (nom, email, téléphone)"
               value={search}
               onChange={e => { setSearch(e.target.value) }}
               onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
@@ -2464,10 +2438,10 @@ export default function CRMPage() {
             <button
               onClick={() => setFilterPanelOpen(o => !o)}
               style={{
-                padding: '7px 12px',
-                background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
-                border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-                borderRadius: 6, color: totalFilterRules > 0 ? '#C9A84C' : '#0F1F3D',
+                padding: '6px 14px',
+                background: filterPanelOpen || totalFilterRules > 0 ? 'rgba(204,172,113,0.12)' : '#f5f8fa',
+                border: `1px solid ${filterPanelOpen || totalFilterRules > 0 ? 'rgba(204,172,113,0.45)' : '#cbd6e2'}`,
+                borderRadius: 999, color: totalFilterRules > 0 ? '#8a6e3a' : '#33475b',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
                 whiteSpace: 'nowrap', flexShrink: 0,
@@ -2522,16 +2496,42 @@ export default function CRMPage() {
               </button>
             )}
           </div>
+
+          {/* Compteur + colonnes, à droite (style HubSpot) */}
+          {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto', flexShrink: 0 }}>
+              <span
+                title={lastFetchClientMs !== null ? `API ${lastFetchClientMs}ms${lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}` : undefined}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#516f90', fontWeight: 600, whiteSpace: 'nowrap' }}
+              >
+                {loading ? (
+                  <>
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #e5ddc8', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                    Chargement…
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#0F1F3D', fontVariantNumeric: 'tabular-nums' }}>
+                      {totalEstimated ? `≈ ${total.toLocaleString('fr')}` : total.toLocaleString('fr')}
+                    </span>
+                    contact{total !== 1 ? 's' : ''}
+                    {(formation || classe || period) ? <span>· {displayed.length} affiché{displayed.length !== 1 ? 's' : ''}</span> : null}
+                  </>
+                )}
+              </span>
+              <div ref={setColumnsSlot} />
+            </div>
+          )}
         </div>
         <div style={{ display: isMobile && !mobileFiltersOpen ? 'none' : 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
           <FilterMultiSelect value={closerContactHsId} onChange={v => { setCloserContactHsId(v); scheduleRefetch() }} options={closerOptions} />
           <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
           <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         </div>
-        {hasActiveFilters && (!isMobile || mobileFiltersOpen) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: '#0F1F3D' }}>Filtres :</span>
+        {hasActiveFilters && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingLeft: 6, borderLeft: '1px solid #dfe3eb' }}>
             {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
             {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
             {recentFormDays > 0 && <FilterPill label={`Form. < ${recentFormDays} j`} onRemove={() => { setRecentFormDays(0); scheduleRefetch() }} />}
@@ -2545,6 +2545,7 @@ export default function CRMPage() {
             {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Table + Advanced Filter Panel ─────────────────────────────────── */}
@@ -2552,8 +2553,8 @@ export default function CRMPage() {
 
       {/* ── Table area ──────────────────────────────────────────────────────── */}
       <div ref={tableScrollRef} style={{ flex: 1, overflow: 'auto', padding: '0 0 20px', WebkitOverflowScrolling: 'touch' }}>
-        {/* Compteur contacts */}
-        <div style={{ padding: isMobile ? '8px 12px 6px' : '10px 20px 6px' }}>
+        {/* Compteur contacts (mobile — sur desktop il est dans la barre d'outils) */}
+        {isMobile && <div style={{ padding: '8px 12px 6px' }}>
           {loading ? (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -2617,7 +2618,7 @@ export default function CRMPage() {
               </span>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Barre sélection en masse ───────────────────────────────────────── */}
         {(selectedIds.size > 0 || selectingAllView) && (
@@ -2916,10 +2917,11 @@ export default function CRMPage() {
           extraColumns={extraColumns}
           onExtraColumnsChange={persistExtraColumns}
           onRequestProps={ensureCrmPropsLoaded}
+          columnsMenuSlot={isMobile ? null : columnsSlot}
         /></div>
 
         {/* Pagination */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: isMobile ? 16 : 28, flexWrap: 'wrap', padding: isMobile ? '0 12px 20px' : '0 0 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap', padding: isMobile ? '0 12px 20px' : '0 0 20px' }}>
           {/* Sélecteur nb par page */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, flexBasis: isMobile ? '100%' : undefined, justifyContent: 'center' }}>
             <span style={{ fontSize: 11, color: '#0F1F3D' }}>Par page :</span>

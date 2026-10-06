@@ -239,7 +239,7 @@ export default function CRMGlobalSearchBar() {
         zIndex: 50,
         background: '#f7f4ee',
         borderBottom: '1px solid #e5ddc8',
-        padding: '10px 16px',
+        padding: '5px 12px',
       }}
     >
       <div ref={wrapRef} style={{ position: 'relative', maxWidth: 820 }}>
@@ -251,10 +251,10 @@ export default function CRMGlobalSearchBar() {
             background: '#ffffff',
             border: '1px solid #d8ccb1',
             borderRadius: 10,
-            padding: '9px 12px',
+            padding: '5px 12px',
           }}
         >
-          <Search size={15} style={{ color: '#4a6070', flexShrink: 0 }} />
+          <Search size={14} style={{ color: '#4a6070', flexShrink: 0 }} />
           <input
             ref={inputRef}
             value={query}
@@ -279,7 +279,7 @@ export default function CRMGlobalSearchBar() {
               background: 'transparent',
               width: '100%',
               color: '#0e1e35',
-              fontSize: 14,
+              fontSize: 13,
               fontFamily: 'inherit',
             }}
           />

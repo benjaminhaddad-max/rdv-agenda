@@ -111,13 +111,13 @@ function Inner({ children }: { children: React.ReactNode }) {
       {showAdminChrome && <CRMSidebarV2 />}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
-        maxHeight: isMobile ? '100dvh' : '100vh', boxSizing: 'border-box', gap: isMobile ? 0 : 12,
-        padding: isMobile ? `0 0 ${mobileBottomPad}px` : (showAdminChrome ? '12px 12px 12px 0' : 0),
+        maxHeight: isMobile ? '100dvh' : '100vh', boxSizing: 'border-box', gap: isMobile ? 0 : 8,
+        padding: isMobile ? `0 0 ${mobileBottomPad}px` : (showAdminChrome ? '8px 8px 8px 0' : 0),
       }}>
         {showAdminChrome && !hideSearchBar && (
           <div style={{
             background: crmV2.bg, border: `1px solid ${crmV2.border}`,
-            borderRadius: isMobile ? 0 : 18, boxShadow: crmV2.shadow, flexShrink: 0,
+            borderRadius: isMobile ? 0 : 14, boxShadow: crmV2.shadow, flexShrink: 0, overflow: 'visible',
           }}>
             <CRMGlobalSearchBar />
           </div>
@@ -158,7 +158,7 @@ function Inner({ children }: { children: React.ReactNode }) {
           flex: 1, minHeight: 0, overflow: 'auto',
           background: crmV2.bg,
           border: (isMobile || !showAdminChrome) ? 'none' : `1px solid ${crmV2.border}`,
-          borderRadius: (isMobile || !showAdminChrome) ? 0 : 20,
+          borderRadius: (isMobile || !showAdminChrome) ? 0 : 14,
           boxShadow: (isMobile || !showAdminChrome) ? 'none' : crmV2.shadow,
         }}>
           {children}

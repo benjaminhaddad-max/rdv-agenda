@@ -126,18 +126,13 @@ body {
 .crm-views-tab-bar {
   background: #ffffff !important;
 }
-.crm-view-tab {
-  border-radius: 999px !important;
+/* Onglets de vues style HubSpot : plats, soulignés quand actifs */
+.crm-view-tab:hover:not(.is-active) {
+  background: #f5f8fa !important;
 }
-.crm-view-tab.is-active {
-  background: #C9A84C !important;
-  border-color: #b8963e !important;
-  box-shadow: 0 1px 4px rgba(18, 49, 77, 0.18) !important;
-}
-.crm-v2-skin .crm-view-tab.is-active,
-.crm-v2-skin .crm-view-tab.is-active span,
-.crm-v2-skin .crm-view-tab.is-active svg {
-  color: #12314d !important;
+.crm-v2-skin .crm-view-tab,
+.crm-v2-skin .crm-views-tab-bar > button {
+  border-radius: 6px 6px 0 0 !important;
 }
 
 .crm-bucket-subviews-bar {
@@ -305,7 +300,9 @@ body {
   border-radius: 999px !important;
   width: auto !important;
   max-width: 100%;
-  padding: 4px 12px !important;
+  padding: 2px 10px !important;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .crm-v2-skin td button[style*="min-width: 40px"]:hover {
   background-color: #e9eef6 !important;
@@ -324,10 +321,27 @@ body {
   border-bottom: 2px solid #e4eaf2 !important;
 }
 
-/* ── Lignes plus aérées, lecture facile ───────────────────────────────── */
+/* ── Lignes compactes (densité HubSpot) ───────────────────────────────── */
 .crm-v2-skin tbody td {
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+.crm-v2-skin tbody tr.crm-contact-row td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  height: 40px;
+}
+
+/* Aperçu / Ouvrir : visibles au survol de la ligne (écrans avec souris) */
+@media (hover: hover) {
+  .crm-contact-row .crm-row-hover-actions {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .crm-contact-row:hover .crm-row-hover-actions,
+  .crm-contact-row .crm-row-hover-actions:focus-within {
+    opacity: 1;
+  }
 }
 
 /* ── Focus clavier doré et arrondi ────────────────────────────────────── */

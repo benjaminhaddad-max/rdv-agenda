@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle } from 'lucide-react'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
@@ -97,7 +98,7 @@ function InlineCellSelect({
           background: open ? '#f0e9da' : 'transparent',
           border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
           borderRadius: 4,
-          padding: '5px 10px',
+          padding: '3px 8px',
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
@@ -125,7 +126,7 @@ function InlineCellSelect({
         {renderValue ? (
           renderValue(value)
         ) : (
-          <span style={{ fontSize: 11, color: value ? '#4a6070' : '#0e1e35' }}>
+          <span style={{ fontSize: 11, color: value ? '#4a6070' : '#0e1e35', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
             {displayValue || currentOpt?.label || value || '—'}
           </span>
         )}
@@ -528,6 +529,8 @@ export type ContactInlinePatch = {
 
 interface Props {
   contacts: CRMContact[]
+  /** Emplacement (barre d'outils de la page) où afficher le bouton « Colonnes ». */
+  columnsMenuSlot?: HTMLElement | null
   loading?: boolean
   mode?: 'admin' | 'closer' | 'telepro'
   onRefresh?: () => void
@@ -924,10 +927,11 @@ function ExpandedDetail({
 }
 
 // ── Définition des colonnes réorganisables ────────────────────────────────────
-type ColKey = 'contact' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict'
+type ColKey = 'contact' | 'email' | 'phone' | 'formation_souhaitee' | 'classe' | 'zone' | 'departement' | 'etape' | 'lead_status' | 'origine' | 'closer' | 'closer_du_contact' | 'telepro' | 'createdat_contact' | 'createdat_deal' | 'form_submission' | 'parcoursup_verdict'
 
 const COL_LABELS: Record<ColKey, string> = {
   contact:              'Contact',
+  email:                'E-mail',
   phone:                'Téléphone',
   formation_souhaitee:  'Formation souhaitée',
   classe:               'Classe actuelle',
@@ -946,7 +950,8 @@ const COL_LABELS: Record<ColKey, string> = {
 }
 
 const COL_WIDTHS: Record<ColKey, number> = {
-  contact:              200,
+  contact:              220,
+  email:                220,
   phone:                200,
   formation_souhaitee:  140,
   classe:               100,
@@ -960,7 +965,7 @@ const COL_WIDTHS: Record<ColKey, number> = {
   telepro:              110,
   createdat_contact:     150,
   createdat_deal:        150,
-  form_submission:      160,
+  form_submission:      230,
   parcoursup_verdict:    160,
 }
 
@@ -978,7 +983,7 @@ const SORTABLE_COLS = new Set<ColKey>([
 ])
 
 const DEFAULT_COL_ORDER: ColKey[] = [
-  'contact','phone','form_submission','origine','formation_souhaitee','classe',
+  'contact','email','phone','form_submission','origine','formation_souhaitee','classe',
   'zone','departement','etape','lead_status','parcoursup_verdict','closer','closer_du_contact','telepro','createdat_contact','createdat_deal',
 ]
 
@@ -1013,6 +1018,19 @@ const INLINE_EDIT_STOP_KEYS = new Set<ColKey>([
 ])
 
 function toNativeToken(key: ColKey) { return `n:${key}` as const }
+
+/** Ajoute les colonnes natives absentes d'un ordre sauvegardé juste après
+ *  leur voisine dans DEFAULT_COL_ORDER (ex. « E-mail » après « Contact »). */
+function withMissingNatives<T extends string>(order: T[], nativeOrder: ColKey[], toEntry: (k: ColKey) => T): T[] {
+  const result = [...order]
+  nativeOrder.forEach((key, i) => {
+    const entry = toEntry(key)
+    if (result.includes(entry)) return
+    const prev = i > 0 ? result.indexOf(toEntry(nativeOrder[i - 1])) : -1
+    result.splice(prev >= 0 ? prev + 1 : result.length, 0, entry)
+  })
+  return result
+}
 function toDynToken(prop: string) { return `d:${prop}` as const }
 function isNativeToken(s: string) { return s.startsWith('n:') }
 function isDynToken(s: string) { return s.startsWith('d:') }
@@ -1043,9 +1061,8 @@ function mergeMixedColOrder(
         seenDyn.add(prop)
       }
     }
-    for (const key of nativeOrder) {
-      if (!seenNative.has(key)) result.push(toNativeToken(key))
-    }
+    const withNatives = withMissingNatives(result, nativeOrder, toNativeToken)
+    result.splice(0, result.length, ...withNatives)
     for (const prop of extraCols) {
       if (BLOCKED_EXTRA_COLUMN_PROPS.has(prop) || seenDyn.has(prop)) continue
       result.push(toDynToken(prop))
@@ -1081,6 +1098,7 @@ export default function CRMContactsTable({
   extraColumns,
   onExtraColumnsChange,
   onRequestProps,
+  columnsMenuSlot,
 }: Props) {
   const RENDER_CHUNK = 120
   const [expanded,          setExpanded]          = useState<Set<string>>(new Set())
@@ -1230,8 +1248,7 @@ export default function CRMContactsTable({
         // Fusionner avec DEFAULT_COL_ORDER pour inclure les nouvelles colonnes
         const known = new Set(DEFAULT_COL_ORDER)
         const valid = parsed.filter(k => known.has(k))
-        const missing = DEFAULT_COL_ORDER.filter(k => !valid.includes(k))
-        return [...valid, ...missing]
+        return withMissingNatives(valid, DEFAULT_COL_ORDER, k => k)
       }
     } catch { /* ignore */ }
     return DEFAULT_COL_ORDER
@@ -1322,8 +1339,7 @@ export default function CRMContactsTable({
         if (Array.isArray(data.col_order) && data.col_order.length > 0) {
           const known = new Set(DEFAULT_COL_ORDER)
           const valid = (data.col_order as ColKey[]).filter(k => known.has(k))
-          const missing = DEFAULT_COL_ORDER.filter(k => !valid.includes(k))
-          const merged = [...valid, ...missing]
+          const merged = withMissingNatives(valid, DEFAULT_COL_ORDER, k => k)
           setColOrder(merged)
           localStorage.setItem('crm-col-order', JSON.stringify(merged))
           setMixedColOrder(prev => {
@@ -1740,69 +1756,73 @@ export default function CRMContactsTable({
     switch (key) {
       case 'contact':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-            <ContactAvatar name={name} size={30} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {name}
-                </span>
-                {onOpenDrawer && (
-                  <button
-                    title="Aperçu"
-                    onClick={e => { e.stopPropagation(); onOpenDrawer(contact) }}
-                    style={{
-                      background: 'rgba(76,171,219,0.10)',
-                      border: '1px solid rgba(76,171,219,0.28)',
-                      borderRadius: 6,
-                      padding: '1px 7px',
-                      cursor: 'pointer',
-                      color: '#2d7fa6',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      flexShrink: 0,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <Eye size={10} /> Aperçu
-                  </button>
-                )}
-                <a
-                  href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
-                  title="Ouvrir la fiche contact"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <ContactAvatar name={name} size={24} />
+            <span title={name} style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+              {name}
+            </span>
+            {/* Actions au survol de la ligne (style HubSpot) */}
+            <span className="crm-row-hover-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              {onOpenDrawer && (
+                <button
+                  title="Aperçu"
+                  onClick={e => { e.stopPropagation(); onOpenDrawer(contact) }}
                   style={{
-                    color: '#12314d',
-                    background: 'rgba(18,49,77,0.06)',
-                    border: '1px solid rgba(18,49,77,0.20)',
+                    background: 'rgba(76,171,219,0.10)',
+                    border: '1px solid rgba(76,171,219,0.28)',
+                    borderRadius: 6,
+                    padding: '1px 7px',
+                    cursor: 'pointer',
+                    color: '#2d7fa6',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 4,
-                    padding: '1px 7px',
-                    borderRadius: 6,
                     flexShrink: 0,
-                    textDecoration: 'none',
                     fontSize: 10,
                     fontWeight: 700,
                     fontFamily: 'inherit',
                   }}
                 >
-                  <ExternalLink size={10} /> Ouvrir
-                </a>
-              </div>
-              {contact.email && (
-                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {contact.email}
-                </div>
+                  <Eye size={10} /> Aperçu
+                </button>
               )}
-            </div>
+              <a
+                href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+                title="Ouvrir la fiche contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={{
+                  color: '#12314d',
+                  background: 'rgba(18,49,77,0.06)',
+                  border: '1px solid rgba(18,49,77,0.20)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '1px 7px',
+                  borderRadius: 6,
+                  flexShrink: 0,
+                  textDecoration: 'none',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: 'inherit',
+                }}
+              >
+                <ExternalLink size={10} /> Ouvrir
+              </a>
+            </span>
           </div>
         )
+
+      case 'email':
+        return contact.email ? (
+          <span
+            title={contact.email}
+            style={{ display: 'block', fontSize: 12.5, color: '#0091ae', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
+            {contact.email}
+          </span>
+        ) : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
 
       case 'phone':
         return contact.phone ? (
@@ -2015,25 +2035,11 @@ export default function CRMContactsTable({
         return (
           <div
             title={`${eventRaw}\n${d.toLocaleString('fr-FR')}`}
-            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
+            style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
           >
-            {formName && (
-              <span style={{
-                fontSize: 10,
-                color: '#4a6070',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: '100%',
-                fontStyle: 'italic',
-              }}>
-                {formName}
-              </span>
-            )}
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</span>
-              <span style={{ fontSize: 10, color: '#4a6070' }}>· {timeStr}</span>
-            </span>
+            <span style={{ fontWeight: 600, color: '#33475b' }}>{dateStr}</span>
+            <span> · {timeStr}</span>
+            {formName && <span style={{ fontStyle: 'italic' }}> · {formName}</span>}
           </div>
         )
       }
@@ -2243,136 +2249,140 @@ export default function CRMContactsTable({
     )
   }
 
+  const columnsToolbar = (
+    <div ref={colMenuRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: columnsMenuSlot ? 0 : '0 4px 8px', position: 'relative' }}>
+      <button
+        onClick={() => setColMenuOpen(o => !o)}
+        style={{
+          background: colMenuOpen ? 'rgba(76,171,219,0.10)' : '#ffffff',
+          border: `1px solid ${colMenuOpen ? BLUE : NAVY_BORDER}`,
+          borderRadius: 8,
+          padding: '5px 12px',
+          color: colMenuOpen ? BLUE : '#0e1e35',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontFamily: 'inherit',
+        }}
+        title="Choisir les colonnes affichées"
+      >
+        <GripVertical size={11} />
+        Colonnes ({displayCols.length}/{colOrder.length + dynamicCols.length})
+      </button>
+      {colMenuOpen && (
+        <div style={{
+          position: 'absolute',
+          top: 32,
+          right: 4,
+          background: '#ffffff',
+          border: `1px solid ${NAVY_BORDER}`,
+          borderRadius: 10,
+          padding: 10,
+          zIndex: 30,
+          minWidth: 240,
+          maxHeight: '70vh',
+          overflowY: 'auto',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
+            Afficher les colonnes
+          </div>
+          {colOrder.map(key => {
+            // Toutes les colonnes sont disponibles dans le menu, même si la
+            // liste d'options n'est pas chargée (les cellules afficheront —).
+            if (key === PINNED_COL) return null
+            const checked = !hiddenCols.has(key)
+            return (
+              <label key={key} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 4px',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: '#0e1e35',
+                borderRadius: 4,
+              }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleColVisibility(key)}
+                  style={{ accentColor: BLUE, cursor: 'pointer' }}
+                />
+                {COL_LABELS[key]}
+              </label>
+            )
+          })}
+
+          {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
+          {onExtraColumnsChange && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
+                Propriétés du contact
+              </div>
+              {/* Liste des extra columns actives + bouton retirer */}
+              {(extraColumns ?? []).map(propName => {
+                const meta = allCrmProps?.find(p => p.name === propName)
+                return (
+                  <div key={propName} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 4px', fontSize: 13, color: '#0e1e35',
+                  }}>
+                    <input type="checkbox" checked readOnly style={{ accentColor: BLUE }} />
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {meta?.label ?? propName}
+                    </span>
+                    <button
+                      onClick={() => onExtraColumnsChange((extraColumns ?? []).filter(p => p !== propName))}
+                      style={{
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        color: '#ef4444', fontSize: 16, padding: '0 4px', lineHeight: 1,
+                      }}
+                      title="Retirer cette colonne"
+                    >×</button>
+                  </div>
+                )
+              })}
+              {/* Picker : ajouter une propriété (toujours visible, charge
+                  paresseusement le catalogue à l'ouverture du menu) */}
+              {allCrmProps && allCrmProps.length > 0 ? (
+                <PropertyPicker
+                  allProps={allCrmProps}
+                  excludeNames={new Set([
+                    ...BLOCKED_EXTRA_COLUMN_PROPS,
+                    ...(extraColumns ?? []),
+                  ])}
+                  onPick={(name) => {
+                    const next = [...(extraColumns ?? []), name]
+                    onExtraColumnsChange(next)
+                  }}
+                />
+              ) : (
+                <div style={{
+                  marginTop: 8, padding: '8px 10px',
+                  border: '1px dashed #cbd6e2', borderRadius: 6,
+                  fontSize: 11, color: '#7c98b6', textAlign: 'center',
+                }}>
+                  Chargement des propriétés HubSpot…
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <>
-      {/* Toolbar : gestion des colonnes affichées */}
-      <div ref={colMenuRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4px 8px', position: 'relative' }}>
-        <button
-          onClick={() => setColMenuOpen(o => !o)}
-          style={{
-            background: colMenuOpen ? 'rgba(76,171,219,0.10)' : '#ffffff',
-            border: `1px solid ${colMenuOpen ? BLUE : NAVY_BORDER}`,
-            borderRadius: 8,
-            padding: '5px 12px',
-            color: colMenuOpen ? BLUE : '#0e1e35',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontFamily: 'inherit',
-          }}
-          title="Choisir les colonnes affichées"
-        >
-          <GripVertical size={11} />
-          Colonnes ({displayCols.length}/{colOrder.length + dynamicCols.length})
-        </button>
-        {colMenuOpen && (
-          <div style={{
-            position: 'absolute',
-            top: 32,
-            right: 4,
-            background: '#ffffff',
-            border: `1px solid ${NAVY_BORDER}`,
-            borderRadius: 10,
-            padding: 10,
-            zIndex: 30,
-            minWidth: 240,
-            maxHeight: '70vh',
-            overflowY: 'auto',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
-              Afficher les colonnes
-            </div>
-            {colOrder.map(key => {
-              // Toutes les colonnes sont disponibles dans le menu, même si la
-              // liste d'options n'est pas chargée (les cellules afficheront —).
-              if (key === PINNED_COL) return null
-              const checked = !hiddenCols.has(key)
-              return (
-                <label key={key} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 4px',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: '#0e1e35',
-                  borderRadius: 4,
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleColVisibility(key)}
-                    style={{ accentColor: BLUE, cursor: 'pointer' }}
-                  />
-                  {COL_LABELS[key]}
-                </label>
-              )
-            })}
-
-            {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
-            {onExtraColumnsChange && (
-              <>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
-                  Propriétés du contact
-                </div>
-                {/* Liste des extra columns actives + bouton retirer */}
-                {(extraColumns ?? []).map(propName => {
-                  const meta = allCrmProps?.find(p => p.name === propName)
-                  return (
-                    <div key={propName} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 4px', fontSize: 13, color: '#0e1e35',
-                    }}>
-                      <input type="checkbox" checked readOnly style={{ accentColor: BLUE }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {meta?.label ?? propName}
-                      </span>
-                      <button
-                        onClick={() => onExtraColumnsChange((extraColumns ?? []).filter(p => p !== propName))}
-                        style={{
-                          background: 'transparent', border: 'none', cursor: 'pointer',
-                          color: '#ef4444', fontSize: 16, padding: '0 4px', lineHeight: 1,
-                        }}
-                        title="Retirer cette colonne"
-                      >×</button>
-                    </div>
-                  )
-                })}
-                {/* Picker : ajouter une propriété (toujours visible, charge
-                    paresseusement le catalogue à l'ouverture du menu) */}
-                {allCrmProps && allCrmProps.length > 0 ? (
-                  <PropertyPicker
-                    allProps={allCrmProps}
-                    excludeNames={new Set([
-                      ...BLOCKED_EXTRA_COLUMN_PROPS,
-                      ...(extraColumns ?? []),
-                    ])}
-                    onPick={(name) => {
-                      const next = [...(extraColumns ?? []), name]
-                      onExtraColumnsChange(next)
-                    }}
-                  />
-                ) : (
-                  <div style={{
-                    marginTop: 8, padding: '8px 10px',
-                    border: '1px dashed #cbd6e2', borderRadius: 6,
-                    fontSize: 11, color: '#7c98b6', textAlign: 'center',
-                  }}>
-                    Chargement des propriétés HubSpot…
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Toolbar : gestion des colonnes affichées (portée dans la barre d'outils de la page si fournie) */}
+      {columnsMenuSlot ? createPortal(columnsToolbar, columnsMenuSlot) : columnsToolbar}
 
       <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: tableMinWidth }}>
@@ -2432,13 +2442,11 @@ export default function CRMContactsTable({
                       onDragEnd={resetDrag}
                       onClick={isSortable ? () => onSortChange!(key) : undefined}
                       style={{
-                        padding: '9px 12px',
+                        padding: '8px 12px',
                         textAlign: 'left',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0F1F3D',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#33475b',
                         background: dragOverIdx === idx && dragIdx !== idx
                           ? 'rgba(76,171,219,0.07)'
                           : dragIdx === idx
@@ -2520,13 +2528,11 @@ export default function CRMContactsTable({
                     onDragEnd={resetDrag}
                     title={label}
                     style={{
-                      padding: '9px 12px',
+                      padding: '8px 12px',
                       textAlign: 'left',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#0F1F3D',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#33475b',
                       background: dragOverIdx === idx && dragIdx !== idx
                         ? 'rgba(76,171,219,0.07)'
                         : dragIdx === idx
@@ -2599,6 +2605,7 @@ export default function CRMContactsTable({
               return (
                 <React.Fragment key={contact.hubspot_contact_id}>
                   <tr
+                    className="crm-contact-row"
                     onMouseEnter={(e) => {
                       handleRowEnter(contact.hubspot_contact_id)
                       if (!isExpanded) e.currentTarget.style.background = '#f7f4ee'
@@ -2615,7 +2622,7 @@ export default function CRMContactsTable({
                       // ne layout / paint que ceux visibles -> scroll fluide
                       // et premier paint plus rapide sur grandes pages.
                       contentVisibility: 'auto',
-                      containIntrinsicSize: '0 56px',
+                      containIntrinsicSize: '0 40px',
                     } as React.CSSProperties}
                   >
                     {/* Checkbox */}
@@ -2640,7 +2647,7 @@ export default function CRMContactsTable({
                           <td
                             key={entry}
                             style={{
-                              padding: isOwnerCol ? '6px 8px' : '10px 12px',
+                              padding: isOwnerCol ? '3px 8px' : '6px 12px',
                               minWidth: 0,
                               overflow: isPhoneCol ? 'visible' : 'hidden',
                             }}
@@ -2655,7 +2662,7 @@ export default function CRMContactsTable({
                       return (
                         <td
                           key={entry}
-                          style={{ padding: isOwnerProp ? '6px 8px' : '10px 12px', minWidth: 0, overflow: 'hidden' }}
+                          style={{ padding: isOwnerProp ? '3px 8px' : '6px 12px', minWidth: 0, overflow: 'hidden' }}
                           onClick={isOwnerProp ? e => e.stopPropagation() : undefined}
                         >
                           {renderDynamicCell(prop, contact)}
@@ -2664,7 +2671,7 @@ export default function CRMContactsTable({
                     })}
 
                     {/* Actions */}
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                    <td style={{ padding: '2px 8px', textAlign: 'right' }}>
                       <ActionsMenu
                           contact={contact}
                           name={name}
