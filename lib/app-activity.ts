@@ -37,6 +37,8 @@ const EVENT_LABELS: Record<string, string> = {
   video_watched: 'Vidéo regardée',
   document_downloaded: 'Document téléchargé',
   flashcards_reviewed: 'Fiches révisées',
+  callback_requested: '📞 Demande à être rappelé',
+  application_submitted: 'Candidature déposée',
 }
 
 const COMPLETED_EVENTS = new Set(['exercise_completed', 'quiz_completed', 'exam_completed'])

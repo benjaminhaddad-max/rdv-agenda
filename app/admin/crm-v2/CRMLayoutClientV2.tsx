@@ -20,7 +20,7 @@ const V2_SEGMENTS = new Set([
   'contacts', 'deals', 'transactions', 'tasks', 'agenda', 'dashboard',
   'import', 'doublons', 'recherche-prop', 'proprietes', 'users', 'parametres',
   'campaigns', 'email-templates', 'workflows', 'forms', 'meta-ads',
-  'ads-dashboard', 'sms-factor', 'events', 'alternance', 'reports',
+  'ads-dashboard', 'sms-factor', 'events', 'alternance', 'reports', 'rappels-lab',
 ])
 
 /**

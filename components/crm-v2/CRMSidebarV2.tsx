@@ -34,7 +34,7 @@ const READY = new Set([
   'campaigns', 'programs', 'mkt-lists', 'brands', 'segments', 'templates',
   'workflows', 'forms', 'meta-ads', 'ads-dashboard', 'sms-factor', 'events',
   'alternance', 'reports', 'suivi-commercial', 'telepro-rdv-report', 'dashboard', 'errors',
-  'webinars',
+  'webinars', 'rappels-lab',
 ])
 
 const NAV_SECTIONS: NavSection[] = [
@@ -46,6 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
       { key: 'transactions', label: 'Transactions', href: '/admin/crm-v2/transactions', icon: Briefcase, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
+      { key: 'rappels-lab', label: 'Demandes de rappel Lab', href: '/admin/crm-v2/rappels-lab', icon: PhoneCall, ready: true },
       { key: 'import', label: 'Import CSV', href: '/admin/crm-v2/import', icon: Upload, ready: true },
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },
       { key: 'recherche-prop', label: 'Recherche propriété', href: '/admin/crm-v2/recherche-prop', icon: Search, ready: true },
