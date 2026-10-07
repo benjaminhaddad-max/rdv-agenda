@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { ClipboardList } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import SuiviRdvPanel from '@/components/SuiviRdvPanel'
+import { CrmV2Body, CrmV2Header, CrmV2Page, CrmV2Select } from '@/components/crm-v2/primitives'
 
 type Telepro = { id: string; name: string }
 
@@ -21,36 +20,26 @@ export default function SuiviRdvTeleproPage() {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <ClipboardList size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>Suivi RDV télépros</span>
-          {!isMobile && (
-            <span style={{ fontSize: 11, color: '#4a6070' }}>
-              Rempli automatiquement à chaque RDV placé — statut issu de l’agenda
-            </span>
-          )}
-        </div>
-        <Link href="/admin/crm/reports" style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          {isMobile ? '← Rapports' : '← Dashboards & Rapports'}
-        </Link>
-      </div>
-
-      <div style={{ padding: isMobile ? '16px 12px' : '24px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Suivi des RDV par télépro</h1>
-          <select
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: '/admin/crm/reports', label: isMobile ? 'Rapports' : 'Dashboards & Rapports' }}
+        title="Suivi des RDV par télépro"
+        subtitle="Rempli automatiquement à chaque RDV placé — statut issu de l’agenda"
+        actions={
+          <CrmV2Select
             value={teleproId}
             onChange={e => setTeleproId(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5ddc8', background: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', minWidth: 220 }}
+            aria-label="Télépro"
+            style={{ width: 'auto', minWidth: isMobile ? 0 : 220, maxWidth: '100%', borderRadius: 999, fontWeight: 600, height: 36 }}
           >
             <option value="all">Tous les télépros</option>
             {telepros.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
+          </CrmV2Select>
+        }
+      />
+      <CrmV2Body>
         <SuiviRdvPanel key={teleproId} teleproId={teleproId} showTelepro={teleproId === 'all'} />
-      </div>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }

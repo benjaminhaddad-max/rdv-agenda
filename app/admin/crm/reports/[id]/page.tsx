@@ -1,11 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, type ReactNode } from 'react'
 import {
-  BarChart3, ChevronLeft, Plus, Trash2, Edit3, TrendingUp, TrendingDown,
-  RefreshCw, X,
+  AlertCircle, BarChart3, Filter, Gauge, LineChart, PieChart, Plus, RefreshCw, Table2, TrendingDown, TrendingUp, X,
 } from 'lucide-react'
 import { usePageTitle } from '@/components/DocumentTitle'
+import {
+  CrmV2Body, CrmV2Button, CrmV2Card, CrmV2Empty, CrmV2Header, CrmV2Input, CrmV2KpiCard, CrmV2Page, CrmV2Pill,
+  CrmV2SectionLabel, CrmV2Select, CrmV2Spinner, hexA,
+} from '@/components/crm-v2/primitives'
+import { CrmV2ReportModal } from '@/components/crm-v2/reports/ReportModal'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -84,68 +89,60 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
   }
 
   if (loading || !dashboard) {
-    return <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#4a6070', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement…</div>
+    return <CrmV2Page><CrmV2Spinner /></CrmV2Page>
   }
 
+  const dashColor = safeColor(dashboard.color, crmV2.link)
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      {/* Mobile : retour + nom sur une ligne (description masquée), boutons compacts à droite */}
-      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : undefined }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0, flex: isMobile ? 1 : undefined }}>
-          <a href="/admin/crm/reports" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }} title="Dashboards">
-            <ChevronLeft size={14} />{!isMobile && ' Dashboards'}
-          </a>
-          <div style={{ width: 1, height: 22, background: '#e5ddc8', flexShrink: 0 }} />
-          <BarChart3 size={16} style={{ color: dashboard.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined, minWidth: 0 }}>{dashboard.name}</span>
-          {dashboard.description && !isMobile && (
-            <span style={{ fontSize: 11, color: '#4a6070', marginLeft: 4 }}>· {dashboard.description}</span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
-          <button
-            onClick={refresh}
-            title="Actualiser"
-            style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: isMobile ? '6px 8px' : '6px 12px', color: '#4a6070', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
-          >
-            <RefreshCw size={12} />{!isMobile && ' Actualiser'}
-          </button>
-          <button
-            onClick={() => setShowAddWidget(true)}
-            title="Ajouter un widget"
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: isMobile ? '6px 8px' : '6px 14px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            <Plus size={14} />{isMobile ? ' Widget' : ' Ajouter un widget'}
-          </button>
-        </div>
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: '/admin/crm/reports', label: 'Dashboards & Rapports' }}
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span style={{
+              width: isMobile ? 30 : 34, height: isMobile ? 30 : 34, borderRadius: 10, background: hexA(dashColor, 0.12), color: dashColor,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <BarChart3 size={16} />
+            </span>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dashboard.name}</span>
+          </span>
+        }
+        subtitle={dashboard.description || `${dashboard.widgets.length} widget${dashboard.widgets.length > 1 ? 's' : ''}`}
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<RefreshCw size={14} />} onClick={refresh} title="Actualiser">
+              {!isMobile && 'Actualiser'}
+            </CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowAddWidget(true)} title="Ajouter un widget">
+              {isMobile ? 'Widget' : 'Ajouter un widget'}
+            </CrmV2Button>
+          </>
+        }
+      />
 
-      {/* Mobile : description affichée sous la barre */}
-      {isMobile && dashboard.description && (
-        <div style={{ padding: '8px 12px 0', fontSize: 12, color: '#4a6070' }}>{dashboard.description}</div>
-      )}
-
-      {/* Grid widgets */}
-      <div style={{ padding: isMobile ? 12 : 20, maxWidth: 1600, margin: '0 auto' }}>
+      <CrmV2Body style={isMobile ? undefined : { padding: '20px 28px 24px' }}>
         {dashboard.widgets.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: isMobile ? 32 : 80, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-            <BarChart3 size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Dashboard vide</div>
-            <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
-              Ajoute ton premier widget pour commencer à visualiser tes données.
-            </div>
-            <button onClick={() => setShowAddWidget(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
-              <Plus size={14} /> Ajouter un widget
-            </button>
-          </div>
+          <CrmV2Card style={{ border: `1px dashed ${crmV2.borderStrong}`, boxShadow: 'none' }}>
+            <CrmV2Empty
+              icon={<BarChart3 size={28} />}
+              title="Dashboard vide"
+              description="Ajoute ton premier widget pour commencer à visualiser tes données."
+              action={
+                <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowAddWidget(true)}>
+                  Ajouter un widget
+                </CrmV2Button>
+              }
+            />
+          </CrmV2Card>
         ) : (
           // Mobile : grille 2 colonnes — petits widgets côte à côte, les autres en pleine largeur
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)',
-            gap: isMobile ? 10 : 16,
-            gridAutoRows: isMobile ? 'minmax(120px, auto)' : 'minmax(160px, auto)',
+            gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))',
+            gap: isMobile ? 8 : 16,
+            gridAutoRows: isMobile ? 'minmax(110px, auto)' : 'minmax(150px, auto)',
           }}>
             {dashboard.widgets.map(w => (
               <WidgetContainer
@@ -157,7 +154,7 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
             ))}
           </div>
         )}
-      </div>
+      </CrmV2Body>
 
       {showAddWidget && (
         <AddWidgetModal
@@ -166,8 +163,13 @@ export default function DashboardViewPage({ params }: { params: Promise<{ id: st
           onAdded={() => { setShowAddWidget(false); load() }}
         />
       )}
-    </div>
+    </CrmV2Page>
   )
+}
+
+/** Couleur stockée en base ramenée à un hex exploitable (sinon couleur de repli). */
+function safeColor(c: string | null | undefined, fallback: string = crmV2.gold) {
+  return c && /^#[0-9a-f]{6}$/i.test(c) ? c : fallback
 }
 
 // ─── Widget container ────────────────────────────────────────────────────
@@ -204,54 +206,67 @@ function WidgetContainer({ widget, onDelete, isMobile }: { widget: Widget; onDel
   }
   // Mobile : seuls les petits widgets (métriques) restent sur 1 colonne, le reste prend toute la largeur
   const mobileSpan: React.CSSProperties = { gridColumn: widget.size === 'small' ? 'span 1' : '1 / -1', gridRow: 'auto' }
+  const placement = isMobile ? mobileSpan : { ...sizeMap[widget.size], ...heightMap[widget.height] }
+  const rangeLabel = TIME_RANGE_LABELS[widget.time_range] || widget.time_range
+
+  // Widget « métrique » une fois chargé : carte indicateur V2
+  if (widget.widget_type === 'metric' && !loading && !error && data) {
+    return (
+      <div style={{ ...placement, position: 'relative', minWidth: 0 }}>
+        <CrmV2KpiCard
+          label={widget.title}
+          value={data.total.toLocaleString('fr-FR')}
+          icon={<Gauge size={15} />}
+          color={safeColor(widget.color)}
+          detail={<MetricDetail widget={widget} data={data} rangeLabel={rangeLabel} />}
+          style={{ height: '100%', boxSizing: 'border-box', paddingRight: 40 }}
+        />
+        <div style={{ position: 'absolute', top: isMobile ? 8 : 12, right: isMobile ? 6 : 10 }}>
+          <WidgetDeleteButton onClick={onDelete} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{
-      ...(isMobile ? mobileSpan : { ...sizeMap[widget.size], ...heightMap[widget.height] }),
-      background: '#ffffff',
-      border: '1px solid #e5ddc8',
-      borderRadius: 12,
-      padding: isMobile ? 12 : 18,
+      ...placement,
+      background: crmV2.bg,
+      border: `1px solid ${crmV2.border}`,
+      borderRadius: crmV2.radiusLg,
+      boxShadow: crmV2.shadow,
+      padding: isMobile ? 12 : 16,
       position: 'relative',
       display: 'flex',
       flexDirection: 'column',
-      minHeight: isMobile ? 120 : 160,
-      minWidth: isMobile ? 0 : undefined,
+      minHeight: isMobile ? 110 : 150,
+      minWidth: 0,
+      boxSizing: 'border-box',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: isMobile ? 6 : undefined, flexWrap: isMobile && widget.size === 'small' ? 'wrap' : undefined }}>
+      {/* En-tête du widget */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 8, flexWrap: isMobile && widget.size === 'small' ? 'wrap' : undefined }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
-            {widget.title}
-          </div>
+          <CrmV2SectionLabel>{widget.title}</CrmV2SectionLabel>
           {widget.description && (
-            <div style={{ fontSize: 11, color: '#4a6070' }}>{widget.description}</div>
+            <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 2 }}>{widget.description}</div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 4, flexShrink: isMobile ? 0 : undefined }}>
-          <span style={{ fontSize: 10, color: '#4a6070', padding: '2px 8px', background: '#f7f4ee', borderRadius: 999, whiteSpace: isMobile ? 'nowrap' : undefined }}>
-            {TIME_RANGE_LABELS[widget.time_range] || widget.time_range}
-          </span>
-          <button
-            onClick={onDelete}
-            style={{ background: 'transparent', border: 'none', color: '#a89e8a', cursor: 'pointer', padding: 2 }}
-            title="Supprimer"
-            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-            onMouseLeave={e => e.currentTarget.style.color = '#e5ddc8'}
-          >
-            <X size={14} />
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <CrmV2Pill style={{ fontSize: 11, padding: '1px 8px', color: crmV2.textMuted }}>{rangeLabel}</CrmV2Pill>
+          <WidgetDeleteButton onClick={onDelete} />
         </div>
       </div>
 
-      {/* Body */}
+      {/* Contenu */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', color: '#4a6070', fontSize: 12 }}>Chargement…</div>
+          <div style={{ textAlign: 'center', color: crmV2.textMuted, fontSize: 12 }}>Chargement…</div>
         ) : error ? (
-          <div style={{ textAlign: 'center', color: '#ef4444', fontSize: 12 }}>❌ {error}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: '#dc2626', fontSize: 12 }}>
+            <AlertCircle size={14} /> {error}
+          </div>
         ) : !data ? (
-          <div style={{ textAlign: 'center', color: '#4a6070', fontSize: 12 }}>Pas de données</div>
+          <div style={{ textAlign: 'center', color: crmV2.textMuted, fontSize: 12 }}>Pas de données</div>
         ) : (
           <WidgetRenderer widget={widget} data={data} isMobile={isMobile} />
         )}
@@ -260,61 +275,93 @@ function WidgetContainer({ widget, onDelete, isMobile }: { widget: Widget; onDel
   )
 }
 
+function WidgetDeleteButton({ onClick }: { onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="Supprimer"
+      aria-label="Supprimer le widget"
+      style={{
+        width: 26, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', flexShrink: 0,
+        background: hover ? crmV2.dangerSoft : 'transparent', color: hover ? crmV2.danger : crmV2.textFaint,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <X size={14} />
+    </button>
+  )
+}
+
 // ─── Renderer selon le type de widget ─────────────────────────────────────
 function WidgetRenderer({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   switch (widget.widget_type) {
-    case 'metric':     return <MetricWidget widget={widget} data={data} isMobile={isMobile} />
+    case 'metric':
+      // Normalement rendu en CrmV2KpiCard par WidgetContainer ; repli simple
+      return (
+        <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: safeColor(widget.color), letterSpacing: '-0.02em' }}>
+          {data.total.toLocaleString('fr-FR')}
+        </div>
+      )
     case 'bar_chart':  return <BarChartWidget widget={widget} data={data} />
     case 'line_chart': return <LineChartWidget widget={widget} data={data} />
     case 'pie_chart':  return <PieChartWidget widget={widget} data={data} isMobile={isMobile} />
     case 'funnel':     return <FunnelWidget widget={widget} data={data} isMobile={isMobile} />
     case 'table':      return <TableWidget data={data} />
-    default:           return <div style={{ color: '#4a6070' }}>Type non supporté: {widget.widget_type}</div>
+    default:           return <div style={{ color: crmV2.textMuted, fontSize: 12 }}>Type non supporté : {widget.widget_type}</div>
   }
 }
 
-// ─── Metric (big number) ─────────────────────────────────────────────────
-function MetricWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
+function NoData() {
+  return <div style={{ color: crmV2.textMuted, fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
+}
+
+// ─── Détail d'une métrique (tendance + période) ──────────────────────────
+function MetricDetail({ widget, data, rangeLabel }: { widget: Widget; data: WidgetData; rangeLabel: string }) {
   const t = data.trend
   const up = (t?.delta || 0) > 0
   const down = (t?.delta || 0) < 0
+  const showTrend = widget.show_trend && t && t.previous !== 0
   return (
-    <div>
-      <div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 700, color: widget.color, lineHeight: 1 }}>
-        {data.total.toLocaleString('fr-FR')}
-      </div>
-      {widget.show_trend && t && t.previous !== 0 && (
-        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, flexWrap: isMobile ? 'wrap' : undefined }}>
-          {up && <TrendingUp size={12} style={{ color: '#22c55e' }} />}
-          {down && <TrendingDown size={12} style={{ color: '#ef4444' }} />}
-          <span style={{ color: up ? '#22c55e' : down ? '#ef4444' : '#4a6070', fontWeight: 600 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+      {showTrend && (
+        <>
+          {up && <TrendingUp size={12} style={{ color: crmV2.successStrong }} />}
+          {down && <TrendingDown size={12} style={{ color: '#dc2626' }} />}
+          <span style={{ color: up ? crmV2.successStrong : down ? '#dc2626' : crmV2.textMuted, fontWeight: 700 }}>
             {up ? '+' : ''}{t.deltaPct.toFixed(1)}%
           </span>
-          <span style={{ color: '#4a6070' }}>vs période précédente</span>
-        </div>
+          <span>vs période précédente ·</span>
+        </>
       )}
-    </div>
+      <span>{rangeLabel}</span>
+      {widget.description && <span style={{ color: crmV2.textFaint }}>· {widget.description}</span>}
+    </span>
   )
 }
 
 // ─── Bar chart ───────────────────────────────────────────────────────────
 function BarChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
   const max = Math.max(1, ...data.breakdown.map(b => b.value))
+  const color = safeColor(widget.color)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {data.breakdown.length === 0 && <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>}
+      {data.breakdown.length === 0 && <NoData />}
       {data.breakdown.slice(0, 10).map(b => (
         <div key={b.key}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-            <span style={{ color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{b.label}</span>
-            <span style={{ color: '#0e1e35', fontWeight: 600 }}>{b.value}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, marginBottom: 4 }}>
+            <span style={{ color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{b.label}</span>
+            <span style={{ color: crmV2.text, fontWeight: 700 }}>{b.value.toLocaleString('fr-FR')}</span>
           </div>
-          <div style={{ height: 8, background: '#f7f4ee', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: 8, background: crmV2.bgSoft, borderRadius: 999, overflow: 'hidden' }}>
             <div style={{
               width: `${(b.value / max) * 100}%`,
               height: '100%',
-              background: b.color || widget.color,
-              borderRadius: 4,
+              background: b.color || color,
+              borderRadius: 999,
               transition: 'width .4s ease',
             }} />
           </div>
@@ -326,9 +373,8 @@ function BarChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) 
 
 // ─── Line chart (SVG inline) ─────────────────────────────────────────────
 function LineChartWidget({ widget, data }: { widget: Widget; data: WidgetData }) {
-  if (data.breakdown.length === 0) {
-    return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
-  }
+  if (data.breakdown.length === 0) return <NoData />
+  const color = safeColor(widget.color)
   const values = data.breakdown.map(b => b.value)
   const max = Math.max(1, ...values)
   const W = 600, H = 140, P = 20
@@ -343,15 +389,16 @@ function LineChartWidget({ widget, data }: { widget: Widget; data: WidgetData })
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="140" preserveAspectRatio="none">
-        <polygon points={area} fill={widget.color} opacity="0.15" />
-        <polyline points={points} fill="none" stroke={widget.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <line x1={P} x2={W - P} y1={H - P} y2={H - P} stroke={crmV2.border} strokeWidth="1" />
+        <polygon points={area} fill={color} opacity="0.12" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         {values.map((v, i) => {
           const x = P + i * step
           const y = H - P - (v / max) * (H - 2 * P)
-          return <circle key={i} cx={x} cy={y} r="3" fill={widget.color} />
+          return <circle key={i} cx={x} cy={y} r="3" fill={color}><title>{`${data.breakdown[i]?.label} : ${v}`}</title></circle>
         })}
       </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#4a6070', marginTop: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: crmV2.textFaint, marginTop: 4 }}>
         <span>{data.breakdown[0]?.label}</span>
         <span>{data.breakdown[data.breakdown.length - 1]?.label}</span>
       </div>
@@ -359,51 +406,44 @@ function LineChartWidget({ widget, data }: { widget: Widget; data: WidgetData })
   )
 }
 
+// Palette des répartitions : or Diploma puis couleurs de la charte (étapes, issues)
+const PIE_PALETTE = ['#C9A84C', '#0091ae', '#a855f7', '#22c55e', '#ef4444', '#4cabdb', '#06b6d4', '#b8963e', '#16a34a', '#7c98b6']
+
 // ─── Pie chart (SVG inline) ──────────────────────────────────────────────
 function PieChartWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   void widget
-  if (data.breakdown.length === 0) {
-    return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
-  }
-  const palette = ['#C9A84C', '#06b6d4', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316']
+  if (data.breakdown.length === 0) return <NoData />
   const total = data.breakdown.reduce((s, b) => s + b.value, 0)
-  if (total === 0) {
-    return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
-  }
-  let offset = 0
+  if (total === 0) return <NoData />
   const R = 40, C = 2 * Math.PI * R
+  // Début de chaque part sur le cercle (cumul des parts précédentes)
+  const dashes = data.breakdown.map(b => (b.value / total) * C)
+  const offsets = dashes.map((_, i) => dashes.slice(0, i).reduce((acc, d) => acc + d, 0))
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20 }}>
       <svg viewBox="0 0 100 100" width={isMobile ? 96 : 120} height={isMobile ? 96 : 120} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-        {data.breakdown.map((b, i) => {
-          const pct = b.value / total
-          const dash = pct * C
-          const col = b.color || palette[i % palette.length]
-          const el = (
-            <circle
-              key={b.key}
-              r={R} cx="50" cy="50"
-              fill="transparent"
-              stroke={col}
-              strokeWidth="20"
-              strokeDasharray={`${dash} ${C}`}
-              strokeDashoffset={-offset}
-            />
-          )
-          offset += dash
-          return el
-        })}
+        {data.breakdown.map((b, i) => (
+          <circle
+            key={b.key}
+            r={R} cx="50" cy="50"
+            fill="transparent"
+            stroke={b.color || PIE_PALETTE[i % PIE_PALETTE.length]}
+            strokeWidth="20"
+            strokeDasharray={`${dashes[i]} ${C}`}
+            strokeDashoffset={-offsets[i]}
+          />
+        ))}
       </svg>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {data.breakdown.slice(0, 6).map((b, i) => {
-          const col = b.color || palette[i % palette.length]
+          const col = b.color || PIE_PALETTE[i % PIE_PALETTE.length]
           const pct = ((b.value / total) * 100).toFixed(0)
           return (
-            <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: col, flexShrink: 0 }} />
-              <span style={{ flex: 1, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
-              <span style={{ color: '#4a6070', fontWeight: 600 }}>{pct}%</span>
+            <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+              <span style={{ flex: 1, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
+              <span style={{ color: crmV2.textMuted, fontWeight: 700 }}>{pct}%</span>
             </div>
           )
         })}
@@ -415,29 +455,28 @@ function PieChartWidget({ widget, data, isMobile }: { widget: Widget; data: Widg
 // ─── Funnel (étapes successives) ──────────────────────────────────────────
 function FunnelWidget({ widget, data, isMobile }: { widget: Widget; data: WidgetData; isMobile: boolean }) {
   void widget
-  if (data.breakdown.length === 0) {
-    return <div style={{ color: '#4a6070', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
-  }
+  if (data.breakdown.length === 0) return <NoData />
   const max = Math.max(1, ...data.breakdown.map(b => b.value))
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {data.breakdown.map(b => {
         const pct = (b.value / max) * 100
+        const col = safeColor(b.color)
         return (
           <div key={b.key} style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            padding: isMobile ? '8px 10px' : '10px 14px',
-            background: b.color ? `${b.color}15` : '#f7f4ee',
-            borderLeft: `3px solid ${b.color || '#C9A84C'}`,
-            borderRadius: 6,
+            padding: isMobile ? '8px 10px' : '9px 14px',
+            background: hexA(col, 0.10),
+            borderLeft: `3px solid ${col}`,
+            borderRadius: 10,
             width: isMobile ? `${Math.max(55, pct)}%` : `${Math.max(40, pct)}%`,
             minWidth: isMobile ? 0 : 200,
-            boxSizing: isMobile ? 'border-box' : undefined,
+            boxSizing: 'border-box',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: b.color || '#C9A84C' }}>{b.value}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: col }}>{b.value.toLocaleString('fr-FR')}</span>
           </div>
         )
       })}
@@ -448,12 +487,12 @@ function FunnelWidget({ widget, data, isMobile }: { widget: Widget; data: Widget
 // ─── Table ───────────────────────────────────────────────────────────────
 function TableWidget({ data }: { data: WidgetData }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
       <tbody>
         {data.breakdown.slice(0, 15).map(b => (
-          <tr key={b.key} style={{ borderBottom: '1px solid #eaf0f6' }}>
-            <td style={{ padding: '6px 0', color: '#0e1e35' }}>{b.label}</td>
-            <td style={{ padding: '6px 0', textAlign: 'right', color: '#0e1e35', fontWeight: 600 }}>{b.value}</td>
+          <tr key={b.key} style={{ height: 36 }}>
+            <td style={{ padding: '0 2px', color: crmV2.text, borderBottom: `1px solid ${crmV2.borderLight}` }}>{b.label}</td>
+            <td style={{ padding: '0 2px', textAlign: 'right', color: crmV2.text, fontWeight: 700, borderBottom: `1px solid ${crmV2.borderLight}` }}>{b.value.toLocaleString('fr-FR')}</td>
           </tr>
         ))}
       </tbody>
@@ -462,13 +501,13 @@ function TableWidget({ data }: { data: WidgetData }) {
 }
 
 // ─── Modal ajout de widget ────────────────────────────────────────────────
-const WIDGET_TYPES = [
-  { key: 'metric',     label: 'Métrique', icon: '📊', description: 'Un grand nombre avec tendance' },
-  { key: 'bar_chart',  label: 'Barres',   icon: '📶', description: 'Comparaison par catégorie' },
-  { key: 'line_chart', label: 'Courbe',   icon: '📈', description: 'Évolution dans le temps' },
-  { key: 'pie_chart',  label: 'Camembert', icon: '🥧', description: 'Répartition en %' },
-  { key: 'funnel',     label: 'Funnel',   icon: '🔻', description: 'Étapes successives' },
-  { key: 'table',      label: 'Tableau',  icon: '📋', description: 'Liste triée' },
+const WIDGET_TYPES: { key: string; label: string; icon: ReactNode; description: string }[] = [
+  { key: 'metric',     label: 'Métrique',  icon: <Gauge size={16} />,     description: 'Un grand nombre avec tendance' },
+  { key: 'bar_chart',  label: 'Barres',    icon: <BarChart3 size={16} />, description: 'Comparaison par catégorie' },
+  { key: 'line_chart', label: 'Courbe',    icon: <LineChart size={16} />, description: 'Évolution dans le temps' },
+  { key: 'pie_chart',  label: 'Camembert', icon: <PieChart size={16} />,  description: 'Répartition en %' },
+  { key: 'funnel',     label: 'Funnel',    icon: <Filter size={16} />,    description: 'Étapes successives' },
+  { key: 'table',      label: 'Tableau',   icon: <Table2 size={16} />,    description: 'Liste triée' },
 ]
 
 const DATA_SOURCES = [
@@ -536,106 +575,106 @@ function AddWidgetModal({ dashboardId, onClose, onAdded }: { dashboardId: string
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 640, maxWidth: 'calc(100vw - 80px)', maxHeight: '85vh', overflowY: 'auto', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Ajouter un widget</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
-        </div>
-
-        <Section title="1. Type de widget">
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, 1fr)', gap: 8 }}>
-            {WIDGET_TYPES.map(wt => (
+    <CrmV2ReportModal
+      title="Ajouter un widget"
+      onClose={onClose}
+      width={640}
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={submit} disabled={!title.trim() || saving}>
+            {saving ? 'Ajout…' : 'Ajouter le widget'}
+          </CrmV2Button>
+        </>
+      }
+    >
+      <Section title="1. Type de widget">
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+          {WIDGET_TYPES.map(wt => {
+            const active = widgetType === wt.key
+            return (
               <button
                 key={wt.key}
+                type="button"
                 onClick={() => setWidgetType(wt.key)}
                 style={{
-                  background: widgetType === wt.key ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
-                  border: `1px solid ${widgetType === wt.key ? 'rgba(204,172,113,0.5)' : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '10px 8px', cursor: 'pointer',
-                  textAlign: 'left', fontFamily: 'inherit',
+                  background: active ? crmV2.goldSoft : crmV2.bg,
+                  border: `1px solid ${active ? crmV2.gold : crmV2.border}`,
+                  borderRadius: 12, padding: '10px 10px', cursor: 'pointer',
+                  textAlign: 'left', fontFamily: 'inherit', minHeight: 44,
                 }}
               >
-                <div style={{ fontSize: 20, marginBottom: 4 }}>{wt.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35' }}>{wt.label}</div>
-                <div style={{ fontSize: 10, color: '#4a6070', marginTop: 2 }}>{wt.description}</div>
+                <span style={{
+                  width: 28, height: 28, borderRadius: 8, marginBottom: 6,
+                  background: active ? 'rgba(201,168,76,0.22)' : crmV2.bgSoft, color: active ? crmV2.goldDark : crmV2.textMuted,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>{wt.icon}</span>
+                <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>{wt.label}</div>
+                <div style={{ fontSize: 11, color: crmV2.textMuted, marginTop: 2 }}>{wt.description}</div>
               </button>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="2. Titre">
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Ex: Contacts PASS ce mois"
-            style={inputStyle}
-          />
-        </Section>
-
-        <Section title="3. Source de données">
-          <select value={dataSource} onChange={e => { setDataSource(e.target.value); setGroupBy('') }} style={inputStyle}>
-            {DATA_SOURCES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </Section>
-
-        {needsGroupBy && (
-          <Section title="4. Regrouper par">
-            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={inputStyle}>
-              {currentSrc.groupBys.map(gb => (
-                <option key={gb} value={gb}>{GROUP_BY_LABELS[gb] || gb}</option>
-              ))}
-            </select>
-          </Section>
-        )}
-
-        <Section title={`${needsGroupBy ? '5' : '4'}. Période`}>
-          <select value={timeRange} onChange={e => setTimeRange(e.target.value)} style={inputStyle}>
-            {Object.entries(TIME_RANGE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </Section>
-
-        <Section title={`${needsGroupBy ? '6' : '5'}. Taille & couleur`}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <select value={size} onChange={e => setSize(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-              <option value="small">Petit (1 colonne)</option>
-              <option value="medium">Moyen (2 colonnes)</option>
-              <option value="large">Grand (3 colonnes)</option>
-              <option value="xlarge">Pleine largeur</option>
-            </select>
-            <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 50, height: 38, padding: 2, border: '1px solid #e5ddc8', borderRadius: 8, cursor: 'pointer' }} />
-          </div>
-        </Section>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
-          <button
-            onClick={submit}
-            disabled={!title.trim() || saving}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !title.trim() || saving ? 0.5 : 1 }}
-          >
-            {saving ? 'Ajout…' : 'Ajouter le widget'}
-          </button>
+            )
+          })}
         </div>
-      </div>
-    </>
+      </Section>
+
+      <Section title="2. Titre">
+        <CrmV2Input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Ex : Contacts PASS ce mois"
+        />
+      </Section>
+
+      <Section title="3. Source de données">
+        <CrmV2Select value={dataSource} onChange={e => { setDataSource(e.target.value); setGroupBy('') }}>
+          {DATA_SOURCES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </CrmV2Select>
+      </Section>
+
+      {needsGroupBy && (
+        <Section title="4. Regrouper par">
+          <CrmV2Select value={groupBy} onChange={e => setGroupBy(e.target.value)}>
+            {currentSrc.groupBys.map(gb => (
+              <option key={gb} value={gb}>{GROUP_BY_LABELS[gb] || gb}</option>
+            ))}
+          </CrmV2Select>
+        </Section>
+      )}
+
+      <Section title={`${needsGroupBy ? '5' : '4'}. Période`}>
+        <CrmV2Select value={timeRange} onChange={e => setTimeRange(e.target.value)}>
+          {Object.entries(TIME_RANGE_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </CrmV2Select>
+      </Section>
+
+      <Section title={`${needsGroupBy ? '6' : '5'}. Taille & couleur`}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <CrmV2Select value={size} onChange={e => setSize(e.target.value)} style={{ flex: 1 }}>
+            <option value="small">Petit (1 colonne)</option>
+            <option value="medium">Moyen (2 colonnes)</option>
+            <option value="large">Grand (3 colonnes)</option>
+            <option value="xlarge">Pleine largeur</option>
+          </CrmV2Select>
+          <input
+            type="color"
+            value={color}
+            onChange={e => setColor(e.target.value)}
+            aria-label="Couleur du widget"
+            style={{ width: 50, height: 38, padding: 2, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius, cursor: 'pointer', background: crmV2.bg, flexShrink: 0 }}
+          />
+        </div>
+      </Section>
+    </CrmV2ReportModal>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{title}</div>
+    <div style={{ marginBottom: 16 }}>
+      <CrmV2SectionLabel style={{ marginBottom: 6 }}>{title}</CrmV2SectionLabel>
       {children}
     </div>
   )
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
-  padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none',
-  fontFamily: 'inherit', boxSizing: 'border-box',
 }

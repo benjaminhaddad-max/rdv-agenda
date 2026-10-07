@@ -1,10 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { LayoutDashboard, Plus, Trash2, Star, BarChart3, Phone, PhoneCall } from 'lucide-react'
 import {
-  LayoutDashboard, Plus, Trash2, Edit3, Star, X, BarChart3, Search, Copy, Phone, PhoneCall,
-} from 'lucide-react'
+  CrmV2Body, CrmV2Button, CrmV2Empty, CrmV2Field, CrmV2Header, CrmV2Input, CrmV2Page, CrmV2Search,
+  CrmV2Spinner, CrmV2StatusPill, CrmV2Textarea, CrmV2TileCard, CrmV2TileGrid,
+} from '@/components/crm-v2/primitives'
+import { CrmV2ReportModal } from '@/components/crm-v2/reports/ReportModal'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Dashboard {
@@ -19,8 +23,14 @@ interface Dashboard {
   updated_at: string
 }
 
+/** Couleur d'un dashboard (stockée en base) ramenée à un hex exploitable, sinon accent froid. */
+function safeColor(c?: string | null) {
+  return c && /^#[0-9a-f]{6}$/i.test(c) ? c : crmV2.link
+}
+
 export default function DashboardsListPage() {
   const isMobile = useIsMobile()
+  const router = useRouter()
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -51,151 +61,78 @@ export default function DashboardsListPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Topbar */}
-      {/* Mobile : titre sur une ligne, sous-titre masqué, boutons en rangée scrollable */}
-      <div style={isMobile
-        ? { padding: '10px 12px', background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }
-        : { padding: '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <BarChart3 size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dashboards & Rapports</span>
-          {!isMobile && (
-            <span style={{ fontSize: 11, color: '#4a6070' }}>
-              Crée des tableaux de bord personnalisés avec tes KPIs
-            </span>
-          )}
-        </div>
-        <div style={isMobile
-          ? { display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }
-          : { display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Link
-            href="/admin/crm/reports/suivi-commercial"
-            style={{
-              background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.35)',
-              borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none', flexShrink: 0,
-            }}
-          >
-            <PhoneCall size={14} /> Suivi commercial
-          </Link>
-          <Link
-            href="/admin/crm/reports/telepro-rdv"
-            style={{
-              background: 'rgba(46,163,242,0.12)', border: '1px solid rgba(46,163,242,0.35)',
-              borderRadius: 8, padding: '8px 16px', color: '#2ea3f2', fontSize: 13,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none', flexShrink: 0,
-            }}
-          >
-            <Phone size={14} /> RDV par télépro
-          </Link>
-          <button
-            onClick={() => setShowNewModal(true)}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '8px 16px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', flexShrink: 0 }}
-          >
-            <Plus size={14} /> Nouveau dashboard
-          </button>
-        </div>
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Dashboards & Rapports"
+        subtitle="Tableaux de bord partagés et rapports personnalisés"
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={<PhoneCall size={14} />} onClick={() => router.push('/admin/crm/reports/suivi-commercial')}>
+              Suivi commercial
+            </CrmV2Button>
+            <CrmV2Button variant="secondary" icon={<Phone size={14} />} onClick={() => router.push('/admin/crm/reports/telepro-rdv')}>
+              RDV par télépro
+            </CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>
+              Nouveau dashboard
+            </CrmV2Button>
+          </>
+        }
+      />
 
-      {/* Rapport télépros — accès rapide */}
-      <div style={{ padding: isMobile ? '12px 12px 0' : '16px 24px 0', maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 10 }}>
-        <Link
-          href="/admin/crm/reports/suivi-commercial"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background: 'linear-gradient(135deg, rgba(204,172,113,0.16), rgba(46,163,242,0.08))',
-            border: '1px solid rgba(204,172,113,0.45)',
-            borderRadius: 12, padding: '14px 18px',
-            textDecoration: 'none', color: '#0e1e35',
-          }}
-        >
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: 'rgba(204,172,113,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <PhoneCall size={20} style={{ color: '#C9A84C' }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Suivi commercial (Aircall)</div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
-              Appels, RDV et conversions par télépro et par commercial
-            </div>
-          </div>
-          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, flexShrink: 0 }}>Voir →</span>
-        </Link>
-        <Link
-          href="/admin/crm/reports/telepro-rdv"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background: 'linear-gradient(135deg, rgba(204,172,113,0.12), rgba(46,163,242,0.08))',
-            border: '1px solid rgba(204,172,113,0.35)',
-            borderRadius: 12, padding: '14px 18px',
-            textDecoration: 'none', color: '#0e1e35',
-          }}
-        >
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: 'rgba(204,172,113,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <BarChart3 size={20} style={{ color: '#C9A84C' }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>RDV placés par télépro (hebdo)</div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
-              Tableau chiffré semaine par semaine — qui a pris combien de RDV
-            </div>
-          </div>
-          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, flexShrink: 0 }}>Voir →</span>
-        </Link>
-      </div>
+      <CrmV2Body style={isMobile ? undefined : { padding: '20px 28px 24px' }}>
+        <CrmV2Search
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher un dashboard…"
+          style={{ maxWidth: isMobile ? undefined : 400 }}
+        />
 
-      {/* Recherche */}
-      <div style={{ padding: isMobile ? '16px 12px 12px' : '20px 24px 16px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', maxWidth: 400 }}>
-          <Search size={14} style={{ color: '#4a6070' }} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un dashboard…"
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#0e1e35', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
-          />
-        </div>
-      </div>
-
-      {/* Grid des dashboards */}
-      <div style={{ padding: isMobile ? '0 12px 40px' : '0 24px 60px', maxWidth: 1400, margin: '0 auto' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#4a6070' }}>Chargement…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            <SuiviCommercialCard />
-            <TeleproReportCard />
-            <div style={{ textAlign: 'center', padding: isMobile ? 24 : 60, background: '#ffffff', border: '1px dashed #e5ddc8', borderRadius: 12 }}>
-              <LayoutDashboard size={48} style={{ color: '#a89e8a', margin: '0 auto 16px' }} />
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Aucun dashboard personnalisé</div>
-              <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 20 }}>
-                Crée un tableau de bord pour suivre tes KPIs en temps réel.
-              </div>
-              <button onClick={() => setShowNewModal(true)} style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 8, padding: '10px 20px', color: '#C9A84C', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit' }}>
-                <Plus size={14} /> Créer un dashboard
-              </button>
-            </div>
-          </div>
+          <CrmV2Spinner />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            <SuiviCommercialCard />
-            <TeleproReportCard />
+          <CrmV2TileGrid>
+            {/* Rapports intégrés, toujours affichés en tête */}
+            <CrmV2TileCard
+              href="/admin/crm/reports/suivi-commercial"
+              icon={<PhoneCall size={18} />}
+              iconColor={crmV2.success}
+              status={<CrmV2StatusPill label="Intégré" color={crmV2.successStrong} />}
+              title="Suivi commercial"
+              description="Appels Aircall, RDV et taux de conversion par télépro et par commercial."
+              meta="Rapport intégré"
+            />
+            <CrmV2TileCard
+              href="/admin/crm/reports/telepro-rdv"
+              icon={<Phone size={18} />}
+              iconColor={crmV2.success}
+              status={<CrmV2StatusPill label="Intégré" color={crmV2.successStrong} />}
+              title="RDV par télépro"
+              description="Combien de RDV chaque télépro a pris, semaine par semaine, avec comparaison à la semaine précédente."
+              meta="Rapport hebdomadaire"
+            />
             {filtered.map(d => (
               <DashboardCard key={d.id} dashboard={d} onDelete={() => remove(d)} />
             ))}
-          </div>
+            {filtered.length === 0 && (
+              <div style={{
+                background: crmV2.bg, border: `1px dashed ${crmV2.borderStrong}`, borderRadius: crmV2.radiusLg,
+              }}>
+                <CrmV2Empty
+                  icon={<LayoutDashboard size={28} />}
+                  title={search ? 'Aucun dashboard trouvé' : 'Aucun dashboard personnalisé'}
+                  description="Crée un tableau de bord pour suivre tes KPIs en temps réel."
+                  action={
+                    <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewModal(true)}>
+                      Créer un dashboard
+                    </CrmV2Button>
+                  }
+                />
+              </div>
+            )}
+          </CrmV2TileGrid>
         )}
-      </div>
+      </CrmV2Body>
 
       {showNewModal && (
         <NewDashboardModal
@@ -203,119 +140,47 @@ export default function DashboardsListPage() {
           onCreated={(id) => { window.location.href = `/admin/crm/reports/${id}` }}
         />
       )}
-    </div>
-  )
-}
-
-function SuiviCommercialCard() {
-  return (
-    <Link
-      href="/admin/crm/reports/suivi-commercial"
-      style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, rgba(204,172,113,0.10) 100%)',
-        border: '2px solid rgba(204,172,113,0.45)',
-        borderRadius: 12, padding: 20, cursor: 'pointer',
-        textDecoration: 'none', color: '#0e1e35', display: 'block',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: 'rgba(204,172,113,0.18)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <PhoneCall size={20} style={{ color: '#C9A84C' }} />
-        </div>
-        <span style={{
-          fontSize: 10, color: '#C9A84C', background: 'rgba(204,172,113,0.15)',
-          padding: '3px 8px', borderRadius: 999, fontWeight: 700,
-        }}>
-          Nouveau
-        </span>
-      </div>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Suivi commercial</div>
-      <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 14, minHeight: 32, lineHeight: 1.4 }}>
-        Appels Aircall, RDV et taux de conversion par télépro et par commercial — lignes déroulantes.
-      </div>
-      <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 600 }}>Ouvrir le dashboard →</div>
-    </Link>
-  )
-}
-
-function TeleproReportCard() {
-  return (
-    <Link
-      href="/admin/crm/reports/telepro-rdv"
-      style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, rgba(46,163,242,0.06) 100%)',
-        border: '2px solid rgba(46,163,242,0.35)',
-        borderRadius: 12, padding: 20, cursor: 'pointer',
-        textDecoration: 'none', color: '#0e1e35', display: 'block',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: 'rgba(46,163,242,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Phone size={20} style={{ color: '#2ea3f2' }} />
-        </div>
-        <span style={{
-          fontSize: 10, color: '#2ea3f2', background: 'rgba(46,163,242,0.12)',
-          padding: '3px 8px', borderRadius: 999, fontWeight: 700,
-        }}>
-          Rapport
-        </span>
-      </div>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>RDV par télépro (hebdo)</div>
-      <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 14, minHeight: 32, lineHeight: 1.4 }}>
-        Combien de RDV chaque téléprospecteur a pris, semaine par semaine — avec comparaison à la semaine précédente.
-      </div>
-      <div style={{ fontSize: 11, color: '#2ea3f2', fontWeight: 600 }}>Ouvrir le rapport →</div>
-    </Link>
+    </CrmV2Page>
   )
 }
 
 function DashboardCard({ dashboard: d, onDelete }: { dashboard: Dashboard; onDelete: () => void }) {
-  return (
-    <div
-      onClick={() => window.location.href = `/admin/crm/reports/${d.id}`}
-      style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 20, cursor: 'pointer', transition: 'all .15s', position: 'relative' }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)' }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: `${d.color}15`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <BarChart3 size={20} style={{ color: d.color }} />
-        </div>
-        {d.is_default && (
-          <span style={{ fontSize: 10, color: '#C9A84C', background: 'rgba(204,172,113,0.15)', padding: '3px 8px', borderRadius: 999, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Star size={10} /> Par défaut
-          </span>
-        )}
-      </div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#0e1e35', marginBottom: 4 }}>{d.name}</div>
-      <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 14, minHeight: 32, lineHeight: 1.4 }}>
-        {d.description || 'Pas de description'}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#4a6070' }}>
-        <span>Modifié le {new Date(d.updated_at).toLocaleDateString('fr-FR')}</span>
-        {!d.is_default && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex' }}
-            title="Supprimer"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
-      </div>
+  const color = safeColor(d.color)
+  const status = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {d.is_default ? (
+        <CrmV2StatusPill label={<><Star size={11} /> Par défaut</>} color={crmV2.goldDark} bg="rgba(204,172,113,0.16)" dot={false} />
+      ) : d.is_shared ? (
+        <CrmV2StatusPill label="Équipe" color="#1f7ca8" bg="rgba(76,171,219,0.12)" />
+      ) : (
+        <CrmV2StatusPill label="Privé" color={crmV2.textMuted} bg={crmV2.chipBg} />
+      )}
+      {!d.is_default && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete() }}
+          title="Supprimer"
+          aria-label="Supprimer le dashboard"
+          style={{
+            width: 28, height: 28, borderRadius: 999, border: 'none', background: 'transparent',
+            color: crmV2.danger, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
+  )
+  return (
+    <CrmV2TileCard
+      href={`/admin/crm/reports/${d.id}`}
+      icon={<BarChart3 size={18} />}
+      iconColor={color}
+      status={status}
+      title={d.name}
+      description={d.description || 'Pas de description'}
+      meta={`Modifié le ${new Date(d.updated_at).toLocaleDateString('fr-FR')}`}
+    />
   )
 }
 
@@ -341,43 +206,36 @@ function NewDashboardModal({ onClose, onCreated }: { onClose: () => void; onCrea
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxWidth: 'calc(100vw - 80px)', background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: 24, zIndex: 61 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35' }}>Nouveau dashboard</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
-        </div>
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nom *</div>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Ex: Performance Closers PASS"
-          autoFocus
-          style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-        />
-
-        <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4, marginTop: 12 }}>Description (optionnel)</div>
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="À quoi sert ce dashboard ?"
-          rows={3}
-          style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#0e1e35', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
-        />
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#ffffff', border: '1px solid #e5ddc8', color: '#4a6070', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Annuler</button>
-          <button
-            onClick={submit}
-            disabled={!name.trim() || loading}
-            style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', color: '#C9A84C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !name.trim() || loading ? 0.5 : 1 }}
-          >
-            {loading ? 'Création…' : 'Créer →'}
-          </button>
-        </div>
+    <CrmV2ReportModal
+      title="Nouveau dashboard"
+      onClose={onClose}
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={submit} disabled={!name.trim() || loading}>
+            {loading ? 'Création…' : 'Créer'}
+          </CrmV2Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <CrmV2Field label="Nom *">
+          <CrmV2Input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Ex : Performance Closers PASS"
+            autoFocus
+          />
+        </CrmV2Field>
+        <CrmV2Field label="Description (optionnel)">
+          <CrmV2Textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="À quoi sert ce dashboard ?"
+            rows={3}
+          />
+        </CrmV2Field>
       </div>
-    </>
+    </CrmV2ReportModal>
   )
 }

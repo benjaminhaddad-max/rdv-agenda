@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
+import { CrmV2SectionLabel, CrmV2Segmented, hexA } from '@/components/crm-v2/primitives'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import type { ReachedContact, ReachedContactsResponse, SuiviRole } from '@/lib/suivi-commercial'
 import { TALK_MIN_SEC } from '@/lib/suivi-commercial'
 
@@ -31,16 +33,16 @@ const STATUS_COLORS: Record<string, string> = {
   'Inscrit': '#15803d',
   "A garder pour l'an prochain": '#0ea5e9',
   'Disqualifié': '#dc2626',
-  'Mauvais numéro': '#a89e8a',
+  'Mauvais numéro': '#7c98b6',
   'Raccroche au nez': '#ef4444',
-  'Autre prépa concurrente': '#4a6070',
-  'Doublon': '#a89e8a',
-  'Perdu': '#4a6070',
+  'Autre prépa concurrente': '#516f90',
+  'Doublon': '#7c98b6',
+  'Perdu': '#516f90',
 }
 
 function statusColor(status: string | null): string {
-  if (!status) return '#a89e8a'
-  return STATUS_COLORS[status] || '#4a6070'
+  if (!status) return crmV2.textFaint
+  return STATUS_COLORS[status] || crmV2.textMuted
 }
 
 function fmtTalk(sec: number): string {
@@ -114,43 +116,33 @@ export default function ReachedContactsPanel({
     : tiered
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee6d6', borderRadius: 10, padding: 14, marginTop: isMobile ? 12 : 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase' }}>
+    <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: 14, marginTop: isMobile ? 10 : 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <CrmV2SectionLabel>
             Contacts joints au téléphone{contacts ? ` (${all.length})` : ''}
-          </div>
-          <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 2 }}>
+          </CrmV2SectionLabel>
+          <div style={{ fontSize: 12, color: crmV2.textFaint, marginTop: 2 }}>
             Décrochés humains (≥ 10 s, hors messagerie) · statut lead actuel et changement après l’appel
           </div>
         </div>
-        <div style={{ display: 'flex', background: '#faf8f4', border: '1px solid #e5ddc8', borderRadius: 8, overflow: 'hidden' }}>
-          {([
-            { v: 'all', label: `Tous (${all.length})` },
-            { v: 'long', label: `> 2 min (${longCount})` },
-            { v: 'short', label: `< 2 min (${all.length - longCount})` },
-          ] as Array<{ v: Filter; label: string }>).map(o => (
-            <button
-              key={o.v}
-              onClick={() => { setFilter(o.v); setStatusFilter(null); setLimit(PAGE) }}
-              style={{
-                padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                fontFamily: 'inherit',
-                background: filter === o.v ? 'rgba(204,172,113,0.2)' : 'transparent',
-                color: filter === o.v ? '#0e1e35' : '#4a6070',
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+        <CrmV2Segmented<Filter>
+          size="sm"
+          value={filter}
+          onChange={v => { setFilter(v); setStatusFilter(null); setLimit(PAGE) }}
+          items={[
+            { id: 'all', label: `Tous (${all.length})` },
+            { id: 'long', label: `> 2 min (${longCount})` },
+            { id: 'short', label: `< 2 min (${all.length - longCount})` },
+          ]}
+        />
       </div>
 
       {err && <div style={{ fontSize: 12, color: '#dc2626' }}>Erreur : {err}</div>}
-      {!contacts && !err && <div style={{ fontSize: 12, color: '#4a6070', padding: '8px 0' }}>Chargement…</div>}
+      {!contacts && !err && <div style={{ fontSize: 12, color: crmV2.textMuted, padding: '8px 0' }}>Chargement…</div>}
 
       {contacts && tiered.length === 0 && (
-        <div style={{ fontSize: 12, color: '#4a6070', padding: '8px 0' }}>Aucun contact joint sur la période.</div>
+        <div style={{ fontSize: 12, color: crmV2.textMuted, padding: '8px 0' }}>Aucun contact joint sur la période.</div>
       )}
 
       {contacts && tiered.length > 0 && (
@@ -166,10 +158,10 @@ export default function ReachedContactsPanel({
                   onClick={() => { setStatusFilter(active ? null : status); setLimit(PAGE) }}
                   title={active ? 'Retirer le filtre' : `Voir seulement « ${status} »`}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontFamily: 'inherit',
-                    background: active ? `${color}33` : `${color}14`,
-                    border: `1px solid ${active ? color : `${color}55`}`,
-                    color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: 'inherit',
+                    background: hexA(color, active ? 0.2 : 0.08),
+                    border: `1px solid ${active ? color : hexA(color, 0.33)}`,
+                    color, borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
                   }}
                 >
                   {n} {status}
@@ -177,15 +169,15 @@ export default function ReachedContactsPanel({
               )
             })}
             {changedCount > 0 && (
-              <span style={{ fontSize: 11, color: '#4a6070', marginLeft: 4 }}>
+              <span style={{ fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>
                 · {changedCount} statut{changedCount > 1 ? 's' : ''} changé{changedCount > 1 ? 's' : ''} après l’appel
               </span>
             )}
           </div>
 
-          <div style={{ border: '1px solid #f0ebe0', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 10, overflow: 'hidden' }}>
             {!isMobile && (
-              <div style={{ ...gridRow, background: '#faf8f4', fontSize: 10, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <div style={{ ...gridRow, background: crmV2.thBg, borderBottom: `2px solid ${crmV2.thBorder}`, fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 <span>Contact</span>
                 <span>Numéro</span>
                 <span>Appels joints</span>
@@ -200,7 +192,7 @@ export default function ReachedContactsPanel({
           {visible.length > limit && (
             <button
               onClick={() => setLimit(l => l + PAGE)}
-              style={{ marginTop: 8, background: 'none', border: 'none', color: '#C9A84C', fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+              style={{ marginTop: 8, background: 'none', border: 'none', color: crmV2.link, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 0', minHeight: 32 }}
             >
               Voir {Math.min(PAGE, visible.length - limit)} de plus ({visible.length - limit} restants)
             </button>
@@ -215,41 +207,41 @@ function ContactLine({ c, base, isMobile }: { c: ReachedContact; base: string; i
   const long = c.max_talk_sec >= TALK_MIN_SEC
   const name = c.name || (c.hubspot_contact_id ? 'Contact sans nom' : 'Numéro hors CRM')
   const nameEl = c.hubspot_contact_id ? (
-    <Link href={`${base}/contacts/${c.hubspot_contact_id}`} style={{ color: '#0e1e35', fontWeight: 600, textDecoration: 'none' }}>
+    <Link href={`${base}/contacts/${c.hubspot_contact_id}`} style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}>
       {name}
     </Link>
   ) : (
-    <span style={{ color: '#a89e8a', fontWeight: 600, fontStyle: 'italic' }}>{name}</span>
+    <span style={{ color: crmV2.textFaint, fontWeight: 600, fontStyle: 'italic' }}>{name}</span>
   )
   const calls = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ width: 8, height: 8, borderRadius: 2, background: long ? '#2ea3f2' : '#e8b84a', flexShrink: 0 }} />
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: long ? crmV2.link : '#d9bc6b', flexShrink: 0 }} />
       <span>
         <b>{c.calls}</b> · {fmtTalk(c.talk_sec)}
-        <span style={{ color: '#a89e8a', fontSize: 11 }}> · {c.calls > 1 ? `dernier ${fmtDayTime(c.last_call_at)}` : fmtDayTime(c.last_call_at)}</span>
+        <span style={{ color: crmV2.textFaint, fontSize: 11 }}> · {c.calls > 1 ? `dernier ${fmtDayTime(c.last_call_at)}` : fmtDayTime(c.last_call_at)}</span>
       </span>
     </span>
   )
-  const status = c.hubspot_contact_id ? <StatusBadge status={c.lead_status} /> : <span style={{ color: '#a89e8a' }}>—</span>
+  const status = c.hubspot_contact_id ? <StatusBadge status={c.lead_status} /> : <span style={{ color: crmV2.textFaint }}>—</span>
   const evolution = c.status_changed_to ? (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
-      {c.status_before && <span style={{ color: '#a89e8a' }}>{c.status_before}</span>}
-      <ArrowRight size={12} style={{ color: '#a89e8a' }} />
+      {c.status_before && <span style={{ color: crmV2.textFaint }}>{c.status_before}</span>}
+      <ArrowRight size={12} style={{ color: crmV2.textFaint }} />
       <b style={{ color: statusColor(c.status_changed_to) }}>{c.status_changed_to}</b>
-      {c.status_changed_at && <span style={{ color: '#a89e8a' }}>le {fmtDay(c.status_changed_at)}</span>}
+      {c.status_changed_at && <span style={{ color: crmV2.textFaint }}>le {fmtDay(c.status_changed_at)}</span>}
     </span>
   ) : (
-    <span style={{ color: '#a89e8a', fontSize: 12 }}>{c.hubspot_contact_id ? 'Inchangé' : '—'}</span>
+    <span style={{ color: crmV2.textFaint, fontSize: 12 }}>{c.hubspot_contact_id ? 'Inchangé' : '—'}</span>
   )
 
   if (isMobile) {
     return (
-      <div style={{ padding: '10px 12px', borderTop: '1px solid #f0ebe0', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ padding: '10px 12px', borderTop: `1px solid ${crmV2.borderLight}`, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameEl}</span>
           {status}
         </div>
-        <div style={{ fontSize: 12, color: '#4a6070' }}>{c.phone || '—'}</div>
+        <div style={{ fontSize: 12, color: crmV2.textMuted }}>{c.phone || '—'}</div>
         <div style={{ fontSize: 12 }}>{calls}</div>
         {c.status_changed_to && <div>{evolution}</div>}
       </div>
@@ -257,9 +249,9 @@ function ContactLine({ c, base, isMobile }: { c: ReachedContact; base: string; i
   }
 
   return (
-    <div style={{ ...gridRow, borderTop: '1px solid #f0ebe0', fontSize: 13 }}>
+    <div style={{ ...gridRow, borderTop: `1px solid ${crmV2.borderLight}`, fontSize: 13, minHeight: 40 }}>
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameEl}</span>
-      <span style={{ color: '#4a6070', whiteSpace: 'nowrap' }}>{c.phone || '—'}</span>
+      <span style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{c.phone || '—'}</span>
       <span>{calls}</span>
       <span>{status}</span>
       <span>{evolution}</span>
@@ -271,9 +263,11 @@ function StatusBadge({ status }: { status: string | null }) {
   const color = statusColor(status)
   return (
     <span style={{
-      background: `${color}1a`, border: `1px solid ${color}66`, color,
-      borderRadius: 6, padding: '1px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      background: hexA(color, 0.10), color,
+      borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
     }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
       {status || 'Sans statut'}
     </span>
   )

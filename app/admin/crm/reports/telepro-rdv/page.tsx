@@ -1,11 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import {
-  BarChart3, ChevronLeft, ChevronRight, Phone, RefreshCw, TrendingDown, TrendingUp,
+  AlertCircle, BarChart3, CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, Minus, RefreshCw,
+  TrendingDown, TrendingUp, Users, UserX,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Avatar, CrmV2Body, CrmV2Card, CrmV2Header, CrmV2KpiCard, CrmV2KpiGrid, CrmV2Page, CrmV2Spinner,
+  CrmV2StatusPill, CrmV2Table, CrmV2TableCard, CrmV2Td, CrmV2Th, CrmV2Tr,
+} from '@/components/crm-v2/primitives'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 interface TeleproWeekRow {
   telepro_id: string
@@ -89,261 +94,264 @@ export default function TeleproWeeklyReportPage() {
   useEffect(() => { load() }, [load])
 
   const isCurrentWeek = weekStart === currentWeekStart()
+  const hasAny = !!data && data.telepros.some(t => t.total > 0)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', color: '#0e1e35', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* Mobile : en-tête compacté (sous-titre masqué, lien retour court) */}
-      <div style={{ padding: isMobile ? '0 12px' : '0 24px', height: 52, background: '#ffffff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 8 : undefined }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <BarChart3 size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>RDV placés par télépro</span>
-          {!isMobile && (
-            <span style={{ fontSize: 11, color: '#4a6070' }}>
-              Semaine par semaine — basé sur la date de prise du RDV
-            </span>
-          )}
-        </div>
-        <Link
-          href="/admin/crm/reports"
-          style={{ fontSize: 12, color: '#4a6070', textDecoration: 'none', whiteSpace: isMobile ? 'nowrap' : undefined, flexShrink: isMobile ? 0 : undefined }}
-        >
-          {isMobile ? '← Rapports' : '← Dashboards & Rapports'}
-        </Link>
-      </div>
-
-      <div style={{ padding: isMobile ? '16px 12px' : '24px', maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Rapport hebdomadaire télépros</h1>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#4a6070' }}>
-              Nombre de rendez-vous pris par chaque téléprospecteur, semaine du lundi au dimanche.
-            </p>
-          </div>
-
+    <CrmV2Page>
+      <CrmV2Header
+        back={{ href: '/admin/crm/reports', label: isMobile ? 'Rapports' : 'Dashboards & Rapports' }}
+        title="Rapport hebdomadaire télépros"
+        subtitle={
+          <>
+            RDV placés et leurs issues
+            {data?.week_label ? ` · ${data.week_label}` : ''}
+            {!isMobile && ' — semaine du lundi au dimanche, selon la date de prise du RDV'}
+          </>
+        }
+        actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : undefined }}>
-            <button
-              onClick={() => setWeekStart(w => addWeeks(w, -1))}
-              style={navBtnStyle}
-              title="Semaine précédente"
-            >
+            <RoundBtn onClick={() => setWeekStart(w => addWeeks(w, -1))} title="Semaine précédente">
               <ChevronLeft size={16} />
-            </button>
+            </RoundBtn>
             <div style={{
-              background: '#ffffff',
-              border: '1px solid #e5ddc8',
-              borderRadius: 8,
-              fontWeight: 600,
-              minWidth: isMobile ? 0 : 220,
-              flex: isMobile ? 1 : undefined,
-              padding: isMobile ? '8px 10px' : '8px 16px',
-              fontSize: isMobile ? 13 : 14,
-              textAlign: 'center',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: 999,
+              height: 36, padding: '0 16px', boxSizing: 'border-box',
+              fontWeight: 600, fontSize: 13, color: crmV2.text, whiteSpace: 'nowrap',
+              minWidth: isMobile ? 0 : 220, flex: isMobile ? 1 : undefined,
             }}>
-              {loading && !data ? 'Chargement…' : data?.week_label ?? '—'}
+              <CalendarDays size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{loading && !data ? 'Chargement…' : data?.week_label ?? '—'}</span>
               {isCurrentWeek && (
-                <span style={{ marginLeft: 8, fontSize: 10, color: '#C9A84C', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Cette semaine
-                </span>
+                <CrmV2StatusPill label="Cette semaine" color={crmV2.goldDark} bg="rgba(204,172,113,0.16)" dot={false} style={{ fontSize: 11, padding: '1px 8px' }} />
               )}
             </div>
-            <button
+            <RoundBtn
               onClick={() => setWeekStart(w => addWeeks(w, 1))}
               disabled={isCurrentWeek}
-              style={{ ...navBtnStyle, opacity: isCurrentWeek ? 0.4 : 1, cursor: isCurrentWeek ? 'not-allowed' : 'pointer' }}
               title="Semaine suivante"
             >
               <ChevronRight size={16} />
-            </button>
-            <button onClick={load} style={navBtnStyle} title="Actualiser">
+            </RoundBtn>
+            <RoundBtn onClick={load} title="Actualiser">
               <RefreshCw size={14} />
-            </button>
+            </RoundBtn>
           </div>
-        </div>
+        }
+      />
 
+      <CrmV2Body>
         {err && (
-          <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#dc2626', marginBottom: 16 }}>
-            Erreur : {err}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px',
+            background: crmV2.dangerSoft, border: '1px solid rgba(242,84,91,0.35)', borderRadius: 12, color: '#d13a41', fontSize: 13,
+          }}>
+            <AlertCircle size={15} /> Erreur : {err}
           </div>
         )}
 
+        {loading && !data && <CrmV2Spinner />}
+
         {data && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 16 : 24 }}>
-              <KpiCard label="Total RDV placés" value={data.total} color="#C9A84C" />
-              <KpiCard label="Télépros actifs" value={data.telepros.filter(t => t.total > 0).length} color="#2ea3f2" />
-              <KpiCard
+            <CrmV2KpiGrid>
+              <CrmV2KpiCard label="Total RDV placés" value={data.total} color={crmV2.gold} icon={<CalendarCheck size={15} />} detail="sur la semaine" />
+              <CrmV2KpiCard label="Télépros actifs" value={data.telepros.filter(t => t.total > 0).length} color={crmV2.link} icon={<Users size={15} />} detail={`sur ${data.telepros.length}`} />
+              <CrmV2KpiCard
                 label="Moyenne / télépro"
                 value={data.telepros.length
                   ? Math.round((data.total / data.telepros.filter(t => t.total > 0).length || 1) * 10) / 10
                   : 0}
-                color="#22c55e"
+                color={crmV2.success}
+                icon={<BarChart3 size={15} />}
+                detail="par télépro actif"
               />
               {data.unassigned.total > 0 && (
-                <KpiCard label="Sans télépro identifié" value={data.unassigned.total} color="#a89e8a" />
+                <CrmV2KpiCard label="Sans télépro identifié" value={data.unassigned.total} color={crmV2.textFaint} icon={<UserX size={15} />} detail="RDV non rattachés" />
               )}
-            </div>
+            </CrmV2KpiGrid>
 
-            {/* Mobile : tableau scrollable horizontalement */}
-            <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden', overflowX: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: isMobile ? 640 : undefined }}>
-                <thead>
-                  <tr style={{ background: '#f7f4ee', borderBottom: '1px solid #e5ddc8' }}>
-                    <Th align="left">Télépro</Th>
-                    <Th>RDV placés</Th>
-                    <Th>Positifs</Th>
-                    <Th>Annulés</Th>
-                    <Th>No-show</Th>
-                    <Th>Autres</Th>
-                    <Th>vs. sem. préc.</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.telepros.map(row => (
-                    <tr key={row.telepro_id} style={{ borderBottom: '1px solid #f0ebe0' }}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{
-                            width: 32, height: 32, borderRadius: 8,
-                            background: `${row.avatar_color || '#C9A84C'}22`,
-                            color: row.avatar_color || '#C9A84C',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 12, fontWeight: 700, flexShrink: 0,
-                          }}>
-                            {row.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
-                          </span>
-                          <span style={{ fontWeight: 600, whiteSpace: isMobile ? 'nowrap' : undefined }}>{row.name}</span>
-                        </div>
-                      </td>
-                      <Td highlight={row.total > 0}>{row.total}</Td>
-                      <Td muted>{row.positifs || '—'}</Td>
-                      <Td muted>{row.annules || '—'}</Td>
-                      <Td muted>{row.no_show || '—'}</Td>
-                      <Td muted>{row.autres || '—'}</Td>
-                      <Td>
-                        <DeltaBadge delta={row.delta} previous={row.previous_week} />
-                      </Td>
-                    </tr>
-                  ))}
-                  {data.telepros.length === 0 && (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#4a6070' }}>
-                        Aucun télépro enregistré
-                      </td>
-                    </tr>
-                  )}
-                  {data.telepros.every(t => t.total === 0) && data.telepros.length > 0 && (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#4a6070', background: '#faf8f4' }}>
-                        Aucun RDV placé cette semaine
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                {data.telepros.some(t => t.total > 0) && (
-                  <tfoot>
-                    <tr style={{ background: '#f7f4ee', fontWeight: 700, borderTop: '2px solid #e5ddc8' }}>
-                      <td style={{ padding: '12px 16px' }}>Total</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center', color: '#C9A84C', fontSize: 15 }}>
-                        {data.total}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {data.telepros.reduce((s, r) => s + r.positifs, 0) + data.unassigned.positifs}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {data.telepros.reduce((s, r) => s + r.annules, 0) + data.unassigned.annules}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {data.telepros.reduce((s, r) => s + r.no_show, 0) + data.unassigned.no_show}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {data.telepros.reduce((s, r) => s + r.autres, 0) + data.unassigned.autres}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
+            {isMobile ? (
+              // Mobile : une ligne par télépro, sans défilement horizontal
+              <CrmV2Card style={{ overflow: 'hidden' }}>
+                {data.telepros.map(row => (
+                  <div key={row.telepro_id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', minHeight: 56,
+                    borderBottom: `1px solid ${crmV2.borderLight}`,
+                  }}>
+                    <CrmV2Avatar name={row.name} color={avatarColor(row.avatar_color)} size={32} radius="36%" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Pos. {row.positifs || 0} · Ann. {row.annules || 0} · No-show {row.no_show || 0} · Autres {row.autres || 0}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: row.total > 0 ? crmV2.text : crmV2.textFaint }}>{row.total}</div>
+                      <DeltaBadge delta={row.delta} previous={row.previous_week} />
+                    </div>
+                  </div>
+                ))}
+                {data.telepros.length === 0 && (
+                  <div style={{ padding: 32, textAlign: 'center', color: crmV2.textMuted, fontSize: 13 }}>Aucun télépro enregistré</div>
                 )}
-              </table>
-            </div>
+                {data.telepros.every(t => t.total === 0) && data.telepros.length > 0 && (
+                  <div style={{ padding: 20, textAlign: 'center', color: crmV2.textMuted, fontSize: 13, background: crmV2.bgHover }}>Aucun RDV placé cette semaine</div>
+                )}
+                {hasAny && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: crmV2.thBg, fontWeight: 700 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14 }}>Total</div>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600, marginTop: 2 }}>
+                        Pos. {sum(data, 'positifs')} · Ann. {sum(data, 'annules')} · No-show {sum(data, 'no_show')} · Autres {sum(data, 'autres')}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 18, color: crmV2.goldDark }}>{data.total}</div>
+                  </div>
+                )}
+              </CrmV2Card>
+            ) : (
+              <CrmV2TableCard>
+                <CrmV2Table>
+                  <thead>
+                    <tr>
+                      <CrmV2Th>Télépro</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>RDV placés</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>Positifs</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>Annulés</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>No-show</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>Autres</CrmV2Th>
+                      <CrmV2Th style={NUM_TH}>vs. sem. préc.</CrmV2Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.telepros.map(row => (
+                      <CrmV2Tr key={row.telepro_id}>
+                        <CrmV2Td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <CrmV2Avatar name={row.name} color={avatarColor(row.avatar_color)} size={24} radius="36%" />
+                            <span style={{ fontWeight: 600 }}>{row.name}</span>
+                          </div>
+                        </CrmV2Td>
+                        <NumTd strong={row.total > 0}>{row.total}</NumTd>
+                        <NumTd muted>{row.positifs || '—'}</NumTd>
+                        <NumTd muted>{row.annules || '—'}</NumTd>
+                        <NumTd muted>{row.no_show || '—'}</NumTd>
+                        <NumTd muted>{row.autres || '—'}</NumTd>
+                        <NumTd>
+                          <DeltaBadge delta={row.delta} previous={row.previous_week} />
+                        </NumTd>
+                      </CrmV2Tr>
+                    ))}
+                    {data.telepros.length === 0 && (
+                      <tr>
+                        <CrmV2Td colSpan={7} style={{ padding: 40, textAlign: 'center', color: crmV2.textMuted }}>
+                          Aucun télépro enregistré
+                        </CrmV2Td>
+                      </tr>
+                    )}
+                    {data.telepros.every(t => t.total === 0) && data.telepros.length > 0 && (
+                      <tr>
+                        <CrmV2Td colSpan={7} style={{ padding: 24, textAlign: 'center', color: crmV2.textMuted, background: crmV2.bgHover }}>
+                          Aucun RDV placé cette semaine
+                        </CrmV2Td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {hasAny && (
+                    <tfoot>
+                      <tr style={{ background: crmV2.thBg, fontWeight: 700 }}>
+                        <CrmV2Td style={TOTAL_TD}>Total</CrmV2Td>
+                        <CrmV2Td style={{ ...TOTAL_TD, textAlign: 'center', color: crmV2.goldDark, fontSize: 15 }}>{data.total}</CrmV2Td>
+                        <CrmV2Td style={{ ...TOTAL_TD, textAlign: 'center' }}>{sum(data, 'positifs')}</CrmV2Td>
+                        <CrmV2Td style={{ ...TOTAL_TD, textAlign: 'center' }}>{sum(data, 'annules')}</CrmV2Td>
+                        <CrmV2Td style={{ ...TOTAL_TD, textAlign: 'center' }}>{sum(data, 'no_show')}</CrmV2Td>
+                        <CrmV2Td style={{ ...TOTAL_TD, textAlign: 'center' }}>{sum(data, 'autres')}</CrmV2Td>
+                        <CrmV2Td style={TOTAL_TD} />
+                      </tr>
+                    </tfoot>
+                  )}
+                </CrmV2Table>
+              </CrmV2TableCard>
+            )}
 
-            <p style={{ marginTop: 16, fontSize: 11, color: '#a89e8a' }}>
+            <p style={{ margin: 0, fontSize: 12, color: crmV2.textFaint, lineHeight: 1.5 }}>
               Comptabilisation au moment de la prise du RDV (created_at).
               Positifs = statuts positif / pré-inscription.
               Données générées le {new Date(data.generated_at).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}.
             </p>
           </>
         )}
-      </div>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
-const navBtnStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #e5ddc8',
-  borderRadius: 8,
-  padding: '8px 10px',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  color: '#4a6070',
+/** Total d'une issue, télépros + RDV sans télépro identifié. */
+function sum(data: ReportData, k: 'positifs' | 'annules' | 'no_show' | 'autres') {
+  return data.telepros.reduce((s, r) => s + r[k], 0) + data.unassigned[k]
 }
 
-function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
-  const isMobile = useIsMobile()
-  return (
-    <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: isMobile ? '12px 12px' : '16px 18px', minWidth: isMobile ? 0 : undefined }}>
-      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color }}>{value}</div>
-    </div>
-  )
+function avatarColor(c: string | null) {
+  return c && /^#[0-9a-f]{6}$/i.test(c) ? c : crmV2.goldGradient
 }
 
-function Th({ children, align = 'center' }: { children: React.ReactNode; align?: 'left' | 'center' }) {
+const NUM_TH: React.CSSProperties = { textAlign: 'center' }
+const TOTAL_TD: React.CSSProperties = { borderTop: `2px solid ${crmV2.thBorder}`, borderBottom: 'none', fontWeight: 700 }
+
+function RoundBtn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title: string }) {
   return (
-    <th style={{
-      padding: '10px 16px',
-      textAlign: align,
-      fontSize: 11,
-      fontWeight: 700,
-      color: '#4a6070',
-      textTransform: 'uppercase',
-      letterSpacing: '0.03em',
-    }}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      style={{
+        width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+        background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, color: crmV2.text,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
+      }}
+    >
       {children}
-    </th>
+    </button>
   )
 }
 
-function Td({ children, highlight, muted }: { children: React.ReactNode; highlight?: boolean; muted?: boolean }) {
+function NumTd({ children, strong, muted }: { children: React.ReactNode; strong?: boolean; muted?: boolean }) {
   return (
-    <td style={{
-      padding: '12px 16px',
+    <CrmV2Td style={{
       textAlign: 'center',
-      fontWeight: highlight ? 700 : 400,
-      fontSize: highlight ? 15 : 13,
-      color: highlight ? '#0e1e35' : muted ? '#4a6070' : '#0e1e35',
+      fontWeight: strong ? 700 : 400,
+      fontSize: strong ? 15 : 13,
+      color: muted ? crmV2.textMuted : crmV2.text,
     }}>
       {children}
-    </td>
+    </CrmV2Td>
   )
 }
 
 function DeltaBadge({ delta, previous }: { delta: number; previous: number }) {
   if (previous === 0 && delta === 0) {
-    return <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
+    return <span style={{ color: crmV2.textFaint, fontSize: 12 }}>—</span>
   }
   const up = delta > 0
   const down = delta < 0
-  const color = up ? '#22c55e' : down ? '#ef4444' : '#4a6070'
-  const Icon = up ? TrendingUp : down ? TrendingDown : Phone
+  const color = up ? crmV2.successStrong : down ? '#dc2626' : crmV2.textMuted
+  const Icon = up ? TrendingUp : down ? TrendingDown : Minus
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      fontSize: 12, fontWeight: 600, color,
-    }}>
-      <Icon size={13} />
-      {delta > 0 ? '+' : ''}{delta}
-      <span style={{ color: '#a89e8a', fontWeight: 400 }}>({previous})</span>
-    </span>
+    <CrmV2StatusPill
+      dot={false}
+      color={color}
+      bg={up ? 'rgba(22,163,74,0.10)' : down ? 'rgba(239,68,68,0.10)' : crmV2.chipBg}
+      label={
+        <>
+          <Icon size={12} />
+          {delta > 0 ? '+' : ''}{delta}
+          <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>({previous})</span>
+        </>
+      }
+    />
   )
 }
