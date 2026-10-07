@@ -5,7 +5,7 @@ import { cached } from '@/lib/cache'
 import { getApiUserContext } from '@/lib/api-auth'
 import { warmupFormEventCache } from '@/lib/form-event-resolver'
 import type { CRMSavedView } from '@/lib/crm-views'
-import { viewToCountParams } from '@/lib/crm-views'
+import { viewToCountParams, CRM_DEFAULT_VIEWS } from '@/lib/crm-views'
 import type { CRMFilterGroup, CRMFilterRule } from '@/lib/crm-constants'
 import { recordCrmPerfSample } from '@/lib/crm-perf'
 
@@ -113,7 +113,16 @@ export async function POST(req: NextRequest) {
     .order('position', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const allViews: SavedViewRow[] = [{ id: 'all', name: 'Tous les leads', filter_groups: [], preset_flags: null }, ...(rows ?? [])]
+  // Vues par défaut (définies en code, pas en base) : « Tous les leads » et
+  // « Demande de rappel Lab ». Elles ont un onglet, donc un badge de comptage.
+  const defaultRows: SavedViewRow[] = CRM_DEFAULT_VIEWS.map(v => ({
+    id: v.id,
+    name: v.name,
+    filter_groups: v.groups.map(g => ({ rules: g.rules })),
+    preset_flags: v.presetFlags ? { noTelepro: v.presetFlags.noTelepro } : null,
+  }))
+  const defaultIds = new Set(defaultRows.map(v => v.id))
+  const allViews: SavedViewRow[] = [...defaultRows, ...(rows ?? []).filter(r => !defaultIds.has(r.id))]
   const scopedViews =
     requestedIds.size > 0
       ? allViews.filter(v => requestedIds.has(v.id))

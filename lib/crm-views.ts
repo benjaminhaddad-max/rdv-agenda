@@ -24,8 +24,21 @@ export interface CRMSavedView {
   kind?: 'view' | 'bucket' | 'subview'
 }
 
+/** Vue « Demande de rappel Lab » : contacts qui ont cliqué « Être rappelé »
+ *  dans Diplomalab / Medibox Lab (même tableau que les autres vues contacts). */
+export const LAB_CALLBACK_VIEW_ID = 'v_demande_rappel_lab'
+
 export const CRM_DEFAULT_VIEWS: CRMSavedView[] = [
   { id: 'all', name: 'Tous les leads', groups: [], isDefault: true },
+  {
+    id: LAB_CALLBACK_VIEW_ID,
+    name: 'Demande de rappel Lab',
+    groups: [{
+      id: 'grp-demande-rappel-lab',
+      rules: [{ id: 'r-demande-rappel-lab', field: 'lab_callback', operator: 'is_any', value: 'oui' }],
+    }],
+    isDefault: true,
+  },
 ]
 
 /** Vues globales admin exposées aux télépros (filtres serveur via view_id). */
@@ -75,6 +88,12 @@ export function viewToParams(view: CRMSavedView): URLSearchParams {
         }
         // contains / not_contains doivent rester en cf pour matcher en ILIKE.
         customFilters.push({ field: 'recent_conversion_event', operator: rule.operator, value: val })
+        continue
+      }
+
+      // Demande de rappel Lab : résolu côté API en liste de contact_id.
+      if (rule.field === 'lab_callback') {
+        customFilters.push({ field: 'lab_callback', operator: rule.operator, value: val })
         continue
       }
 

@@ -91,6 +91,7 @@ export type CRMFilterField =
   | 'stage' | 'formation' | 'classe' | 'closer_contact' | 'closer' | 'contact_owner' | 'telepro'
   | 'lead_status' | 'source' | 'period' | 'search' | 'zone' | 'departement'
   | 'pipeline' | 'prior_preinscription' | 'form_event' | 'parcoursup_verdict'
+  | 'lab_callback'
 
 export type CRMFilterOp =
   | 'is' | 'is_not' | 'is_any' | 'is_none'
@@ -126,6 +127,25 @@ export const PARCOURSUP_VERDICT_FILTER_OPTIONS: SelectOption[] = [
   { id: 'aucun',      label: 'Sans verdict' },
 ]
 
+// Demande de rappel Lab (Diplomalab / Medibox Lab). Source : soumissions de
+// formulaire « … Lab … » avec un champ `demande` contenant « rappel » — ce
+// n'est pas une propriété HubSpot, d'où la liste d'options en dur ici.
+// Statuts (oui / à rappeler / rappelé) et apps se combinent en ET.
+export const LAB_CALLBACK_FILTER_OPTIONS: SelectOption[] = [
+  { id: 'oui',        label: 'A demandé à être rappelé' },
+  { id: 'todo',       label: 'À rappeler' },
+  { id: 'done',       label: 'Déjà rappelé' },
+  { id: 'diplomalab', label: 'Diplomalab' },
+  { id: 'medibox',    label: 'Medibox Lab' },
+]
+
+export const LAB_CALLBACK_OPS: { key: CRMFilterOp; label: string }[] = [
+  { key: 'is',      label: 'est' },
+  { key: 'is_any',  label: 'est parmi' },
+  { key: 'is_not',  label: "n'est pas" },
+  { key: 'is_none', label: "n'est aucun de" },
+]
+
 export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'select' | 'text' }[] = [
   { key: 'stage',              label: 'Étape de transaction',          type: 'select' },
   { key: 'formation',          label: 'Formation souhaitée',           type: 'select' },
@@ -142,6 +162,7 @@ export const CRM_FILTER_FIELDS: { key: CRMFilterField; label: string; type: 'sel
   { key: 'prior_preinscription', label: 'Pré-inscrits années préc.', type: 'select' },
   { key: 'form_event',         label: 'Soumission de formulaire',      type: 'select' },
   { key: 'parcoursup_verdict', label: 'Verdict Parcoursup',            type: 'select' },
+  { key: 'lab_callback',       label: 'Demande de rappel Lab',         type: 'select' },
   { key: 'search',             label: 'Recherche',                     type: 'text' },
 ]
 
@@ -254,7 +275,7 @@ export function normalizeFilterFieldKey(field: string): string {
 export const MULTI_SELECT_FILTER_FIELDS = new Set<CRMFilterField>([
   'stage', 'formation', 'classe', 'closer_contact', 'contact_owner', 'telepro',
   'lead_status', 'source', 'zone', 'departement', 'pipeline', 'form_event',
-  'parcoursup_verdict',
+  'parcoursup_verdict', 'lab_callback',
 ])
 
 export const LEAD_STATUS_OPS: { key: CRMFilterOp; label: string }[] = [
@@ -355,6 +376,7 @@ export function hasActiveFilterGroups(groups: CRMFilterGroup[] | null | undefine
 export function opsForField(field: CRMFilterField | string) {
   const key = normalizeFilterFieldKey(field)
   if (key === 'parcoursup_verdict') return PARCOURSUP_VERDICT_OPS
+  if (key === 'lab_callback') return LAB_CALLBACK_OPS
   if (key === 'lead_status') return LEAD_STATUS_OPS
   const f = CRM_FILTER_FIELDS.find(ff => ff.key === key)
   return f?.type === 'select' ? SELECT_OPS : TEXT_OPS

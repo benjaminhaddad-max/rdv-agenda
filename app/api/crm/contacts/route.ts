@@ -11,6 +11,7 @@ import { fetchParcoursupVerdictsByContactId, fetchContactIdsByParcoursupVerdict 
 import { expandOrigineFilterValues } from '@/lib/origine-normalization'
 import { META_BACKFILL_TERM_IDF_VIEW_ID, resolveMetaBackfillTermIdfContactIds } from '@/lib/meta-backfill-view'
 import { overlaySavedViewParams, type CRMSavedView } from '@/lib/crm-views'
+import { resolveLabCallbackContactIds } from '@/lib/crm-lab-callbacks'
 
 // Classes prioritaires — filtre SQL via .in()
 const PRIORITY_CLASSES = ['Seconde', 'Première', 'Terminale']
@@ -708,6 +709,29 @@ export async function GET(req: NextRequest) {
     metaLeadAdsOnly = true
     metaLeadAdsContactIds = null
   }
+
+  // ── Resolver dédié : « Demande de rappel Lab » ────────────────────────────
+  // Filtre activé via cf : [{ field: "lab_callback", operator: "is_any",
+  // value: "todo,medibox" }]. Résolu en liste de contact_id car la source est
+  // une soumission de formulaire, pas une colonne de crm_contacts.
+  let labCallbackContactIds: string[] | null = null
+  let labCallbackExcludedIds: string[] | null = null
+  {
+    const positive = customFilters.find(
+      r => r.field === 'lab_callback' && (r.operator === 'is' || r.operator === 'is_any'),
+    )
+    const negative = customFilters.find(
+      r => r.field === 'lab_callback' && (r.operator === 'is_not' || r.operator === 'is_none'),
+    )
+    if (positive) {
+      labCallbackContactIds = await resolveLabCallbackContactIds(db, positive.value)
+    }
+    if (negative) {
+      labCallbackExcludedIds = await resolveLabCallbackContactIds(db, negative.value)
+    }
+    // Retire le filtre dédié : « lab_callback » n'est pas une colonne SQL.
+    customFilters = customFilters.filter(r => r.field !== 'lab_callback')
+  }
   // La vue Meta ADS doit toujours inclure toutes les classes.
   const effectiveAllClasses =
     effectiveAllClassesInput || metaAdsOnlyParam || metaLeadAdsOnly || metaLeadAdsContactIds !== null
@@ -763,10 +787,12 @@ export async function GET(req: NextRequest) {
     metaLeadAdsOnly || metaLeadAdsContactIds !== null || formEventContactIds !== null ||
     formEventNames !== null || formEventMetaOnlyIds !== null ||
     parcoursupVerdictContactIds !== null ||
+    labCallbackContactIds !== null || labCallbackExcludedIds !== null ||
     customFilters.length > 0 || emptyFields.length > 0 || notEmptyFields.length > 0
   )
   const forceExactCount = metaLeadAdsOnly || metaLeadAdsContactIds !== null ||
-    formEventContactIds !== null || formEventNames !== null
+    formEventContactIds !== null || formEventNames !== null ||
+    labCallbackContactIds !== null || labCallbackExcludedIds !== null
   const countMode: 'exact' | 'planned' | 'estimated' = countOnly
     ? 'exact'
     : ((forceExactCount || exactCountParam) ? 'exact' : (hasSelectiveFilter ? 'planned' : 'estimated'))
@@ -906,6 +932,7 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     formEventContactIds !== null || metaLeadAdsContactIds !== null ||
+    labCallbackContactIds !== null || labCallbackExcludedIds !== null ||
     isMetaBackfillTermIdfView ||
     extraProps.length > 0 ||
     !effectiveShowExternal
@@ -1189,6 +1216,7 @@ export async function GET(req: NextRequest) {
     emptyFields.length > 0 || notEmptyFields.length > 0 ||
     customFilters.length > 0 ||
     metaLeadAdsContactIds !== null ||
+    labCallbackContactIds !== null || labCallbackExcludedIds !== null ||
     effectiveIncludeEmptyLeadStatus
   )
   const typesenseSortMap: Record<string, string> = {
@@ -1935,6 +1963,15 @@ export async function GET(req: NextRequest) {
   } else if (metaLeadAdsContactIds !== null) {
     scopedContactIds = metaLeadAdsContactIds
   }
+  // Demande de rappel Lab : intersection avec les filtres ci-dessus (ET).
+  if (labCallbackContactIds !== null) {
+    if (scopedContactIds === null) {
+      scopedContactIds = labCallbackContactIds
+    } else {
+      const b = new Set(labCallbackContactIds)
+      scopedContactIds = scopedContactIds.filter(id => b.has(id))
+    }
+  }
   if (scopedContactIds !== null) {
     if (scopedContactIds.length === 0) {
       // Aucun contact ne matche → force resultat vide
@@ -1953,6 +1990,14 @@ export async function GET(req: NextRequest) {
         }
         query = query.or(orParts.join(','))
       }
+    }
+  }
+
+  // Demande de rappel Lab — exclusion (« n'est pas » / « n'est aucun de »)
+  if (labCallbackExcludedIds !== null && labCallbackExcludedIds.length > 0) {
+    const BATCH = 2000
+    for (let i = 0; i < labCallbackExcludedIds.length; i += BATCH) {
+      query = query.not('hubspot_contact_id', 'in', toPostgrestInList(labCallbackExcludedIds.slice(i, i + BATCH)))
     }
   }
 

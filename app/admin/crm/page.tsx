@@ -18,6 +18,7 @@ import {
   CURRENT_PIPELINE_ID,
   STAGE_OPTIONS, FORMATION_OPTIONS, CLASSE_OPTIONS, PERIOD_OPTIONS,
   CRM_FILTER_FIELDS, LEAD_STATUS_OPTIONS_FALLBACK, PARCOURSUP_VERDICT_FILTER_OPTIONS,
+  LAB_CALLBACK_FILTER_OPTIONS,
   opsForField, opsForKind, opNeedsValue, opIsMulti, opIsRange, propertyKindOf,
   defaultOpForField, shouldRenderMultiSelect, coerceMultiSelectOperator,
   type SelectOption,
@@ -1421,6 +1422,12 @@ export default function CRMPage() {
           }
           // Fallback pour opérateurs non couverts par params dédiés.
           customFilters.push({ field: 'recent_conversion_event', operator: rule.operator, value: val })
+          continue
+        }
+        // Demande de rappel Lab : résolu côté API en liste de contact_id
+        // (la source est une soumission de formulaire, pas une colonne).
+        if (ruleField === 'lab_callback') {
+          customFilters.push({ field: 'lab_callback', operator: rule.operator, value: val })
           continue
         }
         // Verdict Parcoursup : résolu côté API par liste de statuts.
@@ -3124,6 +3131,7 @@ export default function CRMPage() {
                         case 'prior_preinscription': valueOptions = [{ id: '1', label: 'Oui' }]; break
                         case 'form_event':  valueOptions = formEventOptions.filter(o => o.id); break
                         case 'parcoursup_verdict': valueOptions = PARCOURSUP_VERDICT_FILTER_OPTIONS; break
+                        case 'lab_callback': valueOptions = LAB_CALLBACK_FILTER_OPTIONS; break
                       }
                     }
 
