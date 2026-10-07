@@ -12,7 +12,6 @@ import {
 import WeekCalendar from '@/components/WeekCalendar'
 import LogoutButton from '@/components/LogoutButton'
 import SupportButton from '@/components/SupportButton'
-import SupportWidget from '@/components/SupportWidget'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
 import RepopJournal from '@/components/RepopJournal'
@@ -758,7 +757,6 @@ export default function CloserClient({ user }: { user: CloserUser }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <SupportButton />
-          <SupportWidget />
           <LogoutButton />
         </div>
       </div>
