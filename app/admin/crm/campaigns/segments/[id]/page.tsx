@@ -182,7 +182,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
             <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Type d&apos;audience</div>
             <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
               <TypeBtn active={segment.segment_type === 'dynamic'} onClick={() => patch({ segment_type: 'dynamic' })} icon={Filter} label="Segment dynamique" sub="Filtres CRM — se met à jour automatiquement" />
-              <TypeBtn active={segment.segment_type === 'static'} onClick={() => patch({ segment_type: 'static' })} icon={List} label="Liste statique" sub="Contacts figés par ID HubSpot" />
+              <TypeBtn active={segment.segment_type === 'static'} onClick={() => patch({ segment_type: 'static' })} icon={List} label="Liste statique" sub="Contacts figés par ID" />
             </div>
           </Card>
 
@@ -198,7 +198,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : (
             <Card>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>IDs contacts HubSpot</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>IDs contacts</div>
               <p style={{ fontSize: 12, color: '#4a6070', margin: '0 0 10px', lineHeight: 1.5 }}>
                 Un ID par ligne (hubspot_contact_id). Collez depuis un export CSV ou la fiche contact.
               </p>

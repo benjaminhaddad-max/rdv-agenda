@@ -115,7 +115,7 @@ export function buildAircallContactInput(
     phone,
     email: contact.email,
     information: contact.hubspot_contact_id
-      ? `HubSpot contact ID: ${contact.hubspot_contact_id}`
+      ? `ID contact : ${contact.hubspot_contact_id}`
       : undefined,
   }
 }

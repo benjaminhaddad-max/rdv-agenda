@@ -1183,7 +1183,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               )}
             </div>
             <div style={{ fontSize: 11, color: TEXT_DIM, marginTop: 3 }}>
-              Contacts + transactions depuis HubSpot
+              Contacts + transactions
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

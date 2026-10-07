@@ -77,6 +77,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     console.error('HubSpot telepro stats error:', e)
-    return NextResponse.json({ error: 'Erreur HubSpot' }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur de chargement' }, { status: 500 })
   }
 }

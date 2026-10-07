@@ -18,7 +18,7 @@ export function hubspotHardOffResponse() {
     {
       ok: false,
       disabled: true,
-      reason: 'HubSpot est déconnecté — le CRM ne synchronise plus avec HubSpot',
+      reason: 'La synchronisation avec l\'ancien CRM est désactivée',
     },
     { status: 410 },
   )

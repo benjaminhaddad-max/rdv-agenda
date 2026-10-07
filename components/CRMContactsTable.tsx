@@ -2369,7 +2369,7 @@ export default function CRMContactsTable({
                   border: '1px dashed #cbd6e2', borderRadius: 6,
                   fontSize: 11, color: '#7c98b6', textAlign: 'center',
                 }}>
-                  Chargement des propriétés HubSpot…
+                  Chargement des propriétés…
                 </div>
               )}
             </>

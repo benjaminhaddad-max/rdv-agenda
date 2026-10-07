@@ -99,7 +99,7 @@ export default function SegmentsPage() {
 
       <div style={{ padding: isMobile ? '12px 12px 16px' : '24px 24px 16px', maxWidth: 1100, margin: '0 auto' }}>
         <p style={{ fontSize: 13, color: '#4a6070', margin: '0 0 16px', lineHeight: 1.5 }}>
-          Créez des audiences réutilisables pour vos campagnes email et SMS — comme les segments et listes HubSpot.
+          Créez des audiences réutilisables pour vos campagnes email et SMS — segments dynamiques ou listes statiques.
         </p>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>

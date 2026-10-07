@@ -39,7 +39,7 @@ const SOURCE_INFO: Record<string, { label: string; icon: React.ReactNode; color:
   EMAIL:                { label: 'E-mail',         icon: <Mail size={12} />,     color: 'text-blue-700 bg-blue-50' },
   API:                  { label: 'API',            icon: <Database size={12} />, color: 'text-slate-700 bg-slate-100' },
   ANALYTICS:            { label: 'Analytics',      icon: <Globe size={12} />,    color: 'text-emerald-700 bg-emerald-50' },
-  CONTACTS_WEB:         { label: 'CRM HubSpot',    icon: <User size={12} />,     color: 'text-blue-700 bg-blue-50' },
+  CONTACTS_WEB:         { label: 'Ancien CRM',     icon: <User size={12} />,     color: 'text-blue-700 bg-blue-50' },
   MIGRATION:            { label: 'Migration',      icon: <Database size={12} />, color: 'text-amber-700 bg-amber-50' },
   CALCULATED:           { label: 'Calculé',        icon: <Database size={12} />, color: 'text-slate-700 bg-slate-100' },
   TASK:                 { label: 'Tâche',          icon: <FileText size={12} />, color: 'text-slate-700 bg-slate-100' },

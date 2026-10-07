@@ -45,7 +45,7 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) {
     return NextResponse.json(
-      { error: 'Activité introuvable ou non modifiable (synchronisée depuis HubSpot)' },
+      { error: 'Activité introuvable ou non modifiable (activité importée)' },
       { status: 404 },
     )
   }
@@ -69,7 +69,7 @@ export async function DELETE(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data || data.length === 0) {
     return NextResponse.json(
-      { error: 'Activité introuvable ou non supprimable (synchronisée depuis HubSpot)' },
+      { error: 'Activité introuvable ou non supprimable (activité importée)' },
       { status: 404 },
     )
   }

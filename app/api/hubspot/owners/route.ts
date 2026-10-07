@@ -15,7 +15,7 @@ export async function GET() {
   })
 
   if (!res.ok) {
-    return NextResponse.json({ error: `HubSpot ${res.status}` }, { status: 500 })
+    return NextResponse.json({ error: `Erreur de synchronisation (${res.status})` }, { status: 500 })
   }
 
   const data = await res.json()

@@ -55,7 +55,7 @@ export default function ProprietesPage() {
   const isMobile = useIsMobile()
 
   async function resyncFromHubSpot() {
-    if (!confirm(`Re-synchroniser toutes les propriétés ${object} depuis HubSpot ? Met à jour notamment les options (valeurs prédéfinies).`)) return
+    if (!confirm(`Re-synchroniser toutes les propriétés ${object} ? Met à jour notamment les options (valeurs prédéfinies).`)) return
     setSyncing(true)
     try {
       const res = await fetch(`/api/crm/properties/sync?object=${object}`, { method: 'POST' })
@@ -117,7 +117,7 @@ export default function ProprietesPage() {
           <div style={{ minWidth: 0 }}>
             <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Propriétés CRM</h1>
             <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-              Toutes les propriétés (contacts / deals) — synchronisées depuis HubSpot ou créées en interne.
+              Toutes les propriétés (contacts / deals) — synchronisées ou créées en interne.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -131,7 +131,7 @@ export default function ProprietesPage() {
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {syncing ? '⟳ Sync…' : '⟳ Re-sync HubSpot'}
+              {syncing ? '⟳ Sync…' : '⟳ Re-synchroniser'}
             </button>
             <button
               onClick={() => setShowCreate(true)}
@@ -281,7 +281,7 @@ export default function ProprietesPage() {
                                   {p.options.length > 4 && <span style={{ color: '#a89e8a' }}> +{p.options.length - 4}</span>}
                                 </span>
                               ) : p.hubspot_defined ? (
-                                <span style={{ fontSize: 11, color: '#a89e8a' }}>— HubSpot natif —</span>
+                                <span style={{ fontSize: 11, color: '#a89e8a' }}>— Propriété native —</span>
                               ) : (
                                 <span style={{ fontSize: 11, color: '#a89e8a' }}>—</span>
                               )}
@@ -396,7 +396,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
             <Meta label="Type technique">{property.type}</Meta>
             <Meta label="Field type">{property.field_type}</Meta>
             <Meta label="Groupe">{property.group_name || '—'}</Meta>
-            <Meta label="Source">{property.hubspot_defined ? 'HubSpot natif' : 'Locale Diploma'}</Meta>
+            <Meta label="Source">{property.hubspot_defined ? 'Native' : 'Locale Diploma'}</Meta>
             {property.display_order != null && <Meta label="Display order">{property.display_order}</Meta>}
             {property.archived && <Meta label="État">Archivée</Meta>}
           </div>
@@ -441,7 +441,7 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
               {actualValues && actualValues.length > 0 && (
                 <span style={{ marginLeft: 6, fontWeight: 500, textTransform: 'none', color: '#a89e8a' }}>
                   · {actualValues.length} distinctes · {totalCount.toLocaleString('fr-FR')} {property.object_type === 'deals' ? 'deals' : 'contacts'}
-                  {valuesSource === 'hubspot_raw' && ' · depuis hubspot_raw'}
+                  {valuesSource === 'hubspot_raw' && ' · depuis les données brutes'}
                 </span>
               )}
             </div>
@@ -504,9 +504,8 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
           }}>
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
-              <strong>Lecture seule pour l&apos;instant.</strong> L&apos;édition est désactivée tant que le mirror HubSpot
-              tourne (sinon le sync écraserait tes modifs). Ça sera réactivé le jour où on coupe HubSpot
-              (<code style={{ background: '#fbbf24', padding: '0 4px', borderRadius: 3 }}>HUBSPOT_MIRROR_ENABLED=0</code>).
+              <strong>Lecture seule pour l&apos;instant.</strong> L&apos;édition est désactivée tant que le miroir de synchronisation
+              tourne (sinon le sync écraserait tes modifs). Elle sera réactivée quand le miroir sera coupé.
             </div>
           </div>
         </div>

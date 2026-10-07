@@ -126,7 +126,7 @@ async function pullDiploma(): Promise<DiplomaInscription[]> {
 
 function buildNotes(ins: DiplomaInscription): string | null {
   const lines: string[] = []
-  if (ins.selected_formule_name) lines.push(`Deal HubSpot : ${ins.selected_formule_name}`)
+  if (ins.selected_formule_name) lines.push(`Formule : ${ins.selected_formule_name}`)
   const fd = ins.finalisation_data as Record<string, unknown> | null
   const pm = (fd?.fin_mode_paiement as string | undefined) || ins.payment_method
   if (pm) lines.push(`Règlement : ${String(pm)}`)

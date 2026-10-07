@@ -2882,7 +2882,7 @@ function PropertiesModal({
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
             <h2 className="text-lg font-bold">Toutes les propriétés</h2>
-            <p className="text-xs text-[#4a6070] mt-0.5">{properties.length} propriétés synchronisées depuis HubSpot</p>
+            <p className="text-xs text-[#4a6070] mt-0.5">{properties.length} propriétés</p>
           </div>
           <button onClick={onClose} className="text-[#a89e8a] hover:text-slate-700 text-xl">✕</button>
         </div>
@@ -3343,7 +3343,7 @@ function AdTrackingSection({ raw }: { raw: Record<string, unknown> | null | unde
         {hsCampaigns.length > 0 && (
           <div className="space-y-1.5 pt-1 border-t">
             <div className="text-[11px] uppercase tracking-wide text-[#a89e8a] font-semibold">
-              Campagne HubSpot
+              Campagne
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
               {hsCampaigns.map(c => (

@@ -22,7 +22,7 @@ const FIELD_LABELS: { field: keyof RdvTypeRow; label: string; multiline?: boolea
   { field: 'description', label: 'Description', multiline: true },
   { field: 'btn_label',   label: 'Texte du bouton CTA' },
   { field: 'tag',         label: 'Tag (badge wizard)' },
-  { field: 'formation',   label: 'Nom formation → HubSpot' },
+  { field: 'formation',   label: 'Nom formation → CRM' },
 ]
 
 function TabContenus() {

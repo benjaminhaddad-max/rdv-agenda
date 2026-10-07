@@ -365,7 +365,7 @@ export default function CloserNewRdvModal({
               {/* Mode tabs */}
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
                 {[
-                  { key: 'url',   label: '🔗 Lien HubSpot'  },
+                  { key: 'url',   label: '🔗 ID / lien'     },
                   { key: 'phone', label: '📞 Téléphone'      },
                   { key: 'new',   label: '✨ Nouveau contact' },
                 ].map(m => (
@@ -393,7 +393,7 @@ export default function CloserNewRdvModal({
                     value={hsUrl}
                     onChange={e => setHsUrl(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && lookupByUrl()}
-                    placeholder="ID contact ou ancien lien HubSpot"
+                    placeholder="ID contact ou ancien lien de fiche"
                     style={inp}
                   />
                   <button
@@ -455,7 +455,7 @@ export default function CloserNewRdvModal({
                   }}
                 >
                   <Plus size={14} />
-                  Saisir manuellement (sans HubSpot)
+                  Saisir manuellement
                 </button>
               )}
 

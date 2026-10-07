@@ -444,7 +444,7 @@ function TestRunModal({ workflowId, onClose }: { workflowId: string; onClose: ()
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070' }}>✕</button>
         </div>
         <div style={{ padding: 20, overflowY: 'auto' }}>
-          <label style={labelStyle}>HubSpot contact ID (ou ID natif)</label>
+          <label style={labelStyle}>ID contact</label>
           <input value={contactId} onChange={e => setContactId(e.target.value)} placeholder="ex: 10000" style={inputStyle} autoFocus />
           <div style={{ fontSize: 11, color: '#4a6070', marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>
             Le workflow sera exécuté immédiatement pour ce contact (max 20 étapes inline). Les vraies actions s&apos;exécutent (email, SMS, tâche…) — utilise un de tes propres comptes pour tester.

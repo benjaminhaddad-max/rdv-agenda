@@ -943,7 +943,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
                   <div style={labelStyle}><Mail size={11} /> Email</div>
                   <input value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail}
                     placeholder="email@exemple.com" style={{ ...fieldInputStyle }} />
-                  {emailSynced && <div style={{ fontSize: 10, color: '#22c55e', marginTop: 3 }}>✓ Synchronisé HubSpot</div>}
+                  {emailSynced && <div style={{ fontSize: 10, color: '#22c55e', marginTop: 3 }}>✓ Synchronisé</div>}
                 </div>
 
                 {/* Téléphone */}
@@ -1311,7 +1311,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: 13 }}>
                 {user.hubspot_owner_id
                   ? 'Aucun RDV trouvé sur la pipeline Diploma Santé 2026-2027.'
-                  : 'Aucun hubspot_owner_id configuré pour ce closer.'}
+                  : 'Aucun ID propriétaire configuré pour ce closer.'}
               </div>
             )}
 
@@ -1469,7 +1469,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!user.hubspot_owner_id ? (
             <div style={{ padding: 24, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, margin: 20, color: '#ef4444', fontSize: 13 }}>
-              ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
+              ⚠ Ce compte n&apos;a pas d&apos;ID propriétaire configuré.
             </div>
           ) : (
             <UserCRMView
@@ -1488,7 +1488,7 @@ export default function CloserClient({ user }: { user: CloserUser }) {
         <div style={{ width: '100%' }}>
           {!user.hubspot_owner_id ? (
             <div style={{ padding: 24, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, margin: 20, color: '#ef4444', fontSize: 13 }}>
-              ⚠ Ce compte n&apos;a pas d&apos;identifiant HubSpot Owner ID configuré.
+              ⚠ Ce compte n&apos;a pas d&apos;ID propriétaire configuré.
             </div>
           ) : (
             <iframe

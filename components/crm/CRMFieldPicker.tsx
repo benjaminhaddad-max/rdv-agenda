@@ -176,7 +176,7 @@ export function CRMFieldPicker({
                     <div>{f.label}</div>
                     {aliases.length > 0 && (
                       <div style={{ fontSize: 9, color: '#a89e8a', fontFamily: 'monospace' }}>
-                        alias HubSpot : {aliases.join(', ')}
+                        alias : {aliases.join(', ')}
                       </div>
                     )}
                   </button>

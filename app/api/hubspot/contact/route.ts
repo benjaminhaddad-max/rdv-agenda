@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(contact, { status: 201 })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erreur HubSpot'
+    const msg = e instanceof Error ? e.message : 'Erreur de synchronisation'
     // Doublon email → 409
     if (msg.includes('409') || msg.includes('existing')) {
-      return NextResponse.json({ error: 'Un contact avec cet email existe déjà dans HubSpot' }, { status: 409 })
+      return NextResponse.json({ error: 'Un contact avec cet email existe déjà' }, { status: 409 })
     }
     return NextResponse.json({ error: msg }, { status: 500 })
   }
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest) {
     const updated = await updateContact(contactId, properties)
     return NextResponse.json(updated)
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erreur HubSpot'
+    const msg = e instanceof Error ? e.message : 'Erreur de synchronisation'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
       const contactId = extractContactIdFromUrl(url)
       if (!contactId) {
         return NextResponse.json(
-          { error: 'URL invalide — colle le lien de la fiche contact HubSpot (l\'URL complète depuis la barre d\'adresse)' },
+          { error: 'URL invalide — colle le lien de la fiche contact (l\'URL complète depuis la barre d\'adresse)' },
           { status: 400 }
         )
       }
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: 'Paramètre url ou phone requis' }, { status: 400 })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erreur HubSpot'
+    const msg = e instanceof Error ? e.message : 'Erreur de synchronisation'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

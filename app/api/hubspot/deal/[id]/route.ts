@@ -88,7 +88,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, stageLabel: stageInfo.label, stageColor: stageInfo.color })
     } catch (e) {
       console.error('updateDealStage error:', e)
-      return NextResponse.json({ error: 'Erreur HubSpot' }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur de synchronisation' }, { status: 500 })
     }
   }
 
@@ -119,7 +119,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, closerName: closer.name })
     } catch (e) {
       console.error('reassign closer error:', e)
-      return NextResponse.json({ error: 'Erreur HubSpot' }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur de synchronisation' }, { status: 500 })
     }
   }
 

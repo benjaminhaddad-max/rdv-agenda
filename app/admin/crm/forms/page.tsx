@@ -224,7 +224,7 @@ export default function FormsPage() {
             onClick={() => setShowImportModal(true)}
             style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '8px 14px', color: '#f59e0b', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600, fontFamily: 'inherit', ...(isMobile ? { flex: '1 1 100%', minHeight: 40 } : {}) }}
           >
-            <Download size={14} /> Importer depuis HubSpot
+            <Download size={14} /> Importer des formulaires
           </button>
           <button
             onClick={() => setShowNewModal(true)}
@@ -295,7 +295,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
         body: JSON.stringify({ prefix, folder, dryRun: true }),
         signal: ctrl.signal,
       }).catch(e => {
-        if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 90s). Trop de formulaires dans HubSpot.')
+        if (e.name === 'AbortError') throw new Error('La requête a pris trop de temps (> 90s). Trop de formulaires à analyser.')
         throw e
       })
       clearTimeout(timeoutId)
@@ -352,7 +352,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Download size={16} style={{ color: '#f59e0b' }} />
-            Importer depuis HubSpot
+            Importer des formulaires
           </h3>
           {step !== 'importing' && (
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer' }}><X size={18} /></button>
@@ -362,7 +362,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
         {step === 'config' && (
           <>
             <div style={{ fontSize: 13, color: '#4a6070', marginBottom: 16, lineHeight: 1.5 }}>
-              Récupère tous les formulaires HubSpot dont le nom commence par le préfixe ci-dessous, et les importe dans ton CRM natif avec leurs champs.
+              Récupère tous les formulaires externes dont le nom commence par le préfixe ci-dessous, et les importe dans ton CRM natif avec leurs champs.
             </div>
             <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Préfixe du nom</div>
             <input
@@ -387,18 +387,18 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
 
             {error === 'SCOPE_MISSING' ? (
               <div style={{ marginTop: 12, padding: 14, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, fontSize: 12, color: '#0e1e35' }}>
-                <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ Scope HubSpot manquant : &quot;forms&quot;</div>
+                <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ Scope manquant : &quot;forms&quot;</div>
                 <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
-                  Le token HubSpot actuel n&apos;a pas la permission de lire les formulaires.
+                  Le token d&apos;accès actuel n&apos;a pas la permission de lire les formulaires.
                 </div>
                 <div style={{ fontWeight: 600, marginBottom: 6, color: '#C9A84C' }}>À faire :</div>
                 <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, fontSize: 12, color: '#4a6070' }}>
-                  <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: '#06b6d4' }}>HubSpot → Private Apps</a></li>
+                  <li>Ouvre <a href="https://app.hubspot.com/settings/integrations/private-apps" target="_blank" rel="noreferrer" style={{ color: '#06b6d4' }}>Paramètres → Private Apps</a></li>
                   <li>Clique sur ton application privée</li>
                   <li>Onglet &quot;Scopes&quot; → recherche <code style={{ color: '#C9A84C' }}>forms</code></li>
                   <li>Coche <strong>forms</strong> (Read)</li>
                   <li>Clique &quot;Commit changes&quot; → copie le nouveau token</li>
-                  <li>Mets à jour <code style={{ color: '#C9A84C' }}>HUBSPOT_ACCESS_TOKEN</code> sur Vercel</li>
+                  <li>Mets à jour le token d&apos;accès sur Vercel</li>
                   <li>Redéploie puis relance l&apos;import</li>
                 </ol>
               </div>
@@ -414,7 +414,7 @@ function ImportHubspotModal({ onClose, onDone }: { onClose: () => void; onDone: 
                 style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', opacity: !prefix.trim() || loading ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                {loading ? 'Analyse HubSpot…' : 'Prévisualiser'}
+                {loading ? 'Analyse…' : 'Prévisualiser'}
               </button>
             </div>
           </>

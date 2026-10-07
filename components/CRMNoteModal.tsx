@@ -66,7 +66,7 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
 
         {saved ? (
           <div style={{ textAlign: 'center', padding: '24px 0', color: '#22c55e', fontSize: 14, fontWeight: 700 }}>
-            ✓ Note ajoutée dans HubSpot
+            ✓ Note ajoutée
           </div>
         ) : (
           <>

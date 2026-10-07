@@ -38,9 +38,9 @@ export default function ParametresPage() {
   async function toggle(key: string, currentValue: unknown) {
     const newValue = currentValue === true ? false : true
     const labelOff = key === 'hubspot_mirror_enabled'
-      ? 'Couper le mirroir HubSpot ? Les éditions de fiche n\'écriront plus dans HubSpot.'
+      ? 'Couper le miroir vers l\'ancien CRM ? Les éditions de fiche n\'y écriront plus.'
       : key === 'hubspot_read_enabled'
-        ? 'Couper la lecture HubSpot ? L\'app n\'ira plus chercher de données dans HubSpot.'
+        ? 'Couper la lecture de l\'ancien CRM ? L\'app n\'ira plus y chercher de données.'
         : `Désactiver "${key}" ?`
     const labelOn = `Réactiver "${key}" ?`
 
@@ -67,7 +67,7 @@ export default function ParametresPage() {
   }
 
   async function disconnectHubspot() {
-    if (!confirm('Couper totalement HubSpot du CRM ? (mirror + lectures OFF)')) return
+    if (!confirm('Couper totalement l\'ancien CRM ? (miroir + lectures OFF)')) return
     setSaving('hubspot_disconnect')
     setError(null)
     setDoneKey(null)
@@ -97,8 +97,8 @@ export default function ParametresPage() {
 
   const labelFor = (key: string) => {
     switch (key) {
-      case 'hubspot_mirror_enabled': return 'Mirroir HubSpot (écritures)'
-      case 'hubspot_read_enabled':   return 'Lectures HubSpot'
+      case 'hubspot_mirror_enabled': return 'Miroir vers l\'ancien CRM (écritures)'
+      case 'hubspot_read_enabled':   return 'Lectures depuis l\'ancien CRM'
       default: return key
     }
   }
@@ -129,11 +129,11 @@ export default function ParametresPage() {
                 opacity: saving ? 0.6 : 1,
               }}
             >
-              {saving === 'hubspot_disconnect' ? 'Déconnexion HubSpot…' : 'Déconnecter HubSpot du CRM'}
+              {saving === 'hubspot_disconnect' ? 'Déconnexion…' : 'Déconnecter l\'ancien CRM'}
             </button>
             {doneKey === 'hubspot_disconnect' && (
               <span style={{ marginLeft: 8, color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
-                HubSpot déconnecté
+                Ancien CRM déconnecté
               </span>
             )}
           </div>
@@ -249,13 +249,13 @@ export default function ParametresPage() {
             fontSize: 13, color: '#1e40af',
           }}>
             <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Power size={14} /> Comment couper HubSpot proprement
+              <Power size={14} /> Comment couper l&apos;ancien CRM proprement
             </div>
             <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6 }}>
-              <li>Désactive d'abord le <strong>Mirroir</strong> (les éditions ne touchent plus HubSpot, mais la sync pull continue)</li>
+              <li>Désactive d'abord le <strong>Mirroir</strong> (les éditions ne touchent plus l'ancien CRM, mais la sync pull continue)</li>
               <li>Vérifie quelques jours que tout fonctionne en pleine autonomie</li>
               <li>Désactive ensuite les <strong>Lectures</strong></li>
-              <li>Désactive les crons sync HubSpot dans <code>vercel.json</code> (et redéploie)</li>
+              <li>Désactive les crons de sync dans <code>vercel.json</code> (et redéploie)</li>
             </ol>
           </div>
         )}

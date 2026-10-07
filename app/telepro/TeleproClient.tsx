@@ -1268,7 +1268,7 @@ export default function TeleproClient({
           )}
           <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 28, marginTop: 12, padding: '10px 16px', background: 'rgba(204,172,113,0.08)', borderRadius: 8, border: '1px solid rgba(204,172,113,0.15)' }}>
             Le RDV est dans la file d&apos;attente.<br />Pascal va l&apos;assigner à un closer.<br />
-            <span style={{ color: '#C9A84C' }}>Les notes sont enregistrées sur la transaction HubSpot.</span>
+            <span style={{ color: '#C9A84C' }}>Les notes sont enregistrées sur la transaction.</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={reset} style={{ flex: 1, background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
@@ -1493,7 +1493,7 @@ export default function TeleproClient({
           </div>
           {hsStats && (
             <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#C9A84C' }}>●</span> Stats issues de HubSpot (historique complet)
+              <span style={{ color: '#C9A84C' }}>●</span> Statistiques sur l’historique complet
             </div>
           )}
 
@@ -2196,7 +2196,7 @@ export default function TeleproClient({
               <div>
                 <div style={{ marginBottom: 14 }}>
                   <div style={labelStyle}><Mail size={12} style={{ color: '#06b6d4' }} /> Email
-                    {emailSynced && <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>MAJ HubSpot OK</span>}
+                    {emailSynced && <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>Mis à jour</span>}
                   </div>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail} placeholder="email@exemple.com" style={inputStyle} />
                 </div>
@@ -2288,7 +2288,7 @@ export default function TeleproClient({
                 <div style={{ marginBottom: 16 }}>
                   <div style={labelStyle}>
                     <FileText size={12} style={{ color: '#06b6d4' }} /> Notes d&apos;appel
-                    <span style={{ fontSize: 10, color: '#475569', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>→ HubSpot</span>
+                    <span style={{ fontSize: 10, color: '#475569', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>→ transaction</span>
                   </div>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Situation, motivations, objections…" rows={4} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
                 </div>
@@ -2767,6 +2767,7 @@ export default function TeleproClient({
             report_telepro_advice: selectedHistRdv.report_telepro_advice,
             users: selectedHistRdv.rdv_users || undefined,
           }}
+          teleproView
           onClose={() => setSelectedHistRdv(null)}
           onUpdate={(updated) => {
             setHistRdvs(prev => prev.map(r => r.id === selectedHistRdv.id ? { ...r, ...updated } : r))

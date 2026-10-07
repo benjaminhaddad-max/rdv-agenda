@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const propsMeta = await getAllPropertiesMeta(objectType)
     if (propsMeta.length === 0) {
-      return NextResponse.json({ error: 'Aucune propriété récupérée depuis HubSpot' }, { status: 502 })
+      return NextResponse.json({ error: 'Aucune propriété récupérée' }, { status: 502 })
     }
 
     const { data: currentOrigine } = objectType === 'contacts'

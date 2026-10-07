@@ -80,7 +80,7 @@ export async function POST(req: Request) {
           return NextResponse.json({
             ok: false,
             error: 'SCOPE_MISSING',
-            message: "Le token HubSpot n'a pas le scope \"forms\".",
+            message: "Le token d'accès n'a pas le scope \"forms\".",
             details: msg,
           }, { status: 403 })
         }
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
               submit_label: submitLabel,
               redirect_url: redirectUrl,
               status: 'draft', // importé en draft, à publier manuellement
-              description: `Importé depuis HubSpot (${form.id})`,
+              description: `Importé (${form.id})`,
               folder,
             })
             .select()

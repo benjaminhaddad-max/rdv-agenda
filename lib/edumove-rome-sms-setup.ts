@@ -79,7 +79,7 @@ export async function ensureEdumoveRomeWorkflowDraft(): Promise<string> {
 
   const { data: wf, error } = await db.from('crm_workflows').insert({
     name: EDUMOVE_ROME_WORKFLOW_NAME,
-    description: 'SMS auto à chaque soumission des 3 forms Edumove (Meta + HubSpot CONTACT). Activé via GO.',
+    description: 'SMS auto à chaque soumission des 3 forms Edumove (Meta + formulaire CONTACT). Activé via GO.',
     status: 'draft',
     trigger_type: 'form_submitted',
     trigger_config: { edumove_rome_sms: true },

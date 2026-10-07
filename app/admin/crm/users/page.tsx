@@ -307,7 +307,7 @@ export default function UsersPage() {
                 <th className="text-left px-4 py-3 font-semibold">Nom</th>
                 <th className="text-left px-4 py-3 font-semibold">Email</th>
                 <th className="text-left px-4 py-3 font-semibold">Rôle</th>
-                <th className="text-left px-4 py-3 font-semibold">Hubspot Owner ID</th>
+                <th className="text-left px-4 py-3 font-semibold">ID propriétaire</th>
                 <th className="text-left px-4 py-3 font-semibold">Marque CRM</th>
                 <th className="text-left px-4 py-3 font-semibold">Default marque</th>
                 <th className="text-left px-4 py-3 font-semibold">Compte auth</th>
@@ -447,7 +447,7 @@ export default function UsersPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Hubspot Owner ID (optionnel)">
+              <Field label="ID propriétaire (optionnel)">
                 <input
                   value={form.hubspot_owner_id}
                   onChange={e => setForm(f => ({ ...f, hubspot_owner_id: e.target.value }))}

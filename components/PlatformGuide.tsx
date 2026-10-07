@@ -36,8 +36,8 @@ const SECTIONS: Section[] = [
       },
       {
         emoji: '2\uFE0F\u20E3',
-        title: 'Création du RDV + Deal HubSpot',
-        desc: 'Le RDV est créé et un deal HubSpot est créé automatiquement en "RDV Pris". Le deal est lié au contact HubSpot (créé ou retrouvé par email). Le RDV reste non-assigné jusqu\'à ce que Pascal l\'assigne à un closer depuis la file d\'attente admin.',
+        title: 'Création du RDV + transaction',
+        desc: 'Le RDV est créé et une transaction est créée automatiquement en "RDV Pris". La transaction est liée au contact (créé ou retrouvé par email). Le RDV reste non-assigné jusqu\'à ce que Pascal l\'assigne à un closer depuis la file d\'attente admin.',
       },
       {
         emoji: '3\uFE0F\u20E3',
@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
       {
         emoji: '\u2795',
         title: 'Nouveau RDV',
-        desc: 'Créer un RDV manuellement. Recherche de contact HubSpot par nom/email/tel. Choix formation, type meeting, date/heure. Lien Jitsi auto-généré si visio.',
+        desc: 'Créer un RDV manuellement. Recherche de contact par nom/email/tel. Choix formation, type meeting, date/heure. Lien Jitsi auto-généré si visio.',
       },
       {
         emoji: '\uD83D\uDCCB',
@@ -120,12 +120,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\u2795',
         title: 'Nouveau RDV',
-        desc: 'Placer un RDV pour un closer. Recherche contact HubSpot, choix formation/type/date. Le deal HubSpot est créé avec le champ teleprospecteur.',
+        desc: 'Placer un RDV pour un closer. Recherche contact, choix formation/type/date. La transaction est créée avec le champ teleprospecteur.',
       },
       {
         emoji: '\uD83D\uDCCB',
         title: 'Historique + Suivi',
-        desc: 'Deals historiques avec colonnes de suivi (Ne répond plus, A travailler, Pré-positif). Sauvegarde du suivi dans HubSpot.',
+        desc: 'Deals historiques avec colonnes de suivi (Ne répond plus, A travailler, Pré-positif). Sauvegarde du suivi dans le CRM.',
       },
       {
         emoji: '\uD83D\uDD01',
@@ -159,12 +159,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDC65',
         title: 'Gestion Télépros',
-        desc: 'Provisionner de nouveaux comptes depuis l\'équipe HubSpot "Télépros". Activer/bannir. Synchroniser les statuts.',
+        desc: 'Provisionner de nouveaux comptes depuis l\'équipe "Télépros". Activer/bannir. Synchroniser les statuts.',
       },
       {
         emoji: '\uD83D\uDCBC',
         title: 'Gestion Closers',
-        desc: 'Créer des comptes closer, provisionner depuis HubSpot. Gérer les dispos de chaque closer. Synchroniser les IDs HubSpot.',
+        desc: 'Créer des comptes closer, provisionner depuis l\'équipe. Gérer les dispos de chaque closer. Synchroniser les IDs propriétaires.',
       },
       {
         emoji: '\u26A0\uFE0F',
@@ -174,7 +174,7 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDD34',
         title: 'Doublons contacts',
-        desc: 'Détection de contacts HubSpot en double (même tel, même email, noms similaires). Fusion ou ignorer. Détection cross-télépro.',
+        desc: 'Détection de contacts en double (même tel, même email, noms similaires). Fusion ou ignorer. Détection cross-télépro.',
       },
       {
         emoji: '\uD83D\uDD01',
@@ -189,12 +189,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDC80',
         title: 'Fermé / Perdu',
-        desc: 'Bouton pour marquer un deal comme "Fermé/Perdu" directement depuis le Check RDV. Ajoute une note HubSpot automatique.',
+        desc: 'Bouton pour marquer un deal comme "Fermé/Perdu" directement depuis le Check RDV. Ajoute une note automatique.',
       },
       {
         emoji: '\uD83D\uDD04',
-        title: 'Sync HubSpot',
-        desc: 'Synchronisation des contacts et deals depuis HubSpot. Sync rapide (delta) ou sync complet. Suivi en temps réel du nombre de contacts/deals synchronisés.',
+        title: 'Synchronisation',
+        desc: 'Synchronisation des contacts et transactions. Sync rapide (delta) ou sync complet. Suivi en temps réel du nombre de contacts/deals synchronisés.',
       },
       {
         emoji: '\uD83D\uDCCB',
@@ -213,12 +213,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDCCA',
         title: 'Vue Contacts (156K+)',
-        desc: 'Table paginée de tous les contacts synchronisés depuis HubSpot. Colonnes personnalisables (drag & drop) : contact, téléphone, statut lead, classe, origine, formation souhaitée, zone, département, dates de création (contact + deal), closer, télépro, étape du deal.',
+        desc: 'Table paginée de tous les contacts du CRM. Colonnes personnalisables (drag & drop) : contact, téléphone, statut lead, classe, origine, formation souhaitée, zone, département, dates de création (contact + deal), closer, télépro, étape du deal.',
       },
       {
         emoji: '\uD83D\uDD0D',
-        title: 'Filtres avancés (style HubSpot)',
-        desc: 'Système de filtres avancés avec groupes ET/OU. Recherche du champ à filtrer via un panneau de recherche (comme HubSpot). Opérateurs : est, n\'est pas, est parmi, n\'est aucun de, contient, est vide, n\'est pas vide. Vues sauvegardées pour retrouver ses filtres.',
+        title: 'Filtres avancés',
+        desc: 'Système de filtres avancés avec groupes ET/OU. Recherche du champ à filtrer via un panneau de recherche. Opérateurs : est, n\'est pas, est parmi, n\'est aucun de, contient, est vide, n\'est pas vide. Vues sauvegardées pour retrouver ses filtres.',
       },
       {
         emoji: '\uD83D\uDC65',
@@ -228,12 +228,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDCC4',
         title: 'Fiche contact détaillée',
-        desc: 'Clic sur un contact pour ouvrir sa fiche complète : infos personnelles, formation souhaitée, classe, coordonnées, deal associé (étape, closer, télépro), lien direct vers HubSpot.',
+        desc: 'Clic sur un contact pour ouvrir sa fiche complète : infos personnelles, formation souhaitée, classe, coordonnées, deal associé (étape, closer, télépro), lien direct vers la fiche.',
       },
       {
         emoji: '\uD83D\uDCC5',
         title: 'Prise de RDV inline',
-        desc: 'Depuis la fiche contact, prendre un RDV directement sans quitter le CRM. Choix du créneau, type de meeting (visio/tel/présentiel), formation. Le RDV est automatiquement lié au bon contact HubSpot.',
+        desc: 'Depuis la fiche contact, prendre un RDV directement sans quitter le CRM. Choix du créneau, type de meeting (visio/tel/présentiel), formation. Le RDV est automatiquement lié au bon contact.',
       },
       {
         emoji: '\uD83D\uDCE5',
@@ -250,14 +250,14 @@ const SECTIONS: Section[] = [
   {
     id: 'hubspot',
     icon: <ExternalLink size={18} />,
-    title: 'Intégrations HubSpot',
+    title: 'Intégrations CRM',
     color: '#f97316',
     roles: ['admin'],
     items: [
       {
         emoji: '\uD83D\uDCCB',
         title: 'Pipeline de deals',
-        desc: 'RDV Pris \u2192 A Replanifier \u2192 Délai de réflexion \u2192 Pré-inscription \u2192 Finalisation \u2192 Inscription confirmée. Chaque changement de statut dans l\'app met à jour le stage HubSpot.',
+        desc: 'RDV Pris \u2192 A Replanifier \u2192 Délai de réflexion \u2192 Pré-inscription \u2192 Finalisation \u2192 Inscription confirmée. Chaque changement de statut dans l\'app met à jour l\'étape de la transaction.',
       },
       {
         emoji: '\uD83D\uDC64',
@@ -267,12 +267,12 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDCDD',
         title: 'Notes & Engagements',
-        desc: 'Notes de booking, notes d\'appel, changements de statut, suivi closer — tous loggés comme engagements HubSpot sur le deal.',
+        desc: 'Notes de booking, notes d\'appel, changements de statut, suivi closer — tous loggés comme activités sur la transaction.',
       },
       {
         emoji: '\uD83D\uDD17',
         title: 'Liens directs',
-        desc: 'Liens raccourci vers la fiche contact ou deal HubSpot depuis chaque carte de la plateforme.',
+        desc: 'Liens raccourci vers la fiche contact ou transaction depuis chaque carte de la plateforme.',
       },
     ],
   },
@@ -306,7 +306,7 @@ const SECTIONS: Section[] = [
       {
         emoji: '\uD83D\uDEAB',
         title: 'Auto No-Show (2h du matin)',
-        desc: 'Automatique chaque nuit : si 30+ min après l\'heure du RDV et toujours "confirmé" → passage en no-show + deal HubSpot en "A replanifier" + SMS de replanification envoyé 24h après.',
+        desc: 'Automatique chaque nuit : si 30+ min après l\'heure du RDV et toujours "confirmé" → passage en no-show + transaction en "A replanifier" + SMS de replanification envoyé 24h après.',
       },
     ],
   },
@@ -424,7 +424,7 @@ export default function PlatformGuide({ onClose, role = 'admin' }: Props) {
             }}>
               {[
                 { label: 'Roles', value: '4', detail: 'Prospect, Telepro, Closer, Admin' },
-                { label: 'Integrations', value: '4', detail: 'HubSpot, Jitsi, SMS, CRM' },
+                { label: 'Integrations', value: '4', detail: 'CRM, Jitsi, SMS, Email' },
                 { label: 'Automatisations', value: '5', detail: 'SMS automatiques + Auto no-show' },
                 { label: 'Modules', value: '9', detail: 'Planning, CRM, Repop, Doublons…' },
               ].map(s => (

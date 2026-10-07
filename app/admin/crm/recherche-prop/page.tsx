@@ -253,7 +253,7 @@ export default function RecherchePropPage() {
             <div style={{ padding: isMobile ? '10px 12px' : '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(isMobile ? { flexWrap: 'wrap' as const, gap: 4 } : {}) }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
                 Résultats {total > 0 && <span style={{ color: '#4a6070', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
-                {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#a89e8a' }}>(via hubspot_raw)</span>}
+                {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#a89e8a' }}>(via données brutes)</span>}
               </div>
               {results.length > 0 && (
                 <div style={{ fontSize: 11, color: '#a89e8a' }}>50 premiers résultats triés par dernière conversion</div>

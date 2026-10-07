@@ -52,7 +52,7 @@ const CATEGORIES: Array<{
   { key: 'custom_fields', label: 'Champs Custom',       icon: Settings,    color: '#8b5cf6' },
   { key: 'marketing',     label: 'Marketing (Brevo)',   icon: Mail,        color: '#C9A84C' },
   { key: 'automations',   label: 'Automatisations',     icon: Zap,         color: '#eab308' },
-  { key: 'migration',     label: 'Migration HubSpot',   icon: UploadCloud, color: '#ef4444' },
+  { key: 'migration',     label: 'Migration CRM',       icon: UploadCloud, color: '#ef4444' },
   { key: 'qualite',       label: 'Qualité & Sécurité',  icon: ShieldCheck, color: '#14b8a6' },
 ]
 
@@ -175,7 +175,7 @@ export default function MigrationPage() {
           <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Rocket size={16} style={{ color: '#C9A84C' }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Migration HubSpot → CRM Natif</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Migration vers le CRM natif</span>
           </div>
         </div>
         <LogoutButton />
@@ -273,7 +273,7 @@ export default function MigrationPage() {
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a6070', cursor: 'pointer', background: showHubspotOnly ? 'rgba(239,68,68,0.15)' : '#ffffff', border: `1px solid ${showHubspotOnly ? '#ef4444' : '#e5ddc8'}`, borderRadius: 8, padding: '6px 12px' }}>
             <input type="checkbox" checked={showHubspotOnly} onChange={e => setShowHubspotOnly(e.target.checked)} style={{ accentColor: '#ef4444' }} />
-            Dépend de HubSpot
+            Dépend de l&apos;ancien CRM
           </label>
           {(categoryFilter || statusFilter || priorityFilter || showHubspotOnly || search) && (
             <button
@@ -456,7 +456,7 @@ function TaskRow({ task, onClick, onStatusChange }: {
         </div>
       )}
       {task.hubspot_dep && (
-        <Badge text="HubSpot" color="#ef4444" bg="rgba(239,68,68,0.15)" />
+        <Badge text="Ancien CRM" color="#ef4444" bg="rgba(239,68,68,0.15)" />
       )}
       <Badge text={statusMeta.label} color={statusMeta.color} bg={statusMeta.bg} />
     </div>
@@ -594,7 +594,7 @@ function TaskDrawer({ task, onClose, onSave, onDelete }: {
             onChange={e => save({ hubspot_dep: e.target.checked })}
             style={{ accentColor: '#ef4444' }}
           />
-          Cette tâche dépend de HubSpot (à migrer)
+          Cette tâche dépend de l&apos;ancien CRM (à migrer)
         </label>
 
         <div style={{ marginTop: 16, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 8, padding: 12 }}>
