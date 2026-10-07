@@ -1,4 +1,5 @@
 {
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)EN-COURS.md'",
   "crons": [
     { "path": "/api/cron/sms-48h",         "schedule": "0 8,20 * * *" },
     { "path": "/api/cron/sms-24h-relance",  "schedule": "0 8,20 * * *" },
