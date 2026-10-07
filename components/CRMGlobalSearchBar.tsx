@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Loader2, User, Briefcase, Building2, SlidersHorizontal } from 'lucide-react'
+import { Search, Loader2, User, Briefcase, Building2, SlidersHorizontal, X } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { v2MenuShadow } from '@/components/crm-v2/filters/styles'
 
 type ContactHit = {
   hubspot_contact_id: string
@@ -86,6 +89,8 @@ export default function CRMGlobalSearchBar() {
   const [contacts, setContacts] = useState<ContactHit[]>([])
   const [deals, setDeals] = useState<DealHit[]>([])
   const [activeTab, setActiveTab] = useState<SearchTab>('all')
+  const [focused, setFocused] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 220)
@@ -231,14 +236,20 @@ export default function CRMGlobalSearchBar() {
     router.push(href)
   }
 
+  const tabs: { id: SearchTab; label: string; icon: ReactNode }[] = [
+    { id: 'contacts', label: 'Contacts', icon: <User size={14} strokeWidth={2} /> },
+    { id: 'companies', label: 'Entreprises', icon: <Building2 size={14} strokeWidth={2} /> },
+    { id: 'deals', label: 'Transactions', icon: <Briefcase size={14} strokeWidth={2} /> },
+  ]
+
   return (
     <div
       style={{
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        background: '#f7f4ee',
-        borderBottom: '1px solid #e5ddc8',
+        background: crmV2.bg,
+        borderBottom: `1px solid ${crmV2.border}`,
         padding: '5px 12px',
       }}
     >
@@ -248,19 +259,24 @@ export default function CRMGlobalSearchBar() {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            background: '#ffffff',
-            border: '1px solid #d8ccb1',
-            borderRadius: 10,
+            background: crmV2.bg,
+            border: `1px solid ${focused ? crmV2.gold : '#d8ccb1'}`,
+            boxShadow: focused ? '0 0 0 3px rgba(201,168,76,0.15)' : 'none',
+            borderRadius: crmV2.radius,
             padding: '5px 12px',
+            transition: 'border-color .12s, box-shadow .12s',
           }}
+          onClick={() => inputRef.current?.focus()}
         >
-          <Search size={14} style={{ color: '#4a6070', flexShrink: 0 }} />
+          <Search size={14} strokeWidth={2} style={{ color: crmV2.textMuted, flexShrink: 0 }} />
           <input
             ref={inputRef}
             value={query}
             onFocus={() => {
+              setFocused(true)
               if (query.trim().length >= 2) setOpen(true)
             }}
+            onBlur={() => setFocused(false)}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && firstResultHref) {
@@ -278,23 +294,39 @@ export default function CRMGlobalSearchBar() {
               outline: 'none',
               background: 'transparent',
               width: '100%',
-              color: '#0e1e35',
+              minWidth: 0,
+              color: crmV2.text,
               fontSize: 13,
               fontFamily: 'inherit',
+              padding: 0,
+              height: 22,
             }}
           />
-          <span
+          {query && (
+            <button
+              type="button"
+              aria-label="Effacer la recherche"
+              onClick={(e) => { e.stopPropagation(); setQuery(''); setOpen(false); inputRef.current?.focus() }}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: crmV2.textFaint, display: 'flex', flexShrink: 0 }}
+            >
+              <X size={14} />
+            </button>
+          )}
+          {!isMobile && <kbd
             style={{
               fontSize: 11,
-              color: '#4a6070',
-              border: '1px solid #e5ddc8',
+              fontFamily: 'inherit',
+              color: crmV2.textMuted,
+              border: `1px solid ${crmV2.border}`,
               borderRadius: 6,
               padding: '2px 6px',
               whiteSpace: 'nowrap',
+              background: 'transparent',
+              flexShrink: 0,
             }}
           >
             ⌘K
-          </span>
+          </kbd>}
         </div>
 
         {open && (
@@ -304,142 +336,107 @@ export default function CRMGlobalSearchBar() {
               top: 'calc(100% + 6px)',
               left: 0,
               width: '100%',
-              background: '#ffffff',
-              border: '1px solid #e5ddc8',
-              borderRadius: 10,
-              boxShadow: '0 12px 30px rgba(15,31,61,0.12)',
+              background: crmV2.bg,
+              border: `1px solid ${crmV2.border}`,
+              borderRadius: 12,
+              boxShadow: v2MenuShadow,
               overflow: 'hidden',
+              maxHeight: 'min(520px, 70vh)',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
             {!loading && (
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid #f0ebe0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${crmV2.borderLight}`, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                {tabs.map((t) => {
+                  const on = activeTab === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setActiveTab(t.id)}
+                      style={{
+                        border: `1px solid ${on ? crmV2.primary : crmV2.borderStrong}`,
+                        background: on ? crmV2.primary : crmV2.bg,
+                        color: on ? '#fff' : crmV2.text,
+                        borderRadius: crmV2.radiusPill,
+                        height: 30,
+                        padding: '0 12px',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontFamily: 'inherit',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  )
+                })}
                 <button
-                  onClick={() => setActiveTab('contacts')}
-                  style={{
-                    border: '1px solid #d8ccb1',
-                    background: activeTab === 'contacts' ? 'rgba(201,168,76,0.12)' : '#fff',
-                    color: '#0e1e35',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontFamily: 'inherit',
-                    fontWeight: 500,
-                  }}
-                >
-                  <User size={12} />
-                  Contacts
-                </button>
-                <button
-                  onClick={() => setActiveTab('companies')}
-                  style={{
-                    border: '1px solid #d8ccb1',
-                    background: activeTab === 'companies' ? 'rgba(201,168,76,0.12)' : '#fff',
-                    color: '#0e1e35',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontFamily: 'inherit',
-                    fontWeight: 500,
-                  }}
-                >
-                  <Building2 size={12} />
-                  Entreprises
-                </button>
-                <button
-                  onClick={() => setActiveTab('deals')}
-                  style={{
-                    border: '1px solid #d8ccb1',
-                    background: activeTab === 'deals' ? 'rgba(201,168,76,0.12)' : '#fff',
-                    color: '#0e1e35',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontFamily: 'inherit',
-                    fontWeight: 500,
-                  }}
-                >
-                  <Briefcase size={12} />
-                  Transactions
-                </button>
-                <button
+                  type="button"
                   onClick={() => setActiveTab('all')}
                   title="Réinitialiser les filtres"
+                  aria-label="Réinitialiser les filtres"
                   style={{
                     marginLeft: 'auto',
-                    border: '1px solid #d8ccb1',
-                    background: activeTab === 'all' ? 'rgba(201,168,76,0.12)' : '#fff',
-                    color: '#0e1e35',
-                    borderRadius: 6,
+                    border: `1px solid ${activeTab === 'all' ? crmV2.primary : crmV2.borderStrong}`,
+                    background: activeTab === 'all' ? crmV2.primary : crmV2.bg,
+                    color: activeTab === 'all' ? '#fff' : crmV2.text,
+                    borderRadius: crmV2.radiusPill,
                     width: 30,
-                    height: 26,
+                    height: 30,
+                    padding: 0,
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <SlidersHorizontal size={12} />
+                  <SlidersHorizontal size={14} strokeWidth={2} />
                 </button>
               </div>
             )}
 
             {loading ? (
-              <div style={{ padding: '14px 12px', fontSize: 13, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Loader2 size={14} className="animate-spin" />
+              <div style={{ padding: '14px 14px', fontSize: 13, color: crmV2.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={14} className="animate-spin" style={{ color: crmV2.gold }} />
                 Recherche en cours...
               </div>
             ) : !hasResults ? (
-              <div style={{ padding: '12px', fontSize: 13, color: '#4a6070' }}>
+              <div style={{ padding: '14px', fontSize: 13, color: crmV2.textMuted }}>
                 Aucun résultat.
               </div>
             ) : activeTab === 'companies' ? (
-              <div style={{ padding: '12px', fontSize: 13, color: '#4a6070' }}>
+              <div style={{ padding: '14px', fontSize: 13, color: crmV2.textMuted }}>
                 Aucune entreprise pour cette recherche ({companiesCount}).
               </div>
             ) : (
-              <div>
+              <div style={{ overflowY: 'auto', padding: '4px 6px 6px' }}>
                 {(activeTab === 'all' || activeTab === 'contacts') && contacts.length > 0 && (
-                  <div style={{ borderBottom: '1px solid #f0ebe0' }}>
-                    <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <div>
+                    <div style={sectionLabel}>
                       Contacts {activeTab === 'all' ? `· ${contactCount}` : ''}
                     </div>
                     {contacts.map((c) => (
                       <button
                         key={c.hubspot_contact_id}
+                        type="button"
                         onClick={() => go(`/admin/crm/contacts/${c.hubspot_contact_id}`)}
-                        style={{
-                          width: '100%',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          color: '#0e1e35',
-                          fontFamily: 'inherit',
-                          fontSize: 13,
-                        }}
+                        style={resultRow}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = crmV2.bgHover }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                       >
                         <span style={{
                           width: 28,
                           height: 28,
-                          borderRadius: '50%',
-                          background: '#dcecf0',
-                          color: '#355269',
+                          borderRadius: '36%',
+                          background: crmV2.goldGradient,
+                          color: '#fff',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -451,7 +448,7 @@ export default function CRMGlobalSearchBar() {
                         </span>
                         <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                           <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contactLabel(c)}</span>
-                          <span style={{ color: '#4a6070', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ color: crmV2.textMuted, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             Contact {c.email ? `• ${c.email}` : ''}
                           </span>
                         </span>
@@ -461,45 +458,35 @@ export default function CRMGlobalSearchBar() {
                 )}
 
                 {(activeTab === 'all' || activeTab === 'deals') && deals.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <div style={activeTab === 'all' && contacts.length > 0 ? { borderTop: `1px solid ${crmV2.borderLight}`, marginTop: 4 } : undefined}>
+                    <div style={sectionLabel}>
                       Transactions {activeTab === 'all' ? `· ${dealsCount}` : ''}
                     </div>
                     {deals.map((d) => (
                       <button
                         key={d.hubspot_deal_id}
+                        type="button"
                         onClick={() => go(`/admin/crm/deals/${d.hubspot_deal_id}`)}
-                        style={{
-                          width: '100%',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          color: '#0e1e35',
-                          fontFamily: 'inherit',
-                          fontSize: 13,
-                        }}
+                        style={resultRow}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = crmV2.bgHover }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                       >
                         <span style={{
                           width: 28,
                           height: 28,
-                          borderRadius: '50%',
-                          background: '#dcecf0',
-                          color: '#355269',
+                          borderRadius: '36%',
+                          background: crmV2.bgSoft,
+                          color: crmV2.textMuted,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
                         }}>
-                          <Briefcase size={13} />
+                          <Briefcase size={14} strokeWidth={2} />
                         </span>
                         <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                           <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dealLabel(d)}</span>
-                          <span style={{ color: '#4a6070', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ color: crmV2.textMuted, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             Transaction
                             {d.contact ? ` • ${[d.contact.firstname, d.contact.lastname].filter(Boolean).join(' ')}` : ''}
                           </span>
@@ -515,4 +502,32 @@ export default function CRMGlobalSearchBar() {
       </div>
     </div>
   )
+}
+
+/** Libellé de section du panneau (11 px / 700 / majuscules). */
+const sectionLabel: CSSProperties = {
+  padding: '8px 8px 4px',
+  fontSize: 11,
+  fontWeight: 700,
+  color: crmV2.textMuted,
+  textTransform: 'uppercase',
+  letterSpacing: '0.4px',
+}
+
+/** Ligne de résultat : 44 px minimum, rayon 8 au survol. */
+const resultRow: CSSProperties = {
+  width: '100%',
+  minHeight: 44,
+  border: 'none',
+  borderRadius: 8,
+  background: 'transparent',
+  textAlign: 'left',
+  padding: '6px 8px',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  color: crmV2.text,
+  fontFamily: 'inherit',
+  fontSize: 13,
 }

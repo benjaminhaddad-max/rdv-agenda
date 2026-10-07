@@ -1,12 +1,22 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight, Check, SlidersHorizontal, Plus, Save, Clock } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo, Children, isValidElement } from 'react'
+import { RefreshCw, X, Check, SlidersHorizontal, Plus, Save, Clock } from 'lucide-react'
 import CRMContactsTable, { type CRMContact, type ContactInlinePatch } from './CRMContactsTable'
 import CRMEditDrawer from './CRMEditDrawer'
 import { PARCOURSUP_VERDICT_OPTIONS } from '@/lib/parcoursup-verdict'
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
-import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
+import { MultiSelectDropdown, SearchableSelect, FilterSelect as V2PillSelect } from '@/components/crm/CRMSelects'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { CrmV2Button, CrmV2Header } from '@/components/crm-v2/primitives'
+import {
+  V2ContactSearch, V2RoundButton, V2AdvancedFiltersLink, V2ToolbarLink, V2ContactsPager,
+} from '@/components/crm-v2/contacts-list/ContactsListParts'
+import {
+  v2Field, v2NativeSelect, v2MenuPanel, v2Option, v2OptionHover, v2PillTrigger,
+  V2Chevron, V2RoundCheck, V2MenuSearch, V2MenuEmpty, V2MenuDivider,
+} from '@/components/crm-v2/filters/styles'
 import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import TeleproAddViewModal, { type CatalogViewOption } from '@/components/crm/TeleproAddViewModal'
 import { persistAdminViewLayout } from '@/lib/crm-views'
@@ -73,14 +83,10 @@ function ruleFieldToCfColumn(field: string): string | null {
 }
 
 // ── Constantes ──────────────────────────────────────────────────────────────
-// Charte Diploma Santé 2026
-const NAVY      = '#ffffff'      // bg page
-const NAVY_BG   = '#f6f9fc'      // bg champs (bleu pâle charte) — ne PAS utiliser le bleu nuit pour le fond des inputs
-const NAVY_BDR  = '#e5ddc8'      // bordures
-const GOLD      = '#c6aa7c'      // doré charte
-const BLUE      = '#4fabdb'      // bleu Diploma
-const TEXT_DIM  = '#5b6b7a'      // texte secondaire (sur fond clair)
-const TEXT_MID  = '#12314d'      // texte principal (bleu nuit charte) — pour la lisibilité
+// Charte V2 (lib/crm-v2-theme.ts)
+const NAVY_BDR  = crmV2.border      // bordures
+const TEXT_DIM  = crmV2.textMuted   // texte secondaire
+const TEXT_MID  = crmV2.text        // texte principal
 
 const POLL_MS = (() => {
   const raw = Number(process.env.NEXT_PUBLIC_CRM_USER_VIEW_POLL_MS ?? '30000')
@@ -93,12 +99,12 @@ const SEARCH_DEBOUNCE_MS = (() => {
 
 const STAGE_MAP: Record<string, { label: string; color: string }> = {
   '3165428979': { label: 'À Replanifier',        color: '#ef4444' },
-  '3165428980': { label: 'RDV Pris',              color: BLUE },
-  '3165428981': { label: 'Délai Réflexion',       color: GOLD },
+  '3165428980': { label: 'RDV Pris',              color: '#4cabdb' },
+  '3165428981': { label: 'Délai Réflexion',       color: '#b8963e' },
   '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
   '3165428983': { label: 'Finalisation',          color: '#a855f7' },
   '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
 }
 
 interface RdvUser {
@@ -121,6 +127,14 @@ interface Props {
 }
 
 // ── Styled select helper ─────────────────────────────────────────────────────
+// Les <option> enfants sont convertis en options du menu pilule V2
+// (FilterSelect de CRMSelects) : même contrat value / onChange qu'avant.
+function optionText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (Array.isArray(node)) return node.map(optionText).join('')
+  return String(node)
+}
+
 function FilterSelect({
   value,
   onChange,
@@ -130,40 +144,12 @@ function FilterSelect({
   onChange: (v: string) => void
   children: React.ReactNode
 }) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{
-          background: value ? 'rgba(204,172,113,0.08)' : NAVY_BG,
-          border: `1px solid ${value ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
-          borderRadius: 8,
-          padding: '7px 30px 7px 10px',
-          color: value ? GOLD : TEXT_MID,
-          fontSize: 12,
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-          outline: 'none',
-          appearance: 'none',
-          WebkitAppearance: 'none',
-          minWidth: 130,
-          fontWeight: value ? 600 : 400,
-        }}
-      >
-        {children}
-      </select>
-      <span style={{
-        position: 'absolute',
-        right: 8,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        color: TEXT_DIM,
-        pointerEvents: 'none',
-        fontSize: 10,
-      }}>▾</span>
-    </div>
-  )
+  const options: SelectOption[] = Children.toArray(children).flatMap(ch => {
+    if (!isValidElement(ch) || ch.type !== 'option') return []
+    const props = ch.props as { value?: string | number; children?: React.ReactNode }
+    return [{ id: String(props.value ?? ''), label: optionText(props.children) }]
+  })
+  return <V2PillSelect value={value} onChange={onChange} options={options} />
 }
 
 // Multi-sélection (valeur = liste séparée par des virgules), même look que FilterSelect.
@@ -210,97 +196,43 @@ function MultiFilterSelect({
   const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          background: isActive ? 'rgba(204,172,113,0.08)' : NAVY_BG,
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
-          borderRadius: 8,
-          padding: '7px 30px 7px 10px',
-          color: isActive ? GOLD : TEXT_MID,
-          fontSize: 12,
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-          outline: 'none',
-          minWidth: 130,
-          textAlign: 'left',
-          fontWeight: isActive ? 600 : 400,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: 220,
-          width: '100%',
-        }}
-      >
-        {label}
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={v2PillTrigger(isActive, open)}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{label}</span>
+        <V2Chevron open={open} size={13} color={isActive ? crmV2.link : crmV2.textFaint} />
       </button>
-      <span style={{
-        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-        color: TEXT_DIM, pointerEvents: 'none', fontSize: 10,
-      }}>▾</span>
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 300,
-          background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 10,
-          minWidth: 220, maxHeight: 300, display: 'flex', flexDirection: 'column',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          ...v2MenuPanel, minWidth: 240, maxWidth: 320, maxHeight: 340,
+          display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 6, borderBottom: `1px solid ${NAVY_BDR}` }}>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Rechercher…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{
-                width: '100%', border: `1px solid ${NAVY_BDR}`, borderRadius: 6,
-                padding: '5px 8px', fontSize: 12, color: TEXT_MID, outline: 'none',
-                fontFamily: 'inherit', background: NAVY_BG,
-              }}
-            />
-          </div>
+          <V2MenuSearch value={query} onChange={setQuery} />
           <button
             type="button"
             onClick={() => { onChange(''); setOpen(false); setQuery('') }}
-            style={{
-              display: 'block', width: '100%', textAlign: 'left', border: 'none',
-              background: !isActive ? 'rgba(204,172,113,0.12)' : 'transparent',
-              padding: '8px 12px', color: !isActive ? GOLD : TEXT_DIM, fontSize: 12,
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: !isActive ? 700 : 400,
-            }}
+            style={v2Option(!isActive)}
+            {...v2OptionHover(!isActive)}
           >
             {allLabel}
           </button>
+          <V2MenuDivider />
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: '8px 12px', fontSize: 12, color: TEXT_DIM }}>Aucun résultat</div>
-            )}
-            {filtered.map(opt => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => toggle(opt)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                  padding: '7px 12px', cursor: 'pointer', fontSize: 12,
-                  color: TEXT_MID, border: 'none', textAlign: 'left', fontFamily: 'inherit',
-                  background: selected.includes(opt) ? 'rgba(204,172,113,0.08)' : 'transparent',
-                  fontWeight: selected.includes(opt) ? 600 : 400,
-                }}
-              >
-                <span style={{
-                  width: 15, height: 15, borderRadius: 3, flexShrink: 0,
-                  border: selected.includes(opt) ? `2px solid ${GOLD}` : `2px solid ${TEXT_DIM}`,
-                  background: selected.includes(opt) ? GOLD : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {selected.includes(opt) && <Check size={9} color="#ffffff" strokeWidth={3} />}
-                </span>
-                {opt}
-              </button>
-            ))}
+            {filtered.length === 0 && <V2MenuEmpty>Aucun résultat</V2MenuEmpty>}
+            {filtered.map(opt => {
+              const on = selected.includes(opt)
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggle(opt)}
+                  style={v2Option(on)}
+                  {...v2OptionHover(on)}
+                >
+                  <V2RoundCheck on={on} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -358,11 +290,7 @@ function AdvancedFilterRow({
 
   const isRange = opIsRange(rule.operator)
   const [v1, v2] = isRange ? (rule.value || '').split('|') : [rule.value || '', '']
-  const inputStyle: React.CSSProperties = {
-    background: '#f6f9fc', border: '1px solid #e5ddc8', borderRadius: 6,
-    padding: '6px 8px', color: '#12314d', fontSize: 12, fontFamily: 'inherit',
-    outline: 'none', width: '100%', boxSizing: 'border-box',
-  }
+  const inputStyle: React.CSSProperties = v2Field
 
   const renderValueInput = () => {
     if (!showVal) return null
@@ -391,7 +319,7 @@ function AdvancedFilterRow({
     }
     if (kind === 'bool') {
       return (
-        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={v2NativeSelect}>
           <option value="">Sélectionner…</option>
           <option value="true">Oui</option>
           <option value="false">Non</option>
@@ -415,7 +343,7 @@ function AdvancedFilterRow({
         return <SearchableSelect options={valueOptions} value={rule.value} onChange={v => onChange({ value: v })} />
       }
       return (
-        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+        <select value={rule.value} onChange={e => onChange({ value: e.target.value })} style={v2NativeSelect}>
           <option value="">{valueOptions.length === 0 ? 'Chargement…' : 'Sélectionner…'}</option>
           {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
         </select>
@@ -425,12 +353,13 @@ function AdvancedFilterRow({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '24px 10px 8px', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: '30px 10px 10px', position: 'relative' }}>
       <button
         type="button"
         onClick={onRemove}
         title="Supprimer ce filtre"
-        style={{ position: 'absolute', top: 4, right: 4, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
+        aria-label="Supprimer ce filtre"
+        style={{ position: 'absolute', top: 5, right: 5, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radiusPill, color: crmV2.danger, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
       ><X size={13} /></button>
       <CRMFieldPicker
         value={rule.field}
@@ -440,12 +369,12 @@ function AdvancedFilterRow({
         }}
         crmProps={crmProps}
       />
-      <select value={rule.operator} onChange={e => onChange({ operator: e.target.value as CRMFilterOp })} style={{ ...inputStyle, cursor: 'pointer' }}>
+      <select value={rule.operator} onChange={e => onChange({ operator: e.target.value as CRMFilterOp })} style={v2NativeSelect}>
         {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
       </select>
       {renderValueInput()}
       {unsupported && (
-        <div style={{ fontSize: 10, color: '#ef4444' }}>
+        <div style={{ fontSize: 11, color: '#d13a41' }}>
           Ce champ n&apos;est pas filtrable sur la liste des contacts.
         </div>
       )}
@@ -455,6 +384,11 @@ function AdvancedFilterRow({
 
 // ── Composant principal ──────────────────────────────────────────────────────
 export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOnly, onTotalChange, initialSourceFilter }: Props) {
+  // ─ Présentation V2 (mobile, panneau de filtres, emplacement du bouton Colonnes)
+  const isMobile = useIsMobile()
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [columnsSlot, setColumnsSlot] = useState<HTMLDivElement | null>(null)
+
   // ─ Contacts
   const [contacts, setContacts]   = useState<CRMContact[]>([])
   const [loading, setLoading]     = useState(false)
@@ -1033,7 +967,6 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
   const activeAdvancedCount = advancedRules.filter(r => ruleFieldToCfColumn(r.field) !== null && (r.value || r.operator === 'is_empty' || r.operator === 'is_not_empty')).length
   const hasActiveFilters = !!(filterStage || filterLeadStatus || filterFormation || filterSource || filterClasse || filterPeriod || filterZone || filterFormEvent || filterParcoursupVerdict || activeAdvancedCount > 0 || debouncedSearch)
-  const totalPages = Math.max(1, Math.ceil(total / limit))
 
   // Options pour CRMContactsTable (inline editing)
   const leadStatusOptions = leadStatusOpts.map(v => ({ id: v, label: v }))
@@ -1149,93 +1082,230 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
     }),
   ]
 
+  const isTransactionsTitle = ownerParam === 'closer_hs_id'
+  const quickFilterCount = [filterStage, filterLeadStatus, filterFormation, filterSource, filterClasse, filterPeriod, filterZone, filterFormEvent, filterParcoursupVerdict]
+    .filter(Boolean).length + activeAdvancedCount
+
+  // Recherche pilule + historique des derniers contacts ouverts
+  const searchBox = (
+    <div style={{ position: 'relative', flex: isMobile ? 1 : '0 1 280px', minWidth: isMobile ? 0 : 220 }}>
+      <div
+        onFocus={() => setSearchFocused(true)}
+        onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+      >
+        <V2ContactSearch
+          value={search}
+          onChange={handleSearchChange}
+          height={isMobile ? 42 : 36}
+          style={search ? { borderColor: crmV2.link } : undefined}
+        />
+      </div>
+
+      {/* Historique des derniers contacts ouverts — accès direct à la fiche */}
+      {searchFocused && !search && recentContacts.length > 0 && (
+        <div
+          style={{
+            ...v2MenuPanel,
+            right: 0,
+            zIndex: 50,
+            padding: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px 8px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <Clock size={14} /> Récemment consultés
+            </span>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); clearRecentContacts() }}
+              style={{ background: 'none', border: 'none', color: crmV2.link, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
+            >
+              Effacer
+            </button>
+          </div>
+          {recentContacts.map(c => (
+            <button
+              key={c.hubspot_contact_id}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); openDrawerAndRecord(c); setSearchFocused(false) }}
+              style={{
+                width: '100%',
+                minHeight: 40,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                gap: 1,
+                padding: '6px 10px',
+                background: 'none',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = crmV2.bgHover)}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_MID }}>{contactDisplayName(c)}</span>
+              {(c.email || c.phone) && (
+                <span style={{ fontSize: 12, color: TEXT_DIM }}>{c.email || c.phone}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  // Filtres pilules (télépro + closer)
+  const filterPills = (
+    <>
+      {/* ── Filtres prioritaires (télépro + closer) ───────────────────
+          Ordre métier : Classe actuelle · Zone localité · Origine ·
+          Soumission de formulaire · Statut du lead. */}
+
+      {/* 1. Classe actuelle — propriété du contact */}
+      <FilterSelect value={filterClasse} onChange={v => { setFilterClasse(v); setPage(0) }}>
+        <option value="">Toutes les classes</option>
+        {['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre'].map(c => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </FilterSelect>
+
+      {/* 2. Zone localité (multi-sélection) */}
+      <MultiFilterSelect
+        value={filterZone}
+        onChange={v => { setFilterZone(v); setPage(0) }}
+        options={zoneOpts}
+        allLabel="Toutes les zones"
+        itemNoun="zones"
+      />
+
+      {/* 3. Origine (multi-sélection) */}
+      <MultiFilterSelect
+        value={filterSource}
+        onChange={v => { setFilterSource(v); setPage(0) }}
+        options={sourceOpts}
+        allLabel="Toutes les origines"
+      />
+
+      {/* 4. Soumission de formulaire (multi-sélection) */}
+      <MultiFilterSelect
+        value={filterFormEvent}
+        onChange={v => { setFilterFormEvent(v); setPage(0) }}
+        options={formEventOpts}
+        allLabel="Soumission de formulaire"
+        itemNoun="formulaires"
+      />
+
+      {/* 5. Statut du lead — options peuplées depuis /api/crm/field-options */}
+      <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
+        <option value="">Statut du lead</option>
+        {leadStatusOpts.map(v => <option key={v} value={v}>{v}</option>)}
+      </FilterSelect>
+
+      {/* ── Filtres secondaires ──────────────────────────────────────── */}
+
+      {/* Formation demandée — options chargées à la volée */}
+      <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
+        <option value="">Toutes formations</option>
+        {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
+      </FilterSelect>
+
+      {/* Période de création du contact */}
+      <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
+        <option value="">Toutes les dates</option>
+        <option value="7d">7 derniers jours</option>
+        <option value="30d">30 derniers jours</option>
+        <option value="90d">3 derniers mois</option>
+        <option value="365d">12 derniers mois</option>
+      </FilterSelect>
+
+      {/* Verdict Parcoursup 2026 (telepro + closer) */}
+      <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
+        <option value="">Tous les verdicts Parcoursup</option>
+        {PARCOURSUP_VERDICT_OPTIONS.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </FilterSelect>
+
+      {/* Étape de transaction (mode closer "Mes Transactions") */}
+      {!isContactsView && (
+        <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
+          <option value="">Toutes les étapes</option>
+          {Object.entries(STAGE_MAP).map(([id, s]) => (
+            <option key={id} value={id}>{s.label}</option>
+          ))}
+        </FilterSelect>
+      )}
+
+      {/* Autres filtres — toute propriété CRM */}
+      <V2AdvancedFiltersLink count={activeAdvancedCount} open={showAdvanced} onClick={() => setShowAdvanced(s => !s)} />
+
+      {/* Reset */}
+      {hasActiveFilters && (
+        <V2ToolbarLink onClick={resetFilters} tone="danger" icon={<X size={14} />}>
+          Réinitialiser
+        </V2ToolbarLink>
+      )}
+
+      {/* Enregistrer les filtres dans une vue.
+          - Vue active perso modifiée → met à jour la vue.
+          - Sinon (vue par défaut) avec filtres actifs → crée une nouvelle vue. */}
+      {viewChanged && activeView && !activeView.isDefault ? (
+        <V2ToolbarLink
+          onClick={saveActiveView}
+          tone={justSaved ? 'muted' : 'gold'}
+          icon={justSaved ? <Check size={14} color={crmV2.successStrong} /> : <Save size={14} />}
+        >
+          {justSaved ? 'Enregistré' : 'Enregistrer la vue'}
+        </V2ToolbarLink>
+      ) : hasActiveFilters && (activeView?.isDefault ?? true) && mode !== 'telepro' ? (
+        <V2ToolbarLink onClick={() => { setCreatingView(true); setNewViewName('') }} tone="gold" icon={<Save size={14} />}>
+          Enregistrer comme vue
+        </V2ToolbarLink>
+      ) : null}
+    </>
+  )
+
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      background: NAVY,
+      minHeight: 0,
+      fontFamily: 'inherit',
+      background: crmV2.bgSoft,
+      color: crmV2.text,
     }}>
 
-      {/* ── En-tête ─────────────────────────────────────────────────────── */}
-      <div style={{
-        padding: '18px 24px 0',
-        borderBottom: `1px solid ${NAVY_BDR}`,
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {ownerParam === 'closer_hs_id' ? '🎯 Mes Transactions' : (ownerParam === 'telepro_id' || ownerParam === 'telepro_hs_id' || ownerParam === 'telepro_owner_hs_id') ? '👥 Mes Contacts' : '👥 Mes Contacts'}
-              {total > 0 && (
-                <span style={{
-                  background: 'rgba(76,171,219,0.15)',
-                  border: '1px solid rgba(76,171,219,0.3)',
-                  borderRadius: 20,
-                  padding: '1px 10px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: BLUE,
-                }}>
-                  {total}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: TEXT_DIM, marginTop: 3 }}>
-              Contacts + transactions
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={openCreate}
-              style={{
-                background: GOLD,
-                border: `1px solid ${GOLD}`,
-                borderRadius: 8,
-                padding: '7px 14px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                fontFamily: 'inherit',
-                fontWeight: 600,
-              }}
-            >
-              <Plus size={13} /> Créer un contact
-            </button>
-            <button
+      {/* ── En-tête blanc : titre, compteur, actions, onglets de vues ───── */}
+      <CrmV2Header
+        title={isTransactionsTitle ? 'Mes Transactions' : 'Mes Contacts'}
+        subtitle={total > 0
+          ? `${total.toLocaleString('fr-FR')} contact${total > 1 ? 's' : ''} · contacts et transactions`
+          : 'Contacts et transactions'}
+        actions={
+          <>
+            <CrmV2Button
               onClick={() => { setPage(0); fetchContacts() }}
               disabled={loading}
-              style={{
-                background: '#12314d',
-                border: '1px solid #12314d',
-                borderRadius: 8,
-                padding: '7px 14px',
-                color: '#ffffff',
-                cursor: loading ? 'default' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                fontFamily: 'inherit',
-                fontWeight: 600,
-                opacity: loading ? 0.7 : 1,
-              }}
+              icon={<RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />}
             >
-              <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
               {loading ? 'Chargement…' : 'Actualiser'}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Barre d'onglets de vues (privées à l'utilisateur) ─────────── */}
+            </CrmV2Button>
+            <CrmV2Button variant="primary" onClick={openCreate} icon={<Plus size={14} />}>
+              Créer un contact
+            </CrmV2Button>
+          </>
+        }
+      >
+        {/* ── Onglets de vues (privées à l'utilisateur) ─────────────────── */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 0, marginBottom: 12,
-          borderBottom: `1px solid ${NAVY_BDR}`,
-          overflowX: 'auto', overflowY: 'hidden',
+          display: 'flex', alignItems: 'center', gap: 0,
+          margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px',
+          overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
         }}>
           {views.map(view => {
             const isActive = activeViewId === view.id
@@ -1248,8 +1318,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                   if (!view.isDefault && !view.isShared) { setRenamingViewId(view.id); setRenameValue(view.name) }
                 }}
                 style={{
-                  padding: '9px 14px',
-                  borderBottom: `2px solid ${isActive ? GOLD : 'transparent'}`,
+                  padding: isMobile ? '10px 12px' : '10px 14px',
+                  borderBottom: `3px solid ${isActive ? crmV2.text : 'transparent'}`,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                   whiteSpace: 'nowrap', flexShrink: 0,
                 }}
@@ -1266,34 +1336,36 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                     onBlur={() => renameView(view.id, renameValue)}
                     onClick={e => e.stopPropagation()}
                     style={{
-                      background: 'rgba(204,172,113,0.08)', border: `1px solid ${GOLD}`,
-                      borderRadius: 4, padding: '2px 6px', color: GOLD,
-                      fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                      outline: 'none', width: Math.max(70, renameValue.length * 8),
+                      background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
+                      borderRadius: crmV2.radiusPill, padding: '3px 10px', color: crmV2.text,
+                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                      outline: 'none', width: Math.max(80, renameValue.length * 8),
                     }}
                   />
                 ) : (
                   <span style={{
-                    fontSize: 13, fontWeight: isActive ? 700 : 600,
-                    color: TEXT_MID,
+                    fontSize: 14, fontWeight: isActive ? 600 : 500,
+                    color: isActive ? crmV2.text : crmV2.textMuted,
                   }}>
                     {view.name}
                   </span>
                 )}
                 {!view.isDefault && isActive && !isRenaming && (
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation()
                       if (view.isShared) unpinSharedView(view.id)
                       else deleteView(view.id)
                     }}
                     title={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
+                    aria-label={view.isShared ? 'Retirer de mes onglets' : 'Supprimer la vue'}
                     style={{
                       background: 'none', border: 'none', padding: 0, marginLeft: 2,
-                      color: TEXT_DIM, cursor: 'pointer', display: 'flex',
+                      color: crmV2.textFaint, cursor: 'pointer', display: 'flex',
                     }}
                   >
-                    <X size={11} />
+                    <X size={14} />
                   </button>
                 )}
               </div>
@@ -1305,22 +1377,23 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
           {/* Sauvegarder les filtres dans la vue active */}
           {viewChanged && !activeView?.isDefault && (
             <button
+              type="button"
               onClick={saveActiveView}
               style={{
-                padding: '5px 10px', background: 'rgba(204,172,113,0.08)',
-                border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
-                color: GOLD, fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                height: 28, padding: '0 12px', background: crmV2.goldSoft,
+                border: `1px solid ${crmV2.goldBorder}`, borderRadius: crmV2.radiusPill,
+                color: crmV2.goldDark, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0,
               }}
             >
-              <Save size={11} /> Sauvegarder
+              <Save size={14} /> Sauvegarder
             </button>
           )}
 
           {/* Créer une nouvelle vue */}
           {creatingView ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', flexShrink: 0 }}>
               <input
                 autoFocus
                 value={newViewName}
@@ -1331,435 +1404,199 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                 }}
                 placeholder="Nom de la vue…"
                 style={{
-                  background: 'rgba(204,172,113,0.08)', border: `1px solid ${GOLD}`,
-                  borderRadius: 4, padding: '3px 8px', color: GOLD,
-                  fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 130,
+                  background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
+                  borderRadius: crmV2.radiusPill, padding: '4px 12px', color: crmV2.text,
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140,
                 }}
               />
               <button
+                type="button"
                 onClick={() => createView(newViewName)}
-                style={{ background: GOLD, border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}
+                aria-label="Créer la vue"
+                style={{ background: crmV2.primary, border: 'none', borderRadius: crmV2.radiusPill, width: 26, height: 26, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                <Check size={12} color="#ffffff" />
+                <Check size={14} color="#ffffff" />
               </button>
               <button
+                type="button"
                 onClick={() => { setCreatingView(false); setNewViewName('') }}
+                aria-label="Annuler"
                 style={{ background: 'none', border: 'none', padding: 0, color: TEXT_DIM, cursor: 'pointer', display: 'flex' }}
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             </div>
           ) : (
             <button
+              type="button"
               onClick={() => mode === 'telepro' ? setAddViewOpen(true) : setCreatingView(true)}
               title={mode === 'telepro'
                 ? 'Ajouter une vue existante créée en admin'
                 : 'Enregistrer les filtres actuels comme une nouvelle vue privée'}
               style={{
-                padding: '7px 12px', background: 'none', border: 'none',
-                color: TEXT_DIM, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
+                padding: '10px 12px', background: 'none', border: 'none',
+                color: crmV2.link, cursor: 'pointer', display: 'flex',
+                alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
                 whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >
-              <Plus size={12} /> {mode === 'telepro' ? 'Ajouter' : 'Vue'}
+              <Plus size={14} /> {mode === 'telepro' ? 'Ajouter' : 'Vue'}
             </button>
           )}
         </div>
+      </CrmV2Header>
 
-        {/* ── Barre de filtres ──────────────────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 14, flexWrap: 'wrap' }}>
-          {/* Search */}
-          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160, maxWidth: 280 }}>
-            <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: TEXT_DIM, pointerEvents: 'none' }} />
-            <input
-              value={search}
-              onChange={e => handleSearchChange(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              placeholder="Rechercher…"
-              style={{
-                width: '100%',
-                background: NAVY_BG,
-                border: `1px solid ${search ? BLUE : NAVY_BDR}`,
-                borderRadius: 8,
-                padding: '7px 28px 7px 28px',
-                color: '#0e1e35',
-                fontSize: 12,
-                fontFamily: 'inherit',
-                outline: 'none',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.15s',
-              }}
-            />
-            {search && (
-              <button onClick={() => handleSearchChange('')} style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: TEXT_DIM, cursor: 'pointer', padding: 0, display: 'flex' }}>
-                <X size={11} />
-              </button>
-            )}
-
-            {/* Historique des derniers contacts ouverts — accès direct à la fiche */}
-            {searchFocused && !search && recentContacts.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 4px)',
-                  left: 0,
-                  right: 0,
-                  background: '#ffffff',
-                  border: `1px solid ${NAVY_BDR}`,
-                  borderRadius: 8,
-                  boxShadow: '0 8px 24px rgba(18,49,77,0.12)',
-                  zIndex: 50,
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderBottom: `1px solid ${NAVY_BDR}` }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                    <Clock size={11} /> Récemment consultés
-                  </span>
-                  <button
-                    onMouseDown={e => { e.preventDefault(); clearRecentContacts() }}
-                    style={{ background: 'none', border: 'none', color: TEXT_DIM, fontSize: 10.5, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
-                  >
-                    Effacer
-                  </button>
-                </div>
-                {recentContacts.map(c => (
-                  <button
-                    key={c.hubspot_contact_id}
-                    onMouseDown={e => { e.preventDefault(); openDrawerAndRecord(c); setSearchFocused(false) }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: 1,
-                      padding: '7px 10px',
-                      background: 'none',
-                      border: 'none',
-                      borderBottom: `1px solid ${NAVY_BG}`,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: 'inherit',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = NAVY_BG)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: TEXT_MID }}>{contactDisplayName(c)}</span>
-                    {(c.email || c.phone) && (
-                      <span style={{ fontSize: 11, color: TEXT_DIM }}>{c.email || c.phone}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Filtres prioritaires (télépro + closer) ───────────────────
-              Ordre métier : Classe actuelle · Zone localité · Origine ·
-              Soumission de formulaire · Statut du lead. */}
-
-          {/* 1. Classe actuelle — propriété du contact */}
-          <FilterSelect value={filterClasse} onChange={v => { setFilterClasse(v); setPage(0) }}>
-            <option value="">Toutes les classes</option>
-            {['Troisième','Seconde','Première','Terminale','PASS','LSPS 1','LSPS 2','LSPS 3','LAS 1','LAS 2','LAS 3','Etudes médicales','Etudes Sup.','Autre'].map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </FilterSelect>
-
-          {/* 2. Zone localité (multi-sélection) */}
-          <MultiFilterSelect
-            value={filterZone}
-            onChange={v => { setFilterZone(v); setPage(0) }}
-            options={zoneOpts}
-            allLabel="Toutes les zones"
-            itemNoun="zones"
-          />
-
-          {/* 3. Origine (multi-sélection) */}
-          <MultiFilterSelect
-            value={filterSource}
-            onChange={v => { setFilterSource(v); setPage(0) }}
-            options={sourceOpts}
-            allLabel="Toutes les origines"
-          />
-
-          {/* 4. Soumission de formulaire (multi-sélection) */}
-          <MultiFilterSelect
-            value={filterFormEvent}
-            onChange={v => { setFilterFormEvent(v); setPage(0) }}
-            options={formEventOpts}
-            allLabel="Soumission de formulaire"
-            itemNoun="formulaires"
-          />
-
-          {/* 5. Statut du lead — options peuplées depuis /api/crm/field-options */}
-          <FilterSelect value={filterLeadStatus} onChange={v => { setFilterLeadStatus(v); setPage(0) }}>
-            <option value="">Statut du lead</option>
-            {leadStatusOpts.map(v => <option key={v} value={v}>{v}</option>)}
-          </FilterSelect>
-
-          {/* ── Filtres secondaires ──────────────────────────────────────── */}
-
-          {/* Formation demandée — options chargées à la volée */}
-          <FilterSelect value={filterFormation} onChange={v => { setFilterFormation(v); setPage(0) }}>
-            <option value="">Toutes formations</option>
-            {formationOpts.map(v => <option key={v} value={v}>{v}</option>)}
-          </FilterSelect>
-
-          {/* Période de création du contact */}
-          <FilterSelect value={filterPeriod} onChange={v => { setFilterPeriod(v); setPage(0) }}>
-            <option value="">Toutes les dates</option>
-            <option value="7d">7 derniers jours</option>
-            <option value="30d">30 derniers jours</option>
-            <option value="90d">3 derniers mois</option>
-            <option value="365d">12 derniers mois</option>
-          </FilterSelect>
-
-          {/* Verdict Parcoursup 2026 (telepro + closer) */}
-          <FilterSelect value={filterParcoursupVerdict} onChange={v => { setFilterParcoursupVerdict(v); setPage(0) }}>
-            <option value="">Tous les verdicts Parcoursup</option>
-            {PARCOURSUP_VERDICT_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Étape de transaction (mode closer "Mes Transactions") */}
-          {!isContactsView && (
-            <FilterSelect value={filterStage} onChange={v => { setFilterStage(v); setPage(0) }}>
-              <option value="">Toutes les étapes</option>
-              {Object.entries(STAGE_MAP).map(([id, s]) => (
-                <option key={id} value={id}>{s.label}</option>
-              ))}
-            </FilterSelect>
-          )}
-
-          {/* Autres filtres — toute propriété CRM */}
-          <button
-            onClick={() => setShowAdvanced(s => !s)}
-            style={{
-              background: (showAdvanced || activeAdvancedCount > 0) ? 'rgba(204,172,113,0.08)' : NAVY_BG,
-              border: `1px solid ${(showAdvanced || activeAdvancedCount > 0) ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
-              borderRadius: 8,
-              padding: '7px 12px',
-              color: (showAdvanced || activeAdvancedCount > 0) ? GOLD : TEXT_MID,
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              fontWeight: activeAdvancedCount > 0 ? 600 : 400,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-            }}
-          >
-            <SlidersHorizontal size={12} /> Autres filtres{activeAdvancedCount > 0 ? ` · ${activeAdvancedCount}` : ''}
-          </button>
-
-          {/* Reset */}
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              style={{
-                background: 'transparent',
-                border: `1px solid rgba(239,68,68,0.3)`,
-                borderRadius: 8,
-                padding: '7px 12px',
-                color: '#ef4444',
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
+      {/* ── Corps : carte tableau ─────────────────────────────────────────── */}
+      <div style={{
+        flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column',
+        padding: isMobile ? '10px 10px 0' : '16px 28px 20px', gap: isMobile ? 8 : 0,
+      }}>
+        {/* Mobile : recherche + bouton filtres avec compteur */}
+        {isMobile && (
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            {searchBox}
+            <V2RoundButton
+              size={42}
+              title="Filtres"
+              active={mobileFiltersOpen}
+              badge={quickFilterCount}
+              onClick={() => setMobileFiltersOpen(o => !o)}
             >
-              <X size={11} /> Réinitialiser
-            </button>
-          )}
-
-          {/* Enregistrer les filtres dans une vue.
-              - Vue active perso modifiée → met à jour la vue.
-              - Sinon (vue par défaut) avec filtres actifs → crée une nouvelle vue. */}
-          {viewChanged && activeView && !activeView.isDefault ? (
-            <button
-              onClick={saveActiveView}
-              style={{
-                background: justSaved ? 'rgba(34,197,94,0.12)' : '#12314d',
-                border: `1px solid ${justSaved ? 'rgba(34,197,94,0.4)' : '#12314d'}`,
-                borderRadius: 8,
-                padding: '7px 12px',
-                color: justSaved ? '#16a34a' : '#ffffff',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              {justSaved ? <Check size={12} /> : <Save size={12} />}
-              {justSaved ? 'Enregistré' : 'Enregistrer la vue'}
-            </button>
-          ) : hasActiveFilters && (activeView?.isDefault ?? true) && mode !== 'telepro' ? (
-            <button
-              onClick={() => { setCreatingView(true); setNewViewName('') }}
-              style={{
-                background: '#12314d',
-                border: '1px solid #12314d',
-                borderRadius: 8,
-                padding: '7px 12px',
-                color: '#ffffff',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <Save size={12} /> Enregistrer comme vue
-            </button>
-          ) : null}
-        </div>
-
-        {/* ── Panneau filtres avancés (toute propriété CRM) ──────────────── */}
-        {showAdvanced && (
-          <div style={{ paddingBottom: 14 }}>
-            <div style={{
-              background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 10,
-              padding: 12, maxWidth: 720,
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_MID, marginBottom: 8 }}>
-                Filtrer sur n&apos;importe quelle propriété
-              </div>
-              {advancedRules.length === 0 && (
-                <div style={{ fontSize: 12, color: TEXT_DIM, marginBottom: 8 }}>
-                  Aucun filtre avancé. Ajoute une règle pour filtrer sur une propriété du CRM.
-                </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {advancedRules.map((rule, idx) => (
-                  <div key={rule.id}>
-                    {idx > 0 && <div style={{ fontSize: 11, color: TEXT_DIM, padding: '2px 0 6px 2px' }}>et</div>}
-                    <AdvancedFilterRow
-                      rule={rule}
-                      crmProps={allCrmProps}
-                      optionSets={advancedOptionSets}
-                      onChange={patch => updateAdvancedRule(rule.id, patch)}
-                      onRemove={() => removeAdvancedRule(rule.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={addAdvancedRule}
-                style={{
-                  marginTop: 10, padding: '6px 12px', background: 'transparent',
-                  border: `1px solid ${NAVY_BDR}`, borderRadius: 6, color: BLUE,
-                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Plus size={11} /> Ajouter un filtre
-              </button>
-            </div>
+              <SlidersHorizontal size={16} />
+            </V2RoundButton>
           </div>
         )}
-      </div>
-
-      {/* ── Table ───────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <CRMContactsTable
-          contacts={contacts}
-          loading={loading}
-          mode={mode}
-          onRefresh={fetchContacts}
-          onContactPatched={handleContactPatched}
-          onOpenDrawer={openDrawerAndRecord}
-          leadStatusOptions={leadStatusOptions}
-          sourceOptions={sourceOptions}
-          closerSelectOptions={closerSelectOptions}
-          teleproSelectOptions={teleproSelectOptions}
-          sortBy={sortBy}
-          sortDir={sortDir}
-          onSortChange={handleSortChange}
-          allCrmProps={allCrmProps}
-          extraColumns={extraColumns}
-          onExtraColumnsChange={persistExtraColumns}
-        />
-      </div>
-
-      {/* ── Pagination ──────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '10px 20px',
-        borderTop: `1px solid ${NAVY_BDR}`,
-        flexShrink: 0,
-        background: '#0b1929',
-      }}>
-        {/* Par page */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: TEXT_DIM }}>Par page :</span>
-          {[25, 50, 100].map(n => (
-            <button key={n} onClick={() => { setLimit(n); setPage(0) }}
-              style={{
-                background: limit === n ? 'rgba(204,172,113,0.12)' : 'transparent',
-                border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : NAVY_BDR}`,
-                borderRadius: 6,
-                padding: '4px 10px',
-                color: limit === n ? GOLD : TEXT_DIM,
-                cursor: 'pointer',
-                fontSize: 12,
-                fontFamily: 'inherit',
-                fontWeight: limit === n ? 700 : 400,
-              }}
-            >{n}</button>
-          ))}
-        </div>
-
-        {/* Navigation pages */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12, color: TEXT_MID }}>
-            Page <strong style={{ color: '#0e1e35' }}>{page + 1}</strong> / {totalPages}
-            <span style={{ color: TEXT_DIM, marginLeft: 8 }}>({total} contacts)</span>
-          </span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              style={{
-                background: NAVY_BG,
-                border: `1px solid ${NAVY_BDR}`,
-                borderRadius: 6,
-                width: 30, height: 30,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: page === 0 ? TEXT_DIM : TEXT_MID,
-                cursor: page === 0 ? 'default' : 'pointer',
-              }}
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              style={{
-                background: NAVY_BG,
-                border: `1px solid ${NAVY_BDR}`,
-                borderRadius: 6,
-                width: 30, height: 30,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: page >= totalPages - 1 ? TEXT_DIM : TEXT_MID,
-                cursor: page >= totalPages - 1 ? 'default' : 'pointer',
-              }}
-            >
-              <ChevronRight size={14} />
-            </button>
+        {isMobile && mobileFiltersOpen && (
+          <div style={{
+            flexShrink: 0, background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+            padding: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+          }}>
+            {filterPills}
           </div>
+        )}
+
+        <div style={{
+          flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0,
+          ...(isMobile ? {} : {
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+            boxShadow: crmV2.shadow, overflow: 'hidden',
+          }),
+        }}>
+          {/* Barre d'outils : recherche, filtres pilules, Autres filtres, Colonnes */}
+          {!isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap',
+              borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0,
+            }}>
+              {searchBox}
+              {filterPills}
+              <div style={{ flex: 1 }} />
+              {/* Bouton « Colonnes » rendu ici par CRMContactsTable (portail) */}
+              <div ref={setColumnsSlot} />
+            </div>
+          )}
+
+          {/* ── Panneau filtres avancés (toute propriété CRM) ──────────────── */}
+          {showAdvanced && (
+            <div style={{
+              flexShrink: 0, maxHeight: '45vh', overflowY: 'auto',
+              padding: isMobile ? '0 0 4px' : '12px 14px', borderBottom: isMobile ? 'none' : `1px solid ${crmV2.border}`,
+            }}>
+              <div style={{
+                background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12,
+                padding: 12, maxWidth: 720,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                  Filtrer sur n&apos;importe quelle propriété
+                </div>
+                {advancedRules.length === 0 && (
+                  <div style={{ fontSize: 13, color: crmV2.textFaint, marginBottom: 8 }}>
+                    Aucun filtre avancé. Ajoute une règle pour filtrer sur une propriété du CRM.
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {advancedRules.map((rule, idx) => (
+                    <div key={rule.id}>
+                      {idx > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textFaint, textTransform: 'uppercase', letterSpacing: '0.4px', padding: '2px 0 6px 4px' }}>et</div>}
+                      <AdvancedFilterRow
+                        rule={rule}
+                        crmProps={allCrmProps}
+                        optionSets={advancedOptionSets}
+                        onChange={patch => updateAdvancedRule(rule.id, patch)}
+                        onRemove={() => removeAdvancedRule(rule.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addAdvancedRule}
+                  style={{
+                    marginTop: 10, height: 34, padding: '0 14px', background: crmV2.bg,
+                    border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radiusPill, color: crmV2.link,
+                    fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <Plus size={14} /> Ajouter un filtre
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Table ─────────────────────────────────────────────────────── */}
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <CRMContactsTable
+              contacts={contacts}
+              loading={loading}
+              mode={mode}
+              onRefresh={fetchContacts}
+              onContactPatched={handleContactPatched}
+              onOpenDrawer={openDrawerAndRecord}
+              leadStatusOptions={leadStatusOptions}
+              sourceOptions={sourceOptions}
+              closerSelectOptions={closerSelectOptions}
+              teleproSelectOptions={teleproSelectOptions}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSortChange={handleSortChange}
+              allCrmProps={allCrmProps}
+              extraColumns={extraColumns}
+              onExtraColumnsChange={persistExtraColumns}
+              columnsMenuSlot={isMobile ? null : columnsSlot}
+            />
+            {isMobile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                padding: '12px 4px 20px', fontSize: 13, color: crmV2.textMuted,
+              }}>
+                <V2ContactsPager
+                  page={page}
+                  limit={limit}
+                  total={total}
+                  onPage={setPage}
+                  onLimit={n => { setLimit(n); setPage(0) }}
+                  compact
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ── Pagination ──────────────────────────────────────────────────── */}
+          {!isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+              padding: '10px 14px', borderTop: `1px solid ${crmV2.border}`, fontSize: 13, color: crmV2.textMuted, flexShrink: 0,
+            }}>
+              <V2ContactsPager
+                page={page}
+                limit={limit}
+                total={total}
+                onPage={setPage}
+                onLimit={n => { setLimit(n); setPage(0) }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -1780,50 +1617,47 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
       {/* ── Modale : Créer un nouveau contact ───────────────────────────── */}
       {showCreate && (() => {
-        const modalInput: React.CSSProperties = {
-          width: '100%', background: NAVY_BG, border: `1px solid ${NAVY_BDR}`,
-          borderRadius: 8, padding: '9px 11px', color: TEXT_MID, fontSize: 13,
-          fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-        }
+        const modalInput: React.CSSProperties = v2Field
         const modalLabel: React.CSSProperties = {
-          fontSize: 11, fontWeight: 700, color: TEXT_DIM, marginBottom: 5,
-          display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em',
+          fontSize: 12, fontWeight: 700, color: TEXT_DIM, marginBottom: 6, display: 'block',
         }
         return (
           <div
             onClick={() => !creatingContact && setShowCreate(false)}
             style={{
-              position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(11,25,41,0.55)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+              position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,31,61,0.45)',
+              display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20,
             }}
           >
             <div
               onClick={e => e.stopPropagation()}
               style={{
-                background: '#ffffff', border: `1px solid ${NAVY_BDR}`, borderRadius: 16,
+                background: crmV2.bg, border: `1px solid ${NAVY_BDR}`,
+                borderRadius: isMobile ? '22px 22px 0 0' : 20,
                 width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+                boxShadow: crmV2.shadowPanel,
               }}
             >
               {/* En-tête modale */}
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '18px 22px', borderBottom: `1px solid ${NAVY_BDR}`,
+                padding: isMobile ? '16px 16px' : '18px 22px', borderBottom: `1px solid ${NAVY_BDR}`,
               }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Plus size={17} style={{ color: GOLD }} /> Créer un nouveau contact
+                <div style={{ fontSize: 17, fontWeight: 600, color: TEXT_MID, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.01em' }}>
+                  <Plus size={18} style={{ color: crmV2.gold }} /> Créer un nouveau contact
                 </div>
                 <button
                   onClick={() => !creatingContact && setShowCreate(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT_DIM, display: 'flex', padding: 4 }}
+                  aria-label="Fermer"
+                  style={{ background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusPill, cursor: 'pointer', color: TEXT_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, padding: 0 }}
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Corps */}
-              <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ padding: isMobile ? 16 : 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={modalLabel}>Nom *</label>
                     <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom" style={modalInput} />
@@ -1842,7 +1676,7 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                   </div>
                   <div>
                     <label style={modalLabel}>Classe actuelle *</label>
-                    <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                    <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={v2NativeSelect}>
                       <option value="">Sélectionner…</option>
                       {CLASSE_LIST.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -1862,27 +1696,27 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
                   </div>
                   <div>
                     <label style={modalLabel}>Origine</label>
-                    <select value={newOrigine} onChange={e => setNewOrigine(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                    <select value={newOrigine} onChange={e => setNewOrigine(e.target.value)} style={v2NativeSelect}>
                       <option value="">— Aucune —</option>
                       {sourceOpts.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={modalLabel}>Statut du lead *</label>
-                    <select value={newLeadStatus} onChange={e => setNewLeadStatus(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                    <select value={newLeadStatus} onChange={e => setNewLeadStatus(e.target.value)} style={v2NativeSelect}>
                       {leadStatusOpts.length === 0 && <option value="Nouveau">Nouveau</option>}
                       {leadStatusOpts.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={modalLabel}>Closer du contact</label>
-                    <select value={newCloser} onChange={e => setNewCloser(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                    <select value={newCloser} onChange={e => setNewCloser(e.target.value)} style={v2NativeSelect}>
                       {closerSelectOptions.map(o => <option key={o.id || 'none'} value={o.id}>{o.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={modalLabel}>Télépro</label>
-                    <select value={newTelepro} onChange={e => setNewTelepro(e.target.value)} style={{ ...modalInput, cursor: 'pointer' }}>
+                    <select value={newTelepro} onChange={e => setNewTelepro(e.target.value)} style={v2NativeSelect}>
                       {teleproSelectOptions.map((o, i) => <option key={`${o.id}-${i}`} value={o.id}>{o.label}</option>)}
                     </select>
                   </div>
@@ -1890,8 +1724,8 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
 
                 {createError && (
                   <div style={{
-                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
-                    borderRadius: 8, padding: '9px 12px', color: '#ef4444', fontSize: 12,
+                    background: crmV2.dangerSoft, border: '1px solid rgba(242,84,91,0.30)',
+                    borderRadius: crmV2.radius, padding: '9px 12px', color: '#d13a41', fontSize: 13,
                   }}>
                     {createError}
                   </div>
@@ -1901,31 +1735,19 @@ export default function UserCRMView({ ownerParam, ownerId, mode, assignedScopeOn
               {/* Pied modale */}
               <div style={{
                 display: 'flex', justifyContent: 'flex-end', gap: 10,
-                padding: '16px 22px', borderTop: `1px solid ${NAVY_BDR}`,
+                padding: isMobile ? '12px 16px 16px' : '16px 22px', borderTop: `1px solid ${NAVY_BDR}`,
               }}>
-                <button
-                  onClick={() => setShowCreate(false)}
-                  disabled={creatingContact}
-                  style={{
-                    background: 'transparent', border: `1px solid ${NAVY_BDR}`, borderRadius: 8,
-                    padding: '9px 18px', color: TEXT_MID, fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
+                <CrmV2Button onClick={() => setShowCreate(false)} disabled={creatingContact}>
                   Annuler
-                </button>
-                <button
+                </CrmV2Button>
+                <CrmV2Button
+                  variant="primary"
                   onClick={submitCreate}
                   disabled={creatingContact}
-                  style={{
-                    background: GOLD, border: `1px solid ${GOLD}`, borderRadius: 8,
-                    padding: '9px 20px', color: '#ffffff', fontSize: 13, fontWeight: 700,
-                    cursor: creatingContact ? 'default' : 'pointer', fontFamily: 'inherit',
-                    opacity: creatingContact ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 6,
-                  }}
+                  icon={creatingContact ? undefined : <Check size={14} />}
                 >
-                  {creatingContact ? 'Création…' : <><Check size={14} /> Créer le contact</>}
-                </button>
+                  {creatingContact ? 'Création…' : 'Créer le contact'}
+                </CrmV2Button>
               </div>
             </div>
           </div>

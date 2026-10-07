@@ -32,6 +32,7 @@ import type {
   Activity, Any, ContactDetails, CRMProperty, ParcoursupPayload, ParcoursupQ1, ParcoursupQ3Voeu, TimelineItem, TimelineTab, WebActivity,
 } from '@/components/crm-v2/contact/types'
 import { appSessionTitle, appTabLabel, formatGroup, formatSeconds, labelForType, visitSourceLabel } from '@/components/crm-v2/contact/utils'
+import { neutralPropLabel } from '@/components/crm-v2/filters/labels'
 
 // Modals/panels rendus sur action utilisateur uniquement -> hors bundle initial.
 const QuickActionModal = dynamic(() => import('@/components/crm/QuickActionModal'), { ssr: false })
@@ -400,14 +401,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   // Résout le libellé d'une propriété (fallback hérité du défaut, puis metadata, puis nom brut)
   const labelForProp = (name: string) =>
-    ABOUT_FIELD_FALLBACK_LABELS[name] ?? propMeta[name]?.label ?? name
+    ABOUT_FIELD_FALLBACK_LABELS[name] ?? neutralPropLabel(propMeta[name]?.label, name)
 
   // Liste effective des champs de la carte « À propos » selon les préférences user
   const aboutFields: Array<{ name: string; label: string }> =
     (aboutFieldNames ?? DEFAULT_ABOUT_FIELD_NAMES).map(name => ({ name, label: labelForProp(name) }))
 
   const dealPropMeta: Record<string, { label?: string; options?: Array<{ label: string; value: string }> }> = {}
-  for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label, options: p.options }
+  for (const p of dealProperties) dealPropMeta[p.name] = { label: p.label ? neutralPropLabel(p.label, p.name) : p.label, options: p.options }
 
   // Options pour les dropdowns Propriétaire / Closer du contact / Télépro :
   // rdv_users en priorité (noms explicites), complété par les owners actifs.
@@ -968,7 +969,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           onEditCancel={() => setEditing(null)}
           saving={saving}
           onClose={() => setShowAllProps(false)}
-          onShowHistory={(p) => setHistoryProp({ name: p.name, label: p.label || p.name, options: p.options })}
+          onShowHistory={(p) => setHistoryProp({ name: p.name, label: neutralPropLabel(p.label, p.name), options: p.options })}
         />
       )}
     </>
@@ -1628,7 +1629,7 @@ function CustomizeAboutModal({
                       title={p.name}
                     >
                       <Plus size={13} className="text-[#a89e8a] shrink-0" />
-                      <span className="truncate">{p.label || p.name}</span>
+                      <span className="truncate">{neutralPropLabel(p.label, p.name)}</span>
                     </button>
                   ))
                 )}
@@ -1781,7 +1782,7 @@ function PropertiesModal({
                     return (
                       <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#C9A84C]/10/30 group">
                         <dt className="col-span-2 text-xs text-[#4a6070] flex items-center justify-between gap-1" title={p.name}>
-                          <span className="truncate">{p.label || p.name}</span>
+                          <span className="truncate">{neutralPropLabel(p.label, p.name)}</span>
                           {onShowHistory && (
                             <button
                               type="button"

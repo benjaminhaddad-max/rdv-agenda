@@ -3,9 +3,35 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
-import { Mail, LogOut } from 'lucide-react'
+import { Mail, LogOut, ChevronLeft } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { createClient } from '@/lib/supabase'
+
+/** Lien pilule : actif = fond principal, sinon blanc bordé. */
+function pillStyle(active: boolean, mobile: boolean): React.CSSProperties {
+  return {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: mobile ? 36 : 30,
+    boxSizing: 'border-box',
+    fontSize: mobile ? 13 : 12,
+    padding: mobile ? '0 14px' : '0 12px',
+    borderRadius: crmV2.radiusPill,
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
+    fontWeight: 600,
+    border: `1px solid ${active ? crmV2.primary : crmV2.borderStrong}`,
+    background: active ? crmV2.primary : crmV2.bg,
+    color: active ? '#fff' : crmV2.textMuted,
+  }
+}
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 2, flexShrink: 0,
+  color: crmV2.link, textDecoration: 'none', fontSize: 13, fontWeight: 600,
+}
 
 const LINKS = [
   { href: '/admin/crm/campaigns', label: 'Campagnes' },
@@ -37,12 +63,12 @@ export default function MarketingNav({ title }: { title?: string }) {
   // ligne 2 = liens de navigation sur une seule rangée scrollable.
   if (isMobile) {
     return (
-      <div style={{ padding: '8px 12px', background: '#fff', borderBottom: '1px solid #e5ddc8', color: '#0e1e35', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '10px 12px', background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, color: crmV2.text, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12, flexShrink: 0 }}>← CRM</a>
-          <div style={{ width: 1, height: 20, background: '#e5ddc8', flexShrink: 0 }} />
-          <Mail size={16} style={{ color: '#C9A84C', flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || 'Email Marketing'}</span>
+          <a href="/admin/crm" style={backLink}><ChevronLeft size={14} strokeWidth={2} /> CRM</a>
+          <div style={{ width: 1, height: 20, background: crmV2.border, flexShrink: 0 }} />
+          <Mail size={16} style={{ color: crmV2.gold, flexShrink: 0 }} />
+          <span style={{ fontSize: 15, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || 'Email Marketing'}</span>
           <button
             type="button"
             aria-label="Déconnexion"
@@ -51,7 +77,7 @@ export default function MarketingNav({ title }: { title?: string }) {
               await createClient().auth.signOut()
               window.location.href = '/login'
             }}
-            style={{ flexShrink: 0, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, color: '#ef4444', cursor: 'pointer' }}
+            style={{ flexShrink: 0, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', background: crmV2.dangerSoft, border: '1px solid rgba(242,84,91,0.30)', borderRadius: crmV2.radiusPill, color: '#d13a41', cursor: 'pointer' }}
           >
             <LogOut size={14} />
           </button>
@@ -63,17 +89,7 @@ export default function MarketingNav({ title }: { title?: string }) {
               <Link
                 key={l.href}
                 href={l.href}
-                style={{
-                  flexShrink: 0,
-                  fontSize: 12,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  textDecoration: 'none',
-                  fontWeight: active ? 600 : 500,
-                  border: active ? '1px solid #C9A84C' : '1px solid #e5ddc8',
-                  background: active ? '#0e1e35' : '#fff',
-                  color: active ? '#fff' : '#4a6070',
-                }}
+                style={pillStyle(active, true)}
               >
                 {l.label}
               </Link>
@@ -85,12 +101,12 @@ export default function MarketingNav({ title }: { title?: string }) {
   }
 
   return (
-    <div style={{ padding: '8px 20px', minHeight: 52, background: '#fff', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#0e1e35', gap: 12, flexWrap: 'wrap' }}>
+    <div style={{ padding: '10px 28px', minHeight: 56, background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: crmV2.text, gap: 12, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <a href="/admin/crm" style={{ color: '#4a6070', textDecoration: 'none', fontSize: 12 }}>← CRM</a>
-        <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-        <Mail size={16} style={{ color: '#C9A84C' }} />
-        <span style={{ fontSize: 14, fontWeight: 600 }}>{title || 'Email Marketing'}</span>
+        <a href="/admin/crm" style={backLink}><ChevronLeft size={14} strokeWidth={2} /> CRM</a>
+        <div style={{ width: 1, height: 22, background: crmV2.border }} />
+        <Mail size={16} style={{ color: crmV2.gold }} />
+        <span style={{ fontSize: 15, fontWeight: 600 }}>{title || 'Email Marketing'}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {LINKS.map(l => {
@@ -99,16 +115,7 @@ export default function MarketingNav({ title }: { title?: string }) {
             <Link
               key={l.href}
               href={l.href}
-              style={{
-                fontSize: 11,
-                padding: '4px 10px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                fontWeight: active ? 600 : 500,
-                border: active ? '1px solid #C9A84C' : '1px solid #e5ddc8',
-                background: active ? '#0e1e35' : '#fff',
-                color: active ? '#fff' : '#4a6070',
-              }}
+              style={pillStyle(active, false)}
             >
               {l.label}
             </Link>

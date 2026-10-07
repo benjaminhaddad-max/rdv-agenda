@@ -7,6 +7,7 @@
  */
 
 import { X } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 /** Format compact pour grands nombres : 1234 → "1,2 K", 1500000 → "1,5 M". */
 export function fmtCount(n: number): string {
@@ -20,7 +21,7 @@ export function StatChip({ value, label, color }: { value: number; label: string
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
       <span style={{ fontSize: 14, fontWeight: 700, color }}>{value.toLocaleString('fr-FR')}</span>
-      <span style={{ fontSize: 11, color: '#0e1e35' }}>{label}</span>
+      <span style={{ fontSize: 12, color: crmV2.textMuted }}>{label}</span>
     </div>
   )
 }
@@ -31,44 +32,49 @@ export function FilterPill({ label, onRemove }: { label: string; onRemove: () =>
     <span style={{
       display: 'inline-flex',
       alignItems: 'center',
-      gap: 5,
-      background: 'rgba(204,172,113,0.1)',
-      border: '1px solid rgba(204,172,113,0.25)',
-      borderRadius: 20,
-      padding: '2px 8px 2px 10px',
-      fontSize: 11,
-      color: '#C9A84C',
+      gap: 6,
+      maxWidth: 260,
+      background: 'rgba(0,145,174,0.08)',
+      border: '1px solid rgba(0,145,174,0.30)',
+      borderRadius: crmV2.radiusPill,
+      padding: '3px 6px 3px 10px',
+      fontSize: 12,
+      color: crmV2.link,
       fontWeight: 600,
+      whiteSpace: 'nowrap',
     }}>
-      {label}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       <button
+        type="button"
         onClick={onRemove}
-        style={{ background: 'none', border: 'none', color: '#C9A84C', cursor: 'pointer', padding: 0, display: 'flex', opacity: 0.7, lineHeight: 1 }}
+        aria-label={`Retirer le filtre ${label}`}
+        style={{ background: 'none', border: 'none', color: crmV2.link, cursor: 'pointer', padding: 0, display: 'flex', lineHeight: 1 }}
       >
-        <X size={10} />
+        <X size={12} />
       </button>
     </span>
   )
 }
 
-/** Bouton toolbar coloré (Sync HubSpot, Check RDV, Doublons, etc.). */
+/** Bouton pilule de barre d'outils coloré (Synchroniser, Check RDV, Doublons, etc.). */
 export function CRMToolBtn({ icon, label, onClick, color = 'gold' }: {
   icon: React.ReactNode; label: string; onClick: () => void; color?: 'gold' | 'green' | 'red' | 'blue'
 }) {
   const p = {
-    gold:  { bg: 'rgba(204,172,113,0.08)', border: 'rgba(204,172,113,0.2)', text: '#C9A84C' },
-    green: { bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.2)',   text: '#22c55e' },
-    red:   { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: '#ef4444' },
-    blue:  { bg: 'rgba(76,171,219,0.08)',  border: 'rgba(76,171,219,0.2)',  text: '#4cabdb' },
+    gold:  { bg: crmV2.goldSoft,               border: crmV2.goldBorder,          text: crmV2.goldDark },
+    green: { bg: 'rgba(22,163,74,0.08)',       border: 'rgba(22,163,74,0.25)',    text: crmV2.successStrong },
+    red:   { bg: crmV2.dangerSoft,             border: 'rgba(242,84,91,0.30)',    text: '#d13a41' },
+    blue:  { bg: 'rgba(0,145,174,0.08)',       border: 'rgba(0,145,174,0.30)',    text: crmV2.link },
   }[color]
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
-        background: p.bg, border: `1px solid ${p.border}`, borderRadius: 6,
-        padding: '4px 10px', color: p.text, fontSize: 11, fontWeight: 600,
+        background: p.bg, border: `1px solid ${p.border}`, borderRadius: crmV2.radiusPill,
+        height: 32, padding: '0 12px', color: p.text, fontSize: 12, fontWeight: 600,
         cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-        gap: 4, whiteSpace: 'nowrap',
+        gap: 6, whiteSpace: 'nowrap',
       }}
     >
       {icon}{label}

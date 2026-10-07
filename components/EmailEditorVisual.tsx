@@ -3,12 +3,13 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { EditorRef, EmailEditorProps } from 'react-email-editor'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 // Unlayer doit être chargé côté client uniquement (iframe + globals window)
 const EmailEditor = dynamic(() => import('react-email-editor'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, color: '#4a6070', fontSize: 13 }}>
+    <div style={{ height: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', background: crmV2.bgSoft, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, color: crmV2.textMuted, fontSize: 13 }}>
       Chargement de l&apos;éditeur visuel…
     </div>
   ),
@@ -72,7 +73,7 @@ const EmailEditorVisual = forwardRef<EmailEditorVisualRef, Props>(function Email
   }
 
   return (
-    <div style={{ position: 'relative', border: '1px solid #e5ddc8', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
+    <div style={{ position: 'relative', border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, overflow: 'hidden', background: crmV2.bg, boxShadow: crmV2.shadow }}>
       <EmailEditor
         ref={editorRef}
         onReady={onReady}
@@ -119,7 +120,7 @@ const EmailEditorVisual = forwardRef<EmailEditorVisualRef, Props>(function Email
         }}
       />
       {!ready && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f4ee', color: '#4a6070', fontSize: 13, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: crmV2.bgSoft, color: crmV2.textMuted, fontSize: 13, pointerEvents: 'none' }}>
           Chargement de l&apos;éditeur visuel…
         </div>
       )}

@@ -2,6 +2,8 @@
 
 import type { CSSProperties } from 'react'
 import { fmtCount } from '@/components/crm/CRMUIBits'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 import type { CRMSavedView } from '@/lib/crm-views'
 import {
   BUCKET_FACET_CLASSES,
@@ -22,7 +24,7 @@ type Props = {
 }
 
 const ROW_STYLE: CSSProperties = {
-  padding: '6px 20px 8px',
+  padding: '6px 28px 8px',
   flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
@@ -31,11 +33,11 @@ const ROW_STYLE: CSSProperties = {
 }
 
 const LABEL_STYLE: CSSProperties = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 700,
-  letterSpacing: '0.08em',
+  letterSpacing: '0.4px',
   textTransform: 'uppercase',
-  color: '#7c98b6',
+  color: crmV2.textFaint,
   whiteSpace: 'nowrap',
   flexShrink: 0,
   marginRight: 2,
@@ -58,15 +60,17 @@ function Pill({
       type="button"
       onClick={onClick}
       style={{
-        padding: '4px 11px',
-        borderRadius: 999,
-        border: active ? '1px solid #C9A84C' : '1px solid #dfe3eb',
-        background: active ? 'rgba(201,168,76,0.16)' : '#ffffff',
-        color: active ? '#12314d' : '#516f90',
+        height: 30,
+        boxSizing: 'border-box',
+        padding: '0 12px',
+        borderRadius: crmV2.radiusPill,
+        border: `1px solid ${active ? crmV2.gold : crmV2.borderStrong}`,
+        background: active ? crmV2.goldSoft : crmV2.bg,
+        color: active ? crmV2.text : crmV2.textMuted,
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        gap: 5,
+        gap: 6,
         fontSize: 12,
         fontFamily: 'inherit',
         fontWeight: active ? 700 : 500,
@@ -78,12 +82,12 @@ function Pill({
       {typeof count === 'number' && (
         <span
           style={{
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 700,
-            color: active ? '#3D5275' : '#7c98b6',
-            background: active ? 'rgba(18,49,77,0.08)' : '#f5f8fa',
-            borderRadius: 6,
-            padding: '0 5px',
+            color: active ? crmV2.goldDark : crmV2.textFaint,
+            background: active ? 'rgba(201,168,76,0.18)' : crmV2.chipBg,
+            borderRadius: crmV2.radiusPill,
+            padding: '1px 6px',
             fontVariantNumeric: 'tabular-nums',
           }}
         >
@@ -96,7 +100,7 @@ function Pill({
 
 /**
  * Rangée de sous-vues sous l’onglet bucket.
- * Distincte des onglets HubSpot : pills, fond contrasté, label explicite.
+ * Distincte des onglets de vues : pastilles, label explicite.
  */
 export function CRMBucketSubviewsBar({
   parent,
@@ -111,11 +115,13 @@ export function CRMBucketSubviewsBar({
   // Les compteurs des sous-vues ne tiennent pas compte des facettes : on les
   // masque quand une facette est active pour ne pas afficher de faux chiffres.
   const showCounts = !facets || !hasActiveFacets(facets)
+  const isMobile = useIsMobile()
+  const row: CSSProperties = isMobile ? { ...ROW_STYLE, paddingLeft: 12, paddingRight: 12 } : ROW_STYLE
 
   return (
     <div className="crm-bucket-subviews-bar" style={{ flexShrink: 0 }}>
       {facets && onFacetsChange && (
-        <div style={{ ...ROW_STYLE, paddingBottom: 0 }}>
+        <div style={{ ...row, paddingBottom: 0 }}>
           <span style={LABEL_STYLE}>Classe</span>
           <Pill label="Toutes" active={!facets.classe} onClick={() => onFacetsChange({ ...facets, classe: '' })} />
           {BUCKET_FACET_CLASSES.map(c => (
@@ -128,7 +134,7 @@ export function CRMBucketSubviewsBar({
           ))}
         </div>
       )}
-      <div style={facets ? { ...ROW_STYLE, paddingBottom: 0 } : ROW_STYLE}>
+      <div style={facets ? { ...row, paddingBottom: 0 } : row}>
         <span style={facets ? LABEL_STYLE : { ...LABEL_STYLE, minWidth: undefined }}>Sous-vues</span>
         {pills.map(view => (
           <Pill
@@ -141,7 +147,7 @@ export function CRMBucketSubviewsBar({
         ))}
       </div>
       {facets && onFacetsChange && (
-        <div style={ROW_STYLE}>
+        <div style={row}>
           <span style={LABEL_STYLE}>Zone</span>
           <Pill label="Toutes" active={!facets.zone} onClick={() => onFacetsChange({ ...facets, zone: '' })} />
           {BUCKET_FACET_ZONES.map(z => (

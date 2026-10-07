@@ -15,6 +15,7 @@ import {
 import { isUserTypeProperty } from '@/lib/crm-user-resolver'
 import { telHref } from '@/lib/phone-e164'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { neutralPropLabel, mentionsHubspot } from '@/components/crm-v2/filters/labels'
 
 // Prefetch silencieux d'une fiche contact (apres 150ms de hover) :
 // quand l'utilisateur clique, les donnees sont deja la.
@@ -1547,7 +1548,7 @@ export default function CRMContactsTable({
 
   // Lookup label HubSpot pour une propriété dynamique
   function dynamicLabel(propName: string): string {
-    return allCrmProps?.find(p => p.name === propName)?.label ?? propName
+    return neutralPropLabel(allCrmProps?.find(p => p.name === propName)?.label, propName)
   }
   // Format simple d'une valeur dynamique
   // Map ownerId → nom, construite à partir des selects closer/télépro reçus
@@ -2370,7 +2371,7 @@ export default function CRMContactsTable({
                   }}>
                     <input type="checkbox" checked readOnly style={{ accentColor: crmV2.primary }} />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {meta?.label ?? propName}
+                      {neutralPropLabel(meta?.label, propName)}
                     </span>
                     <button
                       onClick={() => onExtraColumnsChange((extraColumns ?? []).filter(p => p !== propName))}
@@ -2875,8 +2876,8 @@ function PropertyPicker({
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               title={p.name}
             >
-              <span style={{ fontWeight: 500 }}>{p.label ?? p.name}</span>
-              {p.label && p.label !== p.name && (
+              <span style={{ fontWeight: 500 }}>{neutralPropLabel(p.label, p.name)}</span>
+              {p.label && p.label !== p.name && !mentionsHubspot(p.name) && (
                 <span style={{ color: '#a89e8a', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
               )}
             </button>
