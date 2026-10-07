@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ExternalLink, Phone, Mail, MapPin, BookOpen, GraduationCap, Calendar, Users } from 'lucide-react'
+import { ExternalLink, Phone, Mail, MapPin, BookOpen, GraduationCap, Calendar, Users } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Avatar, CrmV2SectionLabel, CrmV2StatusPill } from './crm-v2/primitives'
+import { CrmV2ModalHeader, CrmV2ModalShell } from './crm-v2/modals/ModalShell'
 import InlineEditField from './InlineEditField'
 import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 
@@ -42,14 +45,14 @@ interface Props {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const STAGE_MAP: Record<string, { label: string; color: string; emoji: string }> = {
-  '3165428979': { label: 'À Replanifier',        color: '#ef4444', emoji: '🔴' },
-  '3165428980': { label: 'RDV Pris',              color: '#4cabdb', emoji: '🔵' },
-  '3165428981': { label: 'Délai Réflexion',       color: '#C9A84C', emoji: '🟡' },
-  '3165428982': { label: 'Pré-inscription',       color: '#22c55e', emoji: '🟢' },
-  '3165428983': { label: 'Finalisation',          color: '#a855f7', emoji: '🟣' },
-  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070', emoji: '⚫' },
+const STAGE_MAP: Record<string, { label: string; color: string }> = {
+  '3165428979': { label: 'À Replanifier',        color: '#ef4444' },
+  '3165428980': { label: 'RDV Pris',              color: '#4cabdb' },
+  '3165428981': { label: 'Délai Réflexion',       color: '#b8963e' },
+  '3165428982': { label: 'Pré-inscription',       color: '#22c55e' },
+  '3165428983': { label: 'Finalisation',          color: '#a855f7' },
+  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6' },
 }
 
 const FORMATION_OPTIONS = [
@@ -71,40 +74,27 @@ const CLASSE_OPTIONS = [
 ]
 
 const STAGE_OPTIONS = Object.entries(STAGE_MAP).map(([id, s]) => ({
-  value: id, label: `${s.emoji} ${s.label}`,
+  value: id, label: s.label,
 }))
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10, marginTop: 20 }}>
+    <CrmV2SectionLabel icon={icon} style={{ marginBottom: 10, marginTop: 20 }}>
       {children}
-    </div>
+    </CrmV2SectionLabel>
   )
 }
 
 function FieldRow({ icon, label, children }: { icon?: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 28 }}>
-      <div style={{ width: 100, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 36, borderBottom: `1px solid ${crmV2.borderLight}` }}>
+      <div style={{ width: 110, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, color: crmV2.textFaint }}>
         {icon}
-        <span style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600 }}>{label}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
-    </div>
-  )
-}
-
-function Avatar({ name, color, size = 28 }: { name: string; color?: string; size?: number }) {
-  const initials = name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', background: color || '#4f6ef7',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0,
-    }}>
-      {initials || '?'}
     </div>
   )
 }
@@ -165,158 +155,143 @@ export default function TransactionDetailPanel({ deal, onClose, onUpdate }: Prop
     .filter(t => t.hubspot_user_id)
     .map(t => ({ value: t.hubspot_user_id!, label: t.name }))
 
+  const stage = STAGE_MAP[deal.dealstage ?? '']
+
   return (
-    <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999 }} />
-
-      {/* Panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 460, maxWidth: '100vw',
-        background: '#ffffff', borderLeft: '1px solid #e5ddc8', zIndex: 1000,
-        display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        animation: 'slideIn 0.2s ease-out',
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-        }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {deal.dealname || '(sans nom)'}
+    <CrmV2ModalShell
+      variant="drawer"
+      onClose={onClose}
+      zIndex={999}
+      bodyStyle={{ paddingTop: 0 }}
+      header={
+        <CrmV2ModalHeader
+          title={<span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deal.dealname || '(sans nom)'}</span>}
+          subtitle={contactName}
+          onClose={onClose}
+          extra={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {stage && <CrmV2StatusPill label={stage.label} color={stage.color} />}
+              {deal.formation && <CrmV2StatusPill label={deal.formation} color={crmV2.goldDark} bg={crmV2.goldSoft} dot={false} />}
+              <span style={{ flex: 1 }} />
+              <a
+                href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '5px 12px',
+                  border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg, color: crmV2.text,
+                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}
+              >
+                <ExternalLink size={14} /> Ouvrir la fiche
+              </a>
             </div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{contactName}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <a
-              href={`/admin/crm/deals/${deal.hubspot_deal_id}`}
-              target="_blank" rel="noopener noreferrer"
-              style={{ background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, padding: '4px 8px', color: '#4cabdb', fontSize: 11, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              <ExternalLink size={10} /> Fiche
-            </a>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4a6070', cursor: 'pointer', padding: 4 }}>
-              <X size={18} />
-            </button>
-          </div>
-        </div>
+          }
+        />
+      }
+    >
+      {/* ── Transaction ────────────────────────────────────────────────── */}
+      <SectionTitle>Transaction</SectionTitle>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+      <FieldRow icon={<GraduationCap size={14} />} label="Nom">
+        <InlineEditField value={deal.dealname} onSave={v => saveDeal('dealname', v)} fontWeight={600} />
+      </FieldRow>
 
-          {/* ── Transaction ────────────────────────────────────────────────── */}
-          <SectionTitle>Transaction</SectionTitle>
+      <FieldRow icon={<BookOpen size={14} />} label="Formation">
+        <InlineEditField value={deal.formation} onSave={v => saveDeal('formation', v)} type="select" options={FORMATION_OPTIONS} color={crmV2.goldDark} fontWeight={700} />
+      </FieldRow>
 
-          <FieldRow icon={<GraduationCap size={11} style={{ color: '#4a6070' }} />} label="Nom">
-            <InlineEditField value={deal.dealname} onSave={v => saveDeal('dealname', v)} fontWeight={600} />
-          </FieldRow>
-
-          <FieldRow icon={<BookOpen size={11} style={{ color: '#4a6070' }} />} label="Formation">
-            <InlineEditField value={deal.formation} onSave={v => saveDeal('formation', v)} type="select" options={FORMATION_OPTIONS} color="#C9A84C" fontWeight={700} />
-          </FieldRow>
-
-          <FieldRow label="Étape">
-            <InlineEditField
-              value={deal.dealstage}
-              onSave={v => saveDeal('dealstage', v)}
-              type="select"
-              options={STAGE_OPTIONS.filter(opt =>
-                opt.value === deal.dealstage || isAllowedManualTransition(deal.dealstage, opt.value)
-              )}
-              color={STAGE_MAP[deal.dealstage ?? '']?.color ?? '#4a6070'}
-              fontWeight={700}
-            />
-          </FieldRow>
-
-          <FieldRow icon={<Calendar size={11} style={{ color: '#4a6070' }} />} label="Date RDV">
-            <InlineEditField value={deal.closedate?.split('T')[0] ?? null} onSave={v => saveDeal('closedate', v)} type="date" fontSize={12} />
-          </FieldRow>
-
-          <FieldRow label="Description">
-            <InlineEditField value={deal.description} onSave={v => saveDeal('description', v)} placeholder="Ajouter une description…" fontSize={12} color="#4a6070" />
-          </FieldRow>
-
-          {/* ── Équipe ─────────────────────────────────────────────────────── */}
-          <SectionTitle><Users size={11} style={{ display: 'inline', marginRight: 4 }} />Équipe</SectionTitle>
-
-          <FieldRow label="Closer">
-            {closerOptions.length > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {deal.closer && <Avatar name={deal.closer.name} color={deal.closer.avatar_color} size={22} />}
-                <InlineEditField
-                  value={deal.hubspot_owner_id ?? null}
-                  onSave={v => saveDeal('hubspot_owner_id', v)}
-                  type="select"
-                  options={closerOptions}
-                  color="#C9A84C"
-                />
-              </div>
-            ) : (
-              <span style={{ color: '#0e1e35', fontSize: 12 }}>Chargement…</span>
-            )}
-          </FieldRow>
-
-          <FieldRow label="Télépro">
-            {teleproOptions.length > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {deal.telepro && <Avatar name={deal.telepro.name} color={deal.telepro.avatar_color} size={22} />}
-                <InlineEditField
-                  value={deal.teleprospecteur ?? null}
-                  onSave={v => saveDeal('teleprospecteur', v)}
-                  type="select"
-                  options={teleproOptions}
-                  color="#4cabdb"
-                />
-              </div>
-            ) : (
-              <span style={{ color: '#0e1e35', fontSize: 12 }}>Chargement…</span>
-            )}
-          </FieldRow>
-
-          {/* ── Contact ────────────────────────────────────────────────────── */}
-          {deal.contact && (
-            <>
-              <SectionTitle>Contact</SectionTitle>
-
-              <FieldRow label="Prénom">
-                <InlineEditField value={deal.contact.firstname} onSave={v => saveContact('firstname', v)} fontWeight={600} />
-              </FieldRow>
-
-              <FieldRow label="Nom">
-                <InlineEditField value={deal.contact.lastname} onSave={v => saveContact('lastname', v)} fontWeight={600} />
-              </FieldRow>
-
-              <FieldRow icon={<Phone size={11} style={{ color: '#4a6070' }} />} label="Téléphone">
-                <InlineEditField value={deal.contact.phone} onSave={v => saveContact('phone', v)} color="#22c55e" />
-              </FieldRow>
-
-              {deal.contact.email && (
-                <FieldRow icon={<Mail size={11} style={{ color: '#4a6070' }} />} label="Email">
-                  <a href={`mailto:${deal.contact.email}`} style={{ color: '#4cabdb', fontSize: 13, textDecoration: 'none' }}>
-                    {deal.contact.email}
-                  </a>
-                </FieldRow>
-              )}
-
-              <FieldRow icon={<BookOpen size={11} style={{ color: '#4a6070' }} />} label="Classe">
-                <InlineEditField value={deal.contact.classe_actuelle} onSave={v => saveContact('classe_actuelle', v)} type="select" options={CLASSE_OPTIONS} />
-              </FieldRow>
-
-              <FieldRow icon={<MapPin size={11} style={{ color: '#4a6070' }} />} label="Zone">
-                <InlineEditField value={zone} onSave={v => saveContact('zone_localite', v)} color="#4a6070" fontSize={12} />
-              </FieldRow>
-            </>
+      <FieldRow label="Étape">
+        <InlineEditField
+          value={deal.dealstage}
+          onSave={v => saveDeal('dealstage', v)}
+          type="select"
+          options={STAGE_OPTIONS.filter(opt =>
+            opt.value === deal.dealstage || isAllowedManualTransition(deal.dealstage, opt.value)
           )}
-        </div>
-      </div>
+          color={stage?.color ?? crmV2.textMuted}
+          fontWeight={700}
+        />
+      </FieldRow>
 
-      <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
-    </>
+      <FieldRow icon={<Calendar size={14} />} label="Date RDV">
+        <InlineEditField value={deal.closedate?.split('T')[0] ?? null} onSave={v => saveDeal('closedate', v)} type="date" />
+      </FieldRow>
+
+      <FieldRow label="Description">
+        <InlineEditField value={deal.description} onSave={v => saveDeal('description', v)} placeholder="Ajouter une description…" fontSize={13} color={crmV2.textMuted} />
+      </FieldRow>
+
+      {/* ── Équipe ─────────────────────────────────────────────────────── */}
+      <SectionTitle icon={<Users size={14} color={crmV2.gold} />}>Équipe</SectionTitle>
+
+      <FieldRow label="Closer">
+        {closerOptions.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {deal.closer && <CrmV2Avatar name={deal.closer.name} color={deal.closer.avatar_color || crmV2.goldGradient} size={22} />}
+            <InlineEditField
+              value={deal.hubspot_owner_id ?? null}
+              onSave={v => saveDeal('hubspot_owner_id', v)}
+              type="select"
+              options={closerOptions}
+              color={crmV2.text}
+            />
+          </div>
+        ) : (
+          <span style={{ color: crmV2.textFaint, fontSize: 13 }}>Chargement…</span>
+        )}
+      </FieldRow>
+
+      <FieldRow label="Télépro">
+        {teleproOptions.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {deal.telepro && <CrmV2Avatar name={deal.telepro.name} color={deal.telepro.avatar_color || crmV2.goldGradient} size={22} />}
+            <InlineEditField
+              value={deal.teleprospecteur ?? null}
+              onSave={v => saveDeal('teleprospecteur', v)}
+              type="select"
+              options={teleproOptions}
+              color={crmV2.text}
+            />
+          </div>
+        ) : (
+          <span style={{ color: crmV2.textFaint, fontSize: 13 }}>Chargement…</span>
+        )}
+      </FieldRow>
+
+      {/* ── Contact ────────────────────────────────────────────────────── */}
+      {deal.contact && (
+        <>
+          <SectionTitle>Contact</SectionTitle>
+
+          <FieldRow label="Prénom">
+            <InlineEditField value={deal.contact.firstname} onSave={v => saveContact('firstname', v)} fontWeight={600} />
+          </FieldRow>
+
+          <FieldRow label="Nom">
+            <InlineEditField value={deal.contact.lastname} onSave={v => saveContact('lastname', v)} fontWeight={600} />
+          </FieldRow>
+
+          <FieldRow icon={<Phone size={14} />} label="Téléphone">
+            <InlineEditField value={deal.contact.phone} onSave={v => saveContact('phone', v)} color={crmV2.link} />
+          </FieldRow>
+
+          {deal.contact.email && (
+            <FieldRow icon={<Mail size={14} />} label="Email">
+              <a href={`mailto:${deal.contact.email}`} style={{ color: crmV2.link, fontSize: 13, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {deal.contact.email}
+              </a>
+            </FieldRow>
+          )}
+
+          <FieldRow icon={<BookOpen size={14} />} label="Classe">
+            <InlineEditField value={deal.contact.classe_actuelle} onSave={v => saveContact('classe_actuelle', v)} type="select" options={CLASSE_OPTIONS} />
+          </FieldRow>
+
+          <FieldRow icon={<MapPin size={14} />} label="Zone">
+            <InlineEditField value={zone} onSave={v => saveContact('zone_localite', v)} />
+          </FieldRow>
+        </>
+      )}
+    </CrmV2ModalShell>
   )
 }

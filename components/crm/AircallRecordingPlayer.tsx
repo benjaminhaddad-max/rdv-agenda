@@ -2,6 +2,7 @@
 
 import { Headphones } from 'lucide-react'
 import { useState } from 'react'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 export default function AircallRecordingPlayer({
   callId,
@@ -15,16 +16,22 @@ export default function AircallRecordingPlayer({
 
   if (failed) {
     return (
-      <p className="text-xs text-[#4a6070] mt-2">
+      <p style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 8 }}>
         Enregistrement indisponible.
       </p>
     )
   }
 
   return (
-    <div className="mt-2 rounded-md border border-[#e5ddc8] bg-[#f7f4ee] px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#4a6070] mb-1.5">
-        <Headphones size={12} />
+    <div style={{
+      marginTop: 8, borderRadius: 12, border: `1px solid ${crmV2.border}`, background: crmV2.bgHover,
+      padding: '8px 12px',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
+        fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: crmV2.textMuted,
+      }}>
+        <Headphones size={14} color="#00a38d" />
         {isVoicemail ? 'Messagerie vocale' : 'Réécouter la conversation'}
       </div>
       <audio
@@ -32,7 +39,7 @@ export default function AircallRecordingPlayer({
         preload="none"
         controlsList="nodownload"
         src={src}
-        className="w-full h-8 accent-[#C9A84C]"
+        style={{ width: '100%', height: 32, accentColor: crmV2.gold, display: 'block' }}
         aria-label={isVoicemail ? 'Messagerie vocale' : 'Réécouter la conversation'}
         onError={() => setFailed(true)}
       >

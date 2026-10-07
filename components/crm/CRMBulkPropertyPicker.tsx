@@ -7,7 +7,9 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Search } from '@/components/crm-v2/primitives'
 import { isReadOnlyProperty } from '@/lib/crm-property-normalization'
 import type { CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 
@@ -230,26 +232,32 @@ export function CRMBulkPropertyPicker({
   }, [value, catalogByName])
 
   function renderItem(p: BulkProp) {
+    const active = p.name === value
     return (
       <button
         key={p.name}
         type="button"
         onClick={() => { onChange(p.name); setOpen(false) }}
         style={{
-          display: 'block', width: '100%', textAlign: 'left',
+          display: 'block', width: '100%', textAlign: 'left', minHeight: 36,
           padding: '7px 12px', border: 'none',
-          background: p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent',
-          color: '#3D5275', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+          background: active ? crmV2.goldSoft : 'transparent',
+          color: active ? crmV2.goldDark : crmV2.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
         }}
-        onMouseEnter={e => { if (p.name !== value) e.currentTarget.style.background = '#faf7f0' }}
+        onMouseEnter={e => { if (!active) e.currentTarget.style.background = crmV2.bgHover }}
         onMouseLeave={e => {
-          e.currentTarget.style.background = p.name === value ? 'rgba(76,171,219,0.12)' : 'transparent'
+          e.currentTarget.style.background = active ? crmV2.goldSoft : 'transparent'
         }}
       >
         <div style={{ fontWeight: 600 }}>{p.label}</div>
-        <div style={{ fontSize: 10, color: '#8a9bb0', marginTop: 1 }}>{p.name}</div>
+        <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 1 }}>{p.name}</div>
       </button>
     )
+  }
+
+  const sectionLabel: React.CSSProperties = {
+    padding: '8px 12px 4px', fontSize: 11, fontWeight: 700,
+    color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px',
   }
 
   return (
@@ -258,60 +266,46 @@ export function CRMBulkPropertyPicker({
         type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
-          padding: '6px 10px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit',
-          cursor: 'pointer', width: '100%', textAlign: 'left',
+          background: crmV2.bg, border: `1px solid ${open ? crmV2.gold : crmV2.borderStrong}`, borderRadius: crmV2.radius,
+          height: 38, padding: '0 10px 0 12px', color: currentLabel ? crmV2.text : crmV2.textFaint, fontSize: 13, fontFamily: 'inherit',
+          cursor: 'pointer', width: '100%', textAlign: 'left', boxSizing: 'border-box',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {currentLabel || '— Choisir une propriété —'}
         </span>
-        <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
+        <ChevronDown size={14} color={crmV2.textFaint} style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10000,
-          marginTop: 4, background: '#fff', border: '1px solid #e5ddc8',
-          borderRadius: 8, boxShadow: '0 8px 24px rgba(15,31,61,0.12)',
+          marginTop: 4, background: crmV2.bg, border: `1px solid ${crmV2.border}`,
+          borderRadius: 12, boxShadow: '0 12px 32px rgba(15,31,61,0.16)',
           maxHeight: 320, overflow: 'hidden', display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 8, borderBottom: '1px solid #f0e9da', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Search size={13} style={{ color: '#3D5275', opacity: 0.5 }} />
-            <input
+          <div style={{ padding: 8, borderBottom: `1px solid ${crmV2.borderLight}` }}>
+            <CrmV2Search
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Ex. statut du lead…"
-              style={{
-                flex: 1, border: 'none', outline: 'none', fontSize: 12,
-                fontFamily: 'inherit', color: '#3D5275', background: 'transparent',
-              }}
+              style={{ minWidth: 0, height: 34 }}
             />
           </div>
           <div style={{ overflowY: 'auto', padding: '4px 0' }}>
             {frequentMatched.length === 0 && catalogMatched.length === 0 && (
-              <div style={{ padding: '10px 12px', fontSize: 12, color: '#3D5275' }}>Aucun résultat</div>
+              <div style={{ padding: '10px 12px', fontSize: 13, color: crmV2.textMuted }}>Aucun résultat</div>
             )}
             {frequentMatched.length > 0 && (
               <div>
-                <div style={{
-                  padding: '6px 12px 2px', fontSize: 10, fontWeight: 700,
-                  color: '#8a6e3a', textTransform: 'uppercase', letterSpacing: 0.4,
-                }}>
-                  Fréquentes
-                </div>
+                <div style={sectionLabel}>Fréquentes</div>
                 {frequentMatched.map(renderItem)}
               </div>
             )}
             {catalogMatched.length > 0 && (
               <div>
-                <div style={{
-                  padding: '6px 12px 2px', fontSize: 10, fontWeight: 700,
-                  color: '#8a6e3a', textTransform: 'uppercase', letterSpacing: 0.4,
-                }}>
-                  Toutes les propriétés
-                </div>
+                <div style={sectionLabel}>Toutes les propriétés</div>
                 {catalogMatched.map(renderItem)}
               </div>
             )}

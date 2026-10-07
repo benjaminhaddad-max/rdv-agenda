@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { StickyNote } from 'lucide-react'
-
-const NAVY = '#ffffff'
-const GOLD = '#C9A84C'
-const BLUE = '#4cabdb'
+import { CheckCircle2, StickyNote } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Button, CrmV2Textarea } from './crm-v2/primitives'
+import { CrmV2ModalHeader, CrmV2ModalShell, CrmV2Notice } from './crm-v2/modals/ModalShell'
 
 interface Props {
   dealId: string
@@ -45,61 +44,35 @@ export default function CRMNoteModal({ dealId, contactName, onClose, onSaved }: 
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    <CrmV2ModalShell
+      onClose={onClose}
+      zIndex={600}
+      header={<CrmV2ModalHeader title="Ajouter une note" subtitle={contactName} icon={<StickyNote size={16} />} onClose={onClose} />}
+      footer={saved ? undefined : (
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={handleSave} disabled={saving || !note.trim()}>
+            {saving ? 'Envoi…' : 'Ajouter'}
+          </CrmV2Button>
+        </>
+      )}
     >
-      <div style={{ background: NAVY, border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 6 }}><StickyNote size={15} /> Ajouter une note</div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{contactName}</div>
-          </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', fontSize: 20, padding: '2px 6px' }}>✕</button>
+      {error && <CrmV2Notice tone="error" style={{ marginBottom: 14 }}>{error}</CrmV2Notice>}
+
+      {saved ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '24px 0', color: crmV2.successStrong, fontSize: 14, fontWeight: 700 }}>
+          <CheckCircle2 size={18} /> Note ajoutée
         </div>
-
-        {error && (
-          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '8px 12px', color: '#ef4444', fontSize: 12, marginBottom: 14 }}>
-            {error}
-          </div>
-        )}
-
-        {saved ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: '#22c55e', fontSize: 14, fontWeight: 700 }}>
-            ✓ Note ajoutée
-          </div>
-        ) : (
-          <>
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Contenu de la note..."
-              rows={5}
-              autoFocus
-              style={{
-                width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
-                borderRadius: 8, padding: '10px 12px', color: '#0e1e35', fontSize: 13,
-                outline: 'none', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.6,
-                boxSizing: 'border-box', transition: 'border-color 0.15s',
-              }}
-              onFocus={e => e.currentTarget.style.borderColor = GOLD}
-              onBlur={e => e.currentTarget.style.borderColor = '#e5ddc8'}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '7px 16px', color: '#4a6070', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || !note.trim()}
-                style={{ background: note.trim() ? BLUE : 'rgba(76,171,219,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: note.trim() ? '#fff' : '#e5ddc8', cursor: note.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
-              >
-                {saving ? 'Envoi…' : 'Ajouter'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+      ) : (
+        <CrmV2Textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Contenu de la note..."
+          rows={5}
+          autoFocus
+          style={{ minHeight: 120 }}
+        />
+      )}
+    </CrmV2ModalShell>
   )
 }

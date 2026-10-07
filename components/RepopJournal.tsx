@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon, Check, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Phone, RefreshCw, Calendar, FileText, User, UserX, ExternalLink, ArrowRight, Filter as FilterIcon, Check, ChevronDown, ChevronUp, Loader2, Repeat } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { CrmV2Empty, CrmV2SectionLabel, CrmV2StatusPill, hexA } from '@/components/crm-v2/primitives'
 import type { OrphanRepopEntry } from '@/app/api/repop/orphans/route'
 
 type RepopEntry = {
@@ -48,6 +51,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   const [dismissedDeals, setDismissedDeals] = useState<Set<string>>(new Set())
   const [dismissedContacts, setDismissedContacts] = useState<Set<string>>(new Set())
   const [dismissing, setDismissing] = useState<Record<string, boolean>>({})
+  const isMobile = useIsMobile()
 
   const fetchRepops = useCallback(async () => {
     setLoading(true)
@@ -163,88 +167,92 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0', color: '#4a6070', fontSize: 14 }}>
-        <RefreshCw size={16} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 0', color: crmV2.textMuted, fontSize: 14 }}>
+        <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
         Chargement des repops…
       </div>
     )
   }
 
-  return (
-    <div style={{ padding: '0 24px 32px', maxWidth: 1280, margin: '0 auto' }}>
+  const stageTabs = scope === 'telepro'
+    ? [
+      { key: 'all' as Filter, label: 'Tous', count: totalCount, color: crmV2.text },
+    ]
+    : [
+      { key: 'all' as Filter, label: 'Tous', count: totalCount, color: crmV2.text },
+      { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#ef4444' },
+      { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#b8963e' },
+      { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7' },
+    ]
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🔁</span>
+  const resultCount = filtered.length + (showOrphans ? filteredOrphans.length : 0)
+
+  return (
+    <div style={{ padding: isMobile ? '0 12px 24px' : '0 28px 32px', maxWidth: 1280, margin: '0 auto', fontFamily: 'inherit', color: crmV2.text }}>
+
+      {/* En-tête */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: isMobile ? 17 : 18, fontWeight: 600, letterSpacing: '-0.01em', color: crmV2.text, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{
+              width: 32, height: 32, borderRadius: 10, background: crmV2.goldSoft, color: crmV2.goldDark,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Repeat size={16} />
+            </span>
             Journal des Repop
             {totalCount > 0 && (
-              <span style={{
-                background: 'rgba(204,172,113,0.2)',
-                border: '1px solid rgba(204,172,113,0.4)',
-                borderRadius: 20,
-                padding: '1px 10px',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#C9A84C',
-              }}>
-                {totalCount}
-              </span>
+              <CrmV2StatusPill label={totalCount} color={crmV2.goldDark} bg={crmV2.goldSoft} dot={false} />
             )}
           </div>
-          <div style={{ fontSize: 12, color: '#4a6070', marginTop: 3 }}>
+          <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 6 }}>
             {scope === 'telepro'
               ? 'Tous tes leads ayant soumis un formulaire, du plus récent au plus ancien'
               : 'Prospects ayant resoumis un formulaire après la date de leur RDV ou sans transaction'}
           </div>
         </div>
         <button
+          type="button"
           onClick={fetchRepops}
+          title="Actualiser"
+          aria-label="Actualiser"
           style={{
-            background: '#eaf0f6', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: '6px 10px', color: '#4a6070', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            width: 38, height: 38, borderRadius: 999, flexShrink: 0,
+            background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+            color: crmV2.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <RefreshCw size={13} />
+          <RefreshCw size={15} />
         </button>
       </div>
 
       {/* Filtres par stage — en mode télépro on cache les onglets stage/orphans
           car le feed est un flux unique trié par date (cf. /api/repop/orphans). */}
       {totalCount > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {(scope === 'telepro'
-            ? [
-              { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#4a6070', activeColor: '#0e1e35' },
-            ]
-            : [
-              { key: 'all' as Filter, label: 'Tous', count: totalCount, color: '#4a6070', activeColor: '#0e1e35' },
-              { key: 'a_replanifier' as Filter, label: 'À replanifier', count: countByStage.a_replanifier, color: '#f97316', activeColor: '#f97316' },
-              { key: 'delai_reflexion' as Filter, label: 'Délai de réflexion', count: countByStage.delai_reflexion, color: '#eab308', activeColor: '#eab308' },
-              { key: 'orphans' as Filter, label: 'Sans transaction', count: orphans.length, color: '#a855f7', activeColor: '#a855f7' },
-            ]
-          ).map(f => {
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+          {stageTabs.map(f => {
             const isActive = activeFilter === f.key
             return (
               <button
                 key={f.key}
+                type="button"
                 onClick={() => setActiveFilter(f.key)}
                 style={{
-                  background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.15)` : '#ffffff',
-                  border: `1px solid ${isActive ? `rgba(${hexToRgb(f.activeColor)},0.4)` : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '5px 12px',
-                  color: isActive ? f.activeColor : '#4a6070',
-                  fontSize: 12, fontWeight: isActive ? 700 : 400,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  background: isActive ? hexA(f.color, 0.10) : crmV2.bg,
+                  border: `1px solid ${isActive ? hexA(f.color, 0.40) : crmV2.borderStrong}`,
+                  borderRadius: 999, padding: '7px 14px', minHeight: 36,
+                  color: isActive ? f.color : crmV2.text,
+                  fontSize: 13, fontWeight: isActive ? 700 : 600, fontFamily: 'inherit',
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0,
                 }}
               >
+                {f.key !== 'all' && <span style={{ width: 7, height: 7, borderRadius: '50%', background: f.color }} />}
                 {f.label}
                 {f.count > 0 && (
                   <span style={{
-                    background: isActive ? `rgba(${hexToRgb(f.activeColor)},0.25)` : '#eaf0f6',
-                    borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700,
-                    color: isActive ? f.activeColor : '#4a6070',
+                    background: isActive ? hexA(f.color, 0.18) : crmV2.bgSoft,
+                    borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700,
+                    color: isActive ? f.color : crmV2.textMuted,
                   }}>
                     {f.count}
                   </span>
@@ -258,13 +266,13 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {/* Sous-filtres Classe / Zone — visibles sur tous les onglets */}
       {totalCount > 0 && (
         <div style={{
-          display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center',
+          display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center',
         }}>
-          <FilterIcon size={13} style={{ color: '#4a6070' }} />
+          <FilterIcon size={14} style={{ color: crmV2.textFaint }} />
           <select
             value={filterClasse}
             onChange={e => setFilterClasse(e.target.value)}
-            style={subFilterSelectStyle}
+            style={subFilterSelectStyle(!!filterClasse)}
           >
             <option value="">Classe</option>
             {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
@@ -272,7 +280,7 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
           <select
             value={filterZone}
             onChange={e => setFilterZone(e.target.value)}
-            style={subFilterSelectStyle}
+            style={subFilterSelectStyle(!!filterZone)}
           >
             <option value="">Zone / Localité</option>
             {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
@@ -280,22 +288,23 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
           {/* Formulaire candidature — seulement sur l'onglet orphans */}
           {activeFilter === 'orphans' && (
             <button
+              type="button"
               onClick={() => setOrphanCandidatureOnly(!orphanCandidatureOnly)}
               style={{
-                background: orphanCandidatureOnly ? 'rgba(168,85,247,0.15)' : '#ffffff',
-                border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.4)' : '#e5ddc8'}`,
-                borderRadius: 8, padding: '5px 12px',
-                color: orphanCandidatureOnly ? '#a855f7' : '#4a6070',
-                fontSize: 12, fontWeight: orphanCandidatureOnly ? 700 : 400,
-                cursor: 'pointer',
+                background: orphanCandidatureOnly ? 'rgba(168,85,247,0.10)' : crmV2.bg,
+                border: `1px solid ${orphanCandidatureOnly ? 'rgba(168,85,247,0.40)' : crmV2.borderStrong}`,
+                borderRadius: 999, padding: '0 14px', height: 34,
+                color: orphanCandidatureOnly ? '#a855f7' : crmV2.text,
+                fontSize: 13, fontWeight: orphanCandidatureOnly ? 700 : 600, fontFamily: 'inherit',
+                cursor: 'pointer', whiteSpace: 'nowrap',
               }}
             >
               Formulaire candidature
             </button>
           )}
           {(filterClasse || filterZone || orphanCandidatureOnly) && (
-            <span style={{ fontSize: 11, color: '#4a6070' }}>
-              {filtered.length + (showOrphans ? filteredOrphans.length : 0)} résultat{(filtered.length + (showOrphans ? filteredOrphans.length : 0)) !== 1 ? 's' : ''}
+            <span style={{ fontSize: 12, color: crmV2.textMuted }}>
+              {resultCount} résultat{resultCount !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -303,23 +312,17 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
 
       {/* Vide */}
       {totalCount === 0 && (
-        <div style={{
-          textAlign: 'center', padding: '48px 24px',
-          background: '#ffffff', borderRadius: 14, border: '1px solid #e5ddc8',
-        }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>🔁</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0e1e35', marginBottom: 8 }}>
-            Aucune repop détectée
-          </div>
-          <div style={{ fontSize: 13, color: '#4a6070', lineHeight: 1.6 }}>
-            Aucun prospect en &ldquo;À replanifier&rdquo; ou &ldquo;Délai de réflexion&rdquo;<br />
-            n&apos;a resoumis de formulaire après son RDV.
-          </div>
+        <div style={{ background: crmV2.bg, borderRadius: crmV2.radiusLg, border: `1px solid ${crmV2.border}`, boxShadow: crmV2.shadow }}>
+          <CrmV2Empty
+            icon={<Repeat size={26} />}
+            title="Aucune repop détectée"
+            description="Aucun prospect en « À replanifier » ou « Délai de réflexion » n'a resoumis de formulaire après son RDV."
+          />
         </div>
       )}
 
       {/* Liste deals repop */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.map(entry => (
           <RepopCard
             key={entry.hubspot_deal_id}
@@ -335,16 +338,15 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
       {showOrphans && orphans.length > 0 && (
         <>
           {activeFilter === 'all' && filtered.length > 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px',
-              fontSize: 13, fontWeight: 700, color: '#a855f7',
-            }}>
-              <UserX size={14} />
+            <CrmV2SectionLabel
+              icon={<UserX size={14} color="#a855f7" />}
+              style={{ margin: '22px 0 10px' }}
+            >
               Sans transaction ({filteredOrphans.length})
-            </div>
+            </CrmV2SectionLabel>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filteredOrphans.map(entry => (
               <OrphanCard
                 key={entry.contact_id}
@@ -360,172 +362,213 @@ export default function RepopJournal({ hubspotOwnerId, scope, scopeId }: Props) 
   )
 }
 
-function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
-  entry: RepopEntry; showCloser: boolean; onDismiss: () => void; isDismissing: boolean
+/** Carte repliable commune (deal repop / contact sans transaction). */
+function RepopCardShell({ accent, expanded, onToggle, title, badges, meta, actions, children }: {
+  accent: string
+  expanded: boolean
+  onToggle: () => void
+  title: string
+  badges: React.ReactNode
+  meta: React.ReactNode
+  actions: React.ReactNode
+  children: React.ReactNode
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const stageColor = entry.hs_stage_color || '#C9A84C'
-
+  const isMobile = useIsMobile()
   return (
     <div style={{
-      background: '#ffffff',
-      border: '1px solid #e5ddc8',
-      borderLeft: '3px solid #C9A84C',
-      borderRadius: 10,
+      background: crmV2.bg,
+      border: `1px solid ${crmV2.border}`,
+      borderRadius: crmV2.radiusLg,
       overflow: 'hidden',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+      boxShadow: crmV2.shadow,
+      position: 'relative',
     }}>
-      {/* Header cliquable */}
+      <span style={{ position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: '0 3px 3px 0', background: accent }} />
+      {/* En-tête cliquable */}
       <div
-        onClick={() => setExpanded(v => !v)}
+        onClick={onToggle}
         style={{
           display: 'grid',
-          gridTemplateColumns: 'auto 1fr auto',
-          gap: 10,
+          gridTemplateColumns: isMobile ? 'auto 1fr' : 'auto 1fr auto',
+          gap: isMobile ? '8px 10px' : 12,
           alignItems: 'center',
-          padding: '10px 14px',
+          padding: isMobile ? '12px 12px 12px 14px' : '12px 16px 12px 18px',
           cursor: 'pointer',
           userSelect: 'none',
         }}
       >
-        {/* Chevron */}
-        <div style={{ color: '#4a6070', display: 'flex', alignItems: 'center' }}>
+        <div style={{ color: crmV2.textFaint, display: 'flex', alignItems: 'center' }}>
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
 
-        {/* Colonne 1 : info lead */}
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {/* Ligne nom + badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{
-              background: 'rgba(204,172,113,0.15)',
-              border: '1px solid rgba(204,172,113,0.4)',
-              borderRadius: 6, padding: '1px 7px',
-              fontSize: 10, fontWeight: 700, color: '#C9A84C', flexShrink: 0,
+              fontSize: 14, fontWeight: 700, color: crmV2.text,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? '100%' : 240,
             }}>
-              🔁 Repop
+              {title}
             </span>
-            <span style={{
-              fontSize: 14, fontWeight: 700, color: '#0e1e35',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
-            }}>
-              {entry.prospect_name}
-            </span>
-            {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
-            {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
-            {entry.formation_type && <span style={tagStyle}>{entry.formation_type}</span>}
-            <span style={{
-              background: `${stageColor}1a`,
-              border: `1px solid ${stageColor}66`,
-              borderRadius: 6, padding: '1px 7px',
-              fontSize: 10, fontWeight: 700, color: stageColor,
-            }}>
-              {entry.hs_stage_label}
-            </span>
+            {badges}
           </div>
-
-          {/* Ligne contact + dernière soumission */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#4a6070' }}>
-            {entry.prospect_phone && (
-              <a
-                href={`tel:${entry.prospect_phone}`}
-                onClick={e => e.stopPropagation()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', textDecoration: 'none', fontWeight: 600 }}
-              >
-                <Phone size={12} />{entry.prospect_phone}
-              </a>
-            )}
-            {entry.prospect_email && (
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
-                {entry.prospect_email}
-              </span>
-            )}
-            {showCloser && (entry.commercial_name || entry.telepro_name) && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <User size={11} />
-                {[entry.telepro_name, entry.commercial_name].filter(Boolean).join(' → ')}
-              </span>
-            )}
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', fontWeight: 600 }}>
-              <FileText size={12} />
-              <strong>{entry.repop_form_date_label}</strong>
-              <span style={{ color: '#4a6070', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-                {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
-              </span>
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexWrap: 'wrap', fontSize: 12, color: crmV2.textMuted, minWidth: 0 }}>
+            {meta}
           </div>
         </div>
 
-        {/* Colonne 3 : actions (Fiche CRM + dismiss) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-          <a
-            href={entry.hubspot_contact_id
-              ? `/admin/crm/contacts/${entry.hubspot_contact_id}`
-              : `/admin/crm/deals/${entry.hubspot_deal_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Ouvrir la fiche contact dans le CRM"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '5px 9px', color: '#C9A84C',
-              fontSize: 11, fontWeight: 600, textDecoration: 'none',
-            }}
-          >
-            <ExternalLink size={11} /> Fiche
-          </a>
-          <button
-            onClick={onDismiss}
-            disabled={isDismissing}
-            title="Marquer comme traité"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.08)',
-              border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.25)'}`,
-              borderRadius: 6, padding: '5px 10px',
-              color: isDismissing ? '#22c55e' : '#C9A84C',
-              fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
-              opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
-            }}
-          >
-            <Check size={12} /> {isDismissing ? '...' : 'Traité'}
-          </button>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 6, gridColumn: isMobile ? '1 / -1' : undefined, justifyContent: isMobile ? 'flex-end' : undefined }}
+          onClick={e => e.stopPropagation()}
+        >
+          {actions}
         </div>
       </div>
 
-      {/* Panneau chronologie RDV → formulaire repop (déplié) */}
       {expanded && (
         <div style={{
-          borderTop: '1px solid #e5ddc8',
-          background: '#f7f4ee',
-          padding: '12px 16px 14px 40px',
+          borderTop: `1px solid ${crmV2.borderLight}`,
+          background: crmV2.bgHover,
+          padding: isMobile ? '12px 14px 14px' : '12px 18px 14px 46px',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-            Parcours
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {/* Date du RDV */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4a6070', flexShrink: 0 }} />
-              <span style={{ color: '#0e1e35', fontWeight: 600, minWidth: 150 }}>RDV le {entry.rdv_date_label}</span>
-            </div>
-            {/* Flèche */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
-              <div style={{ width: 2, height: 12, background: '#e5ddc8' }} />
-              <ArrowRight size={10} style={{ color: '#4a6070' }} />
-            </div>
-            {/* Formulaire repop */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', flexShrink: 0 }} />
-              <span style={{ color: '#C9A84C', fontWeight: 600, minWidth: 150 }}>{entry.repop_form_date_label}</span>
-              <span style={{ flex: 1, minWidth: 0, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {entry.repop_form_name || 'Nouveau formulaire soumis'}
-              </span>
-            </div>
-          </div>
+          {children}
         </div>
       )}
     </div>
+  )
+}
+
+function CardActions({ ficheHref, onDismiss, isDismissing }: { ficheHref: string; onDismiss: () => void; isDismissing: boolean }) {
+  return (
+    <>
+      <a
+        href={ficheHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Ouvrir la fiche contact dans le CRM"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32,
+          background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+          borderRadius: 999, padding: '0 12px', color: crmV2.text,
+          fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+        }}
+      >
+        <ExternalLink size={14} /> Fiche
+      </a>
+      <button
+        type="button"
+        onClick={onDismiss}
+        disabled={isDismissing}
+        title="Marquer comme traité"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32,
+          background: isDismissing ? 'rgba(22,163,74,0.10)' : crmV2.primary,
+          border: `1px solid ${isDismissing ? 'rgba(22,163,74,0.35)' : crmV2.primary}`,
+          borderRadius: 999, padding: '0 12px',
+          color: isDismissing ? crmV2.successStrong : '#fff',
+          fontSize: 12, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
+          opacity: isDismissing ? 0.7 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
+        }}
+      >
+        <Check size={14} /> {isDismissing ? '...' : 'Traité'}
+      </button>
+    </>
+  )
+}
+
+function FormSubmissionMeta({ color, dateLabel, formName }: { color: string; dateLabel: string; formName: string | null }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color, fontWeight: 600, minWidth: 0, maxWidth: '100%' }}>
+      <FileText size={14} style={{ flexShrink: 0 }} />
+      <strong style={{ whiteSpace: 'nowrap' }}>{dateLabel}</strong>
+      <span style={{ color: crmV2.textMuted, fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+        {formName ? ` — ${formName}` : ''}
+      </span>
+    </span>
+  )
+}
+
+function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <a
+      href={`tel:${phone}`}
+      onClick={e => e.stopPropagation()}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: crmV2.link, textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+    >
+      <Phone size={14} />{phone}
+    </a>
+  )
+}
+
+function RepopCard({ entry, showCloser, onDismiss, isDismissing }: {
+  entry: RepopEntry; showCloser: boolean; onDismiss: () => void; isDismissing: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const stageColor = entry.hs_stage_color || crmV2.gold
+
+  return (
+    <RepopCardShell
+      accent={crmV2.gold}
+      expanded={expanded}
+      onToggle={() => setExpanded(v => !v)}
+      title={entry.prospect_name}
+      badges={
+        <>
+          <span style={{ ...tagStyle, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Repeat size={11} /> Repop
+          </span>
+          {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
+          {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
+          {entry.formation_type && <span style={tagStyle}>{entry.formation_type}</span>}
+          <CrmV2StatusPill label={entry.hs_stage_label} color={stageColor} style={{ fontSize: 11 }} />
+        </>
+      }
+      meta={
+        <>
+          {entry.prospect_phone && <PhoneLink phone={entry.prospect_phone} />}
+          {entry.prospect_email && (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+              {entry.prospect_email}
+            </span>
+          )}
+          {showCloser && (entry.commercial_name || entry.telepro_name) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <User size={14} />
+              {[entry.telepro_name, entry.commercial_name].filter(Boolean).join(' → ')}
+            </span>
+          )}
+          <FormSubmissionMeta color={crmV2.goldDark} dateLabel={entry.repop_form_date_label} formName={entry.repop_form_name} />
+        </>
+      }
+      actions={
+        <CardActions
+          ficheHref={entry.hubspot_contact_id
+            ? `/admin/crm/contacts/${entry.hubspot_contact_id}`
+            : `/admin/crm/deals/${entry.hubspot_deal_id}`}
+          onDismiss={onDismiss}
+          isDismissing={isDismissing}
+        />
+      }
+    >
+      {/* Chronologie RDV → formulaire repop */}
+      <div style={{ ...expandLabel }}>Parcours</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+          <Calendar size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+          <span style={{ color: crmV2.text, fontWeight: 600 }}>RDV le {entry.rdv_date_label}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 6 }}>
+          <div style={{ width: 2, height: 12, background: crmV2.borderStrong }} />
+          <ArrowRight size={12} style={{ color: crmV2.textFaint }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, minWidth: 0 }}>
+          <FileText size={14} color={crmV2.gold} style={{ flexShrink: 0 }} />
+          <span style={{ color: crmV2.goldDark, fontWeight: 600, whiteSpace: 'nowrap' }}>{entry.repop_form_date_label}</span>
+          <span style={{ flex: 1, minWidth: 0, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {entry.repop_form_name || 'Nouveau formulaire soumis'}
+          </span>
+        </div>
+      </div>
+    </RepopCardShell>
   )
 }
 
@@ -619,165 +662,87 @@ function OrphanCard({ entry, onDismiss, isDismissing }: {
   })()
 
   return (
-    <div style={{
-      background: '#ffffff',
-      border: '1px solid #e5ddc8',
-      borderLeft: '3px solid #a855f7',
-      borderRadius: 10,
-      overflow: 'hidden',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    }}>
-      {/* Header cliquable */}
-      <div
-        onClick={toggleExpand}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'auto 1fr auto',
-          gap: 10,
-          alignItems: 'center',
-          padding: '10px 14px',
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
-      >
-        {/* Chevron */}
-        <div style={{ color: '#4a6070', display: 'flex', alignItems: 'center' }}>
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-
-        {/* Colonne 1 : info lead */}
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {/* Ligne nom + tags */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{
-              fontSize: 14, fontWeight: 700, color: '#0e1e35',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220,
-            }}>
-              {entry.prospect_name}
+    <RepopCardShell
+      accent="#a855f7"
+      expanded={expanded}
+      onToggle={toggleExpand}
+      title={entry.prospect_name}
+      badges={
+        <>
+          {entry.lead_status && (
+            <span style={leadStatusBadgeStyle(entry.lead_status)}>{entry.lead_status}</span>
+          )}
+          {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
+          {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
+          {entry.formation && <span style={tagStyle}>{entry.formation}</span>}
+        </>
+      }
+      meta={
+        <>
+          {entry.prospect_phone && <PhoneLink phone={entry.prospect_phone} />}
+          {entry.prospect_email && (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+              {entry.prospect_email}
             </span>
-            {entry.lead_status && (
-              <span style={leadStatusBadgeStyle(entry.lead_status)}>{entry.lead_status}</span>
-            )}
-            {entry.classe && <span style={tagStyle}>{entry.classe}</span>}
-            {entry.zone_localite && <span style={tagStyle}>{entry.zone_localite}</span>}
-            {entry.formation && <span style={tagStyle}>{entry.formation}</span>}
-          </div>
-
-          {/* Ligne contact + dernière soumission */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#4a6070' }}>
-            {entry.prospect_phone && (
-              <a
-                href={`tel:${entry.prospect_phone}`}
-                onClick={e => e.stopPropagation()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#C9A84C', textDecoration: 'none', fontWeight: 600 }}
-              >
-                <Phone size={12} />{entry.prospect_phone}
-              </a>
-            )}
-            {entry.prospect_email && (
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
-                {entry.prospect_email}
-              </span>
-            )}
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a855f7', fontWeight: 600 }}>
-              <FileText size={12} />
-              <strong>{entry.repop_form_date_label}</strong>
-              <span style={{ color: '#4a6070', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-                {entry.repop_form_name ? ` — ${entry.repop_form_name}` : ''}
-              </span>
-            </span>
-          </div>
-        </div>
-
-        {/* Colonne 3 : actions (Fiche CRM + dismiss) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-          <a
-            href={`/admin/crm/contacts/${entry.contact_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Ouvrir la fiche contact dans le CRM"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-              borderRadius: 6, padding: '5px 9px', color: '#C9A84C',
-              fontSize: 11, fontWeight: 600, textDecoration: 'none',
-            }}
-          >
-            <ExternalLink size={11} /> Fiche
-          </a>
-          <button
-            onClick={onDismiss}
-            disabled={isDismissing}
-            title="Marquer comme traité"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: isDismissing ? 'rgba(34,197,94,0.15)' : 'rgba(168,85,247,0.08)',
-              border: `1px solid ${isDismissing ? 'rgba(34,197,94,0.4)' : 'rgba(168,85,247,0.25)'}`,
-              borderRadius: 6, padding: '5px 10px',
-              color: isDismissing ? '#22c55e' : '#a855f7',
-              fontSize: 11, fontWeight: 700, cursor: isDismissing ? 'wait' : 'pointer',
-              opacity: isDismissing ? 0.6 : 1, fontFamily: 'inherit',
-            }}
-          >
-            <Check size={12} /> {isDismissing ? '...' : 'Traité'}
-          </button>
-        </div>
-      </div>
-
-      {/* Panneau historique (déplié) */}
-      {expanded && (
-        <div style={{
-          borderTop: '1px solid #e5ddc8',
-          background: '#f7f4ee',
-          padding: '12px 16px 14px 40px',
-        }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-            Formulaires soumis
-          </div>
-
-          {loadingHistory && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a6070' }}>
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              Chargement…
-            </div>
           )}
+          <FormSubmissionMeta color="#a855f7" dateLabel={entry.repop_form_date_label} formName={entry.repop_form_name} />
+        </>
+      }
+      actions={
+        <CardActions
+          ficheHref={`/admin/crm/contacts/${entry.contact_id}`}
+          onDismiss={onDismiss}
+          isDismissing={isDismissing}
+        />
+      }
+    >
+      <div style={expandLabel}>Formulaires soumis</div>
 
-          {!loadingHistory && history !== null && relevantHistory.length === 0 && (
-            <div style={{ fontSize: 12, color: '#4a6070', fontStyle: 'italic' }}>
-              Aucun formulaire soumis enregistré.
-            </div>
-          )}
-
-          {!loadingHistory && relevantHistory.length > 0 && (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {relevantHistory.slice(0, 30).map(sub => (
-                <li key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#4a6070' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', flexShrink: 0 }} />
-                  <span style={{ color: '#a855f7', fontWeight: 600, minWidth: 140, flexShrink: 0 }}>
-                    {formatHistoryDate(sub.date)}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sub.form}
-                  </span>
-                </li>
-              ))}
-              {relevantHistory.length > 30 && (
-                <li style={{ fontSize: 11, color: '#4a6070', fontStyle: 'italic', paddingLeft: 16 }}>
-                  + {relevantHistory.length - 30} soumissions plus anciennes
-                </li>
-              )}
-            </ul>
-          )}
+      {loadingHistory && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: crmV2.textMuted }}>
+          <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          Chargement…
         </div>
       )}
-    </div>
+
+      {!loadingHistory && history !== null && relevantHistory.length === 0 && (
+        <div style={{ fontSize: 13, color: crmV2.textMuted, fontStyle: 'italic' }}>
+          Aucun formulaire soumis enregistré.
+        </div>
+      )}
+
+      {!loadingHistory && relevantHistory.length > 0 && (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {relevantHistory.slice(0, 30).map(sub => (
+            <li key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: crmV2.textMuted, minWidth: 0 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', flexShrink: 0 }} />
+              <span style={{ color: '#7e22ce', fontWeight: 600, minWidth: 140, flexShrink: 0 }}>
+                {formatHistoryDate(sub.date)}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {sub.form}
+              </span>
+            </li>
+          ))}
+          {relevantHistory.length > 30 && (
+            <li style={{ fontSize: 12, color: crmV2.textMuted, fontStyle: 'italic', paddingLeft: 16 }}>
+              + {relevantHistory.length - 30} soumissions plus anciennes
+            </li>
+          )}
+        </ul>
+      )}
+    </RepopCardShell>
   )
 }
 
+const expandLabel: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8,
+}
+
 const tagStyle: React.CSSProperties = {
-  background: 'rgba(204,172,113,0.12)',
-  border: '1px solid rgba(204,172,113,0.3)',
-  borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600, color: '#C9A84C',
+  background: crmV2.chipBg,
+  border: `1px solid ${crmV2.chipBorder}`,
+  borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 600, color: crmV2.text, whiteSpace: 'nowrap',
 }
 
 /** Couleur du badge selon le statut du lead (HubSpot hs_lead_status). */
@@ -793,19 +758,18 @@ function leadStatusBadgeStyle(status: string): React.CSSProperties {
     'A replanifier':        '#06b6d4',   // cyan
     'En cours':             '#22c55e',   // vert
     'En attente / Réfléchit':'#eab308',  // jaune
-    'Mauvais numéro':       '#a89e8a',   // gris
-    'Disqualifié':          '#a89e8a',
-    'Pas intéressé':        '#4a6070',
-    'Hors cible':           '#4a6070',
+    'Mauvais numéro':       '#7c98b6',   // gris
+    'Disqualifié':          '#7c98b6',
+    'Pas intéressé':        '#516f90',
+    'Hors cible':           '#516f90',
     'Préinscription':       '#16a34a',
     'Inscrit':              '#15803d',
   }
-  const color = COLORS[status] || '#4a6070'
+  const color = COLORS[status] || crmV2.textMuted
   return {
-    background: `${color}1a`,           // 10% opacity
-    border: `1px solid ${color}66`,     // 40% opacity
+    background: hexA(color, 0.10),
     color,
-    borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 700,
+    borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
   }
 }
 
@@ -842,18 +806,10 @@ function labelProperty(name: string): string {
   return map[name] || name
 }
 
-const subFilterSelectStyle: React.CSSProperties = {
-  background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-  padding: '5px 10px', color: '#4a6070', fontSize: 12, cursor: 'pointer',
-  appearance: 'auto' as const,
-}
-
-/** Convertit #rrggbb en "r,g,b" pour rgba() */
-function hexToRgb(hex: string): string {
-  const clean = hex.replace('#', '')
-  if (clean.length !== 6) return '255,255,255'
-  const r = parseInt(clean.slice(0, 2), 16)
-  const g = parseInt(clean.slice(2, 4), 16)
-  const b = parseInt(clean.slice(4, 6), 16)
-  return `${r},${g},${b}`
-}
+const subFilterSelectStyle = (active: boolean): React.CSSProperties => ({
+  background: active ? 'rgba(0,145,174,0.08)' : crmV2.bg,
+  border: `1px solid ${active ? 'rgba(0,145,174,0.45)' : crmV2.borderStrong}`,
+  borderRadius: 999, height: 34, padding: '0 12px',
+  color: active ? crmV2.link : crmV2.text, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+  appearance: 'auto' as const, maxWidth: '100%',
+})

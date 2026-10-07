@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Briefcase } from 'lucide-react'
-
-const NAVY = '#ffffff'
-const GOLD = '#C9A84C'
-const BLUE = '#4cabdb'
+import { Users, Briefcase, Check } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Avatar, CrmV2Button, CrmV2Spinner } from './crm-v2/primitives'
+import { CrmV2ModalHeader, CrmV2ModalShell, CrmV2Notice, crmV2LabelStyle } from './crm-v2/modals/ModalShell'
 
 interface RdvUser {
   id: string
@@ -83,82 +82,70 @@ export default function CRMAssignPanel({
   )
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div style={{ background: NAVY, border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 420, padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {mode === 'closer' ? <Briefcase size={16} style={{ color: GOLD }} /> : <Users size={16} style={{ color: BLUE }} />}
-              {mode === 'closer' ? 'Assigner un closer' : 'Assigner un télépro'}
-            </div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>{contactName}</div>
-          </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', fontSize: 20, padding: '2px 6px' }}>✕</button>
-        </div>
-
-        {currentUser && (
-          <div style={{ background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: BLUE }}>
-            Actuellement : <strong>{currentUser.name}</strong>
-          </div>
-        )}
-
-        {error && (
-          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '8px 12px', color: '#ef4444', fontSize: 12, marginBottom: 14 }}>
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#4a6070', fontSize: 13 }}>Chargement…</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto', marginBottom: 16 }}>
-            {users.map(user => {
-              const isSelected = selected === user.id
-              const isCurrent = mode === 'closer'
-                ? user.hubspot_owner_id === currentHsId
-                : user.hubspot_user_id === currentHsId
-              return (
-                <button
-                  key={user.id}
-                  onClick={() => setSelected(user.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: isSelected ? 'rgba(204,172,113,0.15)' : '#f7f4ee',
-                    border: `1px solid ${isSelected ? GOLD : '#e5ddc8'}`,
-                    borderRadius: 10, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
-                    transition: 'all 0.15s', fontFamily: 'inherit',
-                  }}
-                >
-                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: user.avatar_color || '#4f6ef7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? GOLD : '#0e1e35' }}>{user.name}</div>
-                    {isCurrent && <div style={{ fontSize: 10, color: BLUE, fontWeight: 700 }}>Actuellement assigné</div>}
-                  </div>
-                  {isSelected && <div style={{ fontSize: 16, color: GOLD }}>✓</div>}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '7px 16px', color: '#4a6070', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
-            Annuler
-          </button>
-          <button
-            onClick={handleAssign}
-            disabled={!selected || saving}
-            style={{ background: selected ? GOLD : 'rgba(204,172,113,0.2)', border: 'none', borderRadius: 8, padding: '7px 20px', color: selected ? NAVY : '#0e1e35', cursor: selected ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
-          >
+    <CrmV2ModalShell
+      onClose={onClose}
+      zIndex={600}
+      width={440}
+      header={
+        <CrmV2ModalHeader
+          title={mode === 'closer' ? 'Assigner un closer' : 'Assigner un télépro'}
+          subtitle={contactName}
+          icon={mode === 'closer' ? <Briefcase size={16} /> : <Users size={16} />}
+          onClose={onClose}
+        />
+      }
+      footer={
+        <>
+          <CrmV2Button variant="secondary" onClick={onClose}>Annuler</CrmV2Button>
+          <CrmV2Button variant="primary" onClick={handleAssign} disabled={!selected || saving}>
             {saving ? 'Assignation…' : 'Assigner'}
-          </button>
+          </CrmV2Button>
+        </>
+      }
+    >
+      {currentUser && (
+        <CrmV2Notice tone="info" style={{ marginBottom: 14 }}>
+          Actuellement : <strong>{currentUser.name}</strong>
+        </CrmV2Notice>
+      )}
+
+      {error && <CrmV2Notice tone="error" style={{ marginBottom: 14 }}>{error}</CrmV2Notice>}
+
+      <div style={{ ...crmV2LabelStyle, marginBottom: 8 }}>{mode === 'closer' ? 'Closers' : 'Télépros'}</div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}><CrmV2Spinner /></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {users.map(user => {
+            const isSelected = selected === user.id
+            const isCurrent = mode === 'closer'
+              ? user.hubspot_owner_id === currentHsId
+              : user.hubspot_user_id === currentHsId
+            return (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => setSelected(user.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, minHeight: 48,
+                  background: isSelected ? crmV2.goldSoft : crmV2.bg,
+                  border: `1px solid ${isSelected ? crmV2.gold : crmV2.border}`,
+                  borderRadius: 12, padding: '8px 12px', cursor: 'pointer', textAlign: 'left',
+                  transition: 'all 0.15s', fontFamily: 'inherit',
+                }}
+              >
+                <CrmV2Avatar name={user.name} color={user.avatar_color || crmV2.goldGradient} size={30} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? crmV2.goldDark : crmV2.text }}>{user.name}</div>
+                  {isCurrent && <div style={{ fontSize: 11, color: crmV2.link, fontWeight: 700 }}>Actuellement assigné</div>}
+                </div>
+                {isSelected && <Check size={16} color={crmV2.gold} />}
+              </button>
+            )
+          })}
         </div>
-      </div>
-    </div>
+      )}
+    </CrmV2ModalShell>
   )
 }

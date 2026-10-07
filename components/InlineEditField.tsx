@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 interface BaseProps {
   value: string | null | undefined
@@ -18,7 +19,7 @@ interface DateProps extends BaseProps { type: 'date' }
 type Props = TextProps | SelectProps | DateProps
 
 export default function InlineEditField(props: Props) {
-  const { value, onSave, placeholder = '—', color = '#0e1e35', fontSize = 13, fontWeight = 400, type = 'text' } = props
+  const { value, onSave, placeholder = '—', color = crmV2.text, fontSize = 13, fontWeight = 400, type = 'text' } = props
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value ?? '')
@@ -72,7 +73,7 @@ export default function InlineEditField(props: Props) {
         onClick={() => { setDraft(value ?? ''); setEditing(true) }}
         title="Cliquer pour modifier"
         style={{
-          color: displayValue ? color : '#0e1e35',
+          color: displayValue ? color : crmV2.textFaint,
           fontSize,
           fontWeight,
           cursor: 'pointer',
@@ -85,7 +86,7 @@ export default function InlineEditField(props: Props) {
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        onMouseEnter={e => (e.currentTarget.style.borderBottomColor = '#e5ddc8')}
+        onMouseEnter={e => (e.currentTarget.style.borderBottomColor = crmV2.borderStrong)}
         onMouseLeave={e => (e.currentTarget.style.borderBottomColor = 'transparent')}
       >
         {displayValue || placeholder}
@@ -95,16 +96,19 @@ export default function InlineEditField(props: Props) {
 
   // Edit mode
   const inputStyle: React.CSSProperties = {
-    background: '#f7f4ee',
-    border: `1px solid ${saving ? '#C9A84C' : '#e5ddc8'}`,
-    borderRadius: 6,
-    padding: '4px 8px',
-    color: '#0e1e35',
+    background: crmV2.bg,
+    border: `1px solid ${saving ? crmV2.gold : crmV2.borderStrong}`,
+    borderRadius: crmV2.radius,
+    height: 34,
+    padding: '0 10px',
+    color: crmV2.text,
     fontSize,
     fontFamily: 'inherit',
     outline: 'none',
     width: '100%',
     maxWidth: 250,
+    boxSizing: 'border-box',
+    boxShadow: `0 0 0 3px ${crmV2.goldSoft}`,
     opacity: saving ? 0.6 : 1,
   }
 
