@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { isHubspotHardOff, hubspotHardOffResponse } from '@/lib/hubspot-hard-off'
+import { isHubspotHardOff } from '@/lib/hubspot-hard-off'
 
 const HUBSPOT_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN
 const TEAM_NAME = 'Télépros'
@@ -82,7 +82,6 @@ export async function GET() {
 
 // ── POST /api/admin/telepros — Ajouter un nouveau télépro ─────────────────────
 export async function POST(req: NextRequest) {
-  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { email, firstName, lastName } = await req.json()
 
   if (!email?.trim() || !firstName?.trim() || !lastName?.trim()) {
@@ -91,45 +90,40 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient()
 
-  // 1. Récupérer la team HubSpot "Télépros"
-  const teamId = await getTeleprosTeamId()
-  if (!teamId) {
-    return NextResponse.json(
-      { error: `Team "${TEAM_NAME}" introuvable dans HubSpot` },
-      { status: 500 }
-    )
-  }
-
-  // 2. Créer l'utilisateur HubSpot (envoie une invitation)
+  // HubSpot est coupé (cf. lib/hubspot-hard-off) : le compte est créé uniquement dans le CRM
   let hubspotUserId: string | null = null
-  const hsRes = await hubspotFetch('/settings/v3/users', {
-    method: 'POST',
-    body: JSON.stringify({
-      email: email.trim(),
-      primaryTeamId: teamId,
-    }),
-  })
+  const teamId = isHubspotHardOff() ? null : await getTeleprosTeamId()
+  if (teamId) {
+    // Créer l'utilisateur HubSpot (envoie une invitation)
+    const hsRes = await hubspotFetch('/settings/v3/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim(),
+        primaryTeamId: teamId,
+      }),
+    })
 
-  if (hsRes.ok) {
-    const hsData = await hsRes.json()
-    hubspotUserId = String(hsData.id)
-  } else {
-    // L'utilisateur existe peut-être déjà dans HubSpot
-    const findRes = await hubspotFetch(
-      `/settings/v3/users?limit=100`
-    )
-    if (findRes.ok) {
-      const findData = await findRes.json()
-      const found = (findData.results ?? []).find(
-        (u: { email: string; id: string }) => u.email?.toLowerCase() === email.trim().toLowerCase()
+    if (hsRes.ok) {
+      const hsData = await hsRes.json()
+      hubspotUserId = String(hsData.id)
+    } else {
+      // L'utilisateur existe peut-être déjà dans HubSpot
+      const findRes = await hubspotFetch(
+        `/settings/v3/users?limit=100`
       )
-      if (found) {
-        hubspotUserId = String(found.id)
-        // Ajouter à la team Télépros
-        await hubspotFetch(`/settings/v3/users/${hubspotUserId}`, {
-          method: 'PUT',
-          body: JSON.stringify({ primaryTeamId: teamId }),
-        })
+      if (findRes.ok) {
+        const findData = await findRes.json()
+        const found = (findData.results ?? []).find(
+          (u: { email: string; id: string }) => u.email?.toLowerCase() === email.trim().toLowerCase()
+        )
+        if (found) {
+          hubspotUserId = String(found.id)
+          // Ajouter à la team Télépros
+          await hubspotFetch(`/settings/v3/users/${hubspotUserId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ primaryTeamId: teamId }),
+          })
+        }
       }
     }
   }
@@ -175,7 +169,6 @@ export async function POST(req: NextRequest) {
 
 // ── PATCH /api/admin/telepros — Activer / désactiver un télépro ───────────────
 export async function PATCH(req: NextRequest) {
-  if (isHubspotHardOff()) return hubspotHardOffResponse()
   const { userId, action } = await req.json()
 
   if (!userId || !['ban', 'unban', 'reset-password', 'impersonate'].includes(action)) {
@@ -202,7 +195,7 @@ export async function PATCH(req: NextRequest) {
     if (banErr) return NextResponse.json({ error: banErr.message }, { status: 500 })
 
     // Supprimer l'accès HubSpot (retire du portail)
-    if (tp.hubspot_user_id) {
+    if (tp.hubspot_user_id && !isHubspotHardOff()) {
       await hubspotFetch(`/settings/v3/users/${tp.hubspot_user_id}`, { method: 'DELETE' })
     }
 
@@ -235,7 +228,7 @@ export async function PATCH(req: NextRequest) {
   if (unbanErr) return NextResponse.json({ error: unbanErr.message }, { status: 500 })
 
   // Réinviter dans HubSpot si nécessaire
-  const teamId = await getTeleprosTeamId()
+  const teamId = isHubspotHardOff() ? null : await getTeleprosTeamId()
   if (teamId) {
     const hsRes = await hubspotFetch('/settings/v3/users', {
       method: 'POST',

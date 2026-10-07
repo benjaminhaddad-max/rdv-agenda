@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Plus, UserCheck, UserX, Phone, RefreshCw, Copy, Check, ExternalLink, Download, Key, LogIn } from 'lucide-react'
+import { X, Plus, UserCheck, UserX, Phone, RefreshCw, Copy, Check, Key, LogIn } from 'lucide-react'
 
 type Telepro = {
   id: string
@@ -49,9 +49,6 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
   const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null)
   const [pwdCopied, setPwdCopied] = useState(false)
 
-  const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<{ created: CreatedCredentials[]; skipped: string[]; banned: string[]; unbanned: string[]; failed: string[] } | null>(null)
-  const [syncPwdCopied, setSyncPwdCopied] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -129,22 +126,6 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
     }
   }
 
-  async function handleSync() {
-    setSyncing(true)
-    setSyncResult(null)
-    try {
-      const res = await fetch('/api/admin/telepros/sync', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) { alert(data.error || 'Erreur sync'); return }
-      setSyncResult(data)
-      if (data.created.length > 0 || data.banned?.length > 0 || data.unbanned?.length > 0) {
-        await load()
-      }
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   const active = telepros.filter(t => !t.is_banned)
   const banned = telepros.filter(t => t.is_banned)
 
@@ -179,9 +160,8 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>Équipe Télépros</div>
-              <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ExternalLink size={10} style={{ color: '#C9A84C' }} />
-                Synchronisé avec HubSpot
+              <div style={{ fontSize: 11, color: '#4a6070', lineHeight: 1.4, marginTop: 2 }}>
+                Accès : Espace télépro uniquement (prise de RDV) + fiches contact/transaction ouvertes depuis la recherche. Pas d&apos;accès au CRM admin.
               </div>
             </div>
           </div>
@@ -197,62 +177,18 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
 
         <div style={{ padding: '20px', flex: 1 }}>
 
-          {/* Résultat sync HubSpot */}
-          {syncResult && (
-            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Download size={14} /> Sync HubSpot terminé
-              </div>
-              {syncResult.created.length === 0 && (
-                <div style={{ fontSize: 13, color: '#4a6070' }}>Tous les membres sont déjà provisionnés.</div>
-              )}
-              {syncResult.created.length > 0 && (
-                <>
-                  <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginBottom: 8 }}>
-                    {syncResult.created.length} nouveau{syncResult.created.length > 1 ? 'x' : ''} compte{syncResult.created.length > 1 ? 's' : ''} créé{syncResult.created.length > 1 ? 's' : ''}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {syncResult.created.map(c => (
-                      <div key={c.email} style={{ background: '#e5ddc8', borderRadius: 8, padding: '10px 14px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35', marginBottom: 4 }}>{c.name}</div>
-                        <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 6 }}>{c.email}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#C9A84C', flex: 1 }}>{c.password}</div>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(`Email : ${c.email}\nMot de passe : ${c.password}`)
-                              setSyncPwdCopied(c.email)
-                              setTimeout(() => setSyncPwdCopied(null), 2000)
-                            }}
-                            style={{ background: syncPwdCopied === c.email ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 10px', color: syncPwdCopied === c.email ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                          >
-                            {syncPwdCopied === c.email ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-              {syncResult.banned?.length > 0 && (
-                <div style={{ fontSize: 11, color: '#ef4444', marginTop: 8 }}>
-                  Désactivés : {syncResult.banned.join(', ')}
-                </div>
-              )}
-              {syncResult.unbanned?.length > 0 && (
-                <div style={{ fontSize: 11, color: '#22c55e', marginTop: 8 }}>
-                  Réactivés : {syncResult.unbanned.join(', ')}
-                </div>
-              )}
-              {syncResult.skipped.length > 0 && (
-                <div style={{ fontSize: 11, color: '#4a6070', marginTop: 8 }}>
-                  Ignorés : {syncResult.skipped.join(', ')}
-                </div>
-              )}
-              <button onClick={() => setSyncResult(null)} style={{ marginTop: 10, background: 'transparent', border: 'none', fontSize: 11, color: '#4a6070', cursor: 'pointer', padding: 0 }}>
-                Fermer
-              </button>
-            </div>
+          {/* Ajouter — en haut pour ne pas avoir à descendre */}
+          {!showAddForm && (
+            <button
+              onClick={() => { setShowAddForm(true); setCreatedCredentials(null) }}
+              style={{
+                width: '100%', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
+                borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
+                color: '#C9A84C', cursor: 'pointer', display: 'flex', marginBottom: 20, alignItems: 'center', justifyContent: 'center', gap: 7,
+              }}
+            >
+              <Plus size={14} /> Ajouter un télépro
+            </button>
           )}
 
           {/* Credentials créés */}
@@ -265,11 +201,11 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                 <UserCheck size={14} /> Compte créé — {createdCredentials.name}
               </div>
               <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 6 }}>
-                Une invitation HubSpot a été envoyée à <span style={{ color: '#0e1e35' }}>{createdCredentials.email}</span>
+                Identifiants de <span style={{ color: '#0e1e35' }}>{createdCredentials.email}</span>
               </div>
               <div style={{ background: '#e5ddc8', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 10, color: '#4a6070', marginBottom: 3 }}>MOT DE PASSE PLATEFORME RDV</div>
+                  <div style={{ fontSize: 10, color: '#4a6070', marginBottom: 3 }}>MOT DE PASSE CRM</div>
                   <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: '#0e1e35', letterSpacing: '0.08em' }}>
                     {createdCredentials.password}
                   </div>
@@ -323,8 +259,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                 placeholder="Email professionnel *" style={{ ...inputStyle, marginBottom: 8 }}
               />
               <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 12, lineHeight: 1.5 }}>
-                Une invitation HubSpot sera envoyée à cette adresse.<br />
-                Un mot de passe unique sera généré pour la plateforme RDV.
+                Un mot de passe unique sera généré pour se connecter au CRM.
               </div>
               {addError && (
                 <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px', color: '#ef4444', fontSize: 12, marginBottom: 10 }}>
@@ -377,7 +312,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                       onAction={() => handleBan(tp)}
                       actionLabel="Désactiver"
                       actionColor="#ef4444"
-                      confirmMessage={`Désactiver ${tp.name} ? Son accès HubSpot sera supprimé.`}
+                      confirmMessage={`Désactiver ${tp.name} ? Il ne pourra plus se connecter au CRM.`}
                     />
                   ))}
                 </div>
@@ -401,7 +336,7 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
                         onAction={() => handleUnban(tp)}
                         actionLabel="Réactiver"
                         actionColor="#22c55e"
-                        confirmMessage={`Réactiver ${tp.name} ? Une invitation HubSpot sera renvoyée.`}
+                        confirmMessage={`Réactiver ${tp.name} ? Il pourra de nouveau se connecter au CRM.`}
                       />
                     ))}
                   </div>
@@ -411,34 +346,6 @@ export default function TeleproManager({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Footer — Actions */}
-        {!showAddForm && (
-          <div style={{ padding: '16px 20px', borderTop: '1px solid #e5ddc8', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              style={{
-                width: '100%', background: syncing ? '#e5ddc8' : 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
-                color: syncing ? '#4a6070' : '#22c55e', cursor: syncing ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              }}
-            >
-              <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
-              {syncing ? 'Import en cours…' : 'Sync depuis HubSpot'}
-            </button>
-            <button
-              onClick={() => { setShowAddForm(true); setCreatedCredentials(null) }}
-              style={{
-                width: '100%', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
-                borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700,
-                color: '#C9A84C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              }}
-            >
-              <Plus size={14} /> Ajouter manuellement
-            </button>
-          </div>
-        )}
       </div>
 
       <style>{`
