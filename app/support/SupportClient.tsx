@@ -415,6 +415,7 @@ export default function SupportClient({
   const [me, setMe] = useState<Me | null>(null)
   const [tickets, setTickets] = useState<SupportTicket[]>([])
   const [scopeAll, setScopeAll] = useState(embedded)
+  const [canSeeAll, setCanSeeAll] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(initialTicketId)
   const [detail, setDetail] = useState<{ ticket: SupportTicket; messages: SupportMessage[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -426,7 +427,11 @@ export default function SupportClient({
 
   const loadTickets = useCallback(async () => {
     const res = await fetch(`/api/support/tickets${scopeAll ? '?scope=all' : ''}`, { cache: 'no-store' })
-    if (res.ok) setTickets((await res.json()).tickets || [])
+    if (res.ok) {
+      const j = await res.json()
+      setTickets(j.tickets || [])
+      setCanSeeAll(!!j.canSeeAll)
+    }
     setLoading(false)
   }, [scopeAll])
 
@@ -506,7 +511,8 @@ export default function SupportClient({
 
   const current = detail && detail.ticket.id === selectedId ? detail : null
   const t = current?.ticket
-  const isAdmin = me?.role === 'admin'
+  // Seul le superviseur (Aaron) voit et gère les demandes des autres
+  const isAdmin = canSeeAll
 
   return (
     <div style={{ minHeight: embedded ? '100%' : '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font, color: crmV2.text }}>

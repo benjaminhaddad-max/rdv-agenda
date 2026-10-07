@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { requireApiUser } from '@/lib/api-auth'
-import { sanitizeAttachments } from '@/lib/support-server'
+import { isSupportSupervisor, sanitizeAttachments } from '@/lib/support-server'
 
 /**
  * POST /api/support/tickets/[id]/messages — { body, attachments[] }
@@ -19,7 +19,7 @@ export async function POST(
   const db = createServiceClient()
   const { data: ticket } = await db.from('support_tickets').select('author_id').eq('id', id).maybeSingle()
   if (!ticket) return NextResponse.json({ error: 'Ticket introuvable' }, { status: 404 })
-  if (ticket.author_id !== ctx.appUserId && ctx.role !== 'admin') {
+  if (ticket.author_id !== ctx.appUserId && !(await isSupportSupervisor(ctx))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
