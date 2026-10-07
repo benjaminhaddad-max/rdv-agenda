@@ -100,7 +100,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Gestion',
     items: [
       { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: LayoutDashboard, ready: true },
-      { key: 'errors', label: 'Erreurs', href: '/admin/errors', icon: AlertTriangle, badgeKey: 'errors', ready: true },
+      { key: 'errors', label: 'Erreurs', href: '/admin/crm-v2/errors', icon: AlertTriangle, badgeKey: 'errors', ready: true },
     ],
   },
 ]
