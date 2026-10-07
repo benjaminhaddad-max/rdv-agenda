@@ -22,7 +22,11 @@ import {
   resolveSchedule,
 } from '@/lib/events-studio/comms-schedule'
 import { emailStepsFor, smsStepsFor } from '@/lib/events-studio/comms-steps'
-import { eventHasComms, type EventBrand } from '@/lib/events-studio/config'
+import {
+  eventHasComms,
+  SALON_MEDECINE_2026_EVENT_ID,
+  type EventBrand,
+} from '@/lib/events-studio/config'
 import { brandSender, buildEmailHtmlPreview } from '@/lib/events-studio/email-html-preview'
 import {
   timeslotMergeFieldsForRegistrations,
@@ -355,8 +359,10 @@ async function sendStepToRegistrations(params: {
     ? await timeslotMergeFieldsForRegistrations(eventId, regs)
     : new Map<string, TimeslotMergeFields>()
   // Jour J : les inscrits sans créneau reçoivent à la place le SMS « choisissez
-  // votre créneau » (campagne dédiée), pas le rappel générique.
-  const skipSmsSansCreneau = usesCreneau && stepId === 'j-0-matin'
+  // votre créneau » (campagne dédiée), pas le rappel générique. Propre au salon
+  // du 19/09 : ailleurs le créneau vient du formulaire d'inscription.
+  const skipSmsSansCreneau =
+    usesCreneau && stepId === 'j-0-matin' && eventId === SALON_MEDECINE_2026_EVENT_ID
 
   const result: SendConfirmationsResult = {
     success: true,

@@ -473,7 +473,10 @@ export type TimeslotStats = {
 }
 
 function slotLabel(value: string): string {
-  return TIMESLOT_SLOTS.find((s) => s.value === value)?.label || value
+  const known = TIMESLOT_SLOTS.find((s) => s.value === value)?.label
+  if (known) return known
+  const [a, b] = value.split('-')
+  return a && b ? `${a}h – ${b}h` : value
 }
 
 export async function getTimeslotSurveyStats(formId: string): Promise<TimeslotStats> {
@@ -946,6 +949,54 @@ export async function saveTimeslotJourJ(patch: Partial<TimeslotJourJ>): Promise<
   return next
 }
 
+/**
+ * Phrases {creneau_phrase} des événements dont le formulaire d'inscription
+ * demande directement le créneau (ex. Forum des études de médecine 18/10).
+ * Sans créneau connu : phrase vide, le texte reste lisible.
+ */
+export const INSCRIPTION_TIMESLOT_PHRASES: TimeslotJourJ = {
+  smsAvecCreneau: 'Votre créneau : de {creneau_debut} à {creneau_fin}.',
+  smsSansCreneau: '',
+  emailAvecCreneau: 'Vous êtes inscrit(e) sur le créneau de {creneau_debut} à {creneau_fin}.',
+  emailSansCreneau: '',
+}
+
+/** Champ radio « créneau » à ajouter au formulaire d'inscription d'un événement. */
+export function inscriptionTimeslotField(orderIndex: number): EventFormFieldInsert {
+  return {
+    order_index: orderIndex,
+    field_type: 'radio',
+    field_key: TIMESLOT_FIELD_KEY,
+    label: 'Sur quel créneau souhaitez-vous venir ?',
+    required: true,
+    crm_field: TIMESLOT_FIELD_KEY,
+    options: TIMESLOT_SLOTS.map((s) => ({ value: s.value, label: s.label })),
+  }
+}
+
+/**
+ * Formulaires CRM liés à l'événement qui contiennent un champ « creneau ».
+ * Vide si l'événement n'a pas d'inscription par créneau.
+ */
+async function inscriptionTimeslotFormIds(eventId: string): Promise<string[]> {
+  const eventsDb = createEventsClient()
+  const { data: links } = await eventsDb
+    .from('event_forms')
+    .select('hubspot_form_id, form_type')
+    .eq('event_id', eventId)
+  const formIds = (links || [])
+    .filter((l) => (l.form_type || 'crm') === 'crm' && l.hubspot_form_id)
+    .map((l) => String(l.hubspot_form_id))
+  if (formIds.length === 0) return []
+  const db = createServiceClient()
+  const { data: fields } = await db
+    .from('form_fields')
+    .select('form_id')
+    .in('form_id', formIds)
+    .eq('field_key', TIMESLOT_FIELD_KEY)
+  return [...new Set((fields || []).map((f) => String(f.form_id)))]
+}
+
 /** « 10-12 » → début « 10h », fin « 12h ». */
 function slotBounds(value: string): { debut: string; fin: string } {
   const [a, b] = value.split('-')
@@ -965,16 +1016,27 @@ export type TimeslotMergeFields = {
  * Rattachement par contact CRM, puis email, puis téléphone : une personne peut
  * avoir répondu depuis un lien signé sans que l'inscription porte son id.
  *
- * Renvoie une map vide pour tout autre événement que le salon.
+ * Salon du 19/09 : créneau pris dans le sondage dédié. Autres événements :
+ * créneau pris dans leur propre formulaire d'inscription s'il a un champ
+ * « creneau ». Sinon, map vide.
  */
 export async function timeslotMergeFieldsForRegistrations(
   eventId: string,
   regs: { id: string; email?: string | null; phone?: string | null; hubspot_contact_id?: string | null }[],
 ): Promise<Map<string, TimeslotMergeFields>> {
   const out = new Map<string, TimeslotMergeFields>()
-  if (eventId !== SALON_MEDECINE_2026_EVENT_ID || regs.length === 0) return out
+  if (regs.length === 0) return out
 
-  const form = await ensureTimeslotSurveyForm()
+  let formIds: string[]
+  let jourJ: TimeslotJourJ
+  if (eventId === SALON_MEDECINE_2026_EVENT_ID) {
+    formIds = [(await ensureTimeslotSurveyForm()).id]
+    jourJ = await getTimeslotJourJ()
+  } else {
+    formIds = await inscriptionTimeslotFormIds(eventId)
+    if (formIds.length === 0) return out
+    jourJ = INSCRIPTION_TIMESLOT_PHRASES
+  }
   const db = createServiceClient()
 
   const byContact = new Map<string, string>()
@@ -984,7 +1046,7 @@ export async function timeslotMergeFieldsForRegistrations(
     const { data, error } = await db
       .from('form_submissions')
       .select('data, submitted_at')
-      .eq('form_id', form.id)
+      .in('form_id', formIds)
       .neq('status', 'spam')
       .order('submitted_at', { ascending: true })
       .range(from, from + 999)
@@ -1003,8 +1065,6 @@ export async function timeslotMergeFieldsForRegistrations(
     }
     if (!data || data.length < 1000) break
   }
-
-  const jourJ = await getTimeslotJourJ()
 
   for (const reg of regs) {
     const cid = String(reg.hubspot_contact_id || '').trim()
