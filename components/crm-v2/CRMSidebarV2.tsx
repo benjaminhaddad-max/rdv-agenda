@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Users, Briefcase, Mail, FileText, LayoutDashboard,
-  ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
+  ChevronLeft, ChevronRight, ChevronDown, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
   Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy,
@@ -131,6 +131,8 @@ export default function CRMSidebarV2() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [errorCount, setErrorCount] = useState(0)
   const [supportCount, setSupportCount] = useState(0)
+  // Rubriques repliées (mémorisées dans le navigateur)
+  const [foldedSections, setFoldedSections] = useState<string[]>([])
 
   // Service technique : demandes à valider par un admin + réponses non lues
   useEffect(() => {
@@ -153,7 +155,19 @@ export default function CRMSidebarV2() {
     if (typeof window === 'undefined') return
     const stored = localStorage.getItem('crm-v2-sidebar-collapsed')
     if (stored === 'true') setCollapsed(true)
+    try {
+      const folded = JSON.parse(localStorage.getItem('crm-v2-sidebar-folded-sections') || '[]')
+      if (Array.isArray(folded)) setFoldedSections(folded.filter((t): t is string => typeof t === 'string'))
+    } catch { /* ignore */ }
   }, [])
+
+  const toggleSection = (title: string) => {
+    setFoldedSections(prev => {
+      const next = prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
+      try { localStorage.setItem('crm-v2-sidebar-folded-sections', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -214,19 +228,31 @@ export default function CRMSidebarV2() {
 
   const renderNav = (onNavigate?: () => void) => (
     <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
-      {NAV_SECTIONS.map(section => (
-        <div key={section.title} style={{ marginBottom: 18 }}>
+      {NAV_SECTIONS.map(section => {
+        // En mode réduit (icônes), on affiche toujours tout. Rubrique repliée : seule la page active reste visible.
+        const folded = !collapsed && foldedSections.includes(section.title)
+        return (
+        <div key={section.title} style={{ marginBottom: folded ? 8 : 18 }}>
           {!collapsed && (
-            <div style={{
-              fontSize: 10, fontWeight: 700, color: NAVY.faint,
-              textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 8px',
-            }}>
-              {section.title}
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleSection(section.title)}
+              title={folded ? 'Déplier' : 'Replier'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 10, fontWeight: 700, color: NAVY.faint,
+                textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 8px',
+              }}
+            >
+              <span>{section.title}</span>
+              <ChevronDown size={13} style={{ transition: 'transform .15s ease', transform: folded ? 'rotate(-90deg)' : 'none' }} />
+            </button>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {section.items.map(item => {
               const active = isActive(item.href)
+              if (folded && !active) return null
               const Icon = item.icon
               const badge = badgeFor(item.badgeKey)
               const ready = item.ready ?? READY.has(item.key)
@@ -269,7 +295,8 @@ export default function CRMSidebarV2() {
             })}
           </div>
         </div>
-      ))}
+        )
+      })}
     </nav>
   )
 
