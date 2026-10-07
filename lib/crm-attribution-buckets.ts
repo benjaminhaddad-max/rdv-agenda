@@ -41,6 +41,15 @@ export const INSCRIT_LEAD_STATUSES = [
   'Pré-inscrit 2025/2026',
 ] as const
 
+/** Toutes les orthographes d'origine Thotis présentes en base ou posées par le webhook. */
+export const THOTIS_ORIGINES = [
+  'THOTIS',
+  'Thotis',
+  'Thotis - Medibox',
+  'Thotis Prospect',
+  'Thotis Suspect',
+] as const
+
 export const ETUDES_SUP_CLASSES = [
   'Etudes Sup.',
   'Autres',
@@ -68,6 +77,7 @@ export interface AttributionBucketFilters {
   classeNot?: string[]
   zone?: string[]
   zoneNot?: string[]
+  origine?: string[]
 }
 
 export interface AttributionBucketDef {
@@ -143,12 +153,21 @@ export const ATTRIBUTION_BUCKETS: AttributionBucketDef[] = [
   },
   {
     id: 'b_premiere_hors_idf',
-    name: 'Première hors IDF',
-    enabled: false,
+    name: 'Première Hors IDF',
+    enabled: true,
     filters: {
       classe: ['Première'],
-      zoneNot: ['IDF'],
+      zoneNot: ['IDF', 'Proche IDF'],
     },
+  },
+  {
+    id: 'b_leads_thotis',
+    name: 'Leads Thotis',
+    enabled: true,
+    filters: {
+      origine: [...THOTIS_ORIGINES],
+    },
+    note: 'Toutes classes et zones, origine Thotis.',
   },
   {
     id: 'b_etudes_sup_autres',
@@ -203,6 +222,14 @@ export function bucketBaseGroups(bucket: AttributionBucketDef): CRMFilterGroup[]
       'zone',
       f.zoneNot.length > 1 ? 'is_none' : 'is_not',
       f.zoneNot.join(','),
+    ))
+  }
+  if (f.origine && f.origine.length > 0) {
+    rules.push(makeRule(
+      `${bucket.id}_r_origine`,
+      'source',
+      f.origine.length > 1 ? 'is_any' : 'is',
+      f.origine.join(','),
     ))
   }
   return [{ id: `${bucket.id}_g`, rules }]
