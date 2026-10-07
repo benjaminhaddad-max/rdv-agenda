@@ -1,16 +1,26 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, type ReactNode } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  StickyNote, Mail, Phone, CheckSquare, Calendar, ChevronDown, ChevronRight,
-  Plus, Search, Settings, DollarSign, User,
+  StickyNote, Mail, Phone, CheckSquare, Calendar, Plus, User, Briefcase, MapPin,
+  Check, X, ExternalLink, SlidersHorizontal, Clock, ChevronDown,
 } from 'lucide-react'
 import QuickActionModal, { type QuickActionType } from '@/components/crm/QuickActionModal'
 import { resolveActivityAuthorLabel } from '@/lib/activity-author'
 import { usePageTitle } from '@/components/DocumentTitle'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2, crmV2ActivityColors } from '@/lib/crm-v2-theme'
+import { getStageMeta, PIPELINES } from '@/lib/crm-stages'
+import {
+  CrmV2Page, CrmV2Button, CrmV2Spinner, CrmV2Empty, CrmV2Section, CrmV2StatusPill, CrmV2Pill,
+  CrmV2Avatar, CrmV2Drawer, CrmV2CloseButton, CrmV2Search, CrmV2Input, CrmV2Select, hexA,
+} from '@/components/crm-v2/primitives'
+import {
+  RecordHeader, RecordMeta, RecordBody, RecordCard, RecordSideStack, PropRow, RoundIconButton, EmptyBlock,
+} from '@/components/crm-v2/deal/RecordParts'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -52,6 +62,7 @@ interface DealDetails {
   properties: CRMProperty[]
   groups: Record<string, CRMProperty[]>
   activities: Activity[]
+  tasks?: Array<Record<string, Any>>
   owners?: Owner[]
 }
 
@@ -86,6 +97,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const [quickAction, setQuickAction] = useState<QuickActionType | null>(null)
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; hubspot_owner_id?: string | null } | null>(null)
   const [crmUsers, setCrmUsers] = useState<Array<{ id: string; name: string; email?: string | null; hubspot_owner_id?: string | null; hubspot_user_id?: string | null }>>([])
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     fetch('/api/me')
@@ -113,11 +125,11 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => { load() }, [load])
 
-  if (loading) return <div className="p-8 text-gray-500">Chargement…</div>
-  if (err) return <div className="p-8 text-red-600">Erreur : {err}</div>
-  if (!data) return <div className="p-8">Aucune donnée.</div>
+  if (loading) return <CrmV2Page><CrmV2Spinner /></CrmV2Page>
+  if (err) return <CrmV2Page><CrmV2Empty icon={<Briefcase size={26} />} title="Erreur de chargement" description={`Erreur : ${err}`} /></CrmV2Page>
+  if (!data) return <CrmV2Page><CrmV2Empty icon={<Briefcase size={26} />} title="Aucune donnée." /></CrmV2Page>
 
-  const { deal, contact, appointment, properties, groups, activities, owners = [] } = data
+  const { deal, contact, appointment, properties, groups, activities, tasks = [], owners = [] } = data
 
   // Options pour les dropdowns "Propriétaire" / "Téléprospecteur"
   const ownerOptions = owners.map(o => ({
@@ -242,201 +254,307 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
 
   const toggleGroup = (g: string) => setCollapsed(s => ({ ...s, [g]: !s[g] }))
 
+  // ── Rendu (gabarit B) ──────────────────────────────────────────────────────
+
+  const contactName = contact ? [contact.firstname, contact.lastname].filter(Boolean).join(' ') : ''
+  const stageMeta = deal.dealstage ? getStageMeta(String(deal.dealstage)) : undefined
+  const pipelineLabel = deal.pipeline ? PIPELINES[String(deal.pipeline)]?.label : undefined
+  const ownerName = deal.hubspot_owner_id ? ownerLabel(String(deal.hubspot_owner_id)) : null
+  const titleText = (deal.dealname as string) || '(sans nom)'
+  const initials = titleText.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('')
+  const classe = contact?.classe_actuelle as string | undefined
+  const zone = (contact?.zone_localite || contact?.departement) as string | undefined
+
+  const tlTabs: { id: TimelineTab; label: string }[] = [
+    { id: 'all', label: 'Toutes' },
+    { id: 'note', label: 'Notes' },
+    { id: 'email', label: 'E-mails' },
+    { id: 'call', label: 'Appels' },
+    { id: 'task', label: 'Tâches' },
+    { id: 'meeting', label: 'Réunions' },
+  ]
+
+  // Éditeur en ligne d'une propriété (liste ou texte)
+  const renderEditor = (propName: string, opts: Array<{ value: string; label: string }> | null | undefined) => (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }} onClick={e => e.stopPropagation()}>
+      {opts ? (
+        <CrmV2Select value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus style={{ height: 32, flex: 1, minWidth: 0 }}>
+          <option value="">—</option>
+          {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </CrmV2Select>
+      ) : (
+        <CrmV2Input value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus style={{ height: 32, flex: 1, minWidth: 0 }} />
+      )}
+      <RoundIconButton icon={<Check size={14} />} variant="primary" title="Enregistrer" onClick={() => saveProp(propName, editValue)} disabled={saving} />
+      <RoundIconButton icon={<X size={14} />} title="Annuler" onClick={() => setEditing(null)} />
+    </div>
+  )
+
+  const empty = <span style={{ color: crmV2.textFaint }}>—</span>
+
   return (
-    <div className="min-h-screen bg-[#f7f4ee] text-[#0e1e35]">
-      <div className="bg-white border-b px-3 md:px-5 py-2 flex items-center gap-3 text-sm">
-        <Link href="/admin/crm" className="text-[#506e91] hover:text-[#0070e0]">← Transactions</Link>
-      </div>
+    <CrmV2Page style={isMobile ? undefined : { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <RecordHeader
+        back={{ href: '/admin/crm/transactions', label: 'Transactions' }}
+        avatar={initials || <Briefcase size={22} />}
+        title={titleText}
+        meta={contact ? (
+          <>
+            {contact.email && <RecordMeta icon={<Mail size={13} />} href={`mailto:${contact.email}`}>{contact.email as string}</RecordMeta>}
+            {contact.phone && <RecordMeta icon={<Phone size={13} />} href={`tel:${contact.phone}`}>{contact.phone as string}</RecordMeta>}
+            {zone && <RecordMeta icon={<MapPin size={13} />}>{zone}</RecordMeta>}
+          </>
+        ) : undefined}
+        actions={
+          <>
+            <CrmV2Button size={isMobile ? 'sm' : 'md'} icon={<StickyNote size={14} />} onClick={() => setQuickAction('note')}>Note</CrmV2Button>
+            <CrmV2Button size={isMobile ? 'sm' : 'md'} icon={<Mail size={14} />} onClick={() => setQuickAction('email')}>Email</CrmV2Button>
+            <CrmV2Button size={isMobile ? 'sm' : 'md'} icon={<Phone size={14} />} onClick={() => setQuickAction('call')}>Appeler</CrmV2Button>
+            <CrmV2Button size={isMobile ? 'sm' : 'md'} icon={<CheckSquare size={14} />} onClick={() => setQuickAction('task')}>Tâche</CrmV2Button>
+            <CrmV2Button size={isMobile ? 'sm' : 'md'} variant="accent" icon={<Calendar size={14} />} onClick={() => setQuickAction('meeting')}>Réunion</CrmV2Button>
+          </>
+        }
+        pills={
+          <>
+            {stageMeta && <CrmV2StatusPill label={stageMeta.label} color={stageMeta.color} bg={stageMeta.bg} size="md" />}
+            {pipelineLabel && <CrmV2Pill>{pipelineLabel}</CrmV2Pill>}
+            {(deal.formation || classe) && (
+              <CrmV2Pill style={{ background: crmV2.goldSoft, borderColor: crmV2.goldBorder, color: crmV2.goldDark, fontWeight: 700 }}>
+                {[deal.formation as string | undefined, classe].filter(Boolean).join(' · ')}
+              </CrmV2Pill>
+            )}
+            {ownerName && ownerName !== '—' && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: crmV2.textMuted, marginLeft: 4 }}>
+                <CrmV2Avatar name={ownerName} size={20} />
+                Propriétaire : {ownerName}
+              </span>
+            )}
+          </>
+        }
+      />
 
-      {/* Mobile : les 3 colonnes s'empilent (infos, timeline, associations) */}
-      <div className="grid grid-cols-1 md:grid-cols-12 md:min-h-[calc(100vh-40px)]">
-        {/* ══ Gauche ══ */}
-        <aside className="min-w-0 md:col-span-3 bg-white border-b md:border-b-0 md:border-r px-4 md:px-5 py-4 md:py-5 overflow-y-auto">
-          <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] text-white flex items-center justify-center">
-              <DollarSign size={22} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight break-words">{deal.dealname || '(sans nom)'}</h1>
-              {deal.formation && <div className="text-sm text-[#4a6070] mt-0.5">{deal.formation as string}</div>}
-            </div>
-          </div>
+      <RecordBody>
+        {/* ══ Gauche : à propos ══ */}
+        <RecordCard
+          title="À propos de la transaction"
+          collapsible
+          action={
+            <button
+              type="button"
+              onClick={() => setShowAllProps(true)}
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 600, color: crmV2.link, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+            >
+              Tout voir
+            </button>
+          }
+          bodyStyle={{ padding: '8px 8px 16px', display: 'flex', flexDirection: 'column' }}
+        >
+          {ABOUT_FIELDS.map(f => {
+            const val = allValues[f.name]
+            const meta = propMeta[f.name]
+            const isEditing = editing === f.name
+            const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'teleprospecteur'
+            const opts = isOwnerField ? ownerOptions : (meta?.field_type === 'select' || meta?.field_type === 'radio' ? meta.options : null)
+            return (
+              <PropRow
+                key={f.name}
+                label={f.label}
+                onClick={isEditing ? undefined : () => { setEditing(f.name); setEditValue(String(val ?? '')) }}
+              >
+                {isEditing ? renderEditor(f.name, opts) : (
+                  isOwnerField
+                    ? (ownerOptions.find(o => o.value === String(val))?.label ?? (formatPropValue(val, meta) || empty))
+                    : f.name === 'dealstage' && stageMeta
+                      ? <CrmV2StatusPill label={stageMeta.label} color={stageMeta.color} bg={stageMeta.bg} />
+                      : (formatPropValue(val, meta) || empty)
+                )}
+              </PropRow>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => setShowAllProps(true)}
+            style={{
+              margin: '8px 8px 0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              borderRadius: 999, padding: '9px 14px', fontSize: 13, fontWeight: 600, background: crmV2.bg,
+              border: `1px dashed ${crmV2.borderStrong}`, color: crmV2.link, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+            }}
+          >
+            <SlidersHorizontal size={14} /> Voir toutes les propriétés ({properties.length})
+          </button>
+        </RecordCard>
 
-          <div className="flex items-center justify-between gap-1 mt-5 pb-4 border-b">
-            <ActionButton icon={<StickyNote size={16} />}  label="Note"    onClick={() => setQuickAction('note')} />
-            <ActionButton icon={<Mail size={16} />}        label="E-mail"  onClick={() => setQuickAction('email')} />
-            <ActionButton icon={<Phone size={16} />}       label="Appel"   onClick={() => setQuickAction('call')} />
-            <ActionButton icon={<CheckSquare size={16} />} label="Tâche"   onClick={() => setQuickAction('task')} />
-            <ActionButton icon={<Calendar size={16} />}    label="Réunion" onClick={() => setQuickAction('meeting')} />
-          </div>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold">À propos de la transaction</h2>
-              <button className="text-xs text-[#0038f0] hover:underline">Actions</button>
-            </div>
-            <dl className="divide-y">
-              {ABOUT_FIELDS.map(f => {
-                const val = allValues[f.name]
-                const meta = propMeta[f.name]
-                const isEditing = editing === f.name
-                const isOwnerField = f.name === 'hubspot_owner_id' || f.name === 'teleprospecteur'
-                const opts = isOwnerField ? ownerOptions : (meta?.field_type === 'select' || meta?.field_type === 'radio' ? meta.options : null)
+        {/* ══ Centre : activité ══ */}
+        <RecordCard style={isMobile ? undefined : { minHeight: 0 }} bodyStyle={{ display: 'flex', flexDirection: 'column', overflowY: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0 }}>
+            <div style={{ display: 'flex', padding: '0 6px', overflowX: 'auto', scrollbarWidth: 'none', flex: 1, minWidth: 0 }}>
+              {tlTabs.map(t => {
+                const active = timelineTab === t.id
                 return (
-                  <div key={f.name} className="py-2">
-                    <dt className="text-xs text-[#4a6070] mb-0.5">{f.label}</dt>
-                    <dd className="text-sm">
-                      {isEditing ? (
-                        <div className="flex gap-1">
-                          {opts ? (
-                            <select
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              className="flex-1 px-1 py-0.5 border rounded text-xs"
-                              autoFocus
-                            >
-                              <option value="">—</option>
-                              {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                            </select>
-                          ) : (
-                            <input
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              className="flex-1 px-1 py-0.5 border rounded text-xs"
-                              autoFocus
-                            />
-                          )}
-                          <button onClick={() => saveProp(f.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0038f0] rounded text-xs">✓</button>
-                          <button onClick={() => setEditing(null)} className="px-2 border rounded text-xs">✕</button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setEditing(f.name); setEditValue(String(val ?? '')) }}
-                          className="text-left w-full block hover:text-[#0038f0]"
-                        >
-                          {isOwnerField
-                            ? (ownerOptions.find(o => o.value === String(val))?.label ?? formatPropValue(val, meta) ?? <span className="text-gray-400">—</span>)
-                            : (formatPropValue(val, meta) || <span className="text-gray-400">—</span>)}
-                        </button>
-                      )}
-                    </dd>
-                  </div>
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTimelineTab(t.id)}
+                    style={{
+                      appearance: 'none', background: 'none', border: 'none', marginBottom: -1,
+                      borderBottom: `3px solid ${active ? crmV2.text : 'transparent'}`,
+                      padding: '12px 10px', whiteSpace: 'nowrap', flexShrink: 0, fontSize: 13,
+                      fontWeight: active ? 700 : 500, color: active ? crmV2.text : crmV2.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    {t.label}
+                    <span style={{ marginLeft: 5, fontSize: 11, color: crmV2.textFaint, fontWeight: 600 }}>{counts[t.id]}</span>
+                  </button>
                 )
               })}
-            </dl>
-            <button onClick={() => setShowAllProps(true)} className="mt-3 text-xs text-[#0038f0] hover:underline">
-              Voir toutes les propriétés ({properties.length})
-            </button>
-          </div>
-        </aside>
-
-        {/* ══ Centre ══ */}
-        <section className="min-w-0 md:col-span-6 bg-[#f7f4ee] p-3 md:p-5 overflow-y-auto">
-          <div className="bg-white rounded-lg border">
-            <div className="flex border-b px-2 overflow-x-auto">
-              <TimelineTabBtn active={timelineTab === 'all'}     onClick={() => setTimelineTab('all')}     label="Toutes les activités" count={counts.all} />
-              <TimelineTabBtn active={timelineTab === 'note'}    onClick={() => setTimelineTab('note')}    label="Notes"    count={counts.note} />
-              <TimelineTabBtn active={timelineTab === 'email'}   onClick={() => setTimelineTab('email')}   label="E-mails"  count={counts.email} />
-              <TimelineTabBtn active={timelineTab === 'call'}    onClick={() => setTimelineTab('call')}    label="Appels"   count={counts.call} />
-              <TimelineTabBtn active={timelineTab === 'task'}    onClick={() => setTimelineTab('task')}    label="Tâches"   count={counts.task} />
-              <TimelineTabBtn active={timelineTab === 'meeting'} onClick={() => setTimelineTab('meeting')} label="Réunions" count={counts.meeting} />
             </div>
-            <div className="p-3 border-b">
-              <div className="relative">
-                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={timelineSearch}
-                  onChange={e => setTimelineSearch(e.target.value)}
-                  placeholder="Rechercher des activités"
-                  className="w-full pl-8 pr-3 py-1.5 border rounded text-sm"
-                />
+            <span style={{ marginRight: 8, flexShrink: 0, display: 'inline-flex' }}>
+              <RoundIconButton icon={<Plus size={15} />} title="Ajouter une note" onClick={() => setQuickAction('note')} />
+            </span>
+          </div>
+          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0 }}>
+            <CrmV2Search
+              value={timelineSearch}
+              onChange={e => setTimelineSearch(e.target.value)}
+              placeholder="Rechercher dans la timeline…"
+              style={{ background: crmV2.bgHover, borderColor: crmV2.border, minWidth: 0 }}
+            />
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: isMobile ? 'visible' : 'auto', padding: '12px 16px 20px' }}>
+            {timelineFiltered.length === 0 ? (
+              <div style={{ padding: '40px 12px', textAlign: 'center', fontSize: 13, color: crmV2.textFaint }}>
+                Aucune activité enregistrée sur cette transaction.
               </div>
-            </div>
-            <div className="p-4">
-              {timelineFiltered.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">
-                  Aucune activité enregistrée sur cette transaction.
-                </p>
-              ) : (
-                Object.entries(grouped).map(([month, items]) => (
-                  <div key={month} className="mb-5">
-                    <div className="text-xs text-[#4a6070] uppercase tracking-wide mb-2 capitalize">{month}</div>
-                    <ul className="space-y-3">
-                      {items.map(t => (
-                        <li key={t.id} className="bg-white border rounded-md p-3 hover:shadow-sm">
-                          <div className="flex items-start gap-3">
-                            <TypeIcon type={t.type} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                  <div className="text-sm font-medium max-md:break-words max-md:min-w-0">{t.title}</div>
-                                  {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#4a6070] bg-[#f7f4ee] border border-[#e5ddc8] rounded-full px-2 py-0.5">
-                                      <User size={10} />
-                                      {t.authorLabel}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-[#4a6070] whitespace-nowrap">
-                                  {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
-                                </div>
-                              </div>
-                              {t.subtitle && <div className="text-xs text-[#4a6070] mt-0.5">{t.subtitle}</div>}
-                              {t.body && (
-                                <div
-                                  className="text-sm text-[#0e1e35] mt-1.5 whitespace-pre-wrap max-md:[overflow-wrap:anywhere]"
-                                  dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+            ) : (
+              Object.entries(grouped).map(([month, items]) => (
+                <div key={month} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: crmV2.textFaint, padding: '4px 0 10px' }}>
+                    {month}
                   </div>
-                ))
-              )}
-            </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {items.map(t => (
+                      <div key={t.id} style={{ display: 'flex', gap: 12, border: `1px solid ${crmV2.border}`, borderRadius: 14, padding: '12px 14px', background: crmV2.bg }}>
+                        <TypeIcon type={t.type} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflowWrap: 'anywhere' }}>{t.title}</span>
+                            <span style={{ fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              {format(new Date(t.timestamp), "d MMM 'à' HH:mm", { locale: fr })}
+                            </span>
+                          </div>
+                          {(t.subtitle || (t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type))) && (
+                            <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              {t.authorLabel && ['note', 'call', 'email', 'meeting'].includes(t.type) && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <User size={11} />{t.authorLabel}
+                                </span>
+                              )}
+                              {t.subtitle && <span>{t.subtitle}</span>}
+                            </div>
+                          )}
+                          {t.body && (
+                            <div
+                              style={{ fontSize: 13, lineHeight: 1.5, marginTop: 6, color: crmV2.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                              dangerouslySetInnerHTML={{ __html: sanitize(t.body) }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        </section>
+        </RecordCard>
 
-        {/* ══ Droite ══ */}
-        <aside className="min-w-0 md:col-span-3 bg-white border-t md:border-t-0 md:border-l px-4 md:px-5 py-4 md:py-5 overflow-y-auto">
-          <Section title="Contact" count={contact ? 1 : 0}>
+        {/* ══ Droite : associations ══ */}
+        <RecordSideStack>
+          <CrmV2Section title="Contact" icon={<User size={14} />} count={contact ? 1 : 0} storageKey="crm-deal-section-contact" style={{ flexShrink: 0 }}>
             {!contact ? (
-              <EmptySection text="Aucun contact associé." />
+              <EmptyBlock text="Aucun contact associé." />
             ) : (
               <Link
                 href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
-                className="block border rounded p-3 hover:bg-[#f7f4ee]"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, border: `1px solid ${crmV2.border}`, textDecoration: 'none', color: crmV2.text }}
               >
-                <div className="text-sm font-medium text-[#0038f0]">
-                  {[contact.firstname, contact.lastname].filter(Boolean).join(' ') || '—'}
-                </div>
-                {contact.email && <div className="text-xs text-[#4a6070] mt-0.5">{contact.email as string}</div>}
-                {contact.phone && <div className="text-xs text-[#4a6070]">{contact.phone as string}</div>}
+                <CrmV2Avatar name={contactName || '?'} size={32} radius="36%" />
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: crmV2.link, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {contactName || '—'}
+                  </span>
+                  {contact.email && <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.email as string}</span>}
+                  {contact.phone && <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted }}>{contact.phone as string}</span>}
+                </span>
+                <ExternalLink size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
               </Link>
             )}
-          </Section>
+          </CrmV2Section>
 
-          <Section title="RDV" count={appointment ? 1 : 0}>
+          <CrmV2Section title="Rendez-vous" icon={<Calendar size={14} />} count={appointment ? 1 : 0} storageKey="crm-deal-section-rdv" style={{ flexShrink: 0 }}>
             {!appointment ? (
-              <EmptySection text="Aucun RDV associé." />
+              <EmptyBlock text="Aucun RDV associé." />
             ) : (
-              <div className="border rounded p-3 text-sm">
-                <div>{appointment.start_at ? format(new Date(appointment.start_at as string), 'PPp', { locale: fr }) : '—'}</div>
-                <div className="text-xs text-[#4a6070]">{appointment.status as string}</div>
+              <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: 10, fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700 }}>
+                    {appointment.start_at ? format(new Date(appointment.start_at as string), 'PPp', { locale: fr }) : '—'}
+                  </span>
+                  {appointment.status && <CrmV2Pill>{appointment.status as string}</CrmV2Pill>}
+                </div>
                 {appointment.notes !== undefined && appointment.notes !== null && appointment.notes !== '' && (
-                  <div className="text-sm mt-2 whitespace-pre-wrap">{appointment.notes as string}</div>
+                  <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', color: crmV2.textMuted, fontSize: 12, lineHeight: 1.5 }}>{appointment.notes as string}</div>
                 )}
               </div>
             )}
-          </Section>
-        </aside>
-      </div>
+          </CrmV2Section>
 
-      {/* Modal Quick Action */}
+          <CrmV2Section
+            title="Tâches"
+            icon={<CheckSquare size={14} />}
+            count={tasks.length}
+            storageKey="crm-deal-section-tasks"
+            style={{ flexShrink: 0 }}
+            actions={<RoundIconButton icon={<Plus size={14} />} title="Nouvelle tâche" onClick={() => setQuickAction('task')} />}
+          >
+            {tasks.length === 0 ? (
+              <EmptyBlock text="Aucune tâche." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {tasks.map(task => {
+                  const done = task.status === 'completed' || !!task.completed_at
+                  return (
+                    <div key={String(task.id)} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                        border: `1.5px solid ${done ? crmV2.successStrong : crmV2.borderStrong}`,
+                        background: done ? crmV2.successStrong : 'transparent',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {done && <Check size={10} color="#fff" strokeWidth={3} />}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, textDecoration: done ? 'line-through' : 'none', color: done ? crmV2.textMuted : crmV2.text, overflowWrap: 'anywhere' }}>
+                          {(task.title as string) || 'Tâche'}
+                        </div>
+                        {task.due_at && (
+                          <div style={{ fontSize: 11, color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Clock size={11} />
+                            {format(new Date(task.due_at as string), "d MMM 'à' HH:mm", { locale: fr })}
+                            {task.owner_id ? ` · ${ownerLabel(String(task.owner_id))}` : ''}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CrmV2Section>
+        </RecordSideStack>
+      </RecordBody>
+
+      {/* Modale d'action rapide */}
       {quickAction && (
         <QuickActionModal
           type={quickAction}
@@ -449,145 +567,93 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         />
       )}
 
-      {/* Modal props */}
-      {showAllProps && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 md:p-4" onClick={() => setShowAllProps(false)}>
-          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b">
-              <h2 className="text-lg font-semibold">Toutes les propriétés ({properties.length})</h2>
-              <button onClick={() => setShowAllProps(false)} className="text-[#4a6070] hover:text-black">✕</button>
+      {/* Toutes les propriétés */}
+      <CrmV2Drawer
+        open={showAllProps}
+        onClose={() => setShowAllProps(false)}
+        width={560}
+        header={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>Toutes les propriétés ({properties.length})</div>
+              <CrmV2CloseButton onClick={() => setShowAllProps(false)} />
             </div>
-            <div className="px-5 py-3 border-b">
-              <input
-                type="text"
-                value={propSearch}
-                onChange={e => setPropSearch(e.target.value)}
-                placeholder="Rechercher une propriété..."
-                className="w-full px-3 py-2 border rounded text-sm"
-              />
-            </div>
-            <div className="overflow-y-auto flex-1 p-5">
-              {!properties.length && (
-                <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded">
-                  Metadata propriétés absente — lance un full sync.
-                </p>
-              )}
-              {Object.entries(filteredGroups).map(([group, props]) => (
-                <div key={group} className="mb-3 border rounded">
-                  <button
-                    onClick={() => toggleGroup(group)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-[#f7f4ee] text-sm font-medium"
-                  >
-                    <span>{formatGroup(group)} ({props.length})</span>
-                    {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  {!collapsed[group] && (
-                    <dl className="divide-y text-sm">
-                      {props.map(p => {
-                        const val = allValues[p.name] ?? ''
-                        const isEditing = editing === p.name
-                        return (
-                          <div key={p.name} className="px-3 py-2 grid grid-cols-5 gap-2">
-                            <dt className="col-span-2 text-xs text-[#4a6070]">{p.label || p.name}</dt>
-                            <dd className="col-span-3 text-xs">
-                              {isEditing ? (
-                                <div className="flex gap-1">
-                                  {p.field_type === 'select' && p.options ? (
-                                    <select value={editValue} onChange={e => setEditValue(e.target.value)} className="w-full px-1 py-0.5 border rounded text-xs" autoFocus>
-                                      <option value="">—</option>
-                                      {p.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                    </select>
-                                  ) : (
-                                    <input value={editValue} onChange={e => setEditValue(e.target.value)} className="w-full px-1 py-0.5 border rounded text-xs" autoFocus />
-                                  )}
-                                  <button onClick={() => saveProp(p.name, editValue)} disabled={saving} className="px-2 text-white bg-[#0038f0] rounded text-xs">✓</button>
-                                  <button onClick={() => setEditing(null)} className="px-2 border rounded text-xs">✕</button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => { setEditing(p.name); setEditValue(String(val ?? '')) }}
-                                  className="text-left w-full block break-words hover:text-[#0038f0]"
-                                >
-                                  {formatPropValue(val, p) || <span className="text-gray-400">—</span>}
-                                </button>
-                              )}
-                            </dd>
-                          </div>
-                        )
-                      })}
-                    </dl>
-                  )}
-                </div>
-              ))}
-            </div>
+            <CrmV2Search
+              value={propSearch}
+              onChange={e => setPropSearch(e.target.value)}
+              placeholder="Rechercher une propriété…"
+              style={{ minWidth: 0 }}
+            />
           </div>
+        }
+      >
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {!properties.length && (
+            <p style={{ margin: 0, fontSize: 13, color: '#8a6d22', background: crmV2.goldSoft, padding: 12, borderRadius: 10 }}>
+              Métadonnées des propriétés absentes — lancez une synchronisation complète.
+            </p>
+          )}
+          {Object.entries(filteredGroups).map(([group, props]) => (
+            <div key={group} style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden' }}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  padding: '10px 12px', background: crmV2.thBg, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: crmV2.textMuted,
+                }}
+              >
+                <span>{formatGroup(group)} ({props.length})</span>
+                <span style={{ display: 'inline-flex', transform: collapsed[group] ? 'rotate(-90deg)' : 'none', transition: 'transform .15s' }}>
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+              {!collapsed[group] && (
+                <div style={{ padding: '4px 4px 6px' }}>
+                  {props.map(p => {
+                    const val = allValues[p.name] ?? ''
+                    const isEditing = editing === p.name
+                    return (
+                      <PropRow
+                        key={p.name}
+                        label={p.label || p.name}
+                        onClick={isEditing ? undefined : () => { setEditing(p.name); setEditValue(String(val ?? '')) }}
+                      >
+                        {isEditing
+                          ? renderEditor(p.name, p.field_type === 'select' && p.options ? p.options : null)
+                          : (formatPropValue(val, p) || empty)}
+                      </PropRow>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+      </CrmV2Drawer>
+    </CrmV2Page>
   )
 }
 
-function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1 py-1.5 px-2 rounded hover:bg-[#f7f4ee] text-[#506e91] w-full cursor-pointer"
-      title={label}
-    >
-      <div className="w-7 h-7 rounded-full border-2 border-[#e5ddc8] flex items-center justify-center">{icon}</div>
-      <span className="text-[10px]">{label}</span>
-    </button>
-  )
-}
-
-function TimelineTabBtn({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-2.5 text-sm border-b-2 whitespace-nowrap ${
-        active ? 'border-[#0038f0] text-[#0e1e35] font-semibold' : 'border-transparent text-[#4a6070] hover:text-[#0e1e35]'
-      }`}
-    >
-      {label} {count > 0 && <span className="text-xs text-[#4a6070]">({count})</span>}
-    </button>
-  )
-}
-
+/** Icône ronde colorée d'une activité (couleurs du brief V2). */
 function TypeIcon({ type }: { type: string }) {
-  const map: Record<string, { icon: React.ReactNode; bg: string }> = {
-    note:    { icon: <StickyNote size={14} />, bg: 'bg-[#fef3c7] text-[#92400e]' },
-    email:   { icon: <Mail size={14} />,       bg: 'bg-[#dbeafe] text-[#1e40af]' },
-    call:    { icon: <Phone size={14} />,      bg: 'bg-[#dcfce7] text-[#166534]' },
-    task:    { icon: <CheckSquare size={14} />, bg: 'bg-[#f3f4f6] text-[#374151]' },
-    meeting: { icon: <Calendar size={14} />,   bg: 'bg-[#f3e8ff] text-[#6b21a8]' },
+  const map: Record<string, { icon: ReactNode; color: string }> = {
+    note:    { icon: <StickyNote size={15} />,  color: crmV2ActivityColors.note },
+    email:   { icon: <Mail size={15} />,        color: crmV2ActivityColors.email },
+    call:    { icon: <Phone size={15} />,       color: crmV2ActivityColors.call },
+    task:    { icon: <CheckSquare size={15} />, color: crmV2ActivityColors.task },
+    meeting: { icon: <Calendar size={15} />,    color: crmV2ActivityColors.meeting },
   }
   const m = map[type] ?? map.note
   return (
-    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${m.bg}`}>{m.icon}</div>
-  )
-}
-
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true)
-  return (
-    <div className="mb-3">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between py-1.5 text-sm font-semibold hover:bg-[#f7f4ee] px-1 rounded">
-        <div className="flex items-center gap-1">
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <span>{title}{count !== undefined && ` (${count})`}</span>
-        </div>
-        <div className="flex gap-1 items-center">
-          <span className="text-[#0038f0]"><Plus size={14} /></span>
-          <span className="text-[#4a6070]"><Settings size={13} /></span>
-        </div>
-      </button>
-      {open && <div className="mt-1">{children}</div>}
+    <div style={{
+      width: 32, height: 32, borderRadius: '50%', background: hexA(m.color, 0.12), color: m.color,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      {m.icon}
     </div>
   )
-}
-
-function EmptySection({ text }: { text: string }) {
-  return <div className="text-xs text-[#4a6070] text-center py-3 px-2 border border-dashed rounded">{text}</div>
 }
 
 function labelForType(t: string) {

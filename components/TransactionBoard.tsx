@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ArrowDown, Check, Clock, GripVertical, Phone, Trash2, Undo2 } from 'lucide-react'
 import type { TransactionDetail } from './TransactionDetailPanel'
 import { getStagesForPipeline, getStageMeta } from '@/lib/crm-stages'
 import { isDeletableStage, DELETE_LOCK_MESSAGE } from '@/lib/dealstage-rules'
@@ -8,9 +9,15 @@ import {
   parcoursupVerdictBadgeStyle,
   parcoursupVerdictDefaultLabel,
 } from '@/lib/parcoursup-verdict'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { CrmV2Avatar, CrmV2Button } from '@/components/crm-v2/primitives'
 
 // ── Stage config ─────────────────────────────────────────────────────────────
 // Mapping centralise dans @/lib/crm-stages (couvre les 4 pipelines).
+
+// Stages amont 2026-2027 : la classe et le téléphone n'ont d'intérêt que là.
+const AMONT_IDS = ['3165428979', '3165428980', '3165428981']
 
 // ── Undo action type ─────────────────────────────────────────────────────────
 
@@ -35,6 +42,74 @@ interface Props {
   pipelineId?: string
 }
 
+// ── Pastilles des cartes ─────────────────────────────────────────────────────
+
+const pillBase: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 999, padding: '1px 8px',
+  fontSize: 11, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
+}
+
+function FormationPill({ value }: { value: string }) {
+  return (
+    <span style={{ ...pillBase, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, color: crmV2.goldDark, fontWeight: 700 }}>
+      {value}
+    </span>
+  )
+}
+
+function ClassePill({ value }: { value: string }) {
+  return (
+    <span style={{ ...pillBase, background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, color: crmV2.textMuted, fontWeight: 600 }}>
+      {value}
+    </span>
+  )
+}
+
+/** Verdict Parcoursup 2026 : visible dès qu'on connaît le verdict, sur toutes les colonnes. */
+function VerdictPill({ deal }: { deal: TransactionDetail }) {
+  const verdict = deal.contact?.parcoursup_verdict
+  if (!verdict || (!verdict.status && !verdict.label)) return null
+  const status = (verdict.status || '').toLowerCase()
+  const style = parcoursupVerdictBadgeStyle(status)
+  const label = verdict.label || parcoursupVerdictDefaultLabel(status) || 'Verdict'
+  return (
+    <span
+      title={`Parcoursup 2026 — ${label}`}
+      style={{ ...pillBase, background: style.bg, color: style.fg, border: `1px solid ${style.border}`, fontWeight: 700, fontSize: 10, gap: 5 }}
+    >
+      <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: style.dot, flexShrink: 0 }} />
+      {label}
+    </span>
+  )
+}
+
+function shortDate(iso: string | null) {
+  if (!iso) return null
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
+/** Case à cocher ronde (sélection multiple). */
+function SelectBox({ checked, size = 18, onClick }: { checked: boolean; size?: number; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <span
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onClick}
+      onMouseDown={e => e.stopPropagation()}
+      draggable={false}
+      style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        border: `1.5px solid ${checked ? crmV2.gold : crmV2.borderStrong}`,
+        background: checked ? crmV2.gold : crmV2.bg,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        transition: 'all 0.12s',
+      }}
+    >
+      {checked && <Check size={size - 7} color="#fff" strokeWidth={3} />}
+    </span>
+  )
+}
+
 // ── Deal Card ────────────────────────────────────────────────────────────────
 
 function DealCard({
@@ -51,9 +126,9 @@ function DealCard({
 }) {
   const [hovered, setHovered] = useState(false)
   const contactName = [deal.contact?.firstname, deal.contact?.lastname].filter(Boolean).join(' ')
-  const closerInitials = deal.closer?.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-
   const showCheckbox = selectionActive || hovered
+  const isAmont = AMONT_IDS.includes(deal.dealstage ?? '')
+  const when = shortDate(deal.closedate)
 
   return (
     <div
@@ -62,7 +137,7 @@ function DealCard({
         if (dragCount > 1) {
           const badge = document.createElement('div')
           badge.textContent = `${dragCount} transactions`
-          badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#C9A84C;color:#0e1e35;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+          badge.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:${crmV2.primary};color:#fff;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;font-family:${crmV2.font};white-space:nowrap;`
           document.body.appendChild(badge)
           e.dataTransfer.setDragImage(badge, 0, 0)
           setTimeout(() => document.body.removeChild(badge), 0)
@@ -80,146 +155,66 @@ function DealCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: isSelected ? '#f7f4ee' : '#ffffff',
-        border: `1px solid ${isSelected ? '#C9A84C' : '#e5ddc8'}`,
-        borderRadius: 8,
-        padding: '10px 12px',
+        background: isSelected ? 'rgba(201,168,76,0.06)' : crmV2.bg,
+        border: `1px solid ${isSelected ? crmV2.gold : hovered ? crmV2.borderStrong : crmV2.border}`,
+        borderRadius: 12,
+        boxShadow: crmV2.shadow,
+        padding: 12,
         cursor: 'grab',
-        transition: 'all 0.12s',
+        transition: 'border-color 0.12s, background 0.12s',
         userSelect: 'none',
         position: 'relative',
+        flexShrink: 0,
       }}
     >
       {showCheckbox && (
-        <div
-          onClick={e => { e.stopPropagation(); onToggleSelect() }}
-          style={{
-            position: 'absolute', top: 6, right: 6, width: 18, height: 18,
-            borderRadius: 4,
-            border: `2px solid ${isSelected ? '#C9A84C' : '#3a5a7a'}`,
-            background: isSelected ? '#C9A84C' : '#ffffff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', transition: 'all 0.12s', zIndex: 2,
-          }}
-        >
-          {isSelected && (
-            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-              <path d="M1 4L3.5 6.5L9 1" stroke="#f7f4ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-        </div>
+        <span style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, display: 'inline-flex' }}>
+          <SelectBox checked={isSelected} onClick={e => { e.stopPropagation(); onToggleSelect() }} />
+        </span>
       )}
 
       <div style={{
-        fontSize: 12, fontWeight: 600, color: '#0e1e35',
+        fontSize: 13, fontWeight: 700, color: crmV2.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        marginBottom: 4, paddingRight: showCheckbox ? 22 : 0,
+        paddingRight: showCheckbox ? 24 : 0,
       }}>
         {deal.dealname || '(sans nom)'}
       </div>
-
-      {contactName && (
-        <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {contactName && contactName !== deal.dealname && (
+        <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {contactName}
         </div>
       )}
 
-      {/* Verdict Parcoursup 2026 : visible des qu'on connait le verdict, */}
-      {/* sur toutes les cases (amont + aval). */}
-      {(() => {
-        const verdict = deal.contact?.parcoursup_verdict
-        if (!verdict || (!verdict.status && !verdict.label)) return null
-        const status = (verdict.status || '').toLowerCase()
-        const style = parcoursupVerdictBadgeStyle(status)
-        const label = verdict.label || parcoursupVerdictDefaultLabel(status) || 'Verdict'
-        return (
-          <div style={{ marginBottom: 6 }}>
-            <span
-              title={`Parcoursup 2026 — ${label}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '2px 7px',
-                borderRadius: 999,
-                fontSize: 10,
-                fontWeight: 700,
-                lineHeight: 1.1,
-                background: style.bg,
-                color: style.fg,
-                border: `1px solid ${style.border}`,
-                whiteSpace: 'nowrap',
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  display: 'inline-block',
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  background: style.dot,
-                  flexShrink: 0,
-                }}
-              />
-              {label}
-            </span>
-          </div>
-        )
-      })()}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        {deal.formation && <FormationPill value={deal.formation} />}
+        {deal.contact?.classe_actuelle && <ClassePill value={deal.contact.classe_actuelle} />}
+        <VerdictPill deal={deal} />
+      </div>
 
-      {/* Classe actuelle + telephone : uniquement pour les stages amont
-          (A Replanifier, RDV Pris, Delai Reflexion). Inutile sur les stages aval. */}
-      {['3165428979','3165428980','3165428981'].includes(deal.dealstage ?? '') &&
-        (deal.contact?.classe_actuelle || deal.contact?.phone) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-          {deal.contact?.classe_actuelle && (
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#0e1e35', background: '#eef3f8', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-              {deal.contact.classe_actuelle}
+      {/* Téléphone : uniquement pour les stages amont (inutile en aval) */}
+      {isAmont && deal.contact?.phone && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+          <Phone size={11} />
+          {deal.contact.phone}
+        </div>
+      )}
+
+      {(deal.closer || when) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, fontSize: 11, color: crmV2.textFaint }}>
+          {deal.closer ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }} title={deal.closer.name}>
+              <CrmV2Avatar name={deal.closer.name} color={deal.closer.avatar_color || crmV2.gold} size={20} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deal.closer.name}</span>
             </span>
-          )}
-          {deal.contact?.phone && (
-            <span style={{ fontSize: 10, color: '#4a6070', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-              {deal.contact.phone}
+          ) : <span />}
+          {when && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <Clock size={11} />{when}
             </span>
           )}
         </div>
       )}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        {deal.formation ? (
-          <span style={{
-            background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.25)',
-            borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#C9A84C',
-            whiteSpace: 'nowrap',
-          }}>
-            {deal.formation}
-          </span>
-        ) : <span />}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {deal.closer && (
-            <div
-              title={deal.closer.name}
-              style={{
-                width: 20, height: 20, borderRadius: '50%', background: deal.closer.avatar_color || '#4f6ef7',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 8, fontWeight: 700, color: '#fff',
-              }}
-            >
-              {closerInitials}
-            </div>
-          )}
-          {deal.closedate && (
-            <span style={{ fontSize: 10, color: '#0e1e35' }}>
-              {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-            </span>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
@@ -264,11 +259,11 @@ function ColumnDropZone({
       {(over || isActive) && (
         <div style={{
           width: 4,
-          background: over ? '#4cabdb' : 'rgba(76,171,219,0.3)',
+          background: over ? crmV2.link : 'rgba(0,145,174,0.3)',
           borderRadius: 4,
           margin: '8px 0',
           transition: 'all 0.15s',
-          boxShadow: over ? '0 0 12px rgba(76,171,219,0.5)' : 'none',
+          boxShadow: over ? '0 0 12px rgba(0,145,174,0.45)' : 'none',
         }} />
       )}
     </div>
@@ -342,20 +337,19 @@ function BoardColumn({
         }
       }}
       style={{
-        flex: '0 0 220px',
-        minWidth: 220,
-        maxWidth: 280,
+        width: 250,
+        flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: isOver ? 'rgba(204,172,113,0.08)' : 'transparent',
-        borderRadius: 10,
-        border: `2px solid ${isOver ? '#C9A84C' : '#e5ddc8'}`,
-        transition: 'all 0.15s',
+        background: isOver ? 'rgba(201,168,76,0.08)' : crmV2.bgHover,
+        borderRadius: crmV2.radiusLg,
+        border: `1px solid ${isOver ? crmV2.gold : crmV2.border}`,
+        transition: 'background 0.15s, border-color 0.15s',
         overflow: 'hidden',
         opacity: isDraggingColumn ? 0.5 : 1,
       }}
     >
-      {/* Header — draggable to REORDER columns */}
+      {/* En-tête — glissable pour RÉORDONNER les colonnes */}
       <div
         draggable
         onDragStart={e => {
@@ -364,79 +358,64 @@ function BoardColumn({
         }}
         onMouseEnter={() => setHeaderHovered(true)}
         onMouseLeave={() => setHeaderHovered(false)}
+        title="Glisser pour réordonner les colonnes"
         style={{
-          padding: '10px 12px',
-          borderBottom: `2px solid ${stage.color}`,
-          background: '#ffffff',
+          padding: '12px 14px',
+          background: crmV2.bg,
+          borderBottom: `1px solid ${crmV2.border}`,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          gap: 8,
           flexShrink: 0,
           cursor: 'grab',
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {(headerHovered || selectionActive) && deals.length > 0 && (
-            <div
-              onClick={e => { e.stopPropagation(); e.preventDefault(); onSelectAllInColumn(stageId) }}
-              onMouseDown={e => e.stopPropagation()}
-              draggable={false}
-              style={{
-                width: 16, height: 16, borderRadius: 3,
-                border: `2px solid ${allInColumnSelected ? '#C9A84C' : '#3a5a7a'}`,
-                background: allInColumnSelected ? '#C9A84C' : '#ffffff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              {allInColumnSelected && (
-                <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4L3.5 6.5L9 1" stroke="#f7f4ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </div>
-          )}
-          <span style={{ fontSize: 12 }}>{stage.emoji}</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: stage.color }}>{stage.label}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {headerHovered && (
-            <span style={{ fontSize: 9, color: '#4a6070', whiteSpace: 'nowrap' }}>
-              ⇄ glisser
-            </span>
-          )}
-          <span style={{
-            background: `${stage.color}20`,
-            color: stage.color,
-            borderRadius: 10,
-            padding: '2px 8px',
-            fontSize: 11,
-            fontWeight: 700,
-          }}>
-            {deals.length}
-          </span>
-        </div>
+        {(headerHovered || selectionActive) && deals.length > 0 ? (
+          <SelectBox
+            checked={allInColumnSelected}
+            size={16}
+            onClick={e => { e.stopPropagation(); e.preventDefault(); onSelectAllInColumn(stageId) }}
+          />
+        ) : (
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+        )}
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {stage.label}
+        </span>
+        {headerHovered && <GripVertical size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />}
+        <span style={{
+          background: stage.bg,
+          color: stage.color,
+          borderRadius: 999,
+          padding: '1px 8px',
+          fontSize: 11,
+          fontWeight: 700,
+          flexShrink: 0,
+        }}>
+          {deals.length}
+        </span>
       </div>
 
-      {/* Deal drop indicator */}
+      {/* Indicateur de dépôt */}
       {isOver && (
         <div style={{
-          padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700,
-          color: '#C9A84C', background: 'rgba(204,172,113,0.06)',
-          borderBottom: '1px solid rgba(204,172,113,0.15)',
+          padding: '6px 0', fontSize: 12, fontWeight: 700,
+          color: crmV2.goldDark, background: crmV2.goldSoft,
+          borderBottom: `1px solid ${crmV2.goldBorder}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
         }}>
-          ↓ Déposer ici
+          <ArrowDown size={13} /> Déposer ici
         </div>
       )}
 
-      {/* Cards */}
+      {/* Cartes */}
       <div style={{
-        flex: 1, overflowY: 'auto', padding: '8px 6px',
-        display: 'flex', flexDirection: 'column', gap: 6,
+        flex: 1, minHeight: 0, overflowY: 'auto', padding: 10,
+        display: 'flex', flexDirection: 'column', gap: 8,
       }}>
         {deals.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#a89e8a', fontSize: 11 }}>
+          <div style={{ textAlign: 'center', padding: '30px 10px', color: crmV2.textFaint, fontSize: 12 }}>
             Aucune transaction
           </div>
         ) : (
@@ -462,12 +441,103 @@ function BoardColumn({
   )
 }
 
+// ── Mobile (M4) : pastilles d'étapes qui défilent + cartes ───────────────────
+
+function MobileBoard({
+  stageOrder, columns, onSelectDeal,
+}: {
+  stageOrder: string[]
+  columns: Record<string, TransactionDetail[]>
+  onSelectDeal: (deal: TransactionDetail) => void
+}) {
+  const [active, setActive] = useState<string | null>(null)
+  const current = active && stageOrder.includes(active) ? active : stageOrder[0]
+  const deals = columns[current] ?? []
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{
+        display: 'flex', gap: 6, padding: '12px', overflowX: 'auto', scrollbarWidth: 'none',
+        background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0,
+      }}>
+        {stageOrder.map(stageId => {
+          const s = getStageMeta(stageId)
+          if (!s) return null
+          const on = stageId === current
+          return (
+            <button
+              key={stageId}
+              type="button"
+              onClick={() => setActive(stageId)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+                borderRadius: 999, padding: '0 12px', height: 36, fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                background: on ? crmV2.primary : crmV2.bg, color: on ? '#fff' : crmV2.text,
+                border: `1px solid ${on ? crmV2.primary : crmV2.borderStrong}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.color }} />
+              {s.label}
+              <span style={{ fontWeight: 600, opacity: 0.75 }}>{(columns[stageId] ?? []).length}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {deals.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 10px', color: crmV2.textFaint, fontSize: 13 }}>Aucune transaction</div>
+        ) : deals.map(deal => {
+          const contactName = [deal.contact?.firstname, deal.contact?.lastname].filter(Boolean).join(' ')
+          const when = shortDate(deal.closedate)
+          return (
+            <button
+              key={deal.hubspot_deal_id}
+              type="button"
+              onClick={() => onSelectDeal(deal)}
+              style={{
+                appearance: 'none', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', width: '100%',
+                background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+                boxShadow: crmV2.shadow, padding: '12px 14px', flexShrink: 0, color: crmV2.text,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deal.dealname || contactName || '(sans nom)'}
+                </span>
+                {when && (
+                  <span style={{ fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Clock size={11} />{when}
+                  </span>
+                )}
+              </div>
+              {(deal.formation || deal.contact?.classe_actuelle || deal.contact?.parcoursup_verdict) && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {deal.formation && <FormationPill value={deal.formation} />}
+                  {deal.contact?.classe_actuelle && <ClassePill value={deal.contact.classe_actuelle} />}
+                  <VerdictPill deal={deal} />
+                </div>
+              )}
+              {deal.closer && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12, color: crmV2.textMuted }}>
+                  <CrmV2Avatar name={deal.closer.name} color={deal.closer.avatar_color || crmV2.gold} size={20} />
+                  Closer : {deal.closer.name}
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Board ───────────────────────────────────────────────────────────────
 
 export default function TransactionBoard({
   columns, onStageChange, onBatchStageChange, onDeleteDeals, onSelectDeal,
   undoAction, onUndo, pipelineId,
 }: Props) {
+  const isMobile = useIsMobile()
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set())
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null)
@@ -536,8 +606,8 @@ export default function TransactionBoard({
 
     const stageName = getStageMeta(stageId)?.label ?? stageId
     const badge = document.createElement('div')
-    badge.textContent = `⇄ ${stageName}`
-    badge.style.cssText = 'position:fixed;top:-1000px;left:-1000px;background:#4cabdb;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:system-ui;white-space:nowrap;'
+    badge.textContent = stageName
+    badge.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:${crmV2.link};color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700;font-family:${crmV2.font};white-space:nowrap;`
     document.body.appendChild(badge)
     e.dataTransfer.setDragImage(badge, 0, 0)
     setTimeout(() => document.body.removeChild(badge), 0)
@@ -561,7 +631,7 @@ export default function TransactionBoard({
     // Lock UI : on verifie la transition AVANT d'appeler les handlers parents.
     // Stages aval (3165428982/83/84/85) -> non modifiables manuellement.
     // Exception : amont -> Ferme Perdu (3165428985) autorise.
-    const AMONT = new Set(['3165428979', '3165428980', '3165428981'])
+    const AMONT = new Set(AMONT_IDS)
     const FERME = '3165428985'
     const allowed = (from: string, to: string): boolean => {
       if (!from || !to) return false
@@ -619,120 +689,94 @@ export default function TransactionBoard({
   }
 
   const hasSelection = selectedDeals.size > 0
+  const gutter = isMobile ? 12 : 28
+  const barStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '8px 8px 8px 16px', borderRadius: crmV2.radiusLg, margin: `12px ${gutter}px 0`, flexShrink: 0,
+    // Passe à la ligne sur petit écran (sans effet sur desktop)
+    flexWrap: 'wrap', gap: 8,
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
-      {/* Undo bar */}
+      {/* Barre d'annulation */}
       {undoAction && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 16px',
-          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
-          borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
-          // Passe à la ligne sur petit écran (sans effet sur desktop)
-          flexWrap: 'wrap', rowGap: 6,
-        }}>
-          <span style={{ fontSize: 12, color: '#ef4444' }}>
+        <div style={{ ...barStyle, background: crmV2.dangerSoft, border: '1px solid rgba(242,84,91,0.30)' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#d13a41' }}>
             {undoAction.label}
           </span>
-          <button
-            onClick={onUndo}
-            style={{
-              background: '#ef4444', border: 'none',
-              borderRadius: 6, padding: '5px 14px', color: '#fff', fontSize: 12,
-              cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            ↩ Annuler (Ctrl+Z)
-          </button>
+          <CrmV2Button variant="danger" size="sm" icon={<Undo2 size={14} />} onClick={onUndo}>
+            Annuler (Ctrl+Z)
+          </CrmV2Button>
         </div>
       )}
 
-      {/* Selection bar */}
+      {/* Barre de sélection */}
       {hasSelection && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 16px',
-          background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.25)',
-          borderRadius: 8, margin: '8px 0 0', flexShrink: 0,
-          // Passe à la ligne sur petit écran (sans effet sur desktop)
-          flexWrap: 'wrap', rowGap: 6,
-        }}>
+        <div style={{ ...barStyle, background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', rowGap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.goldDark }}>
               {selectedDeals.size} transaction{selectedDeals.size > 1 ? 's' : ''} sélectionnée{selectedDeals.size > 1 ? 's' : ''}
             </span>
-            <span style={{ fontSize: 11, color: '#4a6070' }}>
+            <span style={{ fontSize: 12, color: crmV2.textMuted }}>
               Glissez une carte sélectionnée pour déplacer le groupe
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={handleDeleteSelected}
-              style={{
-                background: '#ef4444', border: '1px solid #ef4444',
-                borderRadius: 6, padding: '4px 12px', color: '#fff', fontSize: 11,
-                cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              🗑 Supprimer
-            </button>
-            <button
-              onClick={() => setSelectedDeals(new Set())}
-              style={{
-                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 6, padding: '4px 12px', color: '#ef4444', fontSize: 11,
-                cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
-              }}
-            >
+            <CrmV2Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={handleDeleteSelected}>
+              Supprimer
+            </CrmV2Button>
+            <CrmV2Button variant="secondary" size="sm" onClick={() => setSelectedDeals(new Set())}>
               Tout désélectionner
-            </button>
+            </CrmV2Button>
           </div>
         </div>
       )}
 
-      {/* Columns with drop zones between them */}
-      <div
-        onDragEnd={() => setDraggingColumn(null)}
-        style={{
-          display: 'flex', gap: 0, flex: 1,
-          overflowX: 'auto', overflowY: 'hidden', padding: '12px 0',
-        }}
-      >
-        {stageOrder.map((stageId, idx) => (
-          <div key={stageId} style={{ display: 'flex' }}>
-            {/* Drop zone BEFORE this column */}
-            <ColumnDropZone
-              isActive={draggingColumn !== null && draggingColumn !== stageId && (idx === 0 || stageOrder[idx - 1] !== draggingColumn)}
-              onDrop={(draggedId) => handleColumnDrop(idx, draggedId)}
-            />
-            <BoardColumn
-              stageId={stageId}
-              deals={columns[stageId] ?? []}
-              onSelectDeal={onSelectDeal}
-              dragOverStage={dragOverStage}
-              setDragOverStage={setDragOverStage}
-              selectedDeals={selectedDeals}
-              onToggleSelect={toggleSelect}
-              onSelectAllInColumn={selectAllInColumn}
-              onDragStartMulti={handleDragStart}
-              onDropDeals={handleDropDeals}
-              onColumnDragStart={handleColumnDragStart}
-              isDraggingColumn={draggingColumn === stageId}
-            />
-            {/* Drop zone AFTER the last column */}
-            {idx === stageOrder.length - 1 && (
+      {isMobile ? (
+        <MobileBoard stageOrder={stageOrder} columns={columns} onSelectDeal={onSelectDeal} />
+      ) : (
+        /* Colonnes, avec zones de dépôt entre elles */
+        <div
+          onDragEnd={() => setDraggingColumn(null)}
+          style={{
+            display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch',
+            overflowX: 'auto', overflowY: 'hidden', padding: `16px ${gutter}px 20px`,
+          }}
+        >
+          {stageOrder.map((stageId, idx) => (
+            <div key={stageId} style={{ display: 'flex', flexShrink: 0 }}>
+              {/* Zone de dépôt AVANT cette colonne */}
               <ColumnDropZone
-                isActive={draggingColumn !== null && draggingColumn !== stageId}
-                onDrop={(draggedId) => handleColumnDrop(stageOrder.length, draggedId)}
+                isActive={draggingColumn !== null && draggingColumn !== stageId && (idx === 0 || stageOrder[idx - 1] !== draggingColumn)}
+                onDrop={(draggedId) => handleColumnDrop(idx, draggedId)}
               />
-            )}
-          </div>
-        ))}
-      </div>
+              <BoardColumn
+                stageId={stageId}
+                deals={columns[stageId] ?? []}
+                onSelectDeal={onSelectDeal}
+                dragOverStage={dragOverStage}
+                setDragOverStage={setDragOverStage}
+                selectedDeals={selectedDeals}
+                onToggleSelect={toggleSelect}
+                onSelectAllInColumn={selectAllInColumn}
+                onDragStartMulti={handleDragStart}
+                onDropDeals={handleDropDeals}
+                onColumnDragStart={handleColumnDragStart}
+                isDraggingColumn={draggingColumn === stageId}
+              />
+              {/* Zone de dépôt APRÈS la dernière colonne */}
+              {idx === stageOrder.length - 1 && (
+                <ColumnDropZone
+                  isActive={draggingColumn !== null && draggingColumn !== stageId}
+                  onDrop={(draggedId) => handleColumnDrop(stageOrder.length, draggedId)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,20 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Search, X, ChevronDown, ChevronUp, LayoutDashboard, Users, ExternalLink,
-  ArrowUpDown, GraduationCap, MapPin, BookOpen, Phone, Mail, RefreshCw,
-  LayoutGrid, List, Plus, Save, Check, SlidersHorizontal, Trash2, Copy,
+  X, ExternalLink, MapPin, BookOpen, RefreshCw, Briefcase,
+  Kanban, List, Plus, Save, Check, SlidersHorizontal, Trash2, Copy,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import LogoutButton from '@/components/LogoutButton'
 import TransactionBoard from '@/components/TransactionBoard'
 import type { UndoAction } from '@/components/TransactionBoard'
 import type { TransactionDetail } from '@/components/TransactionDetailPanel'
 import { isAllowedManualTransition, MANUAL_LOCK_MESSAGE } from '@/lib/dealstage-rules'
 import { getCached, refetch, jsonFetcher } from '@/lib/client-cache'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { PIPELINES, getStageMeta } from '@/lib/crm-stages'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import {
+  CrmV2Page, CrmV2Button, CrmV2Search, CrmV2Select, CrmV2Segmented, CrmV2FilterPill,
+  CrmV2TableCard, CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Pagination, CrmV2Empty,
+  CrmV2Spinner, CrmV2StatusPill, CrmV2Card, CrmV2Pill,
+} from '@/components/crm-v2/primitives'
 
 // Panel detail ouvert seulement quand on selectionne une transaction.
 const TransactionDetailPanel = dynamic(() => import('@/components/TransactionDetailPanel'), { ssr: false })
@@ -52,15 +57,10 @@ interface StatsData {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const STAGE_MAP: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
-  '3165428979': { label: 'À Replanifier',        color: '#ef4444', bg: 'rgba(239,68,68,0.10)',  emoji: '🔴' },
-  '3165428980': { label: 'RDV Pris',              color: '#4cabdb', bg: 'rgba(76,171,219,0.10)',  emoji: '🔵' },
-  '3165428981': { label: 'Délai Réflexion',       color: '#C9A84C', bg: 'rgba(204,172,113,0.10)', emoji: '🟡' },
-  '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.10)',   emoji: '🟢' },
-  '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.10)',  emoji: '🟣' },
-  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.10)',   emoji: '✅' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070', bg: 'rgba(85,88,112,0.10)',   emoji: '⚫' },
-}
+// Étapes 2026-2027 (couleurs centralisées dans lib/crm-stages.ts)
+const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = Object.fromEntries(
+  PIPELINES['2313043166'].stages.map(s => [s.id, { label: s.label, color: s.color, bg: s.bg }]),
+)
 
 const FORMATION_OPTIONS = [
   '', 'PASS', 'LSPS', 'LAS', 'P-1', 'P-2', 'PAES FR', 'PAES EU', 'LSPS2 UPEC', 'LSPS3 UPEC',
@@ -135,7 +135,7 @@ function getFieldOptions(field: FilterField): string[] {
 function formatFieldValue(field: FilterField, value: string): string {
   if (field === 'stage') {
     const s = STAGE_MAP[value]
-    return s ? `${s.emoji} ${s.label}` : value
+    return s ? s.label : value
   }
   if (field === 'parcoursup_verdict') {
     return PARCOURSUP_VERDICT_FILTER_OPTIONS.find(o => o.value === value)?.label ?? value
@@ -241,137 +241,20 @@ function dealMatchesRules(deal: Transaction | TransactionDetail, rules: FilterRu
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function StageBadge({ stageId }: { stageId: string | null }) {
-  if (!stageId) return <span style={{ color: '#4a6070', fontSize: 12 }}>—</span>
-  const s = STAGE_MAP[stageId]
-  if (!s) return <span style={{ fontSize: 12, color: '#4a6070' }}>{stageId}</span>
-  return (
-    <span style={{
-      background: s.bg,
-      color: s.color,
-      border: `1px solid ${s.color}33`,
-      borderRadius: 6,
-      padding: '4px 10px',
-      fontSize: 12,
-      fontWeight: 700,
-      whiteSpace: 'nowrap',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 5,
-    }}>
-      <span style={{ fontSize: 10 }}>{s.emoji}</span>
-      {s.label}
-    </span>
-  )
+  if (!stageId) return <span style={{ color: crmV2.textFaint, fontSize: 12 }}>—</span>
+  const s = getStageMeta(stageId)
+  if (!s) return <span style={{ fontSize: 12, color: crmV2.textMuted }}>{stageId}</span>
+  return <CrmV2StatusPill label={s.label} color={s.color} bg={s.bg} />
 }
 
-function Avatar({ name, color, size = 26 }: { name: string; color?: string; size?: number }) {
-  const initials = name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: color || '#4f6ef7',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size <= 22 ? 9 : 10, fontWeight: 700, color: '#fff', flexShrink: 0,
-    }}>
-      {initials || '?'}
-    </div>
-  )
-}
-
-// ── Dropdown Filter ──────────────────────────────────────────────────────────
-
-function DropFilter({
-  value, onChange, options, placeholder, format,
-}: {
-  value: string
-  onChange: (v: string) => void
-  options: string[]
-  placeholder: string
-  format?: (v: string) => string
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const isActive = value !== ''
-
-  useEffect(() => {
-    if (!open) return
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          background: isActive ? 'rgba(204,172,113,0.08)' : '#f7f4ee',
-          border: `1px solid ${isActive ? 'rgba(204,172,113,0.35)' : '#e5ddc8'}`,
-          borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-          color: isActive ? '#C9A84C' : '#4a6070', fontSize: 12, fontFamily: 'inherit',
-          fontWeight: isActive ? 600 : 400,
-          display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-          transition: 'all 0.15s',
-        }}
-      >
-        {isActive ? (format ? format(value) : value) : placeholder}
-        <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 200,
-          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', padding: '4px 0',
-          maxHeight: 280, overflowY: 'auto', minWidth: '100%',
-        }}>
-          {options.map(opt => (
-            <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false) }}
-              style={{
-                display: 'block', width: '100%', background: value === opt ? 'rgba(204,172,113,0.12)' : 'transparent',
-                border: 'none', padding: '8px 14px', fontSize: 12, cursor: 'pointer',
-                color: value === opt ? '#C9A84C' : '#4a6070', fontFamily: 'inherit',
-                fontWeight: value === opt ? 700 : 400, textAlign: 'left', whiteSpace: 'nowrap',
-              }}
-            >
-              {opt === '' ? placeholder : (format ? format(opt) : opt)}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Sortable Column Header ───────────────────────────────────────────────────
-
-function SortHeader({
-  label, col, currentSort, currentOrder, onSort,
-}: {
-  label: string; col: SortCol; currentSort: SortCol; currentOrder: 'asc' | 'desc'
-  onSort: (col: SortCol) => void
-}) {
-  const isActive = currentSort === col
-  return (
-    <button
-      onClick={() => onSort(col)}
-      style={{
-        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-        color: isActive ? '#C9A84C' : '#475569', fontFamily: 'inherit',
-        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-      }}
-    >
-      {label}
-      {isActive ? (
-        currentOrder === 'asc' ? <ChevronUp size={10} /> : <ChevronDown size={10} />
-      ) : (
-        <ArrowUpDown size={9} style={{ opacity: 0.4 }} />
-      )}
-    </button>
-  )
-}
+const SORT_COLUMNS: { label: string; col: SortCol }[] = [
+  { label: 'Transaction', col: 'dealname' },
+  { label: 'Formation', col: 'formation' },
+  { label: 'Classe actuelle', col: 'classe' },
+  { label: 'Zone / Localité', col: 'zone' },
+  { label: 'Étape', col: 'stage' },
+  { label: 'Créé le', col: 'created' },
+]
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
@@ -432,9 +315,6 @@ export default function TransactionsPage() {
   // Sort (list only)
   const [sortCol, setSortCol]     = useState<SortCol>('created')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-
-  // Expanded row (list only)
-  const [expanded, setExpanded]   = useState<string | null>(null)
 
   const LIMIT = 50
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -939,570 +819,433 @@ export default function TransactionsPage() {
     setFilterRules(updated)
   }
 
-  const stageOptions = ['', ...Object.keys(STAGE_MAP)]
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f7f4ee', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+  // ── Rendu ─────────────────────────────────────────────────────────────────
 
-      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
-      {/* Mobile : logo masqué, recherche sur sa propre ligne en pleine largeur */}
-      <div style={{
-        padding: isMobile ? '8px 12px' : '0 20px', height: isMobile ? 'auto' : 52, background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-        ...(isMobile ? { flexWrap: 'wrap' as const, gap: 8 } : {}),
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          {!isMobile && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-diploma.svg" alt="Diploma Santé" style={{ height: 28, width: 'auto' }} />
-              <div style={{ width: 1, height: 22, background: '#e5ddc8' }} />
-            </>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <GraduationCap size={14} style={{ color: '#C9A84C' }} />
-            <span style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700 }}>Transactions</span>
-            <select
-              value={season}
-              onChange={e => setSeason(e.target.value)}
-              style={{
-                fontSize: 12, fontWeight: 600, color: '#C9A84C',
-                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 6,
-                padding: '3px 6px', cursor: 'pointer', marginLeft: 4,
-                ...(isMobile ? { minWidth: 0, maxWidth: 130 } : {}),
-              }}
-            >
-              {SEASONS.map(s => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...(isMobile ? { display: 'contents' } : {}) }}>
-          {/* Recherche transactions (par nom de transaction OU contact) */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', ...(isMobile ? { order: 10, flex: '1 1 100%' } : {}) }}>
-            <Search size={13} style={{ position: 'absolute', left: 8, color: '#4a6070', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              placeholder="Rechercher une transaction..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: isMobile ? '8px 28px' : '5px 28px 5px 28px', color: '#0e1e35', fontSize: isMobile ? 16 : 12,
-                width: isMobile ? '100%' : 220, outline: 'none',
-              }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                style={{
-                  position: 'absolute', right: 6, background: 'transparent', border: 'none',
-                  cursor: 'pointer', color: '#4a6070', display: 'flex', padding: 2,
-                }}
-                aria-label="Effacer la recherche"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-          {/* Mobile : liens réduits à l'icône, regroupés à droite */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...(isMobile ? { marginLeft: 'auto' } : { display: 'contents' }) }}>
-          <a href="/admin/crm" title="CRM Contacts" style={{
-            background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: isMobile ? '7px 9px' : '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-            <Users size={12} />{!isMobile && ' CRM Contacts'}
-          </a>
-          <a href="/admin" title="Dashboard" style={{
-            background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-            padding: isMobile ? '7px 9px' : '5px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-            <LayoutDashboard size={12} />{!isMobile && ' Dashboard'}
-          </a>
-          <LogoutButton />
-          </div>
-        </div>
-      </div>
+  const gutter = isMobile ? 12 : 28
+  const seasonLabel = SEASONS.find(s => s.id === season)?.label ?? ''
+  const subtitle = `${season === 'all' ? 'Toutes saisons' : `Diploma Santé ${seasonLabel}`} · ${displayTotal.toLocaleString('fr-FR')} transaction${displayTotal > 1 ? 's' : ''}`
 
-      {/* ── Stats bar ────────────────────────────────────────────────────────── */}
-      <div style={{
-        padding: isMobile ? '8px 12px' : '10px 20px', background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0, gap: isMobile ? 8 : 12, flexWrap: 'wrap',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexWrap: 'wrap', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#0e1e35' }}>{displayTotal.toLocaleString('fr-FR')}</span>
-            <span style={{ fontSize: 12, color: '#4a6070' }}>transactions</span>
-          </div>
-          {displayStats && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap', minWidth: 0 }}>
-              {Object.entries(displayStats.stages).sort((a, b) => b[1] - a[1]).map(([id, count]) => {
-                const s = STAGE_MAP[id]
-                if (!s) return null
-                return (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      if (viewMode === 'list') {
-                        setStage(stage === id ? '' : id)
-                        scheduleRefetch()
-                      }
-                    }}
-                    style={{
-                      background: stage === id ? s.bg : 'transparent',
-                      border: `1px solid ${stage === id ? s.color + '55' : 'transparent'}`,
-                      borderRadius: 6, padding: '3px 8px',
-                      cursor: viewMode === 'list' ? 'pointer' : 'default',
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <span style={{ fontSize: 9 }}>{s.emoji}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{count}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+  const fieldStyle: React.CSSProperties = { height: 34, fontSize: 13, width: 'auto' }
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* View mode toggle */}
-          <div style={{
-            display: 'flex', background: '#f7f4ee', borderRadius: 8, border: '1px solid #e5ddc8',
-            overflow: 'hidden',
-          }}>
-            <button
-              onClick={() => switchView('board')}
-              style={{
-                background: viewMode === 'board' ? 'rgba(204,172,113,0.15)' : 'transparent',
-                border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'board' ? '#C9A84C' : '#4a6070', fontSize: 12,
-                display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
-                fontWeight: viewMode === 'board' ? 700 : 400,
-                borderRight: '1px solid #e5ddc8',
-              }}
-            >
-              <LayoutGrid size={12} /> Board
-            </button>
-            <button
-              onClick={() => switchView('list')}
-              style={{
-                background: viewMode === 'list' ? 'rgba(204,172,113,0.15)' : 'transparent',
-                border: 'none', padding: '6px 12px', cursor: 'pointer',
-                color: viewMode === 'list' ? '#C9A84C' : '#4a6070', fontSize: 12,
-                display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
-                fontWeight: viewMode === 'list' ? 700 : 400,
-              }}
-            >
-              <List size={12} /> Liste
-            </button>
-          </div>
+  // Sélecteur de saison (pipeline)
+  const seasonSelect = (
+    <CrmV2Select
+      value={season}
+      onChange={e => setSeason(e.target.value)}
+      aria-label="Saison"
+      style={{ height: 36, width: 'auto', borderRadius: 999, fontWeight: 600, paddingRight: 8, ...(isMobile ? { flexShrink: 0 } : {}) }}
+    >
+      {SEASONS.map(s => (
+        <option key={s.id} value={s.id}>{s.label}</option>
+      ))}
+    </CrmV2Select>
+  )
 
+  // Barre d'outils : recherche, étapes (liste), filtres avancés
+  const toolbar = (
+    <>
+      {/* Recherche transactions (par nom de transaction OU contact) */}
+      <div style={{ position: 'relative', display: 'flex', ...(isMobile ? { flex: '1 1 100%' } : {}) }}>
+        <CrmV2Search
+          placeholder="Rechercher une transaction…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: isMobile ? '100%' : 260, paddingRight: search ? 34 : 14 }}
+        />
+        {search && (
           <button
-            onClick={() => viewMode === 'board' ? fetchBoard() : fetchList(true)}
-            disabled={loading}
+            type="button"
+            onClick={() => setSearch('')}
+            aria-label="Effacer la recherche"
             style={{
-              background: 'rgba(76,171,219,0.12)', border: '1px solid rgba(76,171,219,0.3)',
-              borderRadius: 8, padding: '6px 12px', color: '#4cabdb', fontSize: 12,
-              cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 600, fontFamily: 'inherit',
+              position: 'absolute', right: 6, top: 4, width: 28, height: 28, borderRadius: 999,
+              background: 'transparent', border: 'none', cursor: 'pointer', color: crmV2.textFaint,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} />
-            Rafraîchir
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {isMobile && seasonSelect}
+      <CrmV2FilterPill
+        label={<><SlidersHorizontal size={14} />Filtres avancés</>}
+        active={filterPanelOpen || filterRules.length > 0}
+        count={filterRules.length}
+        onClick={() => setFilterPanelOpen(o => !o)}
+      />
+      {/* Étapes : filtre rapide en vue Liste */}
+      {viewMode === 'list' && displayStats && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', minWidth: 0, ...(isMobile ? { flex: '1 1 100%', overflowX: 'auto', scrollbarWidth: 'none' } : {}) }}>
+          {Object.entries(displayStats.stages).sort((a, b) => b[1] - a[1]).map(([id, count]) => {
+            const s = getStageMeta(id)
+            if (!s) return null
+            const on = stage === id
+            return (
+              <button
+                key={id}
+                type="button"
+                title={s.label}
+                onClick={() => {
+                  setStage(stage === id ? '' : id)
+                  scheduleRefetch()
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+                  borderRadius: 999, padding: '0 12px', height: 32, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                  background: on ? s.bg : crmV2.bg, color: on ? s.color : crmV2.text, cursor: 'pointer',
+                  border: `1px solid ${on ? s.color : crmV2.borderStrong}`,
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.color }} />
+                {s.label}
+                <span style={{ color: on ? s.color : crmV2.textFaint }}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+
+  // Panneau des filtres avancés
+  const filterPanel = filterPanelOpen && (
+    <CrmV2Card style={{
+      flexBasis: '100%', padding: isMobile ? 12 : 16, boxShadow: 'none', background: crmV2.bgHover,
+      ...(isMobile ? { maxHeight: '50vh', overflowY: 'auto' as const } : {}),
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        marginBottom: filterRules.length > 0 ? 12 : 0,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text }}>Filtres avancés</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {hasFilters && (
+            <CrmV2Button variant="danger" size="sm" icon={<X size={13} />} onClick={() => { resetFilters(); scheduleRefetch() }}>
+              Tout effacer
+            </CrmV2Button>
+          )}
+          <button
+            type="button"
+            onClick={() => setFilterPanelOpen(false)}
+            aria-label="Fermer les filtres"
+            style={{
+              width: 32, height: 32, borderRadius: 999, border: 'none', background: 'transparent',
+              color: crmV2.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={15} />
           </button>
         </div>
       </div>
 
-      {/* ── Views Tab Bar ───────────────────────────────────────────────────── */}
-      <div style={{
-        padding: isMobile ? '0 8px' : '0 20px', background: '#ffffff',
-        borderBottom: '1px solid #e5ddc8', flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 0,
-        overflowX: 'auto', overflowY: 'hidden',
-      }}>
-        {views.map(view => {
-          const isActive = activeViewId === view.id
-          const isRenaming = renamingViewId === view.id
-          const stageRule = view.rules.find(r => r.field === 'stage' && r.operator === 'is')
+      {/* Règles de filtre */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filterRules.map((rule, idx) => {
+          const fieldDef = FILTER_FIELDS.find(f => f.key === rule.field)
+          const operators = operatorsForField(rule.field)
+          const options = getFieldOptions(rule.field)
+          const showValue = needsValue(rule.operator)
+          const isSelectField = fieldDef?.type === 'select'
 
           return (
-            <div
-              key={view.id}
-              onClick={() => { if (!isRenaming) applyView(view) }}
-              onDoubleClick={() => {
-                if (!view.isDefault) {
-                  setRenamingViewId(view.id)
-                  setRenameValue(view.name)
-                }
-              }}
-              style={{
-                padding: '10px 14px',
-                borderBottom: `2px solid ${isActive ? '#C9A84C' : 'transparent'}`,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s',
-                flexShrink: 0,
-              }}
-            >
-              {isRenaming ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') renameView(view.id, renameValue)
-                    if (e.key === 'Escape') setRenamingViewId(null)
-                  }}
-                  onBlur={() => renameView(view.id, renameValue)}
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
-                    borderRadius: 4, padding: '2px 6px', color: '#C9A84C',
-                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                    outline: 'none', width: Math.max(60, renameValue.length * 8),
-                  }}
-                />
-              ) : (
-                <span style={{
-                  fontSize: 13, fontWeight: isActive ? 700 : 600,
-                  color: '#0F1F3D',
-                }}>
-                  {view.name}
-                </span>
+            <div key={rule.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: crmV2.bg, borderRadius: 12,
+              border: `1px solid ${crmV2.border}`, padding: isMobile ? 8 : '8px 12px',
+              ...(isMobile ? { flexWrap: 'wrap' as const } : {}),
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, width: 26, textAlign: 'center', flexShrink: 0 }}>
+                {idx === 0 ? 'OÙ' : 'ET'}
+              </span>
+
+              <CrmV2Select
+                value={rule.field}
+                onChange={e => updateFilterRule(rule.id, { field: e.target.value as FilterField })}
+                style={{ ...fieldStyle, minWidth: 140, ...(isMobile ? { flex: 1, minWidth: 0 } : {}) }}
+              >
+                {FILTER_FIELDS.map(f => (
+                  <option key={f.key} value={f.key}>{f.label}</option>
+                ))}
+              </CrmV2Select>
+
+              <CrmV2Select
+                value={rule.operator}
+                onChange={e => updateFilterRule(rule.id, { operator: e.target.value as FilterOperator })}
+                style={{ ...fieldStyle, minWidth: 130, ...(isMobile ? { flex: 1, minWidth: 0 } : {}) }}
+              >
+                {operators.map(op => (
+                  <option key={op.key} value={op.key}>{op.label}</option>
+                ))}
+              </CrmV2Select>
+
+              {showValue && (
+                isSelectField && options.length > 0 ? (
+                  <CrmV2Select
+                    value={rule.value}
+                    onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
+                    style={{ ...fieldStyle, flex: 1, minWidth: 150, color: rule.value ? crmV2.text : crmV2.textFaint, ...(isMobile ? { flexBasis: '100%', minWidth: 0 } : {}) }}
+                  >
+                    <option value="">Sélectionner…</option>
+                    {options.map(opt => (
+                      <option key={opt} value={opt}>
+                        {formatFieldValue(rule.field, opt)}
+                      </option>
+                    ))}
+                  </CrmV2Select>
+                ) : (
+                  <input
+                    type="text"
+                    value={rule.value}
+                    onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
+                    placeholder="Valeur…"
+                    style={{
+                      height: 34, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius, padding: '0 12px',
+                      fontSize: 13, fontFamily: 'inherit', color: crmV2.text, background: crmV2.bg, outline: 'none',
+                      flex: 1, minWidth: 130, boxSizing: 'border-box',
+                      ...(isMobile ? { flexBasis: '100%', minWidth: 0, fontSize: 16 } : {}),
+                    }}
+                  />
+                )
               )}
 
-              {/* Badge: count of rules or stage count */}
-              {stageRule && displayStats?.stages[stageRule.value] != null ? (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#C9A84C' : '#475569',
-                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  {displayStats.stages[stageRule.value]}
-                </span>
-              ) : view.rules.length > 0 && !stageRule ? (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: isActive ? '#C9A84C' : '#475569',
-                  background: isActive ? 'rgba(204,172,113,0.12)' : 'rgba(58,80,112,0.15)',
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  {view.rules.length} filtre{view.rules.length > 1 ? 's' : ''}
-                </span>
-              ) : null}
-
-              {/* Delete button (not for defaults) */}
-              {!view.isDefault && isActive && !isRenaming && (
-                <button
-                  onClick={e => { e.stopPropagation(); deleteView(view.id) }}
-                  style={{
-                    background: 'none', border: 'none', padding: 0,
-                    color: '#4a6070', cursor: 'pointer', display: 'flex',
-                    marginLeft: 2,
-                  }}
-                >
-                  <X size={11} />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => duplicateFilterRule(rule.id)}
+                title="Dupliquer"
+                style={{ width: 30, height: 30, borderRadius: 999, background: 'none', border: 'none', color: crmV2.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeFilterRule(rule.id)}
+                title="Supprimer"
+                style={{ width: 30, height: 30, borderRadius: 999, background: 'none', border: 'none', color: '#d13a41', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
           )
         })}
-
-        {/* Separator */}
-        <div style={{ width: 1, height: 20, background: '#e5ddc8', margin: '0 4px', flexShrink: 0 }} />
-
-        {/* Filtres avancés button */}
-        <button
-          onClick={() => setFilterPanelOpen(o => !o)}
-          style={{
-            padding: '7px 12px', background: filterPanelOpen ? 'rgba(204,172,113,0.12)' : 'none',
-            border: filterPanelOpen ? '1px solid rgba(204,172,113,0.3)' : '1px solid transparent',
-            borderRadius: 6, color: filterRules.length > 0 ? '#C9A84C' : '#4a6070',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, fontFamily: 'inherit', fontWeight: filterRules.length > 0 ? 600 : 400,
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          <SlidersHorizontal size={12} />
-          Filtres{filterRules.length > 0 ? ` (${filterRules.length})` : ''}
-        </button>
-
-        {/* Update view button */}
-        {viewFiltersChanged && activeViewId !== 'all' && (
-          <button
-            onClick={() => updateViewFilters(activeViewId)}
-            style={{
-              padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
-              border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
-              color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              whiteSpace: 'nowrap', margin: '0 4px', flexShrink: 0,
-            }}
-          >
-            <Save size={10} /> Sauvegarder
-          </button>
-        )}
-
-        {/* Create new view */}
-        {creatingView ? (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '6px 8px', flexShrink: 0,
-          }}>
-            <input
-              autoFocus
-              value={newViewName}
-              onChange={e => setNewViewName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') createView(newViewName)
-                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
-              }}
-              placeholder="Nom de la vue…"
-              style={{
-                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
-                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
-                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 120,
-              }}
-            />
-            <button
-              onClick={() => createView(newViewName)}
-              style={{
-                background: '#C9A84C', border: 'none', borderRadius: 4,
-                padding: '3px 6px', cursor: 'pointer', display: 'flex',
-              }}
-            >
-              <Check size={12} color="#f7f4ee" />
-            </button>
-            <button
-              onClick={() => { setCreatingView(false); setNewViewName('') }}
-              style={{
-                background: 'none', border: 'none', padding: 0,
-                color: '#4a6070', cursor: 'pointer', display: 'flex',
-              }}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setCreatingView(true)}
-            style={{
-              padding: '8px 12px', background: 'none', border: 'none',
-              color: '#475569', cursor: 'pointer', display: 'flex',
-              alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
-              whiteSpace: 'nowrap', flexShrink: 0,
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
-          >
-            <Plus size={12} /> Vue
-          </button>
-        )}
       </div>
 
-      {/* ── Advanced Filter Panel ─────────────────────────────────────────────── */}
-      {filterPanelOpen && (
-        <div style={{
-          padding: isMobile ? '12px' : '16px 20px', background: '#f7f4ee',
-          borderBottom: '1px solid #e5ddc8', flexShrink: 0,
-          ...(isMobile ? { maxHeight: '50vh', overflowY: 'auto' as const } : {}),
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: filterRules.length > 0 ? 12 : 0,
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35' }}>
-              Filtres avancés
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {hasFilters && (
-                <button
-                  onClick={() => { resetFilters(); scheduleRefetch() }}
-                  style={{
-                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                    borderRadius: 6, padding: '4px 10px', color: '#ef4444', fontSize: 11,
-                    cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-                    gap: 4, fontWeight: 600,
-                  }}
-                >
-                  <X size={10} /> Tout effacer
-                </button>
-              )}
-              <button
-                onClick={() => setFilterPanelOpen(false)}
-                style={{
-                  background: 'none', border: 'none', padding: 2,
-                  color: '#4a6070', cursor: 'pointer', display: 'flex',
-                }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
+      <CrmV2Button variant="secondary" size="sm" icon={<Plus size={14} />} onClick={addFilterRule} style={{ marginTop: 10, color: crmV2.link }}>
+        Ajouter un filtre
+      </CrmV2Button>
+    </CrmV2Card>
+  )
 
-          {/* Filter rules */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filterRules.map((rule, idx) => {
-              const fieldDef = FILTER_FIELDS.find(f => f.key === rule.field)
-              const operators = operatorsForField(rule.field)
-              const options = getFieldOptions(rule.field)
-              const showValue = needsValue(rule.operator)
-              const isSelectField = fieldDef?.type === 'select'
+  // Onglets des vues enregistrées
+  const viewTabs = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 0,
+      margin: `0 -${gutter}px`, padding: `0 ${gutter}px`,
+      overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
+    }}>
+      {views.map(view => {
+        const isActive = activeViewId === view.id
+        const isRenaming = renamingViewId === view.id
+        const stageRule = view.rules.find(r => r.field === 'stage' && r.operator === 'is')
+        const stageCount = stageRule ? displayStats?.stages[stageRule.value] : undefined
 
-              return (
-                <div key={rule.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#ffffff', borderRadius: 8,
-                  border: '1px solid #e5ddc8', padding: isMobile ? '8px' : '8px 12px',
-                  ...(isMobile ? { flexWrap: 'wrap' as const } : {}),
-                }}>
-                  {/* AND label */}
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, color: '#475569',
-                    width: 24, textAlign: 'center', flexShrink: 0,
-                  }}>
-                    {idx === 0 ? 'OÙ' : 'ET'}
-                  </span>
-
-                  {/* Field selector */}
-                  <select
-                    value={rule.field}
-                    onChange={e => updateFilterRule(rule.id, { field: e.target.value as FilterField })}
-                    style={{
-                      background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6,
-                      padding: '5px 8px', color: '#4a6070', fontSize: 12,
-                      fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-                      minWidth: 130,
-                      ...(isMobile ? { flex: 1, minWidth: 0 } : {}),
-                    }}
-                  >
-                    {FILTER_FIELDS.map(f => (
-                      <option key={f.key} value={f.key}>{f.label}</option>
-                    ))}
-                  </select>
-
-                  {/* Operator selector */}
-                  <select
-                    value={rule.operator}
-                    onChange={e => updateFilterRule(rule.id, { operator: e.target.value as FilterOperator })}
-                    style={{
-                      background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6,
-                      padding: '5px 8px', color: '#4a6070', fontSize: 12,
-                      fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-                      minWidth: 120,
-                      ...(isMobile ? { flex: 1, minWidth: 0 } : {}),
-                    }}
-                  >
-                    {operators.map(op => (
-                      <option key={op.key} value={op.key}>{op.label}</option>
-                    ))}
-                  </select>
-
-                  {/* Value input */}
-                  {showValue && (
-                    isSelectField && options.length > 0 ? (
-                      <select
-                        value={rule.value}
-                        onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
-                        style={{
-                          background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6,
-                          padding: '5px 8px', color: rule.value ? '#C9A84C' : '#4a6070', fontSize: 12,
-                          fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-                          flex: 1, minWidth: 140,
-                          ...(isMobile ? { flexBasis: '100%', minWidth: 0 } : {}),
-                        }}
-                      >
-                        <option value="">Sélectionner…</option>
-                        {options.map(opt => (
-                          <option key={opt} value={opt}>
-                            {formatFieldValue(rule.field, opt)}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={rule.value}
-                        onChange={e => updateFilterRule(rule.id, { value: e.target.value })}
-                        placeholder="Valeur…"
-                        style={{
-                          background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6,
-                          padding: '5px 8px', color: '#0e1e35', fontSize: 12,
-                          fontFamily: 'inherit', outline: 'none',
-                          flex: 1, minWidth: 120,
-                          ...(isMobile ? { flexBasis: '100%', minWidth: 0 } : {}),
-                        }}
-                      />
-                    )
-                  )}
-
-                  {/* Actions */}
-                  <button
-                    onClick={() => duplicateFilterRule(rule.id)}
-                    title="Dupliquer"
-                    style={{
-                      background: 'none', border: 'none', padding: 3,
-                      color: '#475569', cursor: 'pointer', display: 'flex', flexShrink: 0,
-                    }}
-                  >
-                    <Copy size={12} />
-                  </button>
-                  <button
-                    onClick={() => removeFilterRule(rule.id)}
-                    title="Supprimer"
-                    style={{
-                      background: 'none', border: 'none', padding: 3,
-                      color: '#ef4444', cursor: 'pointer', display: 'flex', flexShrink: 0,
-                    }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Add filter button */}
-          <button
-            onClick={addFilterRule}
+        return (
+          <div
+            key={view.id}
+            onClick={() => { if (!isRenaming) applyView(view) }}
+            onDoubleClick={() => {
+              if (!view.isDefault) {
+                setRenamingViewId(view.id)
+                setRenameValue(view.name)
+              }
+            }}
+            title={view.isDefault ? undefined : 'Double-clic pour renommer'}
             style={{
-              marginTop: 10, padding: '7px 14px',
-              background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
-              borderRadius: 6, color: '#4cabdb', fontSize: 12,
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 5,
+              padding: isMobile ? '10px 12px' : '10px 14px',
+              borderBottom: `3px solid ${isActive ? crmV2.text : 'transparent'}`,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              whiteSpace: 'nowrap', flexShrink: 0,
+              fontSize: 14, fontWeight: isActive ? 600 : 500,
+              color: isActive ? crmV2.text : crmV2.textMuted,
             }}
           >
-            <Plus size={12} /> Ajouter un filtre
-          </button>
-        </div>
+            {isRenaming ? (
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') renameView(view.id, renameValue)
+                  if (e.key === 'Escape') setRenamingViewId(null)
+                }}
+                onBlur={() => renameView(view.id, renameValue)}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  border: `1px solid ${crmV2.gold}`, borderRadius: 8, padding: '2px 8px', color: crmV2.text,
+                  fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                  width: Math.max(70, renameValue.length * 8),
+                }}
+              />
+            ) : (
+              <span>{view.name}</span>
+            )}
+
+            {/* Compteur : nombre de l'étape filtrée, ou nombre de règles */}
+            {stageRule && stageCount != null ? (
+              <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>({stageCount.toLocaleString('fr-FR')})</span>
+            ) : view.rules.length > 0 && !stageRule ? (
+              <span style={{ color: crmV2.textFaint, fontWeight: 500, fontSize: 12 }}>
+                ({view.rules.length} filtre{view.rules.length > 1 ? 's' : ''})
+              </span>
+            ) : null}
+
+            {/* Suppression (vues personnalisées uniquement) */}
+            {!view.isDefault && isActive && !isRenaming && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); deleteView(view.id) }}
+                aria-label="Supprimer la vue"
+                style={{
+                  background: 'none', border: 'none', padding: 2, marginLeft: 2,
+                  color: crmV2.textFaint, cursor: 'pointer', display: 'inline-flex',
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )
+      })}
+
+      <div style={{ width: 1, height: 20, background: crmV2.border, margin: '0 6px', flexShrink: 0 }} />
+
+      {/* Mettre à jour la vue active */}
+      {viewFiltersChanged && activeViewId !== 'all' && (
+        <CrmV2Button variant="gold" size="sm" icon={<Save size={13} />} onClick={() => updateViewFilters(activeViewId)} style={{ margin: '0 4px', flexShrink: 0 }}>
+          Sauvegarder
+        </CrmV2Button>
       )}
 
-      {/* ── Content Area ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflow: viewMode === 'board' ? 'hidden' : 'auto', padding: viewMode === 'board' ? (isMobile ? '0 8px' : '0 12px') : (isMobile ? '0 12px 20px' : '0 20px 20px') }}>
+      {/* Nouvelle vue */}
+      {creatingView ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 4px', flexShrink: 0 }}>
+          <input
+            autoFocus
+            value={newViewName}
+            onChange={e => setNewViewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') createView(newViewName)
+              if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+            }}
+            placeholder="Nom de la vue…"
+            style={{
+              height: 30, border: `1px solid ${crmV2.gold}`, borderRadius: 999, padding: '0 12px', color: crmV2.text,
+              fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 140,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => createView(newViewName)}
+            aria-label="Créer la vue"
+            style={{
+              width: 30, height: 30, background: crmV2.primary, border: 'none', borderRadius: 999,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Check size={14} color="#fff" />
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCreatingView(false); setNewViewName('') }}
+            aria-label="Annuler"
+            style={{
+              width: 30, height: 30, background: 'none', border: 'none', borderRadius: 999,
+              color: crmV2.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <CrmV2Button variant="ghost" size="sm" icon={<Plus size={14} />} onClick={() => setCreatingView(true)} style={{ flexShrink: 0 }}>
+          Vue
+        </CrmV2Button>
+      )}
+    </div>
+  )
 
-        {/* ── Board View ──────────────────────────────────────────────────────── */}
+  return (
+    <CrmV2Page style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+
+      {/* ── En-tête ─────────────────────────────────────────────────────────── */}
+      <div style={{
+        background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
+        padding: isMobile ? '14px 12px 0' : '20px 28px 0', flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: isMobile ? 10 : '12px 16px', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 600, color: crmV2.text, letterSpacing: '-0.02em' }}>
+              Transactions
+            </h1>
+            <div style={{ marginTop: 4, fontSize: 13, color: crmV2.textMuted }}>{subtitle}</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+            {!isMobile && seasonSelect}
+            <CrmV2Segmented<ViewMode>
+              items={[
+                { id: 'board', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Kanban size={14} />{!isMobile && 'Tableau'}</span> },
+                { id: 'list', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><List size={14} />{!isMobile && 'Liste'}</span> },
+              ]}
+              value={viewMode}
+              onChange={switchView}
+            />
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => viewMode === 'board' ? fetchBoard() : fetchList(true)}
+                disabled={loading}
+                aria-label="Rafraîchir"
+                style={{
+                  width: 40, height: 40, borderRadius: 999, border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg,
+                  color: crmV2.text, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <RefreshCw size={16} style={{ animation: loading ? 'crm-v2-spin 0.8s linear infinite' : 'none' }} />
+              </button>
+            ) : (
+              <CrmV2Button
+                variant="secondary"
+                onClick={() => viewMode === 'board' ? fetchBoard() : fetchList(true)}
+                disabled={loading}
+                icon={<RefreshCw size={14} style={{ animation: loading ? 'crm-v2-spin 0.8s linear infinite' : 'none' }} />}
+              >
+                Rafraîchir
+              </CrmV2Button>
+            )}
+          </div>
+        </div>
+
+        {/* Vue Tableau : barre d'outils dans l'en-tête (gabarit C) */}
+        {viewMode === 'board' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: isMobile ? 12 : 16, flexWrap: 'wrap' }}>
+            {toolbar}
+            {filterPanel}
+          </div>
+        )}
+
+        <div style={{ marginTop: isMobile ? 6 : 10 }}>{viewTabs}</div>
+      </div>
+
+      {/* ── Contenu ─────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: viewMode === 'board' ? 'hidden' : 'auto' }}>
+
+        {/* ── Vue Tableau (kanban) ──────────────────────────────────────────── */}
         {viewMode === 'board' && (
           boardLoading ? (
-            <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070' }}>
-              <div style={{
-                display: 'inline-block', width: 22, height: 22,
-                border: '2px solid #e5ddc8', borderTopColor: '#4cabdb',
-                borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12,
-              }} />
-              <div style={{ fontSize: 13 }}>Chargement du board…</div>
-            </div>
+            <CrmV2Spinner />
           ) : (
             <TransactionBoard
               columns={filteredBoardColumns}
@@ -1517,195 +1260,160 @@ export default function TransactionsPage() {
           )
         )}
 
-        {/* ── List View ───────────────────────────────────────────────────────── */}
+        {/* ── Vue Liste (gabarit A) ─────────────────────────────────────────── */}
         {viewMode === 'list' && (
-          <>
-            {listLoading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070' }}>
-                <div style={{
-                  display: 'inline-block', width: 22, height: 22,
-                  border: '2px solid #e5ddc8', borderTopColor: '#4cabdb',
-                  borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12,
-                }} />
-                <div style={{ fontSize: 13 }}>Chargement des transactions…</div>
-              </div>
-            ) : transactions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070' }}>
-                <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}>📋</div>
-                <div style={{ fontWeight: 600, color: '#4a6070', marginBottom: 4 }}>Aucune transaction trouvée</div>
-                <div style={{ fontSize: 12 }}>Modifiez vos filtres ou lancez une synchronisation CRM</div>
-              </div>
-            ) : (
-              // Mobile : le conteneur scrolle horizontalement, largeur mini pour garder les colonnes lisibles
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6, ...(isMobile ? { minWidth: 820 } : {}) }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #e5ddc8' }}>
-                    {[
-                      { label: 'Transaction', col: 'dealname' as SortCol, width: '25%' },
-                      { label: 'Formation', col: 'formation' as SortCol, width: '12%' },
-                      { label: 'Classe actuelle', col: 'classe' as SortCol, width: '14%' },
-                      { label: 'Zone / Localité', col: 'zone' as SortCol, width: '16%' },
-                      { label: 'Étape', col: 'stage' as SortCol, width: '15%' },
-                      { label: 'Créé le', col: 'created' as SortCol, width: '10%' },
-                      { label: '', col: 'created' as SortCol, width: '8%' },
-                    ].map((h, i) => (
-                      <th
-                        key={i}
-                        style={{
-                          padding: '10px 12px', textAlign: 'left', whiteSpace: 'nowrap',
-                          background: '#f7f4ee', position: 'sticky', top: 0, zIndex: 10,
-                          width: h.width,
-                        }}
-                      >
-                        {i < 6 ? (
-                          <SortHeader label={h.label} col={h.col} currentSort={sortCol} currentOrder={sortOrder} onSort={handleSort} />
-                        ) : null}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+          <div style={{ padding: isMobile ? 12 : `16px ${gutter}px 20px` }}>
+            <CrmV2TableCard
+              toolbar={<>{toolbar}{filterPanel}</>}
+              footer={total > 0 ? (
+                <CrmV2Pagination page={page + 1} pageSize={LIMIT} total={total} onChange={p => setPage(Math.min(Math.max(0, p - 1), Math.max(0, totalPages - 1)))} />
+              ) : undefined}
+            >
+              {listLoading ? (
+                <CrmV2Spinner />
+              ) : transactions.length === 0 ? (
+                <CrmV2Empty
+                  icon={<Briefcase size={26} />}
+                  title="Aucune transaction trouvée"
+                  description="Modifiez vos filtres ou lancez une synchronisation CRM."
+                />
+              ) : isMobile ? (
+                // Mobile : une ligne par transaction
+                <div>
                   {transactions.map(tx => {
-                    const contactName = [tx.contact?.firstname, tx.contact?.lastname].filter(Boolean).join(' ') || '—'
-                    const zone = tx.contact?.zone_localite || tx.contact?.departement || '—'
-                    const isExpanded = expanded === tx.hubspot_deal_id
+                    const contactName = [tx.contact?.firstname, tx.contact?.lastname].filter(Boolean).join(' ')
+                    const s = tx.dealstage ? getStageMeta(tx.dealstage) : undefined
                     const createdStr = tx.createdate
                       ? new Date(tx.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })
-                      : '—'
-
+                      : ''
                     return (
-                      <Fragment key={tx.hubspot_deal_id}>
-                        <tr
-                          onClick={() => handleSelectDeal(tx as unknown as TransactionDetail)}
-                          style={{
-                            background: isExpanded ? 'rgba(241,245,249,0.6)' : 'transparent',
-                            borderBottom: `1px solid ${isExpanded ? 'transparent' : '#e5ddc8'}`,
-                            cursor: 'pointer',
-                            transition: 'background 0.12s',
-                          }}
-                          onMouseEnter={e => { if (!isExpanded) (e.currentTarget.style.background = 'rgba(248,250,252,1)') }}
-                          onMouseLeave={e => { if (!isExpanded) (e.currentTarget.style.background = 'transparent') }}
-                        >
-                          {/* Transaction name + contact */}
-                          <td style={{ padding: '11px 12px' }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>
-                              {tx.dealname || '(sans nom)'}
-                            </div>
-                            <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {contactName}
-                            </div>
-                          </td>
+                      <button
+                        key={tx.hubspot_deal_id}
+                        type="button"
+                        onClick={() => handleSelectDeal(tx as unknown as TransactionDetail)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 56, padding: '8px 12px',
+                          background: 'none', border: 'none', borderBottom: `1px solid ${crmV2.border}`, textAlign: 'left',
+                          fontFamily: 'inherit', cursor: 'pointer', color: crmV2.text,
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: s?.color ?? crmV2.borderStrong, flexShrink: 0 }} title={s?.label} />
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {tx.dealname || contactName || '(sans nom)'}
+                          </span>
+                          <span style={{ display: 'block', fontSize: 12, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                            {[s?.label, tx.formation, tx.contact?.classe_actuelle].filter(Boolean).join(' · ') || '—'}
+                          </span>
+                        </span>
+                        {createdStr && <span style={{ fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', flexShrink: 0 }}>{createdStr}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <CrmV2Table>
+                  <thead>
+                    <tr>
+                      {SORT_COLUMNS.slice(0, 1).map(h => (
+                        <CrmV2Th key={h.col} sorted={sortCol === h.col ? sortOrder : false} onClick={() => handleSort(h.col)}>{h.label}</CrmV2Th>
+                      ))}
+                      <CrmV2Th>Contact</CrmV2Th>
+                      {SORT_COLUMNS.slice(1).map(h => (
+                        <CrmV2Th key={h.col} sorted={sortCol === h.col ? sortOrder : false} onClick={() => handleSort(h.col)}>{h.label}</CrmV2Th>
+                      ))}
+                      <CrmV2Th style={{ width: 80 }}>{''}</CrmV2Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(tx => {
+                      const contactName = [tx.contact?.firstname, tx.contact?.lastname].filter(Boolean).join(' ') || '—'
+                      const zone = tx.contact?.zone_localite || tx.contact?.departement || '—'
+                      const createdStr = tx.createdate
+                        ? new Date(tx.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })
+                        : '—'
+                      const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 
-                          {/* Formation */}
-                          <td style={{ padding: '11px 12px' }}>
-                            {tx.formation ? (
+                      return (
+                        <CrmV2Tr key={tx.hubspot_deal_id} onClick={() => handleSelectDeal(tx as unknown as TransactionDetail)}>
+                          {/* Transaction */}
+                          <CrmV2Td style={{ maxWidth: 320 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                               <span style={{
-                                background: 'rgba(204,172,113,0.10)', border: '1px solid rgba(204,172,113,0.25)',
-                                borderRadius: 6, padding: '3px 9px', fontSize: 12, fontWeight: 700,
-                                color: '#C9A84C', whiteSpace: 'nowrap',
+                                width: 28, height: 28, borderRadius: 8, background: crmV2.bgSoft, color: crmV2.textMuted,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                               }}>
-                                {tx.formation}
+                                <Briefcase size={14} />
                               </span>
-                            ) : (
-                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
-                            )}
-                          </td>
-
+                              <span style={{ ...ellipsis, fontWeight: 600, color: crmV2.link }}>{tx.dealname || '(sans nom)'}</span>
+                            </div>
+                          </CrmV2Td>
+                          {/* Contact */}
+                          <CrmV2Td style={{ maxWidth: 200 }}>
+                            <div style={{ ...ellipsis, color: crmV2.textMuted }}>{contactName}</div>
+                          </CrmV2Td>
+                          {/* Formation */}
+                          <CrmV2Td>
+                            {tx.formation ? (
+                              <CrmV2Pill style={{ background: crmV2.goldSoft, borderColor: crmV2.goldBorder, color: crmV2.goldDark, fontWeight: 700 }}>
+                                {tx.formation}
+                              </CrmV2Pill>
+                            ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+                          </CrmV2Td>
                           {/* Classe */}
-                          <td style={{ padding: '11px 12px' }}>
+                          <CrmV2Td>
                             {tx.contact?.classe_actuelle ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <BookOpen size={11} style={{ color: '#5a6a7e', flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#4a6070' }}>{tx.contact.classe_actuelle}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                <BookOpen size={13} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+                                <span style={{ color: crmV2.textMuted }}>{tx.contact.classe_actuelle}</span>
                               </div>
-                            ) : (
-                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
-                            )}
-                          </td>
-
+                            ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+                          </CrmV2Td>
                           {/* Zone */}
-                          <td style={{ padding: '11px 12px' }}>
+                          <CrmV2Td style={{ maxWidth: 200 }}>
                             {zone !== '—' ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <MapPin size={11} style={{ color: '#5a6a7e', flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {zone}
-                                </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                <MapPin size={13} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
+                                <span style={{ ...ellipsis, color: crmV2.textMuted }}>{zone}</span>
                               </div>
-                            ) : (
-                              <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
-                            )}
-                          </td>
-
-                          {/* Stage */}
-                          <td style={{ padding: '11px 12px' }}>
+                            ) : <span style={{ color: crmV2.textFaint }}>—</span>}
+                          </CrmV2Td>
+                          {/* Étape */}
+                          <CrmV2Td>
                             <StageBadge stageId={tx.dealstage} />
-                          </td>
-
+                          </CrmV2Td>
                           {/* Date */}
-                          <td style={{ padding: '11px 12px' }}>
-                            <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{createdStr}</span>
-                          </td>
-
-                          {/* Lien fiche CRM */}
-                          <td style={{ padding: '11px 8px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                          <CrmV2Td>
+                            <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{createdStr}</span>
+                          </CrmV2Td>
+                          {/* Lien fiche transaction */}
+                          <CrmV2Td style={{ textAlign: 'right' }}>
                             <a
                               href={`/admin/crm/deals/${tx.hubspot_deal_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
                               style={{
-                                background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)',
-                                borderRadius: 6, padding: '4px 8px', color: '#4cabdb', fontSize: 11,
-                                textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
-                                fontWeight: 600,
+                                display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 999,
+                                border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg, padding: '4px 10px',
+                                color: crmV2.link, fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
                               }}
                             >
-                              <ExternalLink size={10} /> Fiche
+                              <ExternalLink size={12} /> Fiche
                             </a>
-                          </td>
-                        </tr>
-                      </Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, paddingBottom: 20 }}>
-                <button
-                  onClick={() => setPage(p => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  style={{
-                    background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 7,
-                    padding: '6px 16px', color: page === 0 ? '#e5ddc8' : '#4a6070',
-                    cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
-                  }}
-                >
-                  ← Précédent
-                </button>
-                <span style={{ fontSize: 12, color: '#4a6070' }}>
-                  Page {page + 1} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={page >= totalPages - 1}
-                  style={{
-                    background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 7,
-                    padding: '6px 16px', color: page >= totalPages - 1 ? '#e5ddc8' : '#4a6070',
-                    cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit',
-                  }}
-                >
-                  Suivant →
-                </button>
-              </div>
-            )}
-          </>
+                          </CrmV2Td>
+                        </CrmV2Tr>
+                      )
+                    })}
+                  </tbody>
+                </CrmV2Table>
+              )}
+            </CrmV2TableCard>
+          </div>
         )}
       </div>
 
-      {/* ── Detail Panel ─────────────────────────────────────────────────────── */}
+      {/* ── Panneau de détail (transaction sans contact) ─────────────────────── */}
       {selectedDeal && (
         <TransactionDetailPanel
           deal={selectedDeal}
@@ -1713,14 +1421,6 @@ export default function TransactionsPage() {
           onUpdate={handleDetailUpdate}
         />
       )}
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #e5ddc8; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-      `}</style>
-    </div>
+    </CrmV2Page>
   )
 }
