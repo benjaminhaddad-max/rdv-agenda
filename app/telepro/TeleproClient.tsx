@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 import SupportButton from '@/components/SupportButton'
+import SupportWidget from '@/components/SupportWidget'
 import WeekCalendar from '@/components/WeekCalendar'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
@@ -1400,6 +1401,7 @@ export default function TeleproClient({
             </a>
           )}
           {!previewMode && <SupportButton />}
+          {!previewMode && <SupportWidget />}
           {!previewMode && <LogoutButton />}
         </div>
       </div>

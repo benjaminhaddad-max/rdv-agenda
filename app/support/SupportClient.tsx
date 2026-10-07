@@ -5,7 +5,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Paperclip, Mic, Square, Send, Plus, FileText, Film, Image as ImageIcon,
-  Music, X, LifeBuoy, Monitor, CheckCircle2, Loader2, RotateCcw, Bot,
+  Music, X, LifeBuoy, Monitor, CheckCircle2, Loader2, RotateCcw, Bot, Camera,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -101,12 +101,16 @@ function useUploader() {
   return { files, add, remove, reset, uploading, attachments }
 }
 
-function Composer({
-  placeholder, submitLabel, onSubmit, withTitle,
+export function Composer({
+  placeholder, submitLabel, onSubmit, withTitle, titleOptional, pageCapture, compact,
 }: {
   placeholder: string
   submitLabel: string
   withTitle?: boolean
+  titleOptional?: boolean
+  /** Bouton « Capturer cette page » : masque le widget pendant la capture. */
+  pageCapture?: { hide: () => void; show: () => void }
+  compact?: boolean
   onSubmit: (p: { title: string; body: string; priority: string; attachments: SupportAttachment[] }) => Promise<boolean>
 }) {
   const [title, setTitle] = useState('')
@@ -168,6 +172,33 @@ function Composer({
     }
   }
 
+  async function capturePage() {
+    pageCapture?.hide()
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: false,
+        preferCurrentTab: true,
+      } as DisplayMediaStreamOptions)
+      const video = document.createElement('video')
+      video.srcObject = stream
+      video.muted = true
+      await video.play()
+      await new Promise(r => setTimeout(r, 400))
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d')?.drawImage(video, 0, 0)
+      stream.getTracks().forEach(t => t.stop())
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'))
+      if (blob) up.add([new File([blob], `capture-page-${format(new Date(), 'HH-mm-ss')}.png`, { type: 'image/png' })])
+    } catch {
+      /* capture annulée */
+    } finally {
+      pageCapture?.show()
+    }
+  }
+
   function stopRecording() {
     recorderRef.current?.stop()
     recorderRef.current = null
@@ -175,7 +206,7 @@ function Composer({
 
   async function submit() {
     if (sending || up.uploading) return
-    if (withTitle && !title.trim()) { alert('Donne un titre à ta demande'); return }
+    if (withTitle && !titleOptional && !title.trim()) { alert('Donne un titre à ta demande'); return }
     if (!body.trim() && up.attachments.length === 0) return
     setSending(true)
     const ok = await onSubmit({ title, body, priority, attachments: up.attachments })
@@ -205,7 +236,7 @@ function Composer({
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="En une phrase : qu’est-ce qu’il faut faire / corriger ?"
+            placeholder={titleOptional ? 'Titre (facultatif)' : 'En une phrase : qu’est-ce qu’il faut faire / corriger ?'}
             style={{
               flex: '1 1 260px', border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radius,
               padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: crmV2.text, outline: 'none',
@@ -234,7 +265,7 @@ function Composer({
         }}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
         placeholder={placeholder}
-        rows={withTitle ? 6 : 3}
+        rows={compact ? 4 : withTitle ? 6 : 3}
         style={{
           border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radius, padding: '10px 12px',
           fontSize: 14, fontFamily: 'inherit', color: crmV2.text, resize: 'vertical', outline: 'none',
@@ -271,8 +302,13 @@ function Composer({
           style={{ display: 'none' }}
           onChange={e => { up.add(Array.from(e.target.files || [])); e.target.value = '' }}
         />
+        {pageCapture && (
+          <button type="button" style={btn} onClick={capturePage}>
+            <Camera size={14} /> Capturer cette page
+          </button>
+        )}
         <button type="button" style={btn} onClick={() => fileInputRef.current?.click()}>
-          <Paperclip size={14} /> Fichier / photo / vidéo
+          <Paperclip size={14} /> {compact ? 'Fichier' : 'Fichier / photo / vidéo'}
         </button>
         {recording ? (
           <button type="button" onClick={stopRecording} style={{ ...btn, background: crmV2.dangerSoft, color: crmV2.danger, borderColor: crmV2.danger }}>
@@ -289,7 +325,7 @@ function Composer({
             </button>
           </>
         )}
-        <span style={{ fontSize: 11, color: crmV2.textFaint }}>Tu peux aussi coller une capture (⌘V) ou glisser des fichiers ici.</span>
+        {!compact && <span style={{ fontSize: 11, color: crmV2.textFaint }}>Tu peux aussi coller une capture (⌘V) ou glisser des fichiers ici.</span>}
         <div style={{ flex: 1 }} />
         <button
           type="button"

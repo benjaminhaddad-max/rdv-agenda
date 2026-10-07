@@ -36,10 +36,11 @@ export async function POST(req: NextRequest) {
   const { ctx } = auth
 
   const body = await req.json().catch(() => ({}))
-  const title = String(body.title || '').trim().slice(0, 200)
   const text = String(body.body || '').trim().slice(0, 20000)
   const attachments = sanitizeAttachments(body.attachments, ctx.appUserId)
-  if (!title) return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
+  // Titre facultatif : on reprend le début du message
+  const firstLine = text.split('\n')[0].trim()
+  const title = (String(body.title || '').trim() || (firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine) || 'Capture / fichier').slice(0, 200)
   if (!text && attachments.length === 0) {
     return NextResponse.json({ error: 'Décris ta demande ou ajoute un fichier' }, { status: 400 })
   }

@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import CRMSidebarV2 from '@/components/crm-v2/CRMSidebarV2'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
 import LogoutButton from '@/components/LogoutButton'
+import SupportWidget from '@/components/SupportWidget'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
 
@@ -164,6 +165,7 @@ function Inner({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+      {!pathname.startsWith('/admin/crm-v2/service-technique') && <SupportWidget />}
     </div>
   )
 }
