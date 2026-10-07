@@ -1,17 +1,22 @@
 'use client'
 
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { X, Clock, User, Mail, Phone, FileText, ExternalLink, Tag, Zap, Video, MapPin, PhoneCall, RefreshCw, Sparkles, ChevronLeft } from 'lucide-react'
-import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
+import {
+  User, Mail, Phone, FileText, Tag, Zap, RefreshCw, Sparkles, ChevronLeft,
+  Calendar, CalendarClock, Check, CheckCircle2, Ban, Hourglass, Smartphone, GraduationCap, UserX, Flame, PartyPopper,
+  ThumbsDown, UsersRound, Trophy, Wallet, Trash2, Briefcase, type LucideIcon,
+} from 'lucide-react'
+import { AppointmentStatus, STATUS_CONFIG } from './StatusBadge'
 import { AssignCloserPanel } from './AssignModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { personalizeVisioUrl, firstNameOf } from '@/lib/visio-url'
-import MeetingModeSwitcher from './MeetingModeSwitcher'
+import RdvModeBlock from './RdvModeBlock'
+import { CrmV2CloseButton } from './crm-v2/primitives'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { crmV2, crmV2Outcomes } from '@/lib/crm-v2-theme'
 import VisioParticipantsBlock from './VisioParticipantsBlock'
 import { appointmentPlacedByTelepro, formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 import MediboxBadge from './MediboxBadge'
-import { presentielCampusLabel } from '@/lib/campus'
 import type { ExtraParticipant } from '@/lib/appointment-participants'
 
 const JitsiMeeting = lazy(() => import('./JitsiMeeting'))
@@ -53,35 +58,25 @@ type Appointment = {
   extra_participants?: ExtraParticipant[] | null
 }
 
-const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: string; hint?: string }[] = [
-  { status: 'no_show',      label: 'No-show',       icon: '❌', hint: '→ A replanifier' },
-  { status: 'a_travailler', label: 'A travailler',   icon: '📧', hint: '→ Mail PI + brochure' },
-  { status: 'pre_positif',  label: 'Pré-positif',    icon: '🔥', hint: '→ Mail PI + brochure' },
-  { status: 'positif',      label: 'POSITIF',        icon: '🎉', hint: '→ Pré-inscription HubSpot' },
-  { status: 'negatif',      label: 'Négatif',        icon: '💀', hint: '→ Rien à faire' },
+const STATUS_ACTIONS: { status: AppointmentStatus; label: string; icon: LucideIcon; color: string; hint?: string }[] = [
+  { status: 'no_show',      label: 'No-show',       icon: UserX,       color: crmV2Outcomes.no_show,      hint: '→ A replanifier' },
+  { status: 'a_travailler', label: 'A travailler',  icon: Mail,        color: crmV2Outcomes.a_travailler, hint: '→ Mail PI + brochure' },
+  { status: 'pre_positif',  label: 'Pré-positif',   icon: Flame,       color: crmV2Outcomes.pre_positif,  hint: '→ Mail PI + brochure' },
+  { status: 'positif',      label: 'POSITIF',       icon: PartyPopper, color: crmV2Outcomes.positif,      hint: '→ Pré-inscription' },
+  { status: 'negatif',      label: 'Négatif',       icon: ThumbsDown,  color: crmV2Outcomes.negatif,      hint: '→ Rien à faire' },
 ]
 
-const MEETING_TYPE_LABEL: Record<string, { icon: typeof Video; label: string; color: string }> = {
-  visio:       { icon: Video,     label: 'Visio',       color: '#C9A84C' },
-  telephone:   { icon: PhoneCall, label: 'Téléphone',   color: '#22c55e' },
-  presentiel:  { icon: MapPin,    label: 'Présentiel',  color: '#C9A84C' },
+/** Libellé de section de la fiche RDV : 11 px / 700 / MAJUSCULES. */
+const sectionLabel: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase',
+  letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6,
 }
+const sectionPad: React.CSSProperties = { padding: '14px 18px', borderBottom: `1px solid ${crmV2.borderLight}` }
 
-function isGoogleMeetLink(link: string | null | undefined): boolean {
-  return /meet\.google\.com/i.test(link || '')
-}
-
-function isInternalVisioLink(link: string | null | undefined): boolean {
-  return /\/visio\//i.test(link || '')
-}
-
-/** Ouvre le bon outil visio selon le type de lien (Meet externe vs visio interne vs Jitsi legacy). */
-function openVisioLink(link: string, onJitsi: () => void): void {
-  if (isGoogleMeetLink(link) || isInternalVisioLink(link)) {
-    window.open(link, '_blank', 'noopener,noreferrer')
-    return
-  }
-  onJitsi()
+/** '#rrggbb' → rgba */
+function tint(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
 function toDateInputValue(d: Date): string {
@@ -102,10 +97,10 @@ function combineDateAndTime(dateStr: string, timeStr: string): Date {
 
 const scheduleInputStyle: React.CSSProperties = {
   background: '#ffffff',
-  border: '1px solid #e5ddc8',
-  borderRadius: 8,
+  border: `1px solid ${crmV2.borderStrong}`,
+  borderRadius: 10,
   padding: '6px 10px',
-  color: '#0f172a',
+  color: crmV2.text,
   fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',
@@ -118,6 +113,7 @@ export default function AppointmentModal({
   onDelete,
   adminMode = false,
   canAssign = false,
+  teleproView = false,
 }: {
   appointment: Appointment
   onClose: () => void
@@ -125,9 +121,14 @@ export default function AppointmentModal({
   onDelete?: (id: string) => void
   adminMode?: boolean
   canAssign?: boolean
+  /** Télépro : consultation seule de l'issue, du retour prospect et de l'assignation */
+  teleproView?: boolean
 }) {
+  const isMobile = useIsMobile()
   // Admin ou closer autorisé à (ré)assigner le RDV à un closer.
-  const showAssign = adminMode || canAssign
+  const showAssign = (adminMode || canAssign) && !teleproView
+  const dateBlockRef = useRef<HTMLDivElement>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<AppointmentStatus>(appointment.status)
   const [pendingStatus, setPendingStatus] = useState<AppointmentStatus | null>(null)
   const [notes, setNotes] = useState(appointment.notes || '')
@@ -140,7 +141,6 @@ export default function AppointmentModal({
   const [showReassignModal, setShowReassignModal] = useState(false)
   const [showJitsi, setShowJitsi] = useState(false)
   const [aiGenerated, setAiGenerated] = useState(false)
-  const [studentLinkCopied, setStudentLinkCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -225,10 +225,10 @@ export default function AppointmentModal({
     displayEnd.getTime() !== end.getTime()
   const isNonAssigne = status === 'non_assigne'
 
-  const meetingInfo = appointment.meeting_type ? MEETING_TYPE_LABEL[appointment.meeting_type] : null
-  const campusLabel = appointment.meeting_type === 'presentiel'
-    ? presentielCampusLabel(appointment.meeting_link)
-    : null
+  const durationMin = Math.max(0, Math.round((displayEnd.getTime() - displayStart.getTime()) / 60000))
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.confirme
+  // Le télépro voit le RDV mais ne qualifie pas l'issue
+  const canQualify = !teleproView
 
   const reportFilled = reportSummary.trim().length > 0 && reportTelepro.trim().length > 0
   // Rapport déjà sauvegardé en base (pas besoin de le re-remplir pour changer de statut)
@@ -446,14 +446,24 @@ export default function AppointmentModal({
     }
   }
 
+  const closeBtn = <CrmV2CloseButton onClick={onClose} />
+  const smallGoldBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+    borderRadius: 999, padding: '4px 10px',
+    color: crmV2.text, fontSize: 12, fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none',
+  }
+  const infoRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: crmV2.textMuted }
+  const iconGold = { color: crmV2.gold, flexShrink: 0 } as const
+
   return (
     <>
+    {/* Fond sombre — tiroir à droite (ordinateur) ou panneau qui monte du bas (mobile) */}
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        background: isMobile ? 'rgba(15,31,61,0.40)' : 'rgba(15,31,61,0.28)',
       }}
       onMouseDown={(e) => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
       onClick={(e) => {
@@ -461,25 +471,39 @@ export default function AppointmentModal({
         mouseDownOnBackdrop.current = false
       }}
     >
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e5ddc8',
-        borderRadius: 16,
-        width: '100%', maxWidth: 580,
-        overflow: 'hidden',
-        boxShadow: '0 24px 60px rgba(15,23,42,0.18)',
-        maxHeight: '90vh',
-        display: 'flex',
-        flexDirection: 'column',
-        ...(showReassignModal ? {} : { overflowY: 'auto' as const }),
-      }}>
+      <aside
+        role="dialog"
+        aria-modal="true"
+        className="crm-v2"
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        style={{
+          position: 'fixed',
+          ...(isMobile
+            ? { left: 0, right: 0, bottom: 0, maxHeight: '92dvh', borderRadius: '22px 22px 0 0', animation: 'crm-v2-sheet-up .22s ease-out', paddingBottom: 'env(safe-area-inset-bottom)' }
+            : { top: 12, right: 12, bottom: 12, width: 460, maxWidth: 'calc(100vw - 24px)', borderRadius: 20 }),
+          background: crmV2.bg,
+          border: `1px solid ${crmV2.border}`,
+          boxShadow: crmV2.shadowPanel,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          fontFamily: crmV2.font,
+          color: crmV2.text,
+        }}
+      >
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 0', flexShrink: 0 }}>
+            <span style={{ width: 40, height: 4, borderRadius: 999, background: crmV2.borderStrong }} />
+          </div>
+        )}
         {showReassignModal ? (
           <>
-            {/* Vue réassignation — intégrée dans la même modale CRM */}
+            {/* Vue réassignation — intégrée dans le même tiroir */}
             <div style={{
-              padding: '16px 24px',
-              borderBottom: '1px solid #e5ddc8',
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+              padding: '16px 18px 14px',
+              borderBottom: `1px solid ${crmV2.border}`,
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
               flexShrink: 0,
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -489,102 +513,223 @@ export default function AppointmentModal({
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     background: 'none', border: 'none', padding: 0, marginBottom: 8,
-                    color: '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
                 >
                   <ChevronLeft size={14} />
                   Retour au RDV
                 </button>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
-                  {appointment.users ? '🔄 Réassigner le closer' : 'Assigner le closer'}
+                <div style={{ ...sectionLabel, marginBottom: 4 }}>
+                  <RefreshCw size={12} color={crmV2.gold} />
+                  {appointment.users ? 'Réassigner le closer' : 'Assigner le closer'}
                 </div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
                   {appointment.prospect_name}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 13, marginTop: 4 }}>
-                  <Clock size={13} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: crmV2.textMuted, fontSize: 13, marginTop: 4 }}>
+                  <Calendar size={13} color={crmV2.gold} />
                   <span>
-                    {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
+                    {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} · {durationMin} min
                   </span>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: '#4a6070', padding: 4, borderRadius: 8,
-                  display: 'flex', alignItems: 'center', flexShrink: 0,
-                }}
-              >
-                <X size={18} />
-              </button>
+              {closeBtn}
             </div>
-            <AssignCloserPanel
-              appointment={appointment}
-              showMeta={false}
-              reassign={!!appointment.users}
-              currentCloserId={appointment.users?.id ?? null}
-              onCancel={() => setShowReassignModal(false)}
-              onAssigned={(updated) => {
-                onUpdate(updated as Partial<Appointment>)
-                setShowReassignModal(false)
-              }}
-            />
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <AssignCloserPanel
+                appointment={appointment}
+                showMeta={false}
+                reassign={!!appointment.users}
+                currentCloserId={appointment.users?.id ?? null}
+                onCancel={() => setShowReassignModal(false)}
+                onAssigned={(updated) => {
+                  onUpdate(updated as Partial<Appointment>)
+                  setShowReassignModal(false)
+                }}
+              />
+            </div>
           </>
         ) : (
         <>
-        {/* Header */}
-        <div style={{
-          padding: '20px 24px',
-          borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
-              {appointment.prospect_name}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 14 }}>
-              <Clock size={14} />
-              <span>
-                {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
-              </span>
-            </div>
+        {/* En-tête : statut (mis à jour en direct), fermer, nom, date */}
+        <div style={{ padding: '16px 18px 14px', borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border}`,
+              borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.color }} />
+              {statusCfg.label}
+            </span>
+            {closeBtn}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <StatusBadge status={status} />
-            <button
-              onClick={onClose}
-              style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: '#4a6070', padding: 4, borderRadius: 8,
-                display: 'flex', alignItems: 'center',
-              }}
-            >
-              <X size={18} />
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: crmV2.text }}>
+              {appointment.prospect_name}
+            </h2>
+            <MediboxBadge brand={appointment.brand} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13, color: crmV2.textMuted }}>
+            <Calendar size={13} color={crmV2.gold} />
+            <span>
+              {format(displayStart, 'EEEE d MMMM', { locale: fr })} · {format(displayStart, 'HH:mm')} · {durationMin} min
+            </span>
           </div>
         </div>
 
-        {/* Prospect info */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Date et heure modifiables */}
-            <div style={{
-              background: '#f7f4ee',
-              border: '1px solid #e5ddc8',
-              borderRadius: 10,
-              padding: '12px 14px',
-            }}>
-              <div style={{
-                fontSize: 11, fontWeight: 700, color: '#4a6070',
-                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8,
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* Infos prospect */}
+        <div style={{ ...sectionPad }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={infoRow}>
+              <Mail size={14} style={iconGold} />
+              <span style={{ overflowWrap: 'anywhere' }}>{appointment.prospect_email}</span>
+            </div>
+            {appointment.prospect_phone && (
+              <div style={infoRow}>
+                <Phone size={14} style={iconGold} />
+                <a href={`tel:${appointment.prospect_phone.replace(/\s+/g, '')}`} style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}>
+                  {appointment.prospect_phone}
+                </a>
+              </div>
+            )}
+            {appointment.formation_type && (
+              <div style={infoRow}>
+                <Tag size={14} style={iconGold} />
+                <span>Filière : <strong style={{ color: crmV2.text }}>{appointment.formation_type}</strong></span>
+              </div>
+            )}
+            {appointment.classe_actuelle && (
+              <div style={infoRow}>
+                <GraduationCap size={14} style={iconGold} />
+                <span>Classe actuelle : <strong style={{ color: crmV2.text }}>{appointment.classe_actuelle}</strong></span>
+              </div>
+            )}
+            {appointment.source && (
+              <div style={infoRow}>
+                <Zap size={14} style={iconGold} />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {formatAppointmentPlacementLabel(appointment)}
+                  {appointmentPlacedByTelepro(appointment)?.avatar_color && (
+                    <span style={{
+                      width: 9, height: 9, borderRadius: '50%',
+                      background: appointmentPlacedByTelepro(appointment)!.avatar_color!,
+                      flexShrink: 0, display: 'inline-block',
+                    }} />
+                  )}
+                </span>
+              </div>
+            )}
+            {appointment.sms_confirmed_at && (
+              <span style={{
+                alignSelf: 'flex-start',
+                background: 'rgba(16,185,129,0.12)',
+                border: '1px solid rgba(16,185,129,0.35)',
+                borderRadius: 999, padding: '3px 10px',
+                fontSize: 12, fontWeight: 700, color: '#059669',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
               }}>
+                <Smartphone size={12} />
+                Confirmé via SMS — {format(new Date(appointment.sms_confirmed_at), "d MMM 'à' HH'h'mm", { locale: fr })}
+              </span>
+            )}
+
+            {/* Mode du RDV : Visio / Téléphone / Présentiel (+ adresse) */}
+            <RdvModeBlock
+              appointmentId={appointment.id}
+              meetingType={appointment.meeting_type}
+              meetingLink={appointment.meeting_link}
+              prospectName={appointment.prospect_name}
+              prospectPhone={appointment.prospect_phone}
+              closerName={appointment.users?.name}
+              status={status}
+              disabled={saving}
+              onJoinLegacyVisio={() => setShowJitsi(true)}
+              onUpdated={(updated) => onUpdate(updated)}
+            />
+            {appointment.meeting_type === 'visio' && appointment.meeting_link && status !== 'annule' && (
+              <VisioParticipantsBlock
+                appointmentId={appointment.id}
+                extraParticipants={appointment.extra_participants}
+                disabled={saving}
+                onUpdated={(updated) => onUpdate({ id: appointment.id, ...updated })}
+              />
+            )}
+
+            {appointment.users && (
+              <div style={{ ...infoRow, flexWrap: 'wrap' }}>
+                <User size={14} style={iconGold} />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  Closer :
+                  {appointment.users.avatar_color && (
+                    <span style={{
+                      width: 9, height: 9, borderRadius: '50%',
+                      background: appointment.users.avatar_color,
+                      flexShrink: 0, display: 'inline-block',
+                    }} />
+                  )}
+                  <strong style={{ color: crmV2.text }}>{appointment.users.name}</strong>
+                </span>
+                {showAssign && (
+                  <button type="button" onClick={() => setShowReassignModal(true)} style={{ ...smallGoldBtn, background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.35)', color: crmV2.goldDark }}>
+                    <RefreshCw size={11} />
+                    Réassigner
+                  </button>
+                )}
+              </div>
+            )}
+            {showAssign && !appointment.users && (
+              <div style={infoRow}>
+                <User size={14} style={iconGold} />
+                <span>Aucun closer assigné</span>
+                <button type="button" onClick={() => setShowReassignModal(true)} style={{ ...smallGoldBtn, background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.35)', color: crmV2.goldDark }}>
+                  <User size={11} />
+                  Assigner
+                </button>
+              </div>
+            )}
+            {(appointment.hubspot_contact_id || appointment.hubspot_deal_id) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                {appointment.hubspot_contact_id && (
+                  <a
+                    href={`/admin/crm/contacts/${appointment.hubspot_contact_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...smallGoldBtn, padding: '6px 12px' }}
+                  >
+                    <User size={12} /> Ouvrir le contact
+                  </a>
+                )}
+                {appointment.hubspot_deal_id && (
+                  <a
+                    href={`/admin/crm/deals/${appointment.hubspot_deal_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...smallGoldBtn, padding: '6px 12px' }}
+                  >
+                    <Briefcase size={12} /> Ouvrir la transaction
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Date et heure modifiables (bouton « Replanifier » du pied de page) */}
+            <div ref={dateBlockRef} style={{
+              background: crmV2.bgHover,
+              border: `1px solid ${crmV2.border}`,
+              borderRadius: 12,
+              padding: '10px 12px',
+              marginTop: 2,
+            }}>
+              <div style={{ ...sectionLabel, marginBottom: 8 }}>
+                <CalendarClock size={12} color={crmV2.gold} />
                 Date et heure du RDV
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Clock size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={rdvDate}
                   onChange={e => { setRdvDate(e.target.value); setRescheduleError(null); setRescheduleOk(false) }}
@@ -596,7 +741,7 @@ export default function AppointmentModal({
                   onChange={e => { setRdvStartTime(e.target.value); setRescheduleError(null); setRescheduleOk(false) }}
                   style={scheduleInputStyle}
                 />
-                <span style={{ color: '#94a3b8', fontSize: 13 }}>–</span>
+                <span style={{ color: crmV2.textFaint, fontSize: 13 }}>–</span>
                 <input
                   type="time"
                   value={rdvEndTime}
@@ -609,10 +754,10 @@ export default function AppointmentModal({
                     onClick={saveReschedule}
                     disabled={rescheduleSaving}
                     style={{
-                      background: '#C9A84C',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '6px 12px',
+                      background: crmV2.primary,
+                      border: `1px solid ${crmV2.primary}`,
+                      borderRadius: 999,
+                      padding: '6px 14px',
                       color: '#fff',
                       fontSize: 12,
                       fontWeight: 700,
@@ -621,15 +766,12 @@ export default function AppointmentModal({
                       opacity: rescheduleSaving ? 0.7 : 1,
                     }}
                   >
-                    {rescheduleSaving ? 'Enregistrement…' : 'Enregistrer'}
+                    {rescheduleSaving ? 'Enregistrement…' : 'Replanifier'}
                   </button>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
-                {format(displayStart, 'EEEE d MMMM yyyy', { locale: fr })} · {format(displayStart, 'HH:mm')} – {format(displayEnd, 'HH:mm')}
-              </div>
               {rescheduleError && (
-                <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 6, fontWeight: 600 }}>
+                <div style={{ fontSize: 12, color: '#d13a41', marginTop: 6, fontWeight: 600 }}>
                   {rescheduleError}
                 </div>
               )}
@@ -639,395 +781,155 @@ export default function AppointmentModal({
                 </div>
               )}
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-              <Mail size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <span>{appointment.prospect_email}</span>
-            </div>
-            {appointment.prospect_phone && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <Phone size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>{appointment.prospect_phone}</span>
-              </div>
-            )}
-            {appointment.formation_type && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <Tag size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>Filière : <strong style={{ color: '#0f172a' }}>{appointment.formation_type}</strong></span>
-              </div>
-            )}
-            {appointment.source && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <Zap size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {formatAppointmentPlacementLabel(appointment)}
-                  <MediboxBadge brand={appointment.brand} />
-                  {appointmentPlacedByTelepro(appointment)?.avatar_color && (
-                    <span style={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: appointmentPlacedByTelepro(appointment)!.avatar_color!,
-                      flexShrink: 0, display: 'inline-block',
-                    }} />
-                  )}
-                </span>
-              </div>
-            )}
-            {appointment.sms_confirmed_at && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  background: 'rgba(16,185,129,0.15)',
-                  border: '1px solid rgba(16,185,129,0.35)',
-                  borderRadius: 8, padding: '3px 10px',
-                  fontSize: 12, fontWeight: 700, color: '#10b981',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                }}>
-                  📱 Confirmé via SMS — {format(new Date(appointment.sms_confirmed_at), "d MMM 'à' HH'h'mm", { locale: fr })}
-                </span>
-              </div>
-            )}
-            {meetingInfo && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <meetingInfo.icon size={14} style={{ color: meetingInfo.color, flexShrink: 0, marginTop: 3 }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ color: meetingInfo.color, fontWeight: 600 }}>{meetingInfo.label}</span>
-                {campusLabel && (
-                  <span style={{ color: '#0f172a', fontWeight: 600 }}>
-                    — {campusLabel}
-                  </span>
-                )}
-                {appointment.meeting_type === 'visio' && appointment.meeting_link && (() => {
-                  const rawLink = appointment.meeting_link
-                  const isGoogle = isGoogleMeetLink(rawLink)
-                  const isInternal = isInternalVisioLink(rawLink)
-                  // Notre lien : pré-rempli avec le nom du closer (sinon "Admissions")
-                  const myName = appointment.users?.name || 'Admissions Diploma'
-                  const link = isInternal ? personalizeVisioUrl(rawLink, firstNameOf(myName)) : rawLink
-                  // Lien élève : pré-rempli avec le prénom du prospect
-                  const studentLink = isInternal
-                    ? personalizeVisioUrl(rawLink, firstNameOf(appointment.prospect_name))
-                    : rawLink
-                  return (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openVisioLink(link, () => setShowJitsi(true))}
-                        style={{
-                          background: isGoogle
-                            ? 'rgba(26,115,232,0.12)'
-                            : 'rgba(204,172,113,0.12)',
-                          border: isGoogle
-                            ? '1px solid rgba(26,115,232,0.35)'
-                            : '1px solid rgba(204,172,113,0.3)',
-                          borderRadius: 6,
-                          padding: '2px 10px',
-                          color: isGoogle ? '#1a73e8' : '#C9A84C',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        <Video size={11} />
-                        {isGoogle
-                          ? 'Rejoindre Google Meet'
-                          : isInternal
-                            ? 'Rejoindre la visio'
-                            : 'Rejoindre (IA activée)'}
-                        {(isGoogle || isInternal) && <ExternalLink size={10} />}
-                      </button>
-                      {isInternal && (
-                        <button
-                          type="button"
-                          title="Copier le lien à envoyer à l'élève (son prénom se remplit automatiquement)"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(studentLink)
-                              setStudentLinkCopied(true)
-                              setTimeout(() => setStudentLinkCopied(false), 2000)
-                            } catch { /* clipboard indisponible */ }
-                          }}
-                          style={{
-                            background: studentLinkCopied ? 'rgba(16,185,129,0.12)' : 'rgba(15,23,42,0.06)',
-                            border: studentLinkCopied ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(15,23,42,0.15)',
-                            borderRadius: 6,
-                            padding: '2px 10px',
-                            color: studentLinkCopied ? '#0e8a5f' : '#475569',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          {studentLinkCopied ? '✓ Lien élève copié' : '📋 Copier le lien élève'}
-                        </button>
-                      )}
-                    </>
-                  )
-                })()}
-                </div>
-                <MeetingModeSwitcher
-                  appointmentId={appointment.id}
-                  meetingType={appointment.meeting_type}
-                  meetingLink={appointment.meeting_link}
-                  status={status}
-                  disabled={saving}
-                  onUpdated={(updated) => onUpdate(updated)}
-                />
-                </div>
-              </div>
-            )}
-            {appointment.meeting_type === 'visio' && appointment.meeting_link && status !== 'annule' && (
-              <VisioParticipantsBlock
-                appointmentId={appointment.id}
-                extraParticipants={appointment.extra_participants}
-                disabled={saving}
-                onUpdated={(updated) => onUpdate({ id: appointment.id, ...updated })}
-              />
-            )}
-            {appointment.classe_actuelle && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <span style={{ color: '#C9A84C', flexShrink: 0, fontSize: 14 }}>🎓</span>
-                <span>Classe actuelle : <strong style={{ color: '#0f172a' }}>{appointment.classe_actuelle}</strong></span>
-              </div>
-            )}
-            {appointment.users && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  Closer :
-                  {appointment.users.avatar_color && (
-                    <span style={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: appointment.users.avatar_color,
-                      flexShrink: 0, display: 'inline-block',
-                    }} />
-                  )}
-                  <strong style={{ color: '#0f172a' }}>{appointment.users.name}</strong>
-                </span>
-                {showAssign && (
-                  <button
-                    onClick={() => setShowReassignModal(true)}
-                    style={{
-                      marginLeft: 4,
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
-                      borderRadius: 6, padding: '2px 8px',
-                      color: '#C9A84C', fontSize: 11, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                    }}
-                  >
-                    <RefreshCw size={10} />
-                    Réassigner
-                  </button>
-                )}
-              </div>
-            )}
-            {showAssign && !appointment.users && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span style={{ color: '#4a6070' }}>Aucun closer assigné</span>
-                <button
-                  onClick={() => setShowReassignModal(true)}
-                  style={{
-                    marginLeft: 4,
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
-                    borderRadius: 6, padding: '2px 8px',
-                    color: '#C9A84C', fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  <User size={10} />
-                  Assigner
-                </button>
-              </div>
-            )}
-            {(appointment.hubspot_contact_id || appointment.hubspot_deal_id) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {appointment.hubspot_contact_id && (
-                  <a
-                    href={`/admin/crm/contacts/${appointment.hubspot_contact_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
-                      borderRadius: 6, padding: '4px 10px',
-                      color: '#C9A84C', fontSize: 12, fontWeight: 600,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <ExternalLink size={11} /> Ouvrir le contact
-                  </a>
-                )}
-                {appointment.hubspot_deal_id && (
-                  <a
-                    href={`/admin/crm/deals/${appointment.hubspot_deal_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)',
-                      borderRadius: 6, padding: '4px 10px',
-                      color: '#C9A84C', fontSize: 12, fontWeight: 600,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <ExternalLink size={11} /> Ouvrir la transaction
-                  </a>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Retour prospect — visible si assigné, toujours réversible */}
-        {(status === 'confirme' || status === 'confirme_prospect' || status === 'annule') && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              Retour prospect
-            </div>
+        {/* Retour prospect — visible si assigné, toujours réversible (pas pour le télépro) */}
+        {canQualify && (status === 'confirme' || status === 'confirme_prospect' || status === 'annule') && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}>Retour prospect</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={confirmProspect}
-                disabled={confirmingProspect || saving}
-                style={{
-                  flex: 1,
-                  background: status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'transparent',
-                  border: `1px solid ${status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '9px 14px',
-                  color: status === 'confirme_prospect' ? '#10b981' : '#4a6070',
-                  fontSize: 13, fontWeight: status === 'confirme_prospect' ? 700 : 400,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  opacity: confirmingProspect ? 0.7 : 1,
-                }}
-              >
-                ✅ {confirmingProspect ? 'Confirmation…' : 'Prospect confirmé'}
-                {status === 'confirme_prospect' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
-              </button>
-              <button
-                onClick={cancelProspect}
-                disabled={saving || confirmingProspect}
-                style={{
-                  flex: 1,
-                  background: status === 'annule' ? 'rgba(107,114,128,0.18)' : 'transparent',
-                  border: `1px solid ${status === 'annule' ? 'rgba(107,114,128,0.5)' : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '9px 14px',
-                  color: status === 'annule' ? '#9ca3af' : '#4a6070',
-                  fontSize: 13, fontWeight: status === 'annule' ? 700 : 400,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                🚫 {saving && pendingStatus === 'annule' ? 'Annulation…' : 'Prospect a annulé'}
-                {status === 'annule' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
-              </button>
+              {([
+                { key: 'confirme_prospect', label: confirmingProspect ? 'Confirmation…' : 'Prospect confirmé', icon: CheckCircle2, color: '#10b981', onClick: confirmProspect },
+                { key: 'annule', label: saving && pendingStatus === 'annule' ? 'Annulation…' : 'Prospect a annulé', icon: Ban, color: '#6b7280', onClick: cancelProspect },
+              ] as const).map(b => {
+                const active = status === b.key
+                const Icon = b.icon
+                return (
+                  <button
+                    key={b.key}
+                    type="button"
+                    onClick={b.onClick}
+                    disabled={confirmingProspect || saving}
+                    style={{
+                      flex: 1,
+                      background: active ? tint(b.color, 0.12) : crmV2.bg,
+                      border: `1px solid ${active ? tint(b.color, 0.45) : crmV2.border}`,
+                      borderRadius: 12, padding: '9px 8px',
+                      color: active ? b.color : crmV2.textMuted,
+                      fontSize: 13, fontWeight: active ? 700 : 500,
+                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      fontFamily: 'inherit',
+                      opacity: confirmingProspect || saving ? 0.7 : 1,
+                    }}
+                  >
+                    <Icon size={14} />
+                    {b.label}
+                    {active && <Check size={13} />}
+                  </button>
+                )
+              })}
             </div>
             {(status === 'confirme_prospect' || status === 'annule') && (
               <button
+                type="button"
                 onClick={resetToConfirme}
                 disabled={saving || confirmingProspect}
                 style={{
                   marginTop: 8, background: 'none', border: 'none',
-                  color: '#4a6070', fontSize: 11, cursor: 'pointer',
-                  textDecoration: 'underline', padding: 0,
+                  color: crmV2.link, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  padding: 0, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4,
                   opacity: saving ? 0.5 : 1,
                 }}
               >
-                ⏳ Remettre en attente de confirmation
+                <Hourglass size={12} /> Remettre en attente de confirmation
               </button>
             )}
           </div>
         )}
 
-        {/* Status actions — masqué si non-assigné */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              Mettre à jour le statut
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {/* Issue du RDV — masquée si non assigné, en lecture seule pour le télépro */}
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}>Issue du RDV</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
               {STATUS_ACTIONS.map((action) => {
-                const cfg = STATUS_CONFIG[action.status]
                 const isSaved = status === action.status
                 const isPending = pendingStatus === action.status
                 const isHighlighted = isSaved || isPending
+                const Icon = action.icon
                 return (
                   <button
                     key={action.status}
+                    type="button"
                     onClick={() => updateStatus(action.status)}
                     disabled={saving}
                     style={{
-                      background: isHighlighted ? cfg.bg : 'transparent',
-                      border: `1px solid ${isHighlighted ? cfg.border : '#e5ddc8'}`,
-                      borderRadius: 10,
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      fontSize: 13,
-                      color: isHighlighted ? cfg.color : '#4a6070',
-                      fontWeight: isHighlighted ? 600 : 400,
-                      transition: 'all 0.15s',
                       textAlign: 'left',
+                      background: isHighlighted ? tint(action.color, 0.10) : crmV2.bg,
+                      border: `1px solid ${isHighlighted ? tint(action.color, 0.45) : crmV2.border}`,
+                      borderRadius: 12,
+                      padding: '9px 11px',
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', gap: 2,
+                      fontFamily: 'inherit',
+                      transition: 'background .15s, border-color .15s',
                       opacity: saving && !isPending ? 0.5 : 1,
                     }}
                   >
-                    <span>{action.icon}</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                      <span>{action.label}</span>
-                      {action.hint && (
-                        <span style={{ fontSize: 10, color: isPending || isSaved ? cfg.color : '#4a6070', fontWeight: 400, opacity: 0.8 }}>{action.hint}</span>
-                      )}
-                    </div>
-                    {isSaved && !isPending && (
-                      <span style={{ fontSize: 12, color: cfg.color, marginLeft: 'auto' }}>✓</span>
-                    )}
-                    {isPending && saving && (
-                      <span style={{ fontSize: 11, color: cfg.color, marginLeft: 'auto', opacity: 0.7 }}>…</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: isHighlighted ? action.color : crmV2.text }}>
+                      <Icon size={14} color={action.color} />
+                      {action.label}
+                      {isSaved && !isPending && <Check size={13} style={{ marginLeft: 'auto' }} />}
+                      {isPending && saving && <span style={{ marginLeft: 'auto', opacity: 0.7 }}>…</span>}
+                    </span>
+                    {action.hint && (
+                      <span style={{ fontSize: 11, color: isHighlighted ? action.color : crmV2.textFaint, fontWeight: 500 }}>{action.hint}</span>
                     )}
                   </button>
                 )
               })}
             </div>
             {saving && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#4a6070' }}>
-                Synchronisation HubSpot…
+              <div style={{ marginTop: 8, fontSize: 12, color: crmV2.textMuted }}>
+                Synchronisation…
               </div>
             )}
             {saved && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#22c55e' }}>
-                HubSpot mis à jour
+              <div style={{ marginTop: 8, fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Check size={12} /> Transaction mise à jour
               </div>
             )}
+          </div>
+        )}
+
+        {/* Télépro : issue visible en lecture seule */}
+        {teleproView && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}>Issue du RDV</div>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border}`,
+              borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.color }} />
+              {statusCfg.label}
+            </span>
           </div>
         )}
 
         {/* Message si non assigné */}
         {isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
+          <div style={sectionPad}>
             <div style={{
-              background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)',
-              borderRadius: 10, padding: '12px 16px',
-              fontSize: 13, color: '#C9A84C',
+              background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.30)',
+              borderRadius: 12, padding: '10px 12px',
+              fontSize: 13, color: crmV2.goldDark,
             }}>
-              Ce RDV n&apos;est pas encore assigné à un closer. Allez dans la vue Admin pour l&apos;assigner.
+              {teleproView
+                ? 'Ce RDV attend d’être assigné à un closer.'
+                : 'Ce RDV n’est pas encore assigné à un closer. Allez dans la vue Admin pour l’assigner.'}
             </div>
           </div>
         )}
 
-        {/* Section: Raison négatif — visible si statut négatif ou en attente */}
-        {!isNonAssigne && (status === 'negatif' || pendingStatus === 'negatif') && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: negatifError ? '#ef4444' : '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              💀 Raison du négatif *
-              {negatifError && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — Obligatoire</span>}
+        {/* Raison du négatif — visible si statut négatif ou en attente */}
+        {canQualify && !isNonAssigne && (status === 'negatif' || pendingStatus === 'negatif') && (
+          <div style={sectionPad}>
+            <div style={{ ...sectionLabel, color: negatifError ? '#ef4444' : crmV2.textMuted }}>
+              <ThumbsDown size={12} color={crmV2Outcomes.negatif} />
+              Raison du négatif *
+              {negatifError && <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>— Obligatoire</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {([
@@ -1040,51 +942,41 @@ export default function AppointmentModal({
                 return (
                   <div key={opt.value}>
                     <button
+                      type="button"
                       onClick={() => { setNegatifReason(opt.value); setNegatifError(false) }}
-                      style={{
-                        width: '100%', textAlign: 'left',
-                        background: selected ? 'rgba(239,68,68,0.1)' : 'transparent',
-                        border: `1px solid ${selected ? 'rgba(239,68,68,0.4)' : negatifError ? 'rgba(239,68,68,0.3)' : '#e5ddc8'}`,
-                        borderRadius: 8, padding: '9px 14px',
-                        color: selected ? '#ef4444' : '#4a6070',
-                        fontSize: 13, fontWeight: selected ? 600 : 400,
-                        cursor: 'pointer',
-                      }}
+                      style={choiceStyle(selected, '#ef4444', negatifError)}
                     >
                       {opt.label}
                     </button>
-                    {/* Sub-options: autre prépa checkboxes */}
+                    {/* Sous-options : autres prépas */}
                     {selected && opt.value === 'inscrit_autre_prepa' && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 12 }}>
                         {['Stan/Laennec', 'Antemed-Epsilon', 'Medisup Sciences', 'CPCM'].map(prepa => {
                           const checked = negatifReasonDetail.includes(prepa)
                           return (
-                            <button key={prepa} onClick={() => {
+                            <button key={prepa} type="button" onClick={() => {
                               setNegatifReasonDetail(prev => checked ? prev.filter(p => p !== prepa) : [...prev, prepa])
                             }} style={{
-                              background: checked ? 'rgba(239,68,68,0.15)' : '#f7f4ee',
-                              border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : '#e5ddc8'}`,
-                              borderRadius: 6, padding: '5px 10px',
-                              color: checked ? '#ef4444' : '#4a6070',
-                              fontSize: 11, fontWeight: checked ? 600 : 400, cursor: 'pointer',
+                              background: checked ? 'rgba(239,68,68,0.12)' : crmV2.bg,
+                              border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : crmV2.border}`,
+                              borderRadius: 999, padding: '5px 10px',
+                              color: checked ? '#ef4444' : crmV2.textMuted,
+                              fontSize: 12, fontWeight: checked ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit',
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
                             }}>
-                              {checked ? '✓ ' : ''}{prepa}
+                              {checked && <Check size={11} />}{prepa}
                             </button>
                           )
                         })}
                       </div>
                     )}
-                    {/* Sub-option: autre texte libre */}
+                    {/* Sous-option : autre texte libre */}
                     {selected && opt.value === 'autre' && (
                       <input
                         value={negatifAutreText}
                         onChange={e => setNegatifAutreText(e.target.value)}
                         placeholder="Préciser la raison…"
-                        style={{
-                          width: '100%', marginTop: 6, background: '#f7f4ee', border: '1px solid #e5ddc8',
-                          borderRadius: 8, padding: '8px 12px', color: '#0f172a', fontSize: 13,
-                          outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-                        }}
+                        style={{ ...fieldStyle, marginTop: 6 }}
                       />
                     )}
                   </div>
@@ -1094,70 +986,58 @@ export default function AppointmentModal({
           </div>
         )}
 
-        {/* Section: Interlocuteur principal */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              👤 Interlocuteur principal
-            </div>
+        {/* Interlocuteur principal */}
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}><UsersRound size={12} color={crmV2.gold} />Interlocuteur principal</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: interlocuteur ? 10 : 0 }}>
               {(['parent', 'etudiant'] as const).map(val => {
                 const selected = interlocuteur === val
+                const Icon = val === 'parent' ? UsersRound : GraduationCap
                 return (
-                  <button key={val} onClick={() => setInterlocuteur(val)} style={{
-                    flex: 1, background: selected ? 'rgba(204,172,113,0.12)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#C9A84C' : '#4a6070',
-                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
-                  }}>
-                    {val === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Étudiant'}
+                  <button key={val} type="button" onClick={() => setInterlocuteur(val)} style={{ ...choiceStyle(selected, crmV2.gold), flex: 1, textAlign: 'center', justifyContent: 'center' }}>
+                    <Icon size={14} />
+                    {val === 'parent' ? 'Parent' : 'Étudiant'}
                   </button>
                 )
               })}
             </div>
             {interlocuteur && (
-              <div style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 6, fontWeight: 600 }}>
+              <div style={{ background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 6, fontWeight: 700 }}>
                   {interlocuteur === 'parent' ? 'Consigne pour Pascal' : 'Consigne pour le télépro'}
                 </div>
                 <input
                   value={consigneText}
                   onChange={e => setConsigneText(e.target.value)}
                   placeholder="Décrire la consigne…"
-                  style={{
-                    width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
-                    borderRadius: 8, padding: '8px 12px', color: '#0f172a', fontSize: 13,
-                    outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 8,
-                  }}
+                  style={{ ...fieldStyle, marginBottom: 8 }}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   {!consigneRienAFaire && (
                     <>
-                      <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 600 }}>Échéance :</div>
+                      <div style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 700 }}>Échéance :</div>
                       <input
                         type="date"
                         value={consigneEcheance}
                         onChange={e => setConsigneEcheance(e.target.value)}
-                        style={{
-                          background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8,
-                          padding: '6px 10px', color: '#0f172a', fontSize: 12, outline: 'none',
-                          fontFamily: 'inherit',
-                        }}
+                        style={scheduleInputStyle}
                       />
                     </>
                   )}
                   <button
+                    type="button"
                     onClick={() => { setConsigneRienAFaire(!consigneRienAFaire); if (!consigneRienAFaire) setConsigneEcheance('') }}
                     style={{
-                      background: consigneRienAFaire ? 'rgba(107,114,128,0.2)' : 'transparent',
-                      border: `1px solid ${consigneRienAFaire ? 'rgba(107,114,128,0.4)' : '#e5ddc8'}`,
-                      borderRadius: 6, padding: '5px 10px',
-                      color: consigneRienAFaire ? '#9ca3af' : '#4a6070',
-                      fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      background: consigneRienAFaire ? 'rgba(107,114,128,0.14)' : crmV2.bg,
+                      border: `1px solid ${consigneRienAFaire ? 'rgba(107,114,128,0.4)' : crmV2.border}`,
+                      borderRadius: 999, padding: '5px 12px',
+                      color: consigneRienAFaire ? '#4b5563' : crmV2.textMuted,
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
-                    {consigneRienAFaire ? '✓ ' : ''}Rien à faire
+                    {consigneRienAFaire && <Check size={11} />}Rien à faire
                   </button>
                 </div>
               </div>
@@ -1165,99 +1045,66 @@ export default function AppointmentModal({
           </div>
         )}
 
-        {/* Section: Contexte concurrence */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              🏆 Contexte concurrence
-            </div>
+        {/* Contexte concurrence */}
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}><Trophy size={12} color={crmV2.gold} />Contexte concurrence</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {([
                 { value: 'bien_renseignee', label: 'Bien renseignée ou va le faire' },
                 { value: 'peu_renseignee', label: 'Peu renseignée ou va pas trop regarder' },
                 { value: 'pas_renseignee', label: 'Pas renseignée' },
-              ] as const).map(opt => {
-                const selected = contexteConcurrence === opt.value
-                return (
-                  <button key={opt.value} onClick={() => setContexteConcurrence(opt.value)} style={{
-                    textAlign: 'left', background: selected ? 'rgba(204,172,113,0.1)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#C9A84C' : '#4a6070',
-                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
-                  }}>
-                    {opt.label}
-                  </button>
-                )
-              })}
+              ] as const).map(opt => (
+                <button key={opt.value} type="button" onClick={() => setContexteConcurrence(opt.value)} style={choiceStyle(contexteConcurrence === opt.value, crmV2.gold)}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Section: Financement */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              💰 Financement
-            </div>
+        {/* Financement */}
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}><Wallet size={12} color={crmV2.gold} />Financement</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {([
-                { value: 'pas_de_probleme', label: 'Pas de problème' },
-                { value: 'potentiel_blocage', label: 'Potentiel blocage financier' },
-              ] as const).map(opt => {
-                const selected = financement === opt.value
-                return (
-                  <button key={opt.value} onClick={() => setFinancement(opt.value)} style={{
-                    flex: 1, background: selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)') : 'transparent',
-                    border: `1px solid ${selected ? (opt.value === 'pas_de_probleme' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: selected ? (opt.value === 'pas_de_probleme' ? '#22c55e' : '#ef4444') : '#4a6070',
-                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
-                  }}>
-                    {opt.label}
-                  </button>
-                )
-              })}
+                { value: 'pas_de_probleme', label: 'Pas de problème', color: '#16a34a' },
+                { value: 'potentiel_blocage', label: 'Potentiel blocage financier', color: '#ef4444' },
+              ] as const).map(opt => (
+                <button key={opt.value} type="button" onClick={() => setFinancement(opt.value)} style={{ ...choiceStyle(financement === opt.value, opt.color), flex: 1, justifyContent: 'center', textAlign: 'center' }}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Section: JPO */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              🎓 Inviter à la prochaine JPO
-            </div>
+        {/* JPO */}
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={sectionLabel}><GraduationCap size={12} color={crmV2.gold} />Inviter à la prochaine JPO</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {([
                 { value: 'oui', label: 'Oui' },
                 { value: 'pas_besoin', label: 'Pas besoin' },
-              ] as const).map(opt => {
-                const selected = jpoInvitation === opt.value
-                return (
-                  <button key={opt.value} onClick={() => setJpoInvitation(opt.value)} style={{
-                    flex: 1, background: selected ? 'rgba(204,172,113,0.12)' : 'transparent',
-                    border: `1px solid ${selected ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: selected ? '#C9A84C' : '#4a6070',
-                    fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer',
-                  }}>
-                    {opt.label}
-                  </button>
-                )
-              })}
+              ] as const).map(opt => (
+                <button key={opt.value} type="button" onClick={() => setJpoInvitation(opt.value)} style={{ ...choiceStyle(jpoInvitation === opt.value, crmV2.gold), flex: 1, justifyContent: 'center', textAlign: 'center' }}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {/* Rapport closer — obligatoire */}
-        {!isNonAssigne && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: reportError ? '#ef4444' : '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <FileText size={12} />
+        {canQualify && !isNonAssigne && (
+          <div style={sectionPad}>
+            <div style={{ ...sectionLabel, color: reportError ? '#ef4444' : crmV2.textMuted }}>
+              <FileText size={12} color={crmV2.gold} />
               Rapport du RDV *
               {reportError && (
-                <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
                   — Obligatoire avant de changer le statut
                 </span>
               )}
@@ -1265,79 +1112,47 @@ export default function AppointmentModal({
             {aiGenerated && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
-                background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
-                borderRadius: 8, padding: '6px 12px',
+                background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)',
+                borderRadius: 10, padding: '6px 12px',
               }}>
                 <Sparkles size={14} style={{ color: '#8b5cf6' }} />
-                <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>
+                <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>
                   Rapport pré-rempli par l&apos;IA — vous pouvez le modifier avant de valider
                 </span>
               </div>
             )}
             <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 4, fontWeight: 600 }}>Résumé du RDV</div>
+              <div style={fieldLabel}>Résumé du RDV</div>
               <textarea
                 value={reportSummary}
                 onChange={(e) => { setReportSummary(e.target.value); setReportError(false) }}
                 placeholder="Comment s'est passé le RDV ? Motivations du prospect, objections, situation…"
                 rows={4}
-                style={{
-                  width: '100%', background: '#f7f4ee',
-                  border: `1px solid ${reportError && !reportSummary.trim() ? 'rgba(239,68,68,0.5)' : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '12px 14px', color: '#0f172a',
-                  fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
-                  outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
-                }}
+                style={{ ...textareaStyle, borderColor: reportError && !reportSummary.trim() ? 'rgba(239,68,68,0.5)' : crmV2.borderStrong }}
               />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 4, fontWeight: 600 }}>Conseil pour le télépro</div>
+              <div style={fieldLabel}>Conseil pour le télépro</div>
               <textarea
                 value={reportTelepro}
                 onChange={(e) => { setReportTelepro(e.target.value); setReportError(false) }}
                 placeholder="Retour pour le télépro : qualité du lead, axes d'amélioration, infos manquantes…"
                 rows={3}
-                style={{
-                  width: '100%', background: '#f7f4ee',
-                  border: `1px solid ${reportError && !reportTelepro.trim() ? 'rgba(239,68,68,0.5)' : '#e5ddc8'}`,
-                  borderRadius: 8, padding: '12px 14px', color: '#0f172a',
-                  fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
-                  outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
-                }}
+                style={{ ...textareaStyle, borderColor: reportError && !reportTelepro.trim() ? 'rgba(239,68,68,0.5)' : crmV2.borderStrong }}
               />
             </div>
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #e5ddc8' }}>
-              <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 8, fontWeight: 600 }}>
-                Coordonnées parent <span style={{ fontWeight: 400, textTransform: 'none' }}>(facultatif)</span>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${crmV2.border}` }}>
+              <div style={{ ...fieldLabel, marginBottom: 8 }}>
+                Coordonnées parent <span style={{ fontWeight: 400 }}>(facultatif)</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Mail size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
-                  <input
-                    type="email"
-                    value={emailParent}
-                    onChange={(e) => setEmailParent(e.target.value)}
-                    placeholder="Email parent"
-                    style={{
-                      flex: 1, background: '#f7f4ee', border: '1px solid #e5ddc8',
-                      borderRadius: 8, padding: '8px 12px', color: '#0f172a',
-                      fontSize: 13, outline: 'none', fontFamily: 'inherit',
-                    }}
-                  />
+                  <Mail size={14} style={iconGold} />
+                  <input type="email" value={emailParent} onChange={(e) => setEmailParent(e.target.value)} placeholder="E-mail parent" style={fieldStyle} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Phone size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
-                  <input
-                    type="tel"
-                    value={phoneParent}
-                    onChange={(e) => setPhoneParent(e.target.value)}
-                    placeholder="Numéro parent"
-                    style={{
-                      flex: 1, background: '#f7f4ee', border: '1px solid #e5ddc8',
-                      borderRadius: 8, padding: '8px 12px', color: '#0f172a',
-                      fontSize: 13, outline: 'none', fontFamily: 'inherit',
-                    }}
-                  />
+                  <Phone size={14} style={iconGold} />
+                  <input type="tel" value={phoneParent} onChange={(e) => setPhoneParent(e.target.value)} placeholder="Numéro parent" style={fieldStyle} />
                 </div>
               </div>
             </div>
@@ -1345,71 +1160,57 @@ export default function AppointmentModal({
         )}
 
         {/* Notes */}
-        <div style={{ padding: '16px 24px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <FileText size={12} />
-            Notes internes
+        <div style={{ padding: '14px 18px 18px' }}>
+          <div style={{ ...sectionLabel, marginBottom: 8 }}>
+            <FileText size={12} color={crmV2.gold} />
+            {teleproView ? 'Notes du télépro' : 'Notes internes'}
           </div>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes libres sur ce RDV..."
+            placeholder="Notes libres sur ce RDV…"
             rows={4}
-            style={{
-              width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8',
-              borderRadius: 8, padding: '12px 14px', color: '#0f172a',
-              fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
-              outline: 'none', boxSizing: 'border-box', lineHeight: 1.6,
-            }}
+            style={{ ...textareaStyle, background: '#fdf6e3', borderColor: 'rgba(201,168,76,0.30)' }}
           />
-          <button
-            onClick={saveAll}
-            disabled={saving}
-            style={{
-              marginTop: 8, background: '#C9A84C', color: '#0e1e35',
-              border: 'none', borderRadius: 8, padding: '8px 16px',
-              cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            }}
-          >
-            {saving ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
         </div>
 
         {/* Zone danger — suppression définitive du RDV (admin/agenda uniquement) */}
         {onDelete && (
-          <div style={{ padding: '16px 24px', borderTop: '1px solid #e5ddc8' }}>
+          <div style={{ padding: '0 18px 18px' }}>
             {!confirmDelete ? (
               <button
+                type="button"
                 onClick={() => setConfirmDelete(true)}
                 disabled={deleting}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
-                  borderRadius: 8, padding: '8px 14px',
-                  color: '#ef4444', fontSize: 13, fontWeight: 600,
+                  borderRadius: 999, padding: '7px 14px',
+                  color: '#d13a41', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
-                🗑️ Supprimer le RDV
+                <Trash2 size={14} /> Supprimer le RDV
               </button>
             ) : (
               <div style={{
                 background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: 10, padding: '12px 14px',
+                borderRadius: 12, padding: '12px 14px',
               }}>
-                <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600, marginBottom: 4 }}>
+                <div style={{ fontSize: 13, color: crmV2.text, fontWeight: 700, marginBottom: 4 }}>
                   Supprimer définitivement ce RDV ?
                 </div>
-                <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 12 }}>
                   Cette action est irréversible. Le RDV disparaîtra de l&apos;agenda.
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
+                    type="button"
                     onClick={deleteAppointment}
                     disabled={deleting}
                     style={{
-                      background: '#ef4444', color: '#fff', border: 'none',
-                      borderRadius: 8, padding: '8px 16px',
+                      background: '#ef4444', color: '#fff', border: '1px solid #ef4444',
+                      borderRadius: 999, padding: '7px 16px',
                       cursor: 'pointer', fontSize: 13, fontWeight: 700,
                       opacity: deleting ? 0.7 : 1, fontFamily: 'inherit',
                     }}
@@ -1417,12 +1218,13 @@ export default function AppointmentModal({
                     {deleting ? 'Suppression…' : 'Oui, supprimer'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => setConfirmDelete(false)}
                     disabled={deleting}
                     style={{
-                      background: 'transparent', border: '1px solid #e5ddc8',
-                      borderRadius: 8, padding: '8px 16px',
-                      color: '#4a6070', fontSize: 13, fontWeight: 600,
+                      background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+                      borderRadius: 999, padding: '7px 16px',
+                      color: crmV2.text, fontSize: 13, fontWeight: 600,
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
@@ -1433,9 +1235,46 @@ export default function AppointmentModal({
             )}
           </div>
         )}
+        </div>
+
+        {/* Pied : Replanifier (va à la date) · Enregistrer */}
+        <div style={{ padding: '12px 18px', borderTop: `1px solid ${crmV2.border}`, display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => {
+              dateBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              setTimeout(() => {
+                const el = dateInputRef.current
+                if (!el) return
+                el.focus()
+                try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.() } catch { /* non supporté */ }
+              }, 250)
+            }}
+            style={{
+              flex: 1, borderRadius: 999, padding: '10px 0', fontSize: 13, fontWeight: 600,
+              background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, color: crmV2.text,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            <CalendarClock size={14} /> Replanifier
+          </button>
+          <button
+            type="button"
+            onClick={saveAll}
+            disabled={saving}
+            style={{
+              flex: 1, borderRadius: 999, padding: '10px 0', fontSize: 13, fontWeight: 700,
+              background: crmV2.primary, border: `1px solid ${crmV2.primary}`, color: '#fff',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.75 : 1,
+            }}
+          >
+            <Check size={14} /> {saving ? 'Enregistrement…' : saved ? 'Enregistré' : 'Enregistrer'}
+          </button>
+        </div>
         </>
         )}
-      </div>
+      </aside>
     </div>
 
     {showJitsi && appointment.meeting_link && (
@@ -1455,4 +1294,31 @@ export default function AppointmentModal({
     )}
     </>
   )
+}
+
+const fieldStyle: React.CSSProperties = {
+  flex: 1, width: '100%', background: '#ffffff', border: `1px solid ${crmV2.borderStrong}`,
+  borderRadius: 10, padding: '0 12px', height: 38, color: crmV2.text, fontSize: 13,
+  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+}
+const textareaStyle: React.CSSProperties = {
+  width: '100%', background: '#ffffff', border: `1px solid ${crmV2.borderStrong}`,
+  borderRadius: 10, padding: '10px 12px', color: crmV2.text,
+  fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
+  outline: 'none', boxSizing: 'border-box', lineHeight: 1.55,
+}
+const fieldLabel: React.CSSProperties = { fontSize: 12, color: crmV2.textMuted, marginBottom: 4, fontWeight: 700 }
+
+/** Bouton de choix (radio visuel) de la fiche RDV. */
+function choiceStyle(selected: boolean, color: string, error = false): React.CSSProperties {
+  return {
+    width: '100%', textAlign: 'left',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    background: selected ? tint(color, 0.10) : '#ffffff',
+    border: `1px solid ${selected ? tint(color, 0.45) : error ? 'rgba(239,68,68,0.35)' : crmV2.border}`,
+    borderRadius: 12, padding: '9px 12px',
+    color: selected ? (color === crmV2.gold ? crmV2.goldDark : color) : crmV2.text,
+    fontSize: 13, fontWeight: selected ? 700 : 500,
+    cursor: 'pointer', fontFamily: 'inherit',
+  }
 }

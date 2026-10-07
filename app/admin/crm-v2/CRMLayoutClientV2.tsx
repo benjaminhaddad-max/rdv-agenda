@@ -157,7 +157,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 
         <div className="crm-mobile-scroll" style={{
           flex: 1, minHeight: 0, overflow: 'auto',
-          background: crmV2.bg,
+          background: crmV2.bgSoft,
           border: (isMobile || !showAdminChrome) ? 'none' : `1px solid ${crmV2.border}`,
           borderRadius: (isMobile || !showAdminChrome) ? 0 : 14,
           boxShadow: (isMobile || !showAdminChrome) ? 'none' : crmV2.shadow,

@@ -17,6 +17,7 @@ import { buildConfirmUrl } from '@/lib/confirm-link'
 import { personalizeVisioUrl } from '@/lib/visio-url'
 import { extraParticipantEmails } from '@/lib/appointment-participants'
 import { brandRdvEmail } from '@/lib/rdv-brand'
+import { isValidCampus } from '@/lib/campus'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://rdv-agenda.vercel.app'
 const PREPA_ADDRESS = process.env.PREPA_ADDRESS || 'nos locaux à Paris'
@@ -658,7 +659,9 @@ export async function sendMeetingModeChangeEmail(
   ` : ''
 
   const modeIntro = meetingType === 'presentiel'
-    ? 'Votre rendez-vous se déroulera désormais <strong>en présentiel</strong> dans nos locaux.'
+    ? (isValidCampus(String(meetingLink || '').trim())
+      ? 'Votre rendez-vous se déroulera désormais <strong>en présentiel</strong> dans nos locaux.'
+      : 'Votre rendez-vous se déroulera désormais <strong>en présentiel</strong>, à l&rsquo;adresse indiquée ci-dessous.')
     : 'Votre rendez-vous se déroulera désormais <strong>en visioconférence</strong>.'
 
   const content = `

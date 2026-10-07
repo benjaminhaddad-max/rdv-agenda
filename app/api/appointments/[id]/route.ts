@@ -354,17 +354,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (appointment.status === 'annule') {
       return NextResponse.json({ error: 'Impossible de modifier un RDV annulé' }, { status: 400 })
     }
+    // Présentiel → présentiel : changement d'adresse (campus ou adresse libre)
+    const requestedAddress = String(body.meeting_link || '').trim()
     if (appointment.meeting_type === newMeetingType) {
-      return NextResponse.json(appointment)
+      if (newMeetingType !== 'presentiel' || !requestedAddress || requestedAddress === appointment.meeting_link) {
+        return NextResponse.json(appointment)
+      }
     }
 
     let finalMeetingLink: string | null = null
     let googleEventId: string | null = appointment.google_event_id || null
 
     if (newMeetingType === 'presentiel') {
-      const campus = String(body.meeting_link || '').trim()
-      if (!campus || !isValidCampus(campus)) {
-        return NextResponse.json({ error: 'Campus invalide' }, { status: 400 })
+      const campus = requestedAddress
+      // « Autre adresse… » : texte libre (au moins une rue + une ville), jamais une URL
+      const customOk = body.custom_address === true && campus.length >= 8 && campus.length <= 200 && !/^https?:\/\//i.test(campus)
+      if (!campus || (!isValidCampus(campus) && !customOk)) {
+        return NextResponse.json({ error: 'Adresse invalide' }, { status: 400 })
       }
       finalMeetingLink = campus
       googleEventId = null

@@ -12,7 +12,7 @@ export interface StageMeta {
 const C = {
   aReplanifier:  { color: '#ef4444', bg: 'rgba(239,68,68,0.10)',  emoji: '🔴' },
   rdvPris:       { color: '#4cabdb', bg: 'rgba(76,171,219,0.10)', emoji: '🔵' },
-  delaiReflex:   { color: '#ccac71', bg: 'rgba(204,172,113,0.10)', emoji: '🟡' },
+  delaiReflex:   { color: '#b8963e', bg: 'rgba(204,172,113,0.14)', emoji: '🟡' },
   preinscription:{ color: '#22c55e', bg: 'rgba(34,197,94,0.10)',  emoji: '🟢' },
   finalisation: { color: '#a855f7', bg: 'rgba(168,85,247,0.10)', emoji: '🟣' },
   inscription:   { color: '#16a34a', bg: 'rgba(22,163,74,0.10)',  emoji: '✅' },

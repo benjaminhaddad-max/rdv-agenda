@@ -81,6 +81,14 @@ body {
 @keyframes crm-v2-spin {
   to { transform: rotate(360deg); }
 }
+@keyframes crm-v2-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.crm-v2 :focus-visible {
+  outline: 2px solid rgba(201, 168, 76, 0.55);
+  outline-offset: 1px;
+}
 .crm-v2 ::-webkit-scrollbar-track { background: #f5f8fa; }
 .crm-v2 ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
 .crm-v2 ::-webkit-scrollbar-thumb:hover { background: #7c98b6; }
@@ -91,7 +99,22 @@ body {
  * les couleurs hex en rgb() dans l'attribut style, d'où les sélecteurs rgb.
  */
 .crm-v2-bridge-body {
-  background: #f5f8fa;
+  background: #eef1f6;
+}
+
+/* ── Tableaux des pages classiques → en-tête V2 (gabarit A) ───────────── */
+.crm-v2-skin table thead th {
+  background: #f4f7fb !important;
+  border-bottom: 2px solid #e4eaf2 !important;
+  color: #516f90 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.crm-v2-skin table tbody tr:hover > td {
+  background-color: rgba(201, 168, 76, 0.05);
 }
 
 /* Mobile : pages fixes — pas de glissement horizontal ni d'effet élastique.
