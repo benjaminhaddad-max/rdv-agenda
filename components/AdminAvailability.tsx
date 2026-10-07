@@ -4,9 +4,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  X, Clock, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp,
+  X, Clock, Save, CheckCircle, AlertCircle, ChevronDown, ArrowRight, ExternalLink, RefreshCw,
   Ban, Plus, ChevronLeft, ChevronRight, Copy, Trash2, Check,
 } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { CrmV2Avatar, CrmV2Button, CrmV2StatusPill, CrmV2Toggle } from '@/components/crm-v2/primitives'
+import { AdminNotice } from '@/components/crm-v2/admin/AdminUi'
+import { PanelCard, PanelLoading, PanelSectionTitle, PanelShell, panelFieldStyle } from '@/components/crm-v2/panels/PanelUi'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type CloserUser = {
@@ -48,18 +53,6 @@ const TIME_OPTIONS: string[] = []
 for (let h = 7; h <= 21; h++) {
   TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
   if (h < 21) TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`)
-}
-
-const selectStyle: React.CSSProperties = {
-  background: '#f7f4ee',
-  border: '1px solid #e5ddc8',
-  borderRadius: 6,
-  padding: '5px 8px',
-  color: '#0e1e35',
-  fontSize: 12,
-  outline: 'none',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
 }
 
 // ─── Helpers semaine ────────────────────────────────────────────────────
@@ -146,61 +139,36 @@ function MigrationBanner({ onMigrationApplied }: { onMigrationApplied: () => voi
   }
 
   return (
-    <div style={{
-      margin: 16, padding: 16,
-      background: '#fef3c7', border: '1px solid #f59e0b',
-      borderRadius: 12, color: '#92400e',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <AlertCircle size={20} style={{ color: '#b45309', flexShrink: 0, marginTop: 1 }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
-            Activer le mode hebdomadaire (1 étape)
-          </div>
-          <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
-            Le mode &quot;disponibilités par semaine&quot; nécessite une mise à jour de la base.
-            Supabase ne permet pas la création de table via API : c&apos;est l&apos;unique étape manuelle.
-            <br />Clique sur <strong>Copier le SQL</strong>, ouvre le SQL Editor de Supabase, colle, clique <strong>Run</strong>.
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              onClick={copySQL}
-              style={{
-                background: copied ? '#16a34a' : '#0038f0', color: '#fff', border: 'none',
-                borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Copié ! Colle dans Supabase' : 'Copier le SQL'}
-            </button>
-            {supabaseUrl && (
-              <a
-                href={supabaseUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  background: '#fff', color: '#0038f0', border: '1px solid #0038f0',
-                  borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600,
-                  textDecoration: 'none',
-                }}
-              >
-                Ouvrir le SQL Editor →
-              </a>
-            )}
-            <button
-              onClick={onMigrationApplied}
-              style={{
-                background: 'transparent', color: '#92400e', border: '1px solid #f59e0b',
-                borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              J&apos;ai appliqué, réessayer
-            </button>
-          </div>
-        </div>
+    <AdminNotice tone="warning" icon={<AlertCircle size={16} />}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: crmV2.text }}>Activer le mode hebdomadaire (1 étape)</div>
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: crmV2.textMuted, margin: '4px 0 12px' }}>
+        Le mode « disponibilités par semaine » nécessite une mise à jour de la base.
+        Supabase ne permet pas la création de table via API : c&apos;est l&apos;unique étape manuelle.
+        <br />Clique sur <strong>Copier le SQL</strong>, ouvre le SQL Editor de Supabase, colle, clique <strong>Run</strong>.
       </div>
-    </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <CrmV2Button variant="primary" onClick={copySQL} icon={copied ? <Check size={14} /> : <Copy size={14} />}>
+          {copied ? 'Copié ! Colle dans Supabase' : 'Copier le SQL'}
+        </CrmV2Button>
+        {supabaseUrl && (
+          <a
+            href={supabaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px',
+              fontSize: 13, fontWeight: 600, textDecoration: 'none', background: crmV2.bg,
+              border: `1px solid ${crmV2.borderStrong}`, color: crmV2.text, whiteSpace: 'nowrap',
+            }}
+          >
+            Ouvrir le SQL Editor <ExternalLink size={13} />
+          </a>
+        )}
+        <CrmV2Button variant="ghost" onClick={onMigrationApplied} icon={<RefreshCw size={14} />}>
+          J&apos;ai appliqué, réessayer
+        </CrmV2Button>
+      </div>
+    </AdminNotice>
   )
 }
 
@@ -213,6 +181,7 @@ function CloserAvailabilityCard({
   refreshKey: number
   onWeeklyError: () => void
 }) {
+  const isMobile = useIsMobile()
   const [expanded, setExpanded] = useState(false)
   const [rules, setRules] = useState<AvailabilityRule[]>(() =>
     DAYS.map(d => ({
@@ -339,175 +308,165 @@ function CloserAvailabilityCard({
     : 'Aucune dispo cette semaine'
 
   return (
-    <div style={{
-      background: '#ffffff',
-      border: `1px solid ${expanded ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-      borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.2s',
-    }}>
-      <div
+    <PanelCard accent={expanded} style={{ overflow: 'hidden' }}>
+      <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+        aria-expanded={expanded}
+        style={{
+          width: '100%', padding: '10px 14px', minHeight: 56, display: 'flex', alignItems: 'center', gap: 12,
+          cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left', color: crmV2.text,
+        }}
       >
-        <div style={{
-          width: 34, height: 34, borderRadius: 8,
-          background: `${closer.avatar_color}20`, border: `1px solid ${closer.avatar_color}40`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: closer.avatar_color, fontSize: 12, fontWeight: 700, flexShrink: 0,
-        }}>
-          {closer.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
-        </div>
+        <CrmV2Avatar name={closer.name} color={closer.avatar_color} size={34} radius="36%" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#0e1e35' }}>{closer.name}</div>
-          <div style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: crmV2.text }}>{closer.name}</div>
+          <div style={{
+            fontSize: 12, color: activeDays.length > 0 ? crmV2.textMuted : crmV2.textFaint,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
             {summary}
           </div>
         </div>
-        {expanded ? <ChevronUp size={18} style={{ color: '#a89e8a' }} /> : <ChevronDown size={18} style={{ color: '#a89e8a' }} />}
-      </div>
+        {activeDays.length > 0 && !isMobile && (
+          <CrmV2StatusPill label={`${activeDays.length} j`} color={crmV2.successStrong} />
+        )}
+        <ChevronDown size={16} color={crmV2.textFaint} style={{ transform: expanded ? 'none' : 'rotate(-90deg)', transition: 'transform .15s', flexShrink: 0 }} />
+      </button>
 
       {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #e5ddc8' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
-            <button
-              onClick={copyFromPreviousWeek}
-              style={{
-                background: '#f7f4ee', border: '1px solid #cbd5e1', borderRadius: 8,
-                padding: '5px 10px', fontSize: 12, color: '#0e1e35', cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <Copy size={11} /> Copier la semaine précédente
-            </button>
-            <button
-              onClick={clearWeek}
-              style={{
-                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
-                padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <Trash2 size={11} /> Effacer la semaine
-            </button>
+        <div style={{ padding: isMobile ? '0 12px 14px' : '0 16px 16px', borderTop: `1px solid ${crmV2.borderLight}` }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+            <CrmV2Button size="sm" variant="secondary" icon={<Copy size={13} />} onClick={copyFromPreviousWeek}>
+              Copier la semaine précédente
+            </CrmV2Button>
+            <CrmV2Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={clearWeek}>
+              Effacer la semaine
+            </CrmV2Button>
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-            Planning {weekLabel(weekStart)}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {DAYS.map(day => {
+          <PanelSectionTitle style={{ marginBottom: 8 }}>Planning {weekLabel(weekStart)}</PanelSectionTitle>
+          <div style={{ border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            {DAYS.map((day, i) => {
               const rule = rules.find(r => r.day_of_week === day.value)!
               return (
                 <div key={day.value} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', background: rule.is_active ? '#f7f4ee' : '#fafbfc',
-                  borderRadius: 8, border: '1px solid #e5ddc8',
+                  display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '4px 12px',
+                  background: rule.is_active ? crmV2.bg : crmV2.bgHover,
+                  borderBottom: i === DAYS.length - 1 ? 'none' : `1px solid ${crmV2.borderLight}`,
+                  flexWrap: 'wrap',
                 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', minWidth: 70 }}>
-                    <input
-                      type="checkbox"
+                  <div style={{ minWidth: 92 }}>
+                    <CrmV2Toggle
                       checked={rule.is_active}
-                      onChange={e => updateRule(day.value, 'is_active', e.target.checked)}
-                      style={{ accentColor: '#C9A84C', cursor: 'pointer' }}
+                      onChange={v => updateRule(day.value, 'is_active', v)}
+                      label={<span style={{ fontSize: 13, fontWeight: 600, color: rule.is_active ? crmV2.text : crmV2.textMuted }}>{day.label}</span>}
                     />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35' }}>{day.label}</span>
-                  </label>
+                  </div>
                   {rule.is_active ? (
-                    <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <select
                         value={rule.start_time}
                         onChange={e => updateRule(day.value, 'start_time', e.target.value)}
-                        style={selectStyle}
+                        aria-label={`Début ${day.label}`}
+                        style={{ ...panelFieldStyle, cursor: 'pointer' }}
                       >
                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
-                      <span style={{ color: '#a89e8a', fontSize: 12 }}>→</span>
+                      <ArrowRight size={14} color={crmV2.textFaint} />
                       <select
                         value={rule.end_time}
                         onChange={e => updateRule(day.value, 'end_time', e.target.value)}
-                        style={selectStyle}
+                        aria-label={`Fin ${day.label}`}
+                        style={{ ...panelFieldStyle, cursor: 'pointer' }}
                       >
                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
-                    </>
+                    </div>
                   ) : (
-                    <span style={{ fontSize: 12, color: '#a89e8a' }}>Indisponible</span>
+                    <span style={{ fontSize: 12, color: crmV2.textFaint }}>Indisponible</span>
                   )}
                 </div>
               )
             })}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-            <button
-              onClick={saveRules}
-              disabled={saving}
-              style={{
-                background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 8,
-                padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <Save size={13} /> {saving ? 'Sauvegarde…' : 'Enregistrer'}
-            </button>
-            {saved && <span style={{ color: '#16a34a', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><CheckCircle size={13} /> Sauvegardé</span>}
-            {error && <span style={{ color: '#dc2626', fontSize: 12 }}>{error}</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+            <CrmV2Button variant="primary" icon={<Save size={14} />} onClick={saveRules} disabled={saving}>
+              {saving ? 'Sauvegarde…' : 'Enregistrer'}
+            </CrmV2Button>
+            {saved && (
+              <span style={{ color: '#00866f', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <CheckCircle size={14} /> Sauvegardé
+              </span>
+            )}
+            {error && <span style={{ color: '#d13a41', fontSize: 13 }}>{error}</span>}
           </div>
 
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #e5ddc8' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px dashed ${crmV2.border}` }}>
+            <PanelSectionTitle icon={<Ban size={13} />} style={{ marginBottom: 8 }}>
               Jours bloqués (vacances, indispo ponctuelle)
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-              <input type="date" value={blockDate} onChange={e => setBlockDate(e.target.value)} style={{ ...selectStyle, padding: '5px 8px' }} />
+            </PanelSectionTitle>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
               <input
-                type="text" placeholder="Raison (optionnel)" value={blockReason}
-                onChange={e => setBlockReason(e.target.value)}
-                style={{ ...selectStyle, padding: '5px 8px', minWidth: 160 }}
+                type="date"
+                value={blockDate}
+                onChange={e => setBlockDate(e.target.value)}
+                aria-label="Date à bloquer"
+                style={{ ...panelFieldStyle, flex: isMobile ? '1 1 140px' : undefined }}
               />
-              <button
-                onClick={addBlockedDate}
-                disabled={!blockDate}
-                style={{
-                  background: blockDate ? '#0e1e35' : '#cbd5e1', color: '#fff',
-                  border: 'none', borderRadius: 8, padding: '5px 10px',
-                  fontSize: 12, fontWeight: 600, cursor: blockDate ? 'pointer' : 'not-allowed',
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Plus size={11} /> Bloquer
-              </button>
+              <input
+                type="text"
+                placeholder="Raison (optionnel)"
+                value={blockReason}
+                onChange={e => setBlockReason(e.target.value)}
+                style={{ ...panelFieldStyle, flex: '1 1 160px', minWidth: 0 }}
+              />
+              <CrmV2Button size="sm" variant="primary" icon={<Plus size={13} />} onClick={addBlockedDate} disabled={!blockDate}>
+                Bloquer
+              </CrmV2Button>
             </div>
             {blockedDates.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {blockedDates.map(b => (
-                  <div key={b.id} style={{
+                  <span key={b.id} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                    borderRadius: 999, padding: '3px 10px', fontSize: 12, color: '#7f1d1d',
+                    background: 'rgba(242,84,91,0.08)', border: '1px solid rgba(242,84,91,0.25)',
+                    borderRadius: 999, padding: '3px 4px 3px 10px', fontSize: 12, fontWeight: 600, color: '#d13a41',
                   }}>
-                    <Ban size={11} />
+                    <Ban size={12} />
                     {format(new Date(b.blocked_date), 'd MMM', { locale: fr })}
-                    {b.reason && <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>· {b.reason}</span>}
-                    <button onClick={() => removeBlockedDate(b.id)} style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                      <X size={11} />
+                    {b.reason && <span style={{ color: crmV2.textMuted, fontWeight: 500 }}>· {b.reason}</span>}
+                    <button
+                      type="button"
+                      onClick={() => removeBlockedDate(b.id)}
+                      aria-label="Débloquer ce jour"
+                      title="Débloquer ce jour"
+                      style={{
+                        background: 'transparent', border: 'none', color: '#d13a41', cursor: 'pointer',
+                        width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}
+                    >
+                      <X size={12} />
                     </button>
-                  </div>
+                  </span>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: '#a89e8a', fontStyle: 'italic' }}>Aucun jour bloqué.</div>
+              <div style={{ fontSize: 12, color: crmV2.textFaint }}>Aucun jour bloqué.</div>
             )}
           </div>
 
-          {!loaded && <div style={{ fontSize: 11, color: '#a89e8a', marginTop: 10 }}>Chargement…</div>}
+          {!loaded && <div style={{ marginTop: 6 }}><PanelLoading /></div>}
         </div>
       )}
-    </div>
+    </PanelCard>
   )
 }
 
 // ─── Composant principal ────────────────────────────────────────────────
 export default function AdminAvailability({ onClose }: { onClose: () => void }) {
+  const isMobile = useIsMobile()
   const [closers, setClosers] = useState<CloserUser[]>([])
   const [loaded, setLoaded] = useState(false)
   const [migrationNeeded, setMigrationNeeded] = useState(false)
@@ -548,109 +507,55 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
 
   const todayWeek = useMemo(() => startOfWeekMondayISO(new Date()), [])
 
-  return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-        overflowY: 'auto', display: 'flex', alignItems: 'flex-start',
-        justifyContent: 'center', padding: '32px 16px',
-      }}
-      onClick={e => e.target === e.currentTarget && onClose()}
+  const navBtn = (dir: -1 | 1) => (
+    <CrmV2Button
+      size="sm"
+      variant="secondary"
+      onClick={() => setWeekStart(addWeeksISO(weekStart, dir))}
+      aria-label={dir < 0 ? 'Semaine précédente' : 'Semaine suivante'}
+      style={isMobile ? { width: 40, height: 40, padding: 0 } : undefined}
     >
-      <div style={{
-        background: '#ffffff', border: '1px solid #e5ddc8',
-        borderRadius: 16, width: '100%', maxWidth: 720,
-        display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-      }}>
-        <div style={{
-          padding: '18px 24px', borderBottom: '1px solid #e5ddc8',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          position: 'sticky', top: 0, zIndex: 2, background: '#ffffff',
-          borderTopLeftRadius: 16, borderTopRightRadius: 16,
-        }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock size={18} style={{ color: '#C9A84C' }} />
-              Disponibilités des closers
-            </div>
-            <div style={{ fontSize: 12, color: '#4a6070', marginTop: 4 }}>
-              Définis le planning de chaque closer, semaine par semaine.
-            </div>
+      {dir < 0 && <ChevronLeft size={14} />}
+      {!isMobile && (dir < 0 ? 'Sem. précédente' : 'Sem. suivante')}
+      {dir > 0 && <ChevronRight size={14} />}
+    </CrmV2Button>
+  )
+
+  return (
+    <PanelShell
+      variant="modal"
+      width={760}
+      onClose={onClose}
+      icon={<Clock size={16} />}
+      title="Disponibilités des closers"
+      subtitle="Définis le planning de chaque closer, semaine par semaine."
+    >
+      {migrationNeeded && <MigrationBanner onMigrationApplied={handleMigrationApplied} />}
+
+      {!migrationNeeded && (
+        <PanelCard style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          {navBtn(-1)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: crmV2.text, whiteSpace: 'nowrap' }}>{weekLabel(weekStart)}</span>
+            {weekStart !== todayWeek && (
+              <CrmV2Button size="sm" variant="gold" onClick={() => setWeekStart(todayWeek)} style={{ padding: '3px 10px', fontSize: 12 }}>
+                Aujourd&apos;hui
+              </CrmV2Button>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8,
-              width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#4a6070',
-            }}
-          >
-            <X size={16} />
-          </button>
+          {navBtn(1)}
+        </PanelCard>
+      )}
+
+      {!loaded && <PanelLoading />}
+      {loaded && closers.length === 0 && (
+        <div style={{ textAlign: 'center', color: crmV2.textMuted, padding: '24px 0', fontSize: 13 }}>
+          Aucun closer trouvé. Va dans Utilisateurs pour en créer.
         </div>
-
-        {migrationNeeded && <MigrationBanner onMigrationApplied={handleMigrationApplied} />}
-
-        {!migrationNeeded && (
-          <div style={{
-            padding: '12px 24px', borderBottom: '1px solid #e5ddc8',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            background: '#fafbfc',
-          }}>
-            <button
-              onClick={() => setWeekStart(addWeeksISO(weekStart, -1))}
-              style={{
-                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 12, color: '#0e1e35', fontFamily: 'inherit', fontWeight: 600,
-              }}
-            >
-              <ChevronLeft size={14} /> Sem. précédente
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35' }}>
-                {weekLabel(weekStart)}
-              </div>
-              {weekStart !== todayWeek && (
-                <button
-                  onClick={() => setWeekStart(todayWeek)}
-                  style={{
-                    background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)',
-                    borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600,
-                    color: '#C9A84C', cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  Aujourd&apos;hui
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setWeekStart(addWeeksISO(weekStart, 1))}
-              style={{
-                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
-                padding: '6px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 12, color: '#0e1e35', fontFamily: 'inherit', fontWeight: 600,
-              }}
-            >
-              Sem. suivante <ChevronRight size={14} />
-            </button>
-          </div>
-        )}
-
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {!loaded && (
-            <div style={{ textAlign: 'center', color: '#4a6070', padding: '24px 0', fontSize: 13 }}>
-              Chargement…
-            </div>
-          )}
-          {loaded && closers.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#4a6070', padding: '24px 0', fontSize: 13 }}>
-              Aucun closer trouvé. Va dans Utilisateurs pour en créer.
-            </div>
-          )}
-          {loaded && !migrationNeeded && closers.map(closer => (
+      )}
+      {loaded && !migrationNeeded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {closers.map(closer => (
             <CloserAvailabilityCard
               key={closer.id + '-' + weekStart + '-' + refreshKey}
               closer={closer}
@@ -660,7 +565,7 @@ export default function AdminAvailability({ onClose }: { onClose: () => void }) 
             />
           ))}
         </div>
-      </div>
-    </div>
+      )}
+    </PanelShell>
   )
 }

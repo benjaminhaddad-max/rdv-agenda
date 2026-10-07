@@ -1,11 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Save, RefreshCw, Eye, EyeOff, Copy, Check, Plus, Trash2, ExternalLink, Link2, FileText } from 'lucide-react'
+import { useState, useEffect, type ReactNode } from 'react'
+import {
+  Save, RefreshCw, Eye, EyeOff, Plus, Trash2, ExternalLink, Link2, FileText, Pencil, Lightbulb,
+  CheckCircle2, GraduationCap, Stethoscope, PenLine, Info, ClipboardList,
+} from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Button, CrmV2Field, CrmV2Input, CrmV2Pill, CrmV2Textarea, hexA,
+} from '@/components/crm-v2/primitives'
+import { AdminIconButton, AdminNotice } from '@/components/crm-v2/admin/AdminUi'
+import {
+  PanelCard, PanelCopyButton, PanelIconTile, PanelLoading, PanelSectionTitle, PanelShell, PanelTabs,
+} from '@/components/crm-v2/panels/PanelUi'
 
-const NAVY = '#ffffff'
 const BLUE = '#4cabdb'
-const GOLD = '#C9A84C'
+const GOLD = crmV2.gold
 
 // ─── Onglet Contenus /rdv ─────────────────────────────────────────────────────
 
@@ -16,7 +27,7 @@ type RdvTypeRow = {
 }
 
 const FIELD_LABELS: { field: keyof RdvTypeRow; label: string; multiline?: boolean }[] = [
-  { field: 'icon',        label: 'Icône (emoji)' },
+  { field: 'icon',        label: 'Icône (page publique)' },
   { field: 'title',       label: 'Titre de la carte' },
   { field: 'subtitle',    label: 'Sous-titre (affiché en or)' },
   { field: 'description', label: 'Description', multiline: true },
@@ -34,11 +45,7 @@ function TabContenus() {
   const [draft, setDraft]     = useState<Partial<RdvTypeRow>>({})
   const [error, setError]     = useState<string | null>(null)
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
-    borderRadius: 8, padding: '8px 11px', color: '#0e1e35',
-    fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-  }
+  const isMobile = useIsMobile()
 
   async function load() {
     setLoading(true)
@@ -80,18 +87,16 @@ function TabContenus() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: '#C9A84C', background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '7px 12px' }}>
-          💡 Modifications appliquées <strong>immédiatement</strong> sur la page publique /rdv après sauvegarde.
-        </div>
-        <button onClick={load} style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 8, padding: '6px 11px', color: BLUE, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}>
-          <RefreshCw size={12} /> Actualiser
-        </button>
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <AdminNotice tone="warning" icon={<Lightbulb size={15} />} style={{ flex: '1 1 260px' }}>
+          Modifications appliquées <strong>immédiatement</strong> sur la page publique /rdv après sauvegarde.
+        </AdminNotice>
+        <CrmV2Button variant="secondary" size="sm" icon={<RefreshCw size={13} />} onClick={load}>Actualiser</CrmV2Button>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#4a6070' }}>Chargement…</div>
+        <PanelLoading />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {types.map(type => {
@@ -99,99 +104,110 @@ function TabContenus() {
             const isSaving  = saving  === type.rdv_key
             const justSaved = saved   === type.rdv_key
             return (
-              <div key={type.rdv_key} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isEditing ? 'rgba(204,172,113,0.4)' : '#e5ddc8'}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.2s' }}>
-                {/* Row */}
-                <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: isEditing ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20 }}>{type.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: type.active ? '#0e1e35' : '#4a6070' }}>{type.title}</div>
-                      <div style={{ fontSize: 11, color: GOLD }}>{type.subtitle}</div>
+              <PanelCard key={type.rdv_key} accent={isEditing} style={{ overflow: 'hidden' }}>
+                {/* Ligne */}
+                <div style={{
+                  padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                  borderBottom: isEditing ? `1px solid ${crmV2.borderLight}` : 'none',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 200px' }}>
+                    <PanelIconTile icon={<FileText size={15} />} color={type.active ? GOLD : crmV2.textFaint} size={32} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: type.active ? crmV2.text : crmV2.textMuted }}>{type.title}</div>
+                      <div style={{ fontSize: 12, color: crmV2.goldDark }}>{type.subtitle}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {justSaved && (
+                      <span style={{ fontSize: 12, color: '#00866f', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={13} /> Sauvegardé
+                      </span>
+                    )}
                     <button
+                      type="button"
                       onClick={() => toggleActive(type)} disabled={!!isSaving}
-                      style={{ background: type.active ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${type.active ? 'rgba(34,197,94,0.3)' : '#e5ddc8'}`, borderRadius: 6, padding: '4px 9px', color: type.active ? '#22c55e' : '#4a6070', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}
+                      title={type.active ? 'Masquer sur la page /rdv' : 'Afficher sur la page /rdv'}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '5px 12px',
+                        fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: isSaving ? 'wait' : 'pointer',
+                        background: type.active ? hexA(crmV2.successStrong, 0.10) : crmV2.chipBg,
+                        border: `1px solid ${type.active ? hexA(crmV2.successStrong, 0.30) : crmV2.chipBorder}`,
+                        color: type.active ? crmV2.successStrong : crmV2.textMuted,
+                      }}
                     >
-                      {type.active ? <><Eye size={10} /> Visible</> : <><EyeOff size={10} /> Masqué</>}
+                      {type.active ? <><Eye size={13} /> Visible</> : <><EyeOff size={13} /> Masqué</>}
                     </button>
                     {isEditing ? (
                       <>
-                        <button onClick={() => { setEditing(null); setDraft({}) }} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 10px', color: '#4a6070', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
-                          Annuler
-                        </button>
-                        <button onClick={() => saveType(type.rdv_key)} disabled={isSaving} style={{ background: isSaving ? 'rgba(204,172,113,0.2)' : GOLD, border: 'none', borderRadius: 6, padding: '4px 12px', color: NAVY, cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Save size={10} /> {isSaving ? 'Sauvegarde…' : 'Sauvegarder'}
-                        </button>
+                        <CrmV2Button size="sm" variant="secondary" onClick={() => { setEditing(null); setDraft({}) }}>Annuler</CrmV2Button>
+                        <CrmV2Button size="sm" variant="primary" icon={<Save size={13} />} onClick={() => saveType(type.rdv_key)} disabled={!!isSaving}>
+                          {isSaving ? 'Sauvegarde…' : 'Sauvegarder'}
+                        </CrmV2Button>
                       </>
                     ) : (
-                      <button onClick={() => { setEditing(type.rdv_key); setDraft({ ...type }); setError(null) }} style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 6, padding: '4px 10px', color: BLUE, cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
-                        ✏️ Modifier
-                      </button>
+                      <CrmV2Button size="sm" variant="secondary" icon={<Pencil size={13} />} onClick={() => { setEditing(type.rdv_key); setDraft({ ...type }); setError(null) }}>
+                        Modifier
+                      </CrmV2Button>
                     )}
-                    {justSaved && <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>✓ Sauvegardé</span>}
                   </div>
                 </div>
 
                 {/* Formulaire */}
                 {isEditing && (
-                  <div style={{ padding: '16px' }}>
-                    {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 7, padding: '7px 11px', color: '#ef4444', fontSize: 12, marginBottom: 12 }}>{error}</div>}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ padding: isMobile ? 12 : 16 }}>
+                    {error && <AdminNotice tone="error" style={{ marginBottom: 12 }}>{error}</AdminNotice>}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px 14px' }}>
                       {FIELD_LABELS.map(({ field, label, multiline }) => (
-                        <div key={field} style={field === 'description' ? { gridColumn: '1 / -1' } : {}}>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: '#4a6070', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>
+                        <CrmV2Field key={field} label={label} span={field === 'description' ? 2 : 1}>
                           {multiline ? (
-                            <textarea value={(draft[field] as string) ?? ''} onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-                              onFocus={e => e.currentTarget.style.borderColor = GOLD} onBlur={e => e.currentTarget.style.borderColor = '#e5ddc8'} />
+                            <CrmV2Textarea value={(draft[field] as string) ?? ''} onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} rows={2} style={{ minHeight: 64 }} />
                           ) : (
-                            <input type="text" value={(draft[field] as string) ?? ''} onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} style={inputStyle}
-                              onFocus={e => e.currentTarget.style.borderColor = GOLD} onBlur={e => e.currentTarget.style.borderColor = '#e5ddc8'} />
+                            <CrmV2Input type="text" value={(draft[field] as string) ?? ''} onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))} />
                           )}
-                        </div>
+                        </CrmV2Field>
                       ))}
                     </div>
-                    {/* Aperçu */}
-                    <div style={{ marginTop: 14, background: '#fff', borderRadius: 10, overflow: 'hidden', maxWidth: 300 }}>
-                      <div style={{ height: 3, background: `linear-gradient(90deg, ${GOLD}, ${NAVY})` }} />
+                    {/* Aperçu de la carte publique (l'icône est celle saisie pour la page /rdv) */}
+                    <PanelSectionTitle style={{ marginTop: 16, marginBottom: 8 }}>Aperçu</PanelSectionTitle>
+                    <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12, overflow: 'hidden', maxWidth: 300, boxShadow: crmV2.shadow }}>
+                      <div style={{ height: 3, background: crmV2.goldGradient }} />
                       <div style={{ padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                           <span style={{ fontSize: 18 }}>{(draft.icon as string) || type.icon}</span>
                           <div>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: NAVY }}>{(draft.title as string) || type.title}</div>
-                            <div style={{ fontSize: 10, color: GOLD, fontWeight: 700 }}>{(draft.subtitle as string) || type.subtitle}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: crmV2.text }}>{(draft.title as string) || type.title}</div>
+                            <div style={{ fontSize: 11, color: crmV2.goldDark, fontWeight: 700 }}>{(draft.subtitle as string) || type.subtitle}</div>
                           </div>
                         </div>
-                        <div style={{ fontSize: 10, color: '#4a6070', lineHeight: 1.5, marginBottom: 8 }}>{(draft.description as string) || type.description}</div>
-                        <div style={{ background: NAVY, borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{(draft.btn_label as string) || type.btn_label} →</div>
+                        <div style={{ fontSize: 11, color: crmV2.textMuted, lineHeight: 1.5, marginBottom: 8 }}>{(draft.description as string) || type.description}</div>
+                        <div style={{ background: crmV2.primary, borderRadius: 999, padding: '6px 10px', color: '#fff', fontSize: 11, fontWeight: 700, textAlign: 'center' }}>{(draft.btn_label as string) || type.btn_label}</div>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {!isEditing && (
-                  <div style={{ padding: '0 16px 10px', display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, color: '#4a6070', background: 'rgba(255,255,255,0.03)', borderRadius: 4, padding: '2px 7px' }}>CTA : <span style={{ color: '#4a6070' }}>{type.btn_label}</span></span>
-                    <span style={{ fontSize: 10, color: '#4a6070', background: 'rgba(255,255,255,0.03)', borderRadius: 4, padding: '2px 7px' }}>Formation : <span style={{ color: '#4a6070' }}>{type.formation}</span></span>
+                  <div style={{ padding: '0 14px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <CrmV2Pill style={{ fontWeight: 500, color: crmV2.textMuted }}>CTA : <span style={{ color: crmV2.text, fontWeight: 600 }}>{type.btn_label}</span></CrmV2Pill>
+                    <CrmV2Pill style={{ fontWeight: 500, color: crmV2.textMuted }}>Formation : <span style={{ color: crmV2.text, fontWeight: 600 }}>{type.formation}</span></CrmV2Pill>
                   </div>
                 )}
-              </div>
+              </PanelCard>
             )
           })}
         </div>
       )}
-    </div>
+    </>
   )
 }
 
 // ─── Onglet Liens & Campagnes ─────────────────────────────────────────────────
 
-const RDV_TYPES_LINKS = [
-  { key: 'parcoursup',  label: 'Accompagnement Parcoursup',    icon: '🎓', color: BLUE },
-  { key: 'medecine',    label: 'Coaching Orientation Médecine', icon: '🩺', color: GOLD },
-  { key: 'information', label: "Rendez-vous d'information",     icon: '💡', color: '#4ade80' },
-  { key: 'inscription', label: "Rendez-vous d'inscription",     icon: '✍️', color: '#c084fc' },
+const RDV_TYPES_LINKS: { key: string; label: string; icon: ReactNode; color: string }[] = [
+  { key: 'parcoursup',  label: 'Accompagnement Parcoursup',    icon: <GraduationCap size={13} />, color: BLUE },
+  { key: 'medecine',    label: 'Coaching Orientation Médecine', icon: <Stethoscope size={13} />,   color: '#b8963e' },
+  { key: 'information', label: "Rendez-vous d'information",     icon: <Info size={13} />,          color: crmV2.successStrong },
+  { key: 'inscription', label: "Rendez-vous d'inscription",     icon: <PenLine size={13} />,       color: '#a855f7' },
 ]
 
 const CHANNELS = [
@@ -225,7 +241,6 @@ function TabLiens() {
   const [campaign, setCampaign]           = useState('')
   const [content, setContent]             = useState('')
   const [savedLinks, setSavedLinks]       = useState<CampaignLink[]>([])
-  const [copiedId, setCopiedId]           = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') setBaseUrl(window.location.origin)
@@ -235,12 +250,8 @@ function TabLiens() {
   function saveLinks(links: CampaignLink[]) {
     setSavedLinks(links); localStorage.setItem('rdv_campaign_links', JSON.stringify(links))
   }
-  function copy(text: string, id: string) {
-    navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000)
-  }
   function addLink() {
     if (!campaign.trim()) return
-    const ch = CHANNELS.find(c => c.key === selectedChannel)!
     saveLinks([{ id: Date.now().toString(), type: activeType, channel: selectedChannel, campaign: campaign.trim(), content: content.trim(), createdAt: new Date().toISOString() }, ...savedLinks])
     setCampaign(''); setContent('')
   }
@@ -249,144 +260,156 @@ function TabLiens() {
   const previewUrl = baseUrl && campaign ? buildUrl(baseUrl, activeType, selectedChannel, ch.medium, campaign, content) : ''
   const grouped = RDV_TYPES_LINKS.map(t => ({ ...t, links: savedLinks.filter(l => l.type === t.key) }))
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', background: '#ffffff', border: '1px solid #e5ddc8',
-    borderRadius: 8, padding: '8px 11px', color: '#0e1e35',
-    fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-  }
+  const isMobile = useIsMobile()
+
+  const choice = (active: boolean, color: string): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 12px', minHeight: isMobile ? 36 : undefined,
+    fontSize: 12, fontWeight: active ? 700 : 600, fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap',
+    background: active ? hexA(color, 0.10) : crmV2.bg,
+    border: `1px solid ${active ? hexA(color, 0.40) : crmV2.borderStrong}`,
+    color: active ? color : crmV2.textMuted,
+  })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <>
       {/* URL de base */}
-      <div style={{ background: 'rgba(76,171,219,0.06)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <ExternalLink size={13} style={{ color: BLUE, flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 700, marginBottom: 2 }}>URL DE BASE — Page /rdv</div>
-          <code style={{ fontSize: 12, color: BLUE }}>{baseUrl}/rdv</code>
+      <PanelCard style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <PanelIconTile icon={<ExternalLink size={15} />} color={crmV2.link} size={32} />
+        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+          <PanelSectionTitle>URL de base — page /rdv</PanelSectionTitle>
+          <code style={{ fontSize: 13, color: crmV2.link, wordBreak: 'break-all' }}>{baseUrl}/rdv</code>
         </div>
-        <button onClick={() => copy(`${baseUrl}/rdv`, 'base')} style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 7, padding: '5px 10px', color: BLUE, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-          {copiedId === 'base' ? <><Check size={11} /> Copié</> : <><Copy size={11} /> Copier</>}
-        </button>
-        <a href={`${baseUrl}/rdv`} target="_blank" rel="noreferrer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #e5ddc8', borderRadius: 7, padding: '5px 10px', color: '#4a6070', fontSize: 11, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ExternalLink size={11} /> Ouvrir
-        </a>
-      </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <PanelCopyButton text={`${baseUrl}/rdv`} />
+          <a href={`${baseUrl}/rdv`} target="_blank" rel="noreferrer" style={linkBtn}>
+            <ExternalLink size={13} /> Ouvrir
+          </a>
+        </div>
+      </PanelCard>
 
       {/* Générateur */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #e5ddc8', borderRadius: 12, padding: '16px' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={13} style={{ color: GOLD }} /> Générer un lien tracké
+      <PanelCard style={{ padding: isMobile ? 14 : 18 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <Plus size={16} color={GOLD} /> Générer un lien tracké
         </div>
 
-        {/* Type */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>Type de RDV</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {RDV_TYPES_LINKS.map(t => (
-              <button key={t.key} onClick={() => setActiveType(t.key)} style={{ background: activeType === t.key ? `${t.color}20` : 'rgba(255,255,255,0.04)', border: `1px solid ${activeType === t.key ? `${t.color}50` : 'rgba(255,255,255,0.1)'}`, borderRadius: 7, padding: '5px 11px', color: activeType === t.key ? t.color : '#4a6070', fontSize: 11, fontWeight: activeType === t.key ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
+        <PanelSectionTitle style={{ marginBottom: 8 }}>Type de RDV</PanelSectionTitle>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {RDV_TYPES_LINKS.map(t => (
+            <button key={t.key} type="button" onClick={() => setActiveType(t.key)} style={choice(activeType === t.key, t.color)}>
+              {t.icon} {t.label}
+            </button>
+          ))}
         </div>
 
-        {/* Canal */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: '#4a6070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>Canal / Source</div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {CHANNELS.map(c => (
-              <button key={c.key} onClick={() => setSelectedChannel(c.key)} style={{ background: selectedChannel === c.key ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${selectedChannel === c.key ? 'rgba(204,172,113,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, padding: '4px 10px', color: selectedChannel === c.key ? GOLD : '#4a6070', fontSize: 11, fontWeight: selectedChannel === c.key ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {c.label}
-              </button>
-            ))}
-          </div>
+        <PanelSectionTitle style={{ marginBottom: 8 }}>Canal / Source</PanelSectionTitle>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {CHANNELS.map(c => (
+            <button key={c.key} type="button" onClick={() => setSelectedChannel(c.key)} style={choice(selectedChannel === c.key, crmV2.goldDark)}>
+              {c.label}
+            </button>
+          ))}
         </div>
 
-        {/* Champs */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          <div>
-            <label style={{ fontSize: 10, color: '#4a6070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Nom campagne *</label>
-            <input value={campaign} onChange={e => setCampaign(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="ex: parcoursup-2026" style={inputStyle} />
-          </div>
-          <div>
-            <label style={{ fontSize: 10, color: '#4a6070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Contenu (optionnel)</label>
-            <input value={content} onChange={e => setContent(e.target.value)} placeholder="ex: story-lien-bio" style={inputStyle} />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px 14px', marginBottom: 14 }}>
+          <CrmV2Field label="Nom campagne *">
+            <CrmV2Input value={campaign} onChange={e => setCampaign(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="ex : parcoursup-2026" />
+          </CrmV2Field>
+          <CrmV2Field label="Contenu (optionnel)">
+            <CrmV2Input value={content} onChange={e => setContent(e.target.value)} placeholder="ex : story-lien-bio" />
+          </CrmV2Field>
         </div>
 
         {previewUrl && (
-          <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
-            <div style={{ fontSize: 9, color: '#4a6070', fontWeight: 700, marginBottom: 3 }}>APERÇU</div>
-            <code style={{ fontSize: 10, color: BLUE, wordBreak: 'break-all', lineHeight: 1.5 }}>{previewUrl}</code>
+          <div style={{ background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+            <PanelSectionTitle style={{ marginBottom: 4 }}>Aperçu</PanelSectionTitle>
+            <code style={{ fontSize: 12, color: crmV2.link, wordBreak: 'break-all', lineHeight: 1.5 }}>{previewUrl}</code>
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={addLink} disabled={!campaign.trim()} style={{ background: campaign.trim() ? GOLD : '#f7f4ee', color: campaign.trim() ? NAVY : '#4a6070', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: campaign.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Plus size={12} /> Sauvegarder
-          </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={addLink} disabled={!campaign.trim()}>
+            Sauvegarder
+          </CrmV2Button>
           {previewUrl && (
             <>
-              <button onClick={() => copy(previewUrl, 'preview')} style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.25)', borderRadius: 8, padding: '8px 14px', color: BLUE, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
-                {copiedId === 'preview' ? <><Check size={12} /> Copié !</> : <><Copy size={12} /> Copier</>}
-              </button>
-              <a href={previewUrl} target="_blank" rel="noreferrer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #e5ddc8', borderRadius: 8, padding: '8px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <ExternalLink size={12} /> Tester
+              <PanelCopyButton text={previewUrl} size="md" copiedLabel="Copié !" />
+              <a href={previewUrl} target="_blank" rel="noreferrer" style={{ ...linkBtn, padding: '8px 16px', fontSize: 13 }}>
+                <ExternalLink size={14} /> Tester
               </a>
             </>
           )}
         </div>
-      </div>
+      </PanelCard>
 
       {/* Liens sauvegardés */}
       {savedLinks.length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35', marginBottom: 12 }}>📋 Liens sauvegardés ({savedLinks.length})</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <PanelSectionTitle icon={<ClipboardList size={14} />} count={savedLinks.length}>Liens sauvegardés</PanelSectionTitle>
           {grouped.filter(g => g.links.length > 0).map(group => (
-            <div key={group.key} style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, color: group.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 7 }}>
+            <div key={group.key}>
+              <div style={{
+                fontSize: 11, color: group.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px',
+                marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6,
+              }}>
                 {group.icon} {group.label}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {group.links.map(link => {
+              <PanelCard style={{ overflow: 'hidden' }}>
+                {group.links.map((link, i) => {
                   const chInfo = CHANNELS.find(c => c.key === link.channel)!
                   const url = buildUrl(baseUrl, link.type, link.channel, chInfo.medium, link.campaign, link.content)
                   return (
-                    <div key={link.id} style={{ background: '#e5ddc8', border: '1px solid #e5ddc8', borderRadius: 9, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div key={link.id} style={{
+                      padding: '8px 14px', minHeight: 48, display: 'flex', alignItems: 'center', gap: 10,
+                      borderBottom: i === group.links.length - 1 ? 'none' : `1px solid ${crmV2.borderLight}`,
+                    }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                          <span style={{ background: `${group.color}20`, border: `1px solid ${group.color}30`, borderRadius: 4, padding: '1px 6px', fontSize: 9, fontWeight: 700, color: group.color }}>{chInfo.label}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#0e1e35' }}>{link.campaign}</span>
-                          {link.content && <span style={{ fontSize: 10, color: '#4a6070' }}>· {link.content}</span>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          <span style={{
+                            background: hexA(group.color, 0.10), borderRadius: 999, padding: '1px 8px',
+                            fontSize: 11, fontWeight: 700, color: group.color, flexShrink: 0,
+                          }}>{chInfo.label}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link.campaign}</span>
+                          {link.content && <span style={{ fontSize: 12, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>· {link.content}</span>}
                         </div>
-                        <code style={{ fontSize: 10, color: '#4a6070', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{url}</code>
+                        <code style={{ fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', marginTop: 2 }}>{url}</code>
                       </div>
-                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                        <button onClick={() => copy(url, link.id)} style={{ background: copiedId === link.id ? 'rgba(34,197,94,0.15)' : 'rgba(76,171,219,0.1)', border: `1px solid ${copiedId === link.id ? 'rgba(34,197,94,0.3)' : 'rgba(76,171,219,0.25)'}`, borderRadius: 6, padding: '4px 9px', color: copiedId === link.id ? '#22c55e' : BLUE, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          {copiedId === link.id ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
-                        </button>
-                        <a href={url} target="_blank" rel="noreferrer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 7px', color: '#4a6070', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-                          <ExternalLink size={10} />
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                        <PanelCopyButton text={url} iconOnly={isMobile} />
+                        <a href={url} target="_blank" rel="noreferrer" title="Ouvrir" aria-label="Ouvrir" style={iconLink(isMobile)}>
+                          <ExternalLink size={14} />
                         </a>
-                        <button onClick={() => saveLinks(savedLinks.filter(l => l.id !== link.id))} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 7px', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', fontFamily: 'inherit' }}>
-                          <Trash2 size={10} />
-                        </button>
+                        <AdminIconButton icon={<Trash2 size={14} />} title="Supprimer" tone="danger" onClick={() => saveLinks(savedLinks.filter(l => l.id !== link.id))} />
                       </div>
                     </div>
                   )
                 })}
-              </div>
+              </PanelCard>
             </div>
           ))}
         </div>
       )}
       {savedLinks.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#475569', fontSize: 12 }}>
+        <div style={{ textAlign: 'center', padding: '20px 0', color: crmV2.textMuted, fontSize: 13 }}>
           Aucun lien sauvegardé. Générez votre premier lien de campagne ci-dessus.
         </div>
       )}
-    </div>
+    </>
   )
+}
+
+const linkBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 12px',
+  fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+  background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, color: crmV2.text,
+}
+
+function iconLink(isMobile: boolean): React.CSSProperties {
+  const size = isMobile ? 40 : 32
+  return {
+    width: size, height: size, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    border: `1px solid ${crmV2.border}`, background: crmV2.bg, color: crmV2.textMuted, textDecoration: 'none', flexShrink: 0,
+  }
 }
 
 // ─── Panel combiné ────────────────────────────────────────────────────────────
@@ -397,58 +420,26 @@ export default function SiteContenusPanel({ onClose, defaultTab = 'contenus' }: 
   const [tab, setTab] = useState<Tab>(defaultTab)
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    <PanelShell
+      variant="modal"
+      width={880}
+      onClose={onClose}
+      icon={<Link2 size={16} />}
+      title="Site & Contenus"
+      subtitle="Gérez les textes de la page /rdv et vos liens de campagne"
+      tabs={
+        <PanelTabs<Tab>
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'contenus', label: 'Contenus /rdv', icon: <FileText size={14} /> },
+            { id: 'liens', label: 'Liens & Campagnes', icon: <Link2 size={14} /> },
+          ]}
+        />
+      }
     >
-      <div style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 20, width: '100%', maxWidth: 880, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.6)' }}>
-
-        {/* Header */}
-        <div style={{ background: '#ffffff', borderBottom: '1px solid #e5ddc8', padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Link2 size={15} style={{ color: GOLD }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: '#0e1e35' }}>Site & Contenus</div>
-              <div style={{ fontSize: 11, color: '#4a6070' }}>Gérez les textes de la page /rdv et vos liens de campagne</div>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', fontSize: 20, lineHeight: 1, padding: '4px 8px' }}>✕</button>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ background: '#e5ddc8', borderBottom: '1px solid #e5ddc8', padding: '0 24px', display: 'flex', gap: 0 }}>
-          {([
-            { key: 'contenus', label: 'Contenus /rdv', icon: <FileText size={13} /> },
-            { key: 'liens',    label: 'Liens & Campagnes', icon: <Link2 size={13} /> },
-          ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                borderBottom: `2px solid ${tab === t.key ? GOLD : 'transparent'}`,
-                padding: '12px 18px',
-                color: tab === t.key ? GOLD : '#4a6070',
-                fontSize: 12, fontWeight: tab === t.key ? 700 : 500,
-                cursor: 'pointer', fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', gap: 6,
-                transition: 'all 0.15s',
-              }}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '24px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
-          {tab === 'contenus' && <TabContenus />}
-          {tab === 'liens'    && <TabLiens />}
-        </div>
-      </div>
-    </div>
+      {tab === 'contenus' && <TabContenus />}
+      {tab === 'liens'    && <TabLiens />}
+    </PanelShell>
   )
 }
