@@ -1,13 +1,14 @@
 export const SUPPORT_BUCKET = 'support-attachments'
 export const SUPPORT_MAX_FILE_BYTES = 50 * 1024 * 1024
 
-export type SupportStatus = 'nouveau' | 'en_cours' | 'besoin_infos' | 'fait' | 'pas_fait'
+export type SupportStatus = 'nouveau' | 'en_cours' | 'besoin_infos' | 'validation' | 'fait' | 'pas_fait'
 export type SupportPriority = 'basse' | 'normale' | 'urgente'
 
 export const SUPPORT_STATUS_LABELS: Record<SupportStatus, string> = {
   nouveau: 'En attente',
   en_cours: 'En cours',
   besoin_infos: 'Besoin d’infos',
+  validation: 'À valider par Aaron',
   fait: 'C’est fait',
   pas_fait: 'Pas fait',
 }
@@ -42,6 +43,7 @@ export type SupportTicket = {
   priority: SupportPriority
   status: SupportStatus
   claimed_at: string | null
+  pr_url: string | null
   resolved_at: string | null
   last_message_at: string
   unread_for_author: boolean

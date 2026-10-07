@@ -58,7 +58,7 @@ export async function PATCH(
   const isAdmin = ctx.role === 'admin'
   const isAuthor = ticket.author_id === ctx.appUserId
   const allowed = isAdmin
-    ? ['nouveau', 'en_cours', 'besoin_infos', 'fait', 'pas_fait']
+    ? ['nouveau', 'en_cours', 'besoin_infos', 'validation', 'fait', 'pas_fait']
     : isAuthor ? ['nouveau', 'fait'] : []
   if (!allowed.includes(body.status)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 

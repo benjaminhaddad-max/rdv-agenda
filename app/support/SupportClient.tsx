@@ -20,6 +20,7 @@ const STATUS_COLORS: Record<SupportStatus, { bg: string; fg: string }> = {
   nouveau: { bg: '#eef1f6', fg: '#516f90' },
   en_cours: { bg: 'rgba(0,145,174,0.12)', fg: '#0091ae' },
   besoin_infos: { bg: 'rgba(245,158,11,0.15)', fg: '#b45309' },
+  validation: { bg: 'rgba(124,58,237,0.12)', fg: '#6d28d9' },
   fait: { bg: 'rgba(0,189,165,0.14)', fg: '#00866f' },
   pas_fait: { bg: 'rgba(242,84,91,0.12)', fg: '#d13a41' },
 }
@@ -596,6 +597,16 @@ export default function SupportClient({ initialTicketId }: { initialTicketId: st
                 display: 'flex', flexDirection: 'column', gap: 18,
               }}>
                 {current!.messages.map(m => <MessageBubble key={m.id} m={m} />)}
+                {t.status === 'validation' && (
+                  <div style={{ fontSize: 12, color: crmV2.textMuted, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    La modification est prête, elle sera mise en ligne dès qu’Aaron l’aura validée.
+                    {isAdmin && t.pr_url && (
+                      <a href={t.pr_url} target="_blank" rel="noreferrer" style={{ color: crmV2.link, fontWeight: 600 }}>
+                        Voir et valider la modif →
+                      </a>
+                    )}
+                  </div>
+                )}
                 {(t.status === 'nouveau' || t.status === 'en_cours') && (
                   <div style={{ fontSize: 12, color: crmV2.textFaint, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Loader2 size={13} className="animate-spin" />

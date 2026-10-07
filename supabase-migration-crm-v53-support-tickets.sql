@@ -52,3 +52,10 @@ ALTER TABLE support_messages ENABLE ROW LEVEL SECURITY;
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('support-attachments', 'support-attachments', false, 52428800)
 ON CONFLICT (id) DO UPDATE SET file_size_limit = EXCLUDED.file_size_limit;
+
+-- v53.1 — Validation par Aaron pour les comptes non autorisés en direct :
+-- l'agent ouvre une PR, le ticket reste en « validation » jusqu'au merge.
+ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS pr_url TEXT;
+ALTER TABLE support_tickets DROP CONSTRAINT IF EXISTS support_tickets_status_check;
+ALTER TABLE support_tickets ADD CONSTRAINT support_tickets_status_check
+  CHECK (status IN ('nouveau', 'en_cours', 'besoin_infos', 'validation', 'fait', 'pas_fait'));

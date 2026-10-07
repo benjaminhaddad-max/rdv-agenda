@@ -9,8 +9,14 @@
  *         en images (ffmpeg) pour pouvoir être lues.
  *   bun scripts/support-agent.mjs claim <ticketId>
  *       → passe le ticket en « en_cours » (le collègue voit que c'est pris).
- *   bun scripts/support-agent.mjs reply <ticketId> <fait|pas_fait|besoin_infos|en_cours> <fichier-message.md>
- *       → publie la réponse dans le fil et met à jour le statut.
+ *   bun scripts/support-agent.mjs reply <ticketId> <fait|pas_fait|besoin_infos|en_cours|validation> <fichier-message.md> [prUrl]
+ *       → publie la réponse dans le fil et met à jour le statut (prUrl requis pour « validation »).
+ *   bun scripts/support-agent.mjs pending-validation
+ *       → tickets en attente de validation par Aaron, avec l'URL de leur PR.
+ *
+ * Mode de mise en ligne selon l'auteur du ticket (author_id fixé côté serveur depuis la session) :
+ *   DIRECT     → l'agent peut pousser sur main
+ *   VALIDATION → l'agent ouvre une PR, Aaron merge, puis l'agent répond « fait »
  */
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -22,6 +28,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BUCKET = 'support-attachments'
 const INBOX = join(ROOT, '.support-inbox')
 const STALE_CLAIM_MS = 45 * 60 * 1000
+
+// Comptes autorisés à faire mettre en ligne directement (rdv_users.id)
+const DIRECT_DEPLOY_USERS = {
+  'b7b459bb-38bf-4867-ae9a-3a5161e7ae35': 'Aaron Sarfati',
+  '2730ce84-e85d-4c15-baec-2263915a5ae4': 'Benjamin HADDAD',
+  '93e6bd45-7683-4e84-a711-16947c06919f': 'Pascal Tawfik',
+}
 
 const env = { ...process.env }
 for (const file of ['.env.local', '.env.production.local']) {
@@ -123,6 +136,11 @@ async function list() {
     console.log(`Titre    : ${t.title}`)
     console.log(`Auteur   : ${t.author_name} (${t.author_role})   Priorité : ${t.priority}   Statut : ${t.status}`)
     console.log(`Créé le  : ${t.created_at}   Page d'origine : ${t.page_url || '—'}`)
+    console.log(
+      DIRECT_DEPLOY_USERS[t.author_id]
+        ? 'MODE     : DIRECT — mise en ligne directe sur main autorisée'
+        : 'MODE     : VALIDATION — modif de code uniquement via branche + PR, Aaron valide avant mise en ligne',
+    )
     for (const m of messages || []) {
       console.log('─'.repeat(80))
       console.log(`[${m.created_at}] ${m.author_type === 'agent' ? 'AGENT (toi)' : m.author_name || 'collègue'} :`)
@@ -147,11 +165,23 @@ async function claim(id) {
   console.log(`OK claim ${id}`)
 }
 
-async function reply(id, status, messageFile) {
-  const allowed = ['fait', 'pas_fait', 'besoin_infos', 'en_cours']
+async function pendingValidation() {
+  const { data, error } = await db
+    .from('support_tickets')
+    .select('id, number, title, author_name, pr_url')
+    .eq('status', 'validation')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  if (!data?.length) { console.log('AUCUNE_VALIDATION'); return }
+  for (const t of data) console.log(`#${t.number}  id=${t.id}  pr=${t.pr_url || '—'}  (${t.author_name}) ${t.title}`)
+}
+
+async function reply(id, status, messageFile, prUrl) {
+  const allowed = ['fait', 'pas_fait', 'besoin_infos', 'en_cours', 'validation']
   if (!allowed.includes(status)) throw new Error(`Statut invalide (${allowed.join(', ')})`)
   const body = readFileSync(messageFile, 'utf8').trim()
   if (!body) throw new Error('Message vide')
+  if (status === 'validation' && !prUrl) throw new Error('URL de PR requise pour le statut validation')
 
   const { error: e1 } = await db.from('support_messages').insert({
     ticket_id: id,
@@ -172,6 +202,7 @@ async function reply(id, status, messageFile) {
       last_message_at: now,
       unread_for_author: true,
       updated_at: now,
+      ...(prUrl ? { pr_url: prUrl } : {}),
     })
     .eq('id', id)
   if (e2) throw e2
@@ -181,9 +212,10 @@ async function reply(id, status, messageFile) {
 try {
   if (cmd === 'list') await list()
   else if (cmd === 'claim' && args[0]) await claim(args[0])
-  else if (cmd === 'reply' && args.length === 3) await reply(args[0], args[1], args[2])
+  else if (cmd === 'pending-validation') await pendingValidation()
+  else if (cmd === 'reply' && args.length >= 3) await reply(args[0], args[1], args[2], args[3])
   else {
-    console.error('Usage : list | claim <id> | reply <id> <statut> <fichier-message>')
+    console.error('Usage : list | claim <id> | reply <id> <statut> <fichier-message> [prUrl] | pending-validation')
     process.exit(1)
   }
 } catch (e) {
