@@ -168,15 +168,17 @@ body {
 }
 
 /* ── Formes arrondies (boutons pill, inputs doux) ─────────────────────── */
-.crm-v2-skin button {
+/* Seulement les éléments sans arrondi explicite : les composants V2 natifs
+   (cartes d'agenda, cases de calendrier, tuiles…) gardent leur rayon. */
+.crm-v2-skin button:not([style*="border-radius"]) {
   border-radius: 999px !important;
 }
-.crm-v2-skin input:not([type="checkbox"]):not([type="radio"]),
-.crm-v2-skin select,
-.crm-v2-skin textarea {
+.crm-v2-skin input:not([type="checkbox"]):not([type="radio"]):not([style*="border-radius"]),
+.crm-v2-skin select:not([style*="border-radius"]),
+.crm-v2-skin textarea:not([style*="border-radius"]) {
   border-radius: 10px !important;
 }
-.crm-v2-skin a[style] {
+.crm-v2-skin a[style]:not([style*="border-radius"]) {
   border-radius: 999px;
 }
 
@@ -282,16 +284,8 @@ body {
   margin-top: 16px !important;
 }
 
-/* ── Cartes / conteneurs blancs : coins plus généreux + ombre douce ───── */
-.crm-v2-skin [style*="border-radius: 8px"] {
-  border-radius: 12px !important;
-}
-.crm-v2-skin [style*="border-radius: 10px"] {
-  border-radius: 14px !important;
-}
-.crm-v2-skin [style*="border-radius: 12px"] {
-  border-radius: 16px !important;
-}
+/* (Les règles qui gonflaient les arrondis 8/10/12 px ont été retirées :
+   elles déformaient les composants V2 natifs, ex. cartes d'agenda en pilules.) */
 
 /* ── Typo ronde et lisible partout (Nunito via next/font) ─────────────── */
 .crm-v2,
