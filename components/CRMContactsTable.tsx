@@ -1756,7 +1756,7 @@ export default function CRMContactsTable({
     switch (key) {
       case 'contact':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, position: 'relative' }}>
             <ContactAvatar name={name} size={24} />
             <span title={name} style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
               {name}

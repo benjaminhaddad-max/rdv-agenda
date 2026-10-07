@@ -332,15 +332,25 @@ body {
   height: 40px;
 }
 
-/* Aperçu / Ouvrir : visibles au survol de la ligne (écrans avec souris) */
+/* Aperçu / Ouvrir : visibles au survol de la ligne (écrans avec souris).
+   Superposés à droite de la cellule pour ne pas réserver de place : le nom
+   du contact utilise toute la largeur de la colonne hors survol. */
 @media (hover: hover) {
   .crm-contact-row .crm-row-hover-actions {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    padding-left: 16px;
+    background: linear-gradient(to right, rgba(247, 244, 238, 0), #f7f4ee 14px);
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.12s;
   }
   .crm-contact-row:hover .crm-row-hover-actions,
   .crm-contact-row .crm-row-hover-actions:focus-within {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 

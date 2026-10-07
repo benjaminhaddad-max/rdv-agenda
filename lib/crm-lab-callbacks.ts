@@ -5,7 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * (/admin/crm/rappels-lab) et le filtre « Demande de rappel Lab » des contacts.
  *
  * Source : soumissions des formulaires « … Lab … » dont le champ `demande`
- * contient « rappel » (l'app envoie « Être rappelé (depuis : écran) »).
+ * contient « rappel » (l'app envoie « Être rappelé (depuis : écran) »),
+ * complétées par les événements d'activité `callback_requested` des apps.
  */
 
 export type LabCallbackAgg = {
@@ -55,6 +56,40 @@ export async function fetchLabCallbackAggregates(
     agg.apps.add(formApp.get(s.form_id) ?? 'Lab')
     // « Être rappelé (depuis : accueil:reussite) | Être rappelé (depuis : catalogue:barre) »
     for (const m of String(s.data?.demande ?? '').matchAll(/depuis\s*:\s*([^)|]+)\)/g)) agg.screens.add(m[1].trim())
+    byContact.set(contactId, agg)
+  }
+
+  // Seconde source : événements d'activité `callback_requested` envoyés par les
+  // apps (visitor_id = app-<app>-<contactId>). Un même clic arrive souvent aussi
+  // en soumission de formulaire : on ne compte pas deux fois à ±10 min près.
+  const { data: events, error: evErr } = await db
+    .from('web_events')
+    .select('visitor_id, occurred_at, site, metadata')
+    .eq('event_name', 'callback_requested')
+    .like('visitor_id', 'app-%')
+    .order('occurred_at', { ascending: false })
+    .limit(SUBMISSIONS_LIMIT)
+  if (evErr) throw new Error(evErr.message)
+
+  for (const e of events ?? []) {
+    const site = String(e.site ?? '')
+    const prefix = `app-${site}-`
+    const visitorId = String(e.visitor_id ?? '')
+    if (!site || !visitorId.startsWith(prefix)) continue
+    const contactId = visitorId.slice(prefix.length)
+    const at = e.occurred_at as string
+    const app = /medibox/i.test(site) ? 'Medibox Lab' : 'Diplomalab'
+    const existing = byContact.get(contactId)
+    const agg = existing
+      ?? { contactId, count: 0, first: at, last: at, apps: new Set<string>(), screens: new Set<string>() }
+    const t = Date.parse(at)
+    const duplicate = !!existing && [existing.first, existing.last].some(d => Math.abs(Date.parse(d) - t) < 600_000)
+    if (!duplicate) agg.count++
+    if (at < agg.first) agg.first = at
+    if (at > agg.last) agg.last = at
+    agg.apps.add(app)
+    const screen = (e.metadata as Record<string, unknown> | null)?.ecran
+    if (typeof screen === 'string' && screen) agg.screens.add(screen)
     byContact.set(contactId, agg)
   }
 
