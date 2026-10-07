@@ -365,7 +365,7 @@ body {
     top: 50%;
     transform: translateY(-50%);
     padding-left: 16px;
-    background: linear-gradient(to right, rgba(247, 244, 238, 0), #f7f4ee 14px);
+    background: linear-gradient(to right, rgba(253, 251, 246, 0), #fdfbf6 14px); /* = survol or V2 */
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.12s;

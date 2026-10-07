@@ -2,7 +2,9 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle } from 'lucide-react'
+import { Phone, Mail, MapPin, BookOpen, Calendar, Plus, MoreVertical, ExternalLink, ChevronDown, Search, GripVertical, StickyNote, User, PhoneCall, Eye, Check, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Columns3, SearchX, UserPlus, FileText, Pencil, X } from 'lucide-react'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Avatar, CrmV2Empty } from '@/components/crm-v2/primitives'
 import CRMNoteModal from './CRMNoteModal'
 import CRMAssignPanel from './CRMAssignPanel'
 import { prefetch, jsonFetcher } from '@/lib/client-cache'
@@ -94,44 +96,41 @@ function InlineCellSelect({
       <button
         ref={btnRef}
         onClick={handleToggle}
+        // Cellule éditable : valeur affichée telle quelle, contour au survol
         style={{
-          background: open ? '#f0e9da' : 'transparent',
-          border: `1.5px solid ${open ? '#1a73e8' : 'transparent'}`,
-          borderRadius: 4,
-          padding: '3px 8px',
+          background: open ? crmV2.bgHover : 'transparent',
+          border: `1px solid ${open ? crmV2.link : 'transparent'}`,
+          borderRadius: 8,
+          padding: '2px 6px',
+          margin: '0 -6px',
           cursor: 'pointer',
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
           gap: 0,
           transition: 'border-color 0.1s, background 0.1s',
           fontFamily: 'inherit',
-          minWidth: 40,
-          width: '100%',
+          minWidth: 32,
+          maxWidth: 'calc(100% + 12px)',
           textAlign: 'left',
           outline: 'none',
+          overflow: 'hidden',
         }}
         onMouseEnter={e => {
-          if (!open) {
-            e.currentTarget.style.border = '1.5px solid #a8c7e8'
-            e.currentTarget.style.background = 'transparent'
-          }
+          if (!open) e.currentTarget.style.borderColor = crmV2.borderStrong
         }}
         onMouseLeave={e => {
-          if (!open) {
-            e.currentTarget.style.border = '1.5px solid transparent'
-            e.currentTarget.style.background = 'transparent'
-          }
+          if (!open) e.currentTarget.style.borderColor = 'transparent'
         }}
       >
         {renderValue ? (
           renderValue(value)
         ) : (
-          <span style={{ fontSize: 11, color: value ? '#4a6070' : '#0e1e35', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+          <span style={{ fontSize: 13, color: value ? crmV2.text : crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
             {displayValue || currentOpt?.label || value || '—'}
           </span>
         )}
         {saving && (
-          <span style={{ marginLeft: 5, fontSize: 9, color: '#9bb0c4', flexShrink: 0 }}>⋯</span>
+          <span style={{ marginLeft: 5, fontSize: 11, color: crmV2.textFaint, flexShrink: 0 }}>…</span>
         )}
       </button>
 
@@ -144,10 +143,10 @@ function InlineCellSelect({
             top: pos.top,
             left: pos.left,
             zIndex: 9999,
-            background: '#ffffff',
-            border: '1px solid #e5ddc8',
-            borderRadius: 10,
-            boxShadow: '0 4px 28px rgba(0,0,0,0.15)',
+            background: crmV2.bg,
+            border: `1px solid ${crmV2.border}`,
+            borderRadius: 14,
+            boxShadow: '0 10px 30px rgba(15,31,61,0.14)',
             minWidth: 230,
             maxWidth: 320,
             overflow: 'hidden',
@@ -155,43 +154,44 @@ function InlineCellSelect({
         >
           {/* Valeur actuelle */}
           {currentOpt && (
-            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #f0e9da' }}>
-              <div style={{ fontSize: 10, color: '#7d8c9e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${crmV2.borderLight}` }}>
+              <div style={{ fontSize: 11, color: crmV2.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 7 }}>
                 Valeur actuelle
               </div>
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 7,
-                background: '#f0e9da',
-                border: '1px solid rgba(76,171,219,0.3)',
-                borderRadius: 6,
-                padding: '4px 10px',
+                background: 'rgba(0,145,174,0.08)',
+                border: '1px solid rgba(0,145,174,0.30)',
+                borderRadius: 999,
+                padding: '3px 10px',
                 fontSize: 12,
                 fontWeight: 600,
-                color: '#1a6ca8',
+                color: crmV2.link,
                 maxWidth: 280,
               }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {currentOpt.label}
                 </span>
-                <ChevronDown size={11} style={{ color: '#4cabdb', flexShrink: 0 }} />
+                <ChevronDown size={12} style={{ color: crmV2.link, flexShrink: 0 }} />
               </div>
             </div>
           )}
 
           {/* Barre de recherche */}
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0e9da' }}>
+          <div style={{ padding: '8px 10px', borderBottom: `1px solid ${crmV2.borderLight}` }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              background: '#fbf8f1',
-              borderRadius: 6,
-              padding: '5px 9px',
-              border: '1px solid #e5ddc8',
+              background: crmV2.bg,
+              borderRadius: 999,
+              padding: '0 12px',
+              height: 32,
+              border: `1px solid ${crmV2.borderStrong}`,
             }}>
-              <Search size={12} style={{ color: '#7d8c9e', flexShrink: 0 }} />
+              <Search size={13} style={{ color: crmV2.textFaint, flexShrink: 0 }} />
               <input
                 ref={searchRef}
                 value={search}
@@ -203,10 +203,11 @@ function InlineCellSelect({
                   border: 'none',
                   background: 'transparent',
                   outline: 'none',
-                  fontSize: 12,
-                  color: '#333',
+                  fontSize: 13,
+                  color: crmV2.text,
                   width: '100%',
                   fontFamily: 'inherit',
+                  padding: 0,
                 }}
               />
             </div>
@@ -215,7 +216,7 @@ function InlineCellSelect({
           {/* Liste des options */}
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0 ? (
-              <div style={{ padding: '14px', fontSize: 12, color: '#7d8c9e', textAlign: 'center' }}>
+              <div style={{ padding: '14px', fontSize: 12, color: crmV2.textFaint, textAlign: 'center' }}>
                 {options.length === 0 ? 'Chargement…' : 'Aucun résultat'}
               </div>
             ) : (
@@ -227,7 +228,7 @@ function InlineCellSelect({
                     display: 'flex',
                     alignItems: 'center',
                     width: '100%',
-                    background: value === o.id ? '#f0e9da' : 'transparent',
+                    background: value === o.id ? crmV2.bgHover : 'transparent',
                     border: 'none',
                     padding: '8px 14px',
                     cursor: 'pointer',
@@ -235,7 +236,7 @@ function InlineCellSelect({
                     textAlign: 'left',
                     gap: 9,
                   }}
-                  onMouseEnter={e => { if (value !== o.id) e.currentTarget.style.background = '#fbf8f1' }}
+                  onMouseEnter={e => { if (value !== o.id) e.currentTarget.style.background = crmV2.bgHover }}
                   onMouseLeave={e => { if (value !== o.id) e.currentTarget.style.background = 'transparent' }}
                 >
                   {/* Dot de couleur */}
@@ -243,12 +244,12 @@ function InlineCellSelect({
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    background: value === o.id ? '#4cabdb' : (o.color || '#cbd5e1'),
+                    background: o.color || (value === o.id ? crmV2.link : crmV2.borderStrong),
                     flexShrink: 0,
                   }} />
                   <span style={{
-                    fontSize: 12,
-                    color: value === o.id ? '#1a6ca8' : '#0e1e35',
+                    fontSize: 13,
+                    color: value === o.id ? crmV2.link : crmV2.text,
                     fontWeight: value === o.id ? 600 : 400,
                     flex: 1,
                     overflow: 'hidden',
@@ -258,7 +259,7 @@ function InlineCellSelect({
                     {o.label || '—'}
                   </span>
                   {value === o.id && (
-                    <span style={{ color: '#4cabdb', fontSize: 13, flexShrink: 0 }}>✓</span>
+                    <Check size={14} style={{ color: crmV2.link, flexShrink: 0 }} />
                   )}
                 </button>
               ))
@@ -306,12 +307,12 @@ function InlineCellText({
         }}
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'rgba(76,171,219,0.08)',
-          border: '1px solid rgba(76,171,219,0.5)',
-          borderRadius: 5,
-          padding: '2px 6px',
-          color: '#0e1e35',
-          fontSize: 11,
+          background: crmV2.bg,
+          border: `1px solid ${crmV2.link}`,
+          borderRadius: 8,
+          padding: '3px 8px',
+          color: crmV2.text,
+          fontSize: 13,
           fontFamily: 'inherit',
           outline: 'none',
           width: '90%',
@@ -325,20 +326,22 @@ function InlineCellText({
     <span
       onClick={e => { e.stopPropagation(); setEditing(true) }}
       style={{
-        fontSize: 11,
-        color: value ? '#7a8ba0' : '#e5ddc8',
+        fontSize: 13,
+        color: value ? crmV2.text : crmV2.textFaint,
         cursor: saving ? 'not-allowed' : 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
         gap: 3,
-        padding: '2px 4px',
-        borderRadius: 4,
+        padding: '2px 6px',
+        margin: '0 -6px',
+        borderRadius: 8,
         border: '1px solid transparent',
         transition: 'all 0.12s',
+        whiteSpace: 'nowrap',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.border = '1px solid rgba(76,171,219,0.35)'
-        e.currentTarget.style.background = 'rgba(76,171,219,0.06)'
+        e.currentTarget.style.border = `1px solid ${crmV2.borderStrong}`
+        e.currentTarget.style.background = crmV2.bgHover
       }}
       onMouseLeave={e => {
         e.currentTarget.style.border = '1px solid transparent'
@@ -346,7 +349,7 @@ function InlineCellText({
       }}
     >
       {value || placeholder}
-      {saving && <span style={{ marginLeft: 4, fontSize: 9, color: '#9bb0c4' }}>⋯</span>}
+      {saving && <span style={{ marginLeft: 4, fontSize: 11, color: crmV2.textFaint }}>…</span>}
     </span>
   )
 }
@@ -370,78 +373,50 @@ const BLUE        = '#4cabdb'
 
 // ── Stage mapping ──────────────────────────────────────────────────────────────
 const STAGE_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  '3165428979': { label: 'À Replanifier',        color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-  '3165428980': { label: 'RDV Pris',              color: BLUE,      bg: 'rgba(76,171,219,0.12)' },
-  '3165428981': { label: 'Délai Réflexion',       color: GOLD,      bg: 'rgba(204,172,113,0.12)' },
-  '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-  '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
-  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-  '3165428985': { label: 'Fermé Perdu',           color: '#4a6070', bg: 'rgba(85,88,112,0.12)' },
+  '3165428979': { label: 'À Replanifier',        color: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
+  '3165428980': { label: 'RDV Pris',              color: BLUE,      bg: 'rgba(76,171,219,0.10)' },
+  '3165428981': { label: 'Délai Réflexion',       color: '#b8963e', bg: 'rgba(204,172,113,0.14)' },
+  '3165428982': { label: 'Pré-inscription',       color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
+  '3165428983': { label: 'Finalisation',          color: '#a855f7', bg: 'rgba(168,85,247,0.10)' },
+  '3165428984': { label: 'Inscription Confirmée', color: '#16a34a', bg: 'rgba(22,163,74,0.10)' },
+  '3165428985': { label: 'Fermé Perdu',           color: '#7c98b6', bg: 'rgba(85,88,112,0.10)' },
 }
 
+/** Pastille d'étape V2 : fond teinté, point coloré. */
 function StageBadge({ stageId }: { stageId?: string | null }) {
-  if (!stageId) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
-  const s = STAGE_MAP[stageId] ?? { label: stageId, color: '#4a6070', bg: 'rgba(85,88,112,0.12)' }
+  if (!stageId) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
+  const s = STAGE_MAP[stageId] ?? { label: stageId, color: crmV2.textFaint, bg: 'rgba(85,88,112,0.10)' }
   return (
     <span style={{
-      background: s.bg,
-      color: s.color,
-      border: `1px solid ${s.color}40`,
-      borderRadius: 6,
-      padding: '3px 8px',
-      fontSize: 11,
-      fontWeight: 700,
-      whiteSpace: 'nowrap',
-      display: 'inline-block',
+      display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%',
+      background: s.bg, color: s.color, borderRadius: 999, padding: '2px 10px',
+      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
       {s.label}
     </span>
   )
 }
 
-function Avatar({ name, color, size = 26 }: { name: string; color?: string; size?: number }) {
-  const initials = name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-  return (
-    <div style={{
-      width: size,
-      height: size,
-      borderRadius: '50%',
-      background: color || '#4f6ef7',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: size <= 22 ? 9 : 11,
-      fontWeight: 700,
-      color: '#fff',
-      flexShrink: 0,
-      letterSpacing: '-0.5px',
-    }}>
-      {initials || '?'}
-    </div>
-  )
-}
-
-function ContactAvatar({ name, size = 32 }: { name: string; size?: number }) {
+/** Couleur d'avatar stable dérivée du nom. */
+function contactColor(name: string) {
   const colors = ['#4f6ef7','#e05b9c','#f59e0b','#10b981','#6366f1','#ef4444','#3b82f6','#8b5cf6','#14b8a6']
   const idx = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % colors.length
-  const initials = name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-  return (
-    <div style={{
-      width: size,
-      height: size,
-      borderRadius: '50%',
-      background: colors[idx],
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 12,
-      fontWeight: 700,
-      color: '#fff',
-      flexShrink: 0,
-    }}>
-      {initials || '?'}
-    </div>
-  )
+  return colors[idx]
+}
+
+/** Avatar de contact V2 : rayon 36 %, liseré blanc. */
+function ContactAvatar({ name, size = 24 }: { name: string; size?: number }) {
+  return <CrmV2Avatar name={name} color={contactColor(name)} size={size} radius="36%" ring={size <= 28} />
+}
+
+/** Date courte « 12/09 » (année ajoutée si différente). */
+function shortDate(raw?: string | null) {
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('fr-FR', sameYear ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 export interface CRMContact {
@@ -583,14 +558,15 @@ function formatPhone(raw: string): string {
 // Sans cast, 78337826 !== "78337826" et la colonne TÉLÉPRO affichait "—".
 function renderUserOption(v: string | number | null | undefined, opts?: { id: string; label: string }[]) {
   const sv = v == null ? '' : String(v)
-  if (!sv) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
+  if (!sv) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
   const opt = (opts ?? []).find(o => String(o.id) === sv)
-  if (!opt) return <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
+  if (!opt) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
+  // Propriétaire : avatar or rond de 22 px + nom
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <ContactAvatar name={opt.label} size={22} />
-      <span style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
-    </div>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <CrmV2Avatar name={opt.label} color={crmV2.gold} size={22} />
+      <span style={{ fontSize: 13, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+    </span>
   )
 }
 
@@ -602,6 +578,8 @@ function ActionsMenu({
   onNote,
   onCloser,
   onTelepro,
+  onEditFields,
+  size = 30,
 }: {
   contact: CRMContact
   name: string
@@ -609,6 +587,9 @@ function ActionsMenu({
   onNote: () => void
   onCloser: () => void
   onTelepro: () => void
+  /** Mobile : ouvre l'édition de l'attribution (télépro, closer, origine, statut) */
+  onEditFields?: () => void
+  size?: number
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -627,21 +608,23 @@ function ActionsMenu({
     <div ref={menuRef} style={{ position: 'relative' }}>
       <button
         onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+        aria-label="Actions"
         style={{
-          background: open ? '#eaf0f6' : 'transparent',
-          border: `1px solid ${open ? NAVY_BORDER : 'transparent'}`,
-          borderRadius: 6,
-          width: 30,
-          height: 30,
+          background: open ? crmV2.bgHover : 'transparent',
+          border: `1px solid ${open ? crmV2.borderStrong : 'transparent'}`,
+          borderRadius: 999,
+          width: size,
+          height: size,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          color: '#4a6070',
+          color: crmV2.textMuted,
           transition: 'all 0.15s',
+          padding: 0,
         }}
       >
-        <MoreVertical size={14} />
+        <MoreVertical size={15} />
       </button>
       {open && (
         <div style={{
@@ -649,35 +632,43 @@ function ActionsMenu({
           right: 0,
           top: '100%',
           marginTop: 4,
-          background: '#ffffff',
-          border: `1px solid ${NAVY_BORDER}`,
-          borderRadius: 10,
-          padding: '6px 0',
+          background: crmV2.bg,
+          border: `1px solid ${crmV2.border}`,
+          borderRadius: 14,
+          padding: 6,
           zIndex: 100,
-          minWidth: 160,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          minWidth: 200,
+          boxShadow: '0 10px 30px rgba(15,31,61,0.14)',
         }}>
+          {onEditFields && (
+            <button
+              onClick={e => { e.stopPropagation(); setOpen(false); onEditFields() }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '9px 12px', borderRadius: 10, color: crmV2.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+            >
+              <Pencil size={14} /><span>Modifier l&apos;attribution</span>
+            </button>
+          )}
           {deal && (
             <button
               onClick={e => { e.stopPropagation(); setOpen(false); onNote() }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '9px 12px', borderRadius: 10, color: crmV2.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
             >
-              <StickyNote size={13} /><span>Ajouter une note</span>
+              <StickyNote size={14} /><span>Ajouter une note</span>
             </button>
           )}
           {deal && (
             <>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onCloser() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '9px 12px', borderRadius: 10, color: crmV2.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
-                <User size={13} /><span>Assigner un closer</span>
+                <User size={14} /><span>Assigner un closer</span>
               </button>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onTelepro() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '8px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: '9px 12px', borderRadius: 10, color: crmV2.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
               >
-                <PhoneCall size={13} /><span>Assigner un télépro</span>
+                <PhoneCall size={14} /><span>Assigner un télépro</span>
               </button>
             </>
           )}
@@ -687,18 +678,18 @@ function ActionsMenu({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, color: crmV2.link, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
             >
-              <ExternalLink size={12} /> <span>Ouvrir la fiche</span>
+              <ExternalLink size={14} /> <span>Ouvrir la fiche</span>
             </a>
           )}
-          <div style={{ height: 1, background: '#1e3350', margin: '4px 0' }} />
+          <div style={{ height: 1, background: crmV2.borderLight, margin: '4px 6px' }} />
           <a
             href={`/telepro?contact=${contact.email ?? ''}`}
             onClick={e => e.stopPropagation()}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', color: '#22c55e', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, color: '#15803d', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
           >
-            <Plus size={12} /> <span>Créer un RDV</span>
+            <Plus size={14} /> <span>Créer un RDV</span>
           </a>
         </div>
       )}
@@ -864,7 +855,7 @@ function ExpandedDetail({
                         {deal.dealstage === id ? '● ' : '○ '}{s.label}
                       </button>
                     ))}
-                    <div style={{ height: 1, background: '#1e3350', margin: '4px 0' }} />
+                    <div style={{ height: 1, background: crmV2.borderLight, margin: '4px 6px' }} />
                     <button
                       onClick={() => setStagePickerOpen(false)}
                       style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#4a6070', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -1161,6 +1152,8 @@ export default function CRMContactsTable({
   }, [listIdentity, RENDER_CHUNK])
 
   const isMobile = useIsMobile()
+  // Mobile : contact dont l'attribution est dépliée pour édition
+  const [mobileEditId, setMobileEditId] = useState<string | null>(null)
   const loadMoreRef = useRef<HTMLTableRowElement | null>(null)
   const loadMoreMobileRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -1737,7 +1730,7 @@ export default function CRMContactsTable({
     return (
       <span style={{
         fontSize: 13,
-        color: '#0e1e35',
+        color: crmV2.text,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
@@ -1756,11 +1749,18 @@ export default function CRMContactsTable({
     switch (key) {
       case 'contact':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, position: 'relative' }}>
             <ContactAvatar name={name} size={24} />
-            <span title={name} style={{ fontSize: 13, fontWeight: 600, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            <a
+              href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
+              title={name}
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: 13, fontWeight: 600, color: crmV2.link, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+            >
               {name}
-            </span>
+            </a>
             {/* Actions au survol de la ligne (style HubSpot) */}
             <span className="crm-row-hover-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               {onOpenDrawer && (
@@ -1768,22 +1768,22 @@ export default function CRMContactsTable({
                   title="Aperçu"
                   onClick={e => { e.stopPropagation(); onOpenDrawer(contact) }}
                   style={{
-                    background: 'rgba(76,171,219,0.10)',
-                    border: '1px solid rgba(76,171,219,0.28)',
-                    borderRadius: 6,
-                    padding: '1px 7px',
+                    background: crmV2.bg,
+                    border: `1px solid ${crmV2.borderStrong}`,
+                    borderRadius: 999,
+                    padding: '2px 9px',
                     cursor: 'pointer',
-                    color: '#2d7fa6',
+                    color: crmV2.text,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 4,
                     flexShrink: 0,
-                    fontSize: 10,
-                    fontWeight: 700,
+                    fontSize: 11,
+                    fontWeight: 600,
                     fontFamily: 'inherit',
                   }}
                 >
-                  <Eye size={10} /> Aperçu
+                  <Eye size={12} /> Aperçu
                 </button>
               )}
               <a
@@ -1793,22 +1793,22 @@ export default function CRMContactsTable({
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 style={{
-                  color: '#12314d',
-                  background: 'rgba(18,49,77,0.06)',
-                  border: '1px solid rgba(18,49,77,0.20)',
+                  color: crmV2.text,
+                  background: crmV2.bg,
+                  border: `1px solid ${crmV2.borderStrong}`,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 4,
-                  padding: '1px 7px',
-                  borderRadius: 6,
+                  padding: '2px 9px',
+                  borderRadius: 999,
                   flexShrink: 0,
                   textDecoration: 'none',
-                  fontSize: 10,
-                  fontWeight: 700,
+                  fontSize: 11,
+                  fontWeight: 600,
                   fontFamily: 'inherit',
                 }}
               >
-                <ExternalLink size={10} /> Ouvrir
+                <ExternalLink size={12} /> Ouvrir
               </a>
             </span>
           </div>
@@ -1818,11 +1818,11 @@ export default function CRMContactsTable({
         return contact.email ? (
           <span
             title={contact.email}
-            style={{ display: 'block', fontSize: 12.5, color: '#0091ae', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            style={{ display: 'block', fontSize: 13, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
           >
             {contact.email}
           </span>
-        ) : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
+        ) : <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
 
       case 'phone':
         return contact.phone ? (
@@ -1833,16 +1833,16 @@ export default function CRMContactsTable({
               e.stopPropagation()
               void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
             }}
-            style={{ color: '#22c55e', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            style={{ color: crmV2.text, fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Phone size={11} />{formatPhone(contact.phone)}
+            <Phone size={13} color={crmV2.successStrong} />{formatPhone(contact.phone)}
           </a>
-        ) : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
+        ) : <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
 
       case 'formation_souhaitee':
         return contact.formation_souhaitee
-          ? <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>{contact.formation_souhaitee}</span>
-          : <span style={{ color: '#a89e8a', fontSize: 12 }}>—</span>
+          ? <span style={{ display: 'block', color: crmV2.text, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.formation_souhaitee}</span>
+          : <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
 
       case 'classe':
         return (
@@ -1882,7 +1882,7 @@ export default function CRMContactsTable({
             saving={savingStage === deal.hubspot_deal_id}
             renderValue={v => <StageBadge stageId={v} />}
           />
-        ) : <span style={{ color: '#4a6070', fontSize: 11 }}>—</span>
+        ) : <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
 
       case 'lead_status':
         return (
@@ -1891,6 +1891,18 @@ export default function CRMContactsTable({
             options={(leadStatusOptions || []).map(o => ({ id: o.id, label: o.label }))}
             onSelect={v => handleContactFieldChange(contact.hubspot_contact_id, 'hs_lead_status', v)}
             saving={savingContactField === `${contact.hubspot_contact_id}:hs_lead_status`}
+            renderValue={v => {
+              // Statut du lead : pastille grise
+              if (!v) return <span style={{ color: crmV2.textFaint, fontSize: 13 }}>—</span>
+              const label = (leadStatusOptions || []).find(o => o.id === v)?.label || v
+              return (
+                <span style={{
+                  display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, borderRadius: 999,
+                  padding: '2px 10px', fontSize: 12, fontWeight: 600, color: crmV2.text,
+                }}>{label}</span>
+              )
+            }}
           />
         )
 
@@ -1961,17 +1973,17 @@ export default function CRMContactsTable({
       }
 
       case 'createdat_contact': {
-        return <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.contact_createdate)}</span>
+        return <span style={{ fontSize: 13, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.contact_createdate)}</span>
       }
 
       case 'createdat_deal': {
-        return <span style={{ fontSize: 11, color: '#4a6070', whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
+        return <span style={{ fontSize: 13, color: crmV2.textMuted, whiteSpace: 'nowrap' }}>{formatDateWithTime(contact.deal?.createdate)}</span>
       }
 
       case 'parcoursup_verdict': {
         const v = contact.parcoursup_verdict
         if (!v || (!v.status && !v.label)) {
-          return <span style={{ fontSize: 11, color: '#a89e8a' }}>—</span>
+          return <span style={{ fontSize: 13, color: crmV2.textFaint }}>—</span>
         }
         const status = (v.status || '').toLowerCase()
         const style = parcoursupVerdictBadgeStyle(status)
@@ -1983,11 +1995,11 @@ export default function CRMContactsTable({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
-              padding: '3px 8px',
+              padding: '2px 10px',
               borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 600,
-              lineHeight: 1.1,
+              fontSize: 12,
+              fontWeight: 700,
+              lineHeight: 1.3,
               background: style.bg,
               color: style.fg,
               border: `1px solid ${style.border}`,
@@ -2015,7 +2027,7 @@ export default function CRMContactsTable({
 
       case 'form_submission': {
         const raw = contact.recent_conversion_date
-        if (!raw) return <span style={{ fontSize: 11, color: '#4a6070' }}>—</span>
+        if (!raw) return <span style={{ fontSize: 13, color: crmV2.textFaint }}>—</span>
         const d = new Date(raw)
         const now = new Date()
         const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
@@ -2035,9 +2047,9 @@ export default function CRMContactsTable({
         return (
           <div
             title={`${eventRaw}\n${d.toLocaleString('fr-FR')}`}
-            style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+            style={{ fontSize: 13, color: crmV2.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
           >
-            <span style={{ fontWeight: 600, color: '#33475b' }}>{dateStr}</span>
+            <span style={{ fontWeight: 600, color: crmV2.text }}>{dateStr}</span>
             <span> · {timeStr}</span>
             {formName && <span style={{ fontStyle: 'italic' }}> · {formName}</span>}
           </div>
@@ -2051,8 +2063,8 @@ export default function CRMContactsTable({
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070', fontSize: 13 }}>
-        <div style={{ display: 'inline-block', width: 20, height: 20, border: `2px solid ${NAVY_BORDER}`, borderTopColor: BLUE, borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12 }} />
+      <div style={{ textAlign: 'center', padding: '80px 0', color: crmV2.textMuted, fontSize: 13 }}>
+        <div style={{ display: 'inline-block', width: 24, height: 24, border: `2px solid ${crmV2.border}`, borderTopColor: crmV2.gold, borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 12 }} />
         <div>Chargement des contacts…</div>
       </div>
     )
@@ -2060,142 +2072,148 @@ export default function CRMContactsTable({
 
   if (contacts.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a6070', fontSize: 13 }}>
-        <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>🔍</div>
-        <div style={{ fontWeight: 600, marginBottom: 4, color: '#4a6070' }}>Aucun contact trouvé</div>
-        <div style={{ fontSize: 12 }}>Essayez de modifier vos filtres</div>
-      </div>
+      <CrmV2Empty
+        icon={<SearchX size={26} />}
+        title="Aucun contact trouvé"
+        description="Essayez de modifier vos filtres."
+      />
     )
   }
 
-  // ── Mobile : liste de cartes (le tableau à colonnes est illisible < 768px) ──
+  // ── Mobile (M2) : liste compacte, une ligne par contact ──
   if (isMobile) {
     const labelStyle: React.CSSProperties = {
-      fontSize: 9, fontWeight: 700, color: '#7d8c9e',
-      textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 2px',
+      fontSize: 11, fontWeight: 700, color: crmV2.textMuted,
+      textTransform: 'uppercase', letterSpacing: '0.4px', padding: '0 2px', marginBottom: 2,
     }
     return (
       <>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px' }}>
+        <div style={{
+          background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+          overflow: 'hidden',
+        }}>
           {visibleContacts.map(contact => {
             const name = [contact.firstname, contact.lastname].filter(Boolean).join(' ') || contact.email || contact.hubspot_contact_id
             const deal = contact.deal
             const selected = selectedIds?.has(contact.hubspot_contact_id) || false
-            const chips = [contact.formation_souhaitee, contact.classe_actuelle, contact.zone_localite].filter(Boolean) as string[]
+            const stage = deal?.dealstage ? STAGE_MAP[deal.dealstage] : undefined
+            const stageText = [stage?.label ?? (deal?.dealstage ? deal.dealstage : contact.hs_lead_status), contact.formation_souhaitee]
+              .filter(Boolean).join(' · ')
+            const created = shortDate(contact.contact_createdate)
+            const formDate = shortDate(contact.recent_conversion_date)
+            const editing = mobileEditId === contact.hubspot_contact_id
             return (
               <div
                 key={contact.hubspot_contact_id}
                 style={{
-                  background: '#ffffff',
-                  border: `1px solid ${selected ? BLUE : '#e5ddc8'}`,
-                  borderRadius: 12,
-                  padding: '10px 12px',
-                  display: 'flex', flexDirection: 'column', gap: 8,
+                  borderBottom: `1px solid ${crmV2.borderLight}`,
+                  background: selected ? 'rgba(0,145,174,0.05)' : crmV2.bg,
                   contentVisibility: 'auto',
-                  containIntrinsicSize: '0 170px',
+                  containIntrinsicSize: '0 72px',
                 } as React.CSSProperties}
               >
-                {/* Identité */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px 9px 12px', minWidth: 0 }}>
                   {onToggleSelect && (
                     <input
                       type="checkbox"
+                      aria-label={`Sélectionner ${name}`}
                       checked={selected}
                       onChange={() => onToggleSelect(contact.hubspot_contact_id)}
-                      style={{ width: 18, height: 18, accentColor: BLUE, flexShrink: 0 }}
+                      style={{ width: 18, height: 18, accentColor: crmV2.primary, flexShrink: 0, margin: 0 }}
                     />
                   )}
                   <a
                     href={`/admin/crm/contacts/${contact.hubspot_contact_id}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1, textDecoration: 'none' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1, textDecoration: 'none' }}
                   >
-                    <ContactAvatar name={name} size={36} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <ContactAvatar name={name} size={40} />
+                    <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {name}
-                      </div>
-                      {contact.email && (
-                        <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {contact.email}
-                        </div>
-                      )}
-                    </div>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: crmV2.textMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: stage?.color ?? crmV2.borderStrong, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{stageText || 'Sans transaction'}</span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: crmV2.textFaint, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {created && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <UserPlus size={11} />Créé le {created}
+                          </span>
+                        )}
+                        {formDate && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <FileText size={11} />Form. {formDate}
+                          </span>
+                        )}
+                      </span>
+                    </span>
                   </a>
+                  {contact.phone && (
+                    <a
+                      href={telHref(contact.phone)}
+                      className="crm-phone-cell"
+                      aria-label={`Appeler ${name} au ${formatPhone(contact.phone)}`}
+                      title={formatPhone(contact.phone)}
+                      onClick={() => {
+                        void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
+                      }}
+                      style={{
+                        width: 40, height: 40, borderRadius: 999, flexShrink: 0, padding: 0, boxSizing: 'border-box',
+                        background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.30)', color: '#15803d',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none',
+                      }}
+                    >
+                      <Phone size={16} />
+                    </a>
+                  )}
                   <ActionsMenu
                     contact={contact}
                     name={name}
                     mode={mode}
+                    size={36}
+                    onEditFields={() => setMobileEditId(editing ? null : contact.hubspot_contact_id)}
                     onNote={() => deal && setNoteModal({ dealId: deal.hubspot_deal_id, name })}
                     onCloser={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'closer', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
                     onTelepro={() => deal && setAssignPanel({ dealId: deal.hubspot_deal_id, name, mode: 'telepro', currentCloserHsId: deal.hubspot_owner_id, currentTeleproHsId: deal.teleprospecteur })}
                   />
                 </div>
 
-                {/* Téléphone + étape */}
-                {(contact.phone || deal) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {contact.phone && (
-                      <a
-                        href={telHref(contact.phone)}
-                        className="crm-phone-cell"
-                        onClick={() => {
-                          void fetch(`/api/crm/contacts/${contact.hubspot_contact_id}/aircall-sync`, { method: 'POST' }).catch(() => {})
-                        }}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          padding: '6px 12px', borderRadius: 999,
-                          background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.30)',
-                          color: '#15803d', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
-                        }}
-                      >
-                        <Phone size={13} />{formatPhone(contact.phone)}
-                      </a>
+                {/* Attribution, étape, origine, statut : édition dépliée à la demande */}
+                {editing && (
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px',
+                    padding: '10px 12px 12px', margin: '0 12px 10px',
+                    background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12,
+                  }}>
+                    {deal && (
+                      <div style={{ minWidth: 0, gridColumn: '1 / -1' }}>
+                        <div style={labelStyle}>Étape</div>
+                        {renderCell('etape', contact)}
+                      </div>
                     )}
-                    {deal && <div style={{ minWidth: 0 }}>{renderCell('etape', contact)}</div>}
-                  </div>
-                )}
-
-                {chips.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {chips.map((chip, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          fontSize: 11, fontWeight: i === 0 && contact.formation_souhaitee ? 700 : 500,
-                          color: i === 0 && contact.formation_souhaitee ? GOLD : '#4a6070',
-                          background: '#f7f4ee', border: '1px solid #ece4d2',
-                          borderRadius: 6, padding: '2px 8px',
-                        }}
-                      >
-                        {chip}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Attribution + origine (éditables) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={labelStyle}>Télépro</div>
-                    {renderCell('telepro', contact)}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={labelStyle}>Closer</div>
-                    {renderCell('closer', contact)}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={labelStyle}>Origine</div>
-                    {renderCell('origine', contact)}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={labelStyle}>Statut du lead</div>
-                    {renderCell('lead_status', contact)}
-                  </div>
-                </div>
-
-                {contact.recent_conversion_date && (
-                  <div style={{ borderTop: '1px solid #f0e9da', paddingTop: 6 }}>
-                    {renderCell('form_submission', contact)}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={labelStyle}>Télépro</div>
+                      {renderCell('telepro', contact)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={labelStyle}>Closer</div>
+                      {renderCell('closer', contact)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={labelStyle}>Origine</div>
+                      {renderCell('origine', contact)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={labelStyle}>Statut du lead</div>
+                      {renderCell('lead_status', contact)}
+                    </div>
+                    {contact.recent_conversion_date && (
+                      <div style={{ minWidth: 0, gridColumn: '1 / -1' }}>
+                        <div style={labelStyle}>Dernier formulaire</div>
+                        {renderCell('form_submission', contact)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2204,9 +2222,9 @@ export default function CRMContactsTable({
           {renderedCount < contacts.length && (
             <div
               ref={loadMoreMobileRef}
-              style={{ padding: '14px 12px', textAlign: 'center', fontSize: 12, color: '#4a6070' }}
+              style={{ padding: '14px 12px', textAlign: 'center', fontSize: 12, color: crmV2.textMuted }}
             >
-              Chargement de lignes...
+              Chargement de lignes…
             </div>
           )}
         </div>
@@ -2249,45 +2267,61 @@ export default function CRMContactsTable({
     )
   }
 
+  // En-tête et cellules du tableau V2 (gabarit A)
+  const thBase: React.CSSProperties = {
+    textAlign: 'left', padding: '10px 14px',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+    color: crmV2.textMuted, background: crmV2.thBg, borderBottom: `2px solid ${crmV2.thBorder}`,
+    position: 'sticky', top: 0, zIndex: 10,
+    whiteSpace: 'nowrap', userSelect: 'none', overflow: 'hidden', textOverflow: 'ellipsis',
+    transition: 'background 0.1s',
+  }
+  const tdBase: React.CSSProperties = {
+    height: 40, boxSizing: 'border-box', borderBottom: `1px solid ${crmV2.border}`,
+    color: crmV2.text, verticalAlign: 'middle',
+  }
+
   const columnsToolbar = (
     <div ref={colMenuRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: columnsMenuSlot ? 0 : '0 4px 8px', position: 'relative' }}>
       <button
         onClick={() => setColMenuOpen(o => !o)}
         style={{
-          background: colMenuOpen ? 'rgba(76,171,219,0.10)' : '#ffffff',
-          border: `1px solid ${colMenuOpen ? BLUE : NAVY_BORDER}`,
-          borderRadius: 8,
-          padding: '5px 12px',
-          color: colMenuOpen ? BLUE : '#0e1e35',
-          fontSize: 12,
+          background: colMenuOpen ? crmV2.bgHover : crmV2.bg,
+          border: `1px solid ${crmV2.borderStrong}`,
+          borderRadius: 999,
+          padding: '7px 14px',
+          color: crmV2.text,
+          fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           fontFamily: 'inherit',
+          whiteSpace: 'nowrap',
         }}
         title="Choisir les colonnes affichées"
       >
-        <GripVertical size={11} />
-        Colonnes ({displayCols.length}/{colOrder.length + dynamicCols.length})
+        <Columns3 size={14} />
+        Colonnes
+        <span style={{ color: crmV2.textFaint, fontWeight: 500 }}>{displayCols.length}/{colOrder.length + dynamicCols.length}</span>
       </button>
       {colMenuOpen && (
         <div style={{
           position: 'absolute',
-          top: 32,
-          right: 4,
-          background: '#ffffff',
-          border: `1px solid ${NAVY_BORDER}`,
-          borderRadius: 10,
+          top: 'calc(100% + 6px)',
+          right: 0,
+          background: crmV2.bg,
+          border: `1px solid ${crmV2.border}`,
+          borderRadius: 14,
           padding: 10,
           zIndex: 30,
-          minWidth: 240,
+          minWidth: 260,
           maxHeight: '70vh',
           overflowY: 'auto',
-          boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
+          boxShadow: '0 10px 30px rgba(15,31,61,0.14)',
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${NAVY_BORDER}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${crmV2.borderLight}` }}>
             Afficher les colonnes
           </div>
           {colOrder.map(key => {
@@ -2303,17 +2337,17 @@ export default function CRMContactsTable({
                 padding: '6px 4px',
                 cursor: 'pointer',
                 fontSize: 13,
-                color: '#0e1e35',
-                borderRadius: 4,
+                color: crmV2.text,
+                borderRadius: 8,
               }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
+                onMouseEnter={e => (e.currentTarget.style.background = crmV2.bgHover)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggleColVisibility(key)}
-                  style={{ accentColor: BLUE, cursor: 'pointer' }}
+                  style={{ accentColor: crmV2.primary, cursor: 'pointer' }}
                 />
                 {COL_LABELS[key]}
               </label>
@@ -2323,7 +2357,7 @@ export default function CRMContactsTable({
           {/* ── Section : propriétés HubSpot dynamiques ─────────────── */}
           {onExtraColumnsChange && (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${NAVY_BORDER}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', margin: '12px 0 6px', paddingTop: 10, borderTop: `1px solid ${crmV2.borderLight}` }}>
                 Propriétés du contact
               </div>
               {/* Liste des extra columns actives + bouton retirer */}
@@ -2332,9 +2366,9 @@ export default function CRMContactsTable({
                 return (
                   <div key={propName} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 4px', fontSize: 13, color: '#0e1e35',
+                    padding: '6px 4px', fontSize: 13, color: crmV2.text,
                   }}>
-                    <input type="checkbox" checked readOnly style={{ accentColor: BLUE }} />
+                    <input type="checkbox" checked readOnly style={{ accentColor: crmV2.primary }} />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {meta?.label ?? propName}
                     </span>
@@ -2342,10 +2376,11 @@ export default function CRMContactsTable({
                       onClick={() => onExtraColumnsChange((extraColumns ?? []).filter(p => p !== propName))}
                       style={{
                         background: 'transparent', border: 'none', cursor: 'pointer',
-                        color: '#ef4444', fontSize: 16, padding: '0 4px', lineHeight: 1,
+                        color: '#d13a41', padding: '0 4px', lineHeight: 1, display: 'flex',
                       }}
                       title="Retirer cette colonne"
-                    >×</button>
+                      aria-label="Retirer cette colonne"
+                    ><X size={14} /></button>
                   </div>
                 )
               })}
@@ -2366,8 +2401,8 @@ export default function CRMContactsTable({
               ) : (
                 <div style={{
                   marginTop: 8, padding: '8px 10px',
-                  border: '1px dashed #cbd6e2', borderRadius: 6,
-                  fontSize: 11, color: '#7c98b6', textAlign: 'center',
+                  border: `1px dashed ${crmV2.borderStrong}`, borderRadius: 10,
+                  fontSize: 12, color: crmV2.textFaint, textAlign: 'center',
                 }}>
                   Chargement des propriétés…
                 </div>
@@ -2384,8 +2419,8 @@ export default function CRMContactsTable({
       {/* Toolbar : gestion des colonnes affichées (portée dans la barre d'outils de la page si fournie) */}
       {columnsMenuSlot ? createPortal(columnsToolbar, columnsMenuSlot) : columnsToolbar}
 
-      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: tableMinWidth }}>
+      <div style={{ width: '100%' }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', minWidth: tableMinWidth, fontSize: 13 }}>
           <colgroup>
             {onToggleSelect && <col style={{ width: 38 }} />}
             {displayCols.map(entry => {
@@ -2401,16 +2436,12 @@ export default function CRMContactsTable({
 
           {/* Header with drag-and-drop */}
           <thead>
-            <tr style={{ borderBottom: `1px solid ${NAVY_BORDER}` }}>
+            <tr>
               {/* Checkbox select-all (non-draggable) */}
               {onToggleSelect && (
                 <th style={{
-                  padding: '9px 12px',
-                  textAlign: 'left',
-                  background: '#ffffff',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
+                  ...thBase,
+                  padding: '10px 0 10px 14px',
                   width: 38,
                 }}>
                   <input
@@ -2421,7 +2452,8 @@ export default function CRMContactsTable({
                       if (allChecked || someChecked) onDeselectAll?.()
                       else onSelectAll?.(pageIds)
                     }}
-                    style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#4cabdb' }}
+                    aria-label="Tout sélectionner"
+                    style={{ width: 14, height: 14, cursor: 'pointer', accentColor: crmV2.primary, margin: 0 }}
                   />
                 </th>
               )}
@@ -2441,46 +2473,30 @@ export default function CRMContactsTable({
                       onDrop={() => handleDrop(idx)}
                       onDragEnd={resetDrag}
                       onClick={isSortable ? () => onSortChange!(key) : undefined}
+                      className={`crm-v2-th${isActivSort ? ' is-sorted' : ''}${dragOverIdx === idx && dragIdx !== idx ? ' is-dragover' : ''}`}
                       style={{
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#33475b',
+                        ...thBase,
+                        color: dragOverIdx === idx && dragIdx !== idx ? crmV2.link : crmV2.textMuted,
                         background: dragOverIdx === idx && dragIdx !== idx
-                          ? 'rgba(76,171,219,0.07)'
-                          : dragIdx === idx
-                            ? 'rgba(76,171,219,0.04)'
-                            : '#ffffff',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 10,
-                        whiteSpace: 'nowrap',
-                        userSelect: 'none',
+                          ? 'rgba(0,145,174,0.08)'
+                          : isActivSort ? crmV2.thSortedBg : crmV2.thBg,
                         cursor: isSortable ? 'pointer' : 'grab',
                         borderLeft: dragOverIdx === idx && dragIdx !== idx
-                          ? `2px solid ${BLUE}`
+                          ? `2px solid ${crmV2.link}`
                           : '2px solid transparent',
-                        transition: 'all 0.1s',
                         opacity: dragIdx === idx ? 0.5 : 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10, minWidth: 0 }}>
-                        <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }} title={COL_LABELS[key]}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 10, minWidth: 0 }}>
+                        <GripVertical size={12} className="crm-v2-th-grip" style={{ color: crmV2.textFaint, flexShrink: 0, marginLeft: -4 }} />
+                        <span style={{ flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis' }} title={COL_LABELS[key]}>
                           {COL_LABELS[key]}
                         </span>
                         {isSortable && (
-                          <span style={{
-                            opacity: isActivSort ? 1 : 0.3,
-                            fontSize: 10,
-                            color: isActivSort ? '#a5b4fc' : 'inherit',
-                            flexShrink: 0,
-                            marginLeft: 2,
-                          }}>
-                            {isActivSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                          <span style={{ display: 'inline-flex', flexShrink: 0, color: isActivSort ? crmV2.text : crmV2.textFaint, opacity: isActivSort ? 1 : 0.6 }}>
+                            {isActivSort
+                              ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)
+                              : <ArrowUpDown size={11} />}
                           </span>
                         )}
                       </div>
@@ -2505,7 +2521,7 @@ export default function CRMContactsTable({
                       >
                         <div style={{
                           width: 2, height: '70%',
-                          background: BLUE,
+                          background: crmV2.link,
                           borderRadius: 2,
                           opacity: 0,
                           transition: 'opacity 0.15s',
@@ -2527,34 +2543,20 @@ export default function CRMContactsTable({
                     onDrop={() => handleDrop(idx)}
                     onDragEnd={resetDrag}
                     title={label}
+                    className={`crm-v2-th${dragOverIdx === idx && dragIdx !== idx ? ' is-dragover' : ''}`}
                     style={{
-                      padding: '8px 12px',
-                      textAlign: 'left',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      color: dragOverIdx === idx && dragIdx !== idx ? BLUE : '#33475b',
-                      background: dragOverIdx === idx && dragIdx !== idx
-                        ? 'rgba(76,171,219,0.07)'
-                        : dragIdx === idx
-                          ? 'rgba(76,171,219,0.04)'
-                          : '#ffffff',
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 10,
-                      whiteSpace: 'nowrap',
-                      userSelect: 'none',
+                      ...thBase,
+                      color: dragOverIdx === idx && dragIdx !== idx ? crmV2.link : crmV2.textMuted,
+                      background: dragOverIdx === idx && dragIdx !== idx ? 'rgba(0,145,174,0.08)' : crmV2.thBg,
                       cursor: 'grab',
                       borderLeft: dragOverIdx === idx && dragIdx !== idx
-                        ? `2px solid ${BLUE}`
+                        ? `2px solid ${crmV2.link}`
                         : '2px solid transparent',
-                      transition: 'all 0.1s',
                       opacity: dragIdx === idx ? 0.5 : 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 10, minWidth: 0 }}>
-                      <GripVertical size={10} style={{ color: '#a89e8a', flexShrink: 0, opacity: 0.6 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 10, minWidth: 0 }}>
+                      <GripVertical size={12} className="crm-v2-th-grip" style={{ color: crmV2.textFaint, flexShrink: 0, marginLeft: -4 }} />
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
                     </div>
                     <div
@@ -2570,7 +2572,7 @@ export default function CRMContactsTable({
                     >
                       <div style={{
                         width: 2, height: '70%',
-                        background: BLUE,
+                        background: crmV2.link,
                         borderRadius: 2,
                         opacity: 0,
                         transition: 'opacity 0.15s',
@@ -2582,14 +2584,7 @@ export default function CRMContactsTable({
               })}
 
               {/* Actions (non-draggable) */}
-              <th style={{
-                padding: '9px 12px',
-                background: '#ffffff',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                width: 50,
-              }} />
+              <th style={{ ...thBase, width: 50 }} />
             </tr>
           </thead>
 
@@ -2600,7 +2595,7 @@ export default function CRMContactsTable({
               const isExpanded = expanded.has(contact.hubspot_contact_id)
               const deal       = contact.deal
 
-              const rowBg = isExpanded ? '#f0e9da' : '#ffffff'
+              const rowBg = isExpanded ? crmV2.bgHover : crmV2.bg
 
               return (
                 <React.Fragment key={contact.hubspot_contact_id}>
@@ -2608,15 +2603,15 @@ export default function CRMContactsTable({
                     className="crm-contact-row"
                     onMouseEnter={(e) => {
                       handleRowEnter(contact.hubspot_contact_id)
-                      if (!isExpanded) e.currentTarget.style.background = '#f7f4ee'
+                      if (!isExpanded) e.currentTarget.style.background = crmV2.rowHover
                     }}
                     onMouseLeave={(e) => {
                       handleRowLeave()
-                      if (!isExpanded) e.currentTarget.style.background = '#ffffff'
+                      if (!isExpanded) e.currentTarget.style.background = crmV2.bg
                     }}
                     style={{
                       background: rowBg,
-                      borderBottom: `1px solid ${isExpanded ? 'transparent' : '#eaf0f6'}`,
+                      height: 40,
                       transition: 'background 0.1s',
                       // Skip-rendering des rangs hors viewport : le navigateur
                       // ne layout / paint que ceux visibles -> scroll fluide
@@ -2627,12 +2622,13 @@ export default function CRMContactsTable({
                   >
                     {/* Checkbox */}
                     {onToggleSelect && (
-                      <td style={{ width: 38, padding: '0 0 0 12px' }} onClick={e => e.stopPropagation()}>
+                      <td style={{ ...tdBase, width: 38, padding: '0 0 0 14px' }} onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
+                          aria-label="Sélectionner"
                           checked={selectedIds?.has(contact.hubspot_contact_id) || false}
                           onChange={() => onToggleSelect(contact.hubspot_contact_id)}
-                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#4cabdb' }}
+                          style={{ width: 14, height: 14, cursor: 'pointer', accentColor: crmV2.primary, margin: 0, display: 'block' }}
                         />
                       </td>
                     )}
@@ -2647,7 +2643,8 @@ export default function CRMContactsTable({
                           <td
                             key={entry}
                             style={{
-                              padding: isOwnerCol ? '3px 8px' : '6px 12px',
+                              ...tdBase,
+                              padding: isOwnerCol ? '3px 10px' : '3px 14px',
                               minWidth: 0,
                               overflow: isPhoneCol ? 'visible' : 'hidden',
                             }}
@@ -2662,7 +2659,7 @@ export default function CRMContactsTable({
                       return (
                         <td
                           key={entry}
-                          style={{ padding: isOwnerProp ? '3px 8px' : '6px 12px', minWidth: 0, overflow: 'hidden' }}
+                          style={{ ...tdBase, padding: isOwnerProp ? '3px 10px' : '3px 14px', minWidth: 0, overflow: 'hidden' }}
                           onClick={isOwnerProp ? e => e.stopPropagation() : undefined}
                         >
                           {renderDynamicCell(prop, contact)}
@@ -2671,7 +2668,7 @@ export default function CRMContactsTable({
                     })}
 
                     {/* Actions */}
-                    <td style={{ padding: '2px 8px', textAlign: 'right' }}>
+                    <td style={{ ...tdBase, padding: '2px 8px', textAlign: 'right' }}>
                       <ActionsMenu
                           contact={contact}
                           name={name}
@@ -2709,11 +2706,11 @@ export default function CRMContactsTable({
                     padding: '14px 12px',
                     textAlign: 'center',
                     fontSize: 12,
-                    color: '#4a6070',
-                    background: '#ffffff',
+                    color: crmV2.textMuted,
+                    background: crmV2.bg,
                   }}
                 >
-                  Chargement de lignes...
+                  Chargement de lignes…
                 </td>
               </tr>
             )}
@@ -2776,6 +2773,11 @@ export default function CRMContactsTable({
           from { transform: rotate(0deg) }
           to   { transform: rotate(360deg) }
         }
+        .crm-v2-th .crm-v2-th-grip { opacity: 0; transition: opacity .12s; }
+        .crm-v2-th:hover .crm-v2-th-grip { opacity: 0.7; }
+        /* La skin V2 force le fond des en-têtes : colonne triée / cible de dépôt prioritaires */
+        table thead th.crm-v2-th.is-sorted { background: #e8f4f7 !important; }
+        table thead th.crm-v2-th.is-dragover { background: rgba(0,145,174,0.08) !important; }
         @keyframes crmToastIn {
           from { opacity: 0; transform: translateX(-50%) translateY(8px) }
           to   { opacity: 1; transform: translateX(-50%) translateY(0) }

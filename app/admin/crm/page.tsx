@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, LayoutDashboard, X, ChevronDown, Zap, Bell, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers } from 'lucide-react'
+import { LayoutDashboard, X, ChevronDown, List, GraduationCap, SlidersHorizontal, Plus, Save, Check, Trash2, Copy, Pen, Download, Upload, AlertTriangle, BookOpen, Pencil, Layers, SquareCheck, ChevronRight } from 'lucide-react'
 import CRMContactsTable, { CRMContact, type ContactInlinePatch } from '@/components/CRMContactsTable'
 import LogoutButton from '@/components/LogoutButton'
-import { fmtCount, StatChip, FilterPill, CRMToolBtn } from '@/components/crm/CRMUIBits'
 import { validateEmailDomain } from '@/lib/email-validation'
 import { usePageTitle } from '@/components/DocumentTitle'
 
@@ -30,7 +29,7 @@ import {
   CRM_DEFAULT_VIEWS, loadCRMViews, viewToParams,
   persistViewCreate, persistViewUpdate, persistAdminViewLayout,
 } from '@/lib/crm-views'
-import { MultiSelectDropdown, FilterSelect, FilterMultiSelect, SearchableSelect } from '@/components/crm/CRMSelects'
+import { MultiSelectDropdown, SearchableSelect } from '@/components/crm/CRMSelects'
 const ExportCSVModal = dynamic(() => import('@/components/crm/CRMExportModal'), { ssr: false })
 import { CRMFieldPicker, isCustomField, type CrmPropertyMeta } from '@/components/crm/CRMFieldPicker'
 import { CRMBulkPropertyPicker, resolveBulkPropMeta } from '@/components/crm/CRMBulkPropertyPicker'
@@ -57,6 +56,14 @@ import {
 } from '@/lib/crm-attribution-buckets'
 import { CRMBucketSubviewsBar } from '@/components/crm/CRMBucketSubviews'
 import { CRMManageViewsModal } from '@/components/crm/CRMManageViewsModal'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { CrmV2Button, CrmV2Header } from '@/components/crm-v2/primitives'
+import {
+  useScrollParentHeight, foldText, type HeaderMenuItem,
+  V2PillLink, V2RoundButton, V2MoreMenu, V2ViewSearch, V2ContactSearch,
+  V2FilterMultiPill, V2FilterPill, V2AdvancedFiltersLink, V2ToolbarLink, V2ActiveChip,
+  V2ContactsPager, V2InlineSpinner,
+} from '@/components/crm-v2/contacts-list/ContactsListParts'
 
 // Composants UI extraits dans @/components/crm/*
 
@@ -1702,7 +1709,6 @@ export default function CRMPage() {
   }
 
   const displayed = contacts
-  const totalPages = Math.ceil(total / limit)
 
   const totalFilterRules = filterGroups.reduce((sum, g) => sum + g.rules.length, 0)
   const hasActiveFilters = (
@@ -2084,326 +2090,530 @@ export default function CRMPage() {
     ...mergeOwnersWithUsers(allUsers.filter(u => u.hubspot_owner_id)),
   ], [allUsers, mergeOwnersWithUsers])
 
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      // Mobile : on retire la barre de nav basse (56px) pour éviter un double scroll
-      height: isMobile ? 'calc(100dvh - 56px)' : '100vh',
-      background: '#F5F0E8', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    }}>
+  // ── Présentation V2 (gabarit A) : état purement visuel ───────────────────
+  const pageRootRef = useRef<HTMLDivElement | null>(null)
+  const fillHeight = useScrollParentHeight(pageRootRef)
+  const [viewQuery, setViewQuery] = useState('')
+  const shownTopLevelViews = viewQuery.trim()
+    ? topLevelViews.filter(v => foldText(v.name).includes(foldText(viewQuery.trim())))
+    : topLevelViews
+  const pipelineLabel = pipeline && !pipeline.includes(',')
+    ? (pipelineOptions.find(o => o.id === pipeline)?.label ?? '')
+    : ''
+  const quickFilterCount = [
+    stage, closerContactHsId, teleproHsId, period, formEvent, formEventNot, noTelepro,
+    recentFormMonths > 0, recentFormDays > 0, createdBeforeDays > 0,
+  ].filter(Boolean).length + totalFilterRules
+  const apiHint = lastFetchClientMs !== null
+    ? `API ${lastFetchClientMs} ms${lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs} ms)` : ''}`
+    : undefined
+  const headerMenuItems: HeaderMenuItem[] = [
+    ...(!isMobile ? [{ label: 'Journal Repop', icon: <BookOpen size={15} color={crmV2.gold} />, onClick: () => setShowRepop(true) }] : []),
+    { label: 'Transactions 2026-2027', icon: <GraduationCap size={15} color={crmV2.gold} />, href: '/admin/crm/transactions' },
+    { label: 'Annuaire des vues', icon: <List size={15} color={crmV2.textMuted} />, onClick: () => setManageViewsOpen(true) },
+    ...(isMobile ? [
+      { label: 'Importer', icon: <Upload size={15} color={crmV2.textMuted} />, href: '/admin/crm/import' },
+      { label: 'Exporter', icon: <Download size={15} color={crmV2.textMuted} />, onClick: () => setExportModalOpen(true) },
+    ] : []),
+  ]
 
-      {/* ── En-tête compact (style HubSpot) : titre + santé ingestion + actions ── */}
-      <div style={{
-        padding: isMobile ? '8px 12px' : '10px 20px 6px',
-        background: '#ffffff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        flexShrink: 0,
-        gap: 12,
-        overflowX: isMobile ? 'auto' : undefined,
-      }}>
-        <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#0F1F3D', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-            Contacts
-          </h1>
-          {ingestionHealth && (
-            <span
-              title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
-              style={{
-                fontSize: 11,
-                color: ingestionHealth.is_stale ? '#b45309' : '#516f90',
-                fontWeight: ingestionHealth.is_stale ? 700 : 500,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  // Filtres rapides (pilules) + filtres actifs retirables
+  const quickFilterPills = (
+    <>
+      <V2FilterMultiPill label="Étape" value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
+      <V2FilterMultiPill label="Closer" value={closerContactHsId} onChange={v => { setCloserContactHsId(v); scheduleRefetch() }} options={closerOptions} />
+      <V2FilterMultiPill label="Télépro" value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
+      <V2FilterPill label="Période" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
+    </>
+  )
+  const viewActionLinks = (
+    <>
+      {crmViewChanged && activeViewId !== 'all' && !activeCRMView?.isDefault && (
+        <V2ToolbarLink tone="gold" icon={<Save size={14} />} onClick={() => updateCRMViewFilters(activeViewId)}>
+          Sauvegarder
+        </V2ToolbarLink>
+      )}
+      {!creatingView && (
+        <V2ToolbarLink icon={<Plus size={14} />} onClick={() => { setCreatingView(true); setNewViewName('') }}>
+          Enregistrer la vue
+        </V2ToolbarLink>
+      )}
+    </>
+  )
+  const activeFilterChips = hasActiveFilters ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', width: '100%' }}>
+      {noTelepro && <V2ActiveChip label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
+      {recentFormMonths > 0 && <V2ActiveChip label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
+      {recentFormDays > 0 && <V2ActiveChip label={`Form. < ${recentFormDays} j`} onRemove={() => { setRecentFormDays(0); scheduleRefetch() }} />}
+      {createdBeforeDays > 0 && <V2ActiveChip label={`Créé > ${createdBeforeDays} j`} onRemove={() => { setCreatedBeforeDays(0); scheduleRefetch() }} />}
+      {stage && <V2ActiveChip label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
+      {closerContactHsId && <V2ActiveChip label={closerContactHsId.includes(',') ? `${closerContactHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerContactHsId)?.label ?? 'Closer du contact'} onRemove={() => { setCloserContactHsId(''); scheduleRefetch() }} />}
+      {teleproHsId && <V2ActiveChip label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
+      {formEvent && <V2ActiveChip label={formEvent.includes(',') ? `${formEvent.split(',').length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
+      {formEventNot && <V2ActiveChip label={`Formulaire ≠ ${formEventNot.includes(',') ? `${formEventNot.split(',').length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
+      {period && <V2ActiveChip label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
+      {search && <V2ActiveChip label={`« ${search} »`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
+      <V2ToolbarLink tone="danger" icon={<X size={13} />} onClick={() => { resetAll(); scheduleRefetch() }}>
+        Réinitialiser
+      </V2ToolbarLink>
+    </div>
+  ) : null
+
+  // Barre de sélection en masse
+  const bulkBar = (selectedIds.size > 0 || selectingAllView) ? (
+    <div style={{
+      position: isMobile ? 'sticky' : 'relative', top: 0, zIndex: 40, flexShrink: 0,
+      background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`,
+      ...(isMobile ? { border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, margin: '0 0 8px', boxShadow: crmV2.shadow } : {}),
+      padding: isMobile ? '10px 12px' : '10px 14px',
+      display: 'flex', flexDirection: 'column', gap: 10, overflow: 'visible',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: crmV2.text }}>
+          <SquareCheck size={15} color={crmV2.link} />
+          {selectingAllView
+            ? `Chargement… ${(selectAllViewProgress?.loaded ?? 0).toLocaleString('fr-FR')}${selectAllViewProgress?.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
+            : `${selectedIds.size.toLocaleString('fr-FR')} lead${selectedIds.size > 1 ? 's' : ''} sélectionné${selectedIds.size > 1 ? 's' : ''}${selectionScope === 'view' ? ' (toute la vue)' : ''}`}
+        </span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[25, 100, 500].map(n => (
+            <CrmV2Button key={n} size="sm" onClick={() => selectFirst(n)} disabled={selectingAllView || bulkUpdating}>
+              {n} premiers
+            </CrmV2Button>
+          ))}
+          <CrmV2Button size="sm" onClick={selectAll} disabled={selectingAllView || bulkUpdating}>
+            Tout ({displayed.length})
+          </CrmV2Button>
+          <CrmV2Button size="sm" variant="ghost" onClick={clearSelection}>
+            {selectingAllView ? 'Annuler' : 'Désélectionner'}
+          </CrmV2Button>
+          <CrmV2Button
+            size="sm"
+            icon={<Pencil size={13} />}
+            onClick={() => {
+              ensureCrmPropsLoaded()
+              setBulkPropOpen(o => !o)
+            }}
+            disabled={selectingAllView || selectedIds.size === 0 || bulkUpdating}
+            style={bulkPropOpen ? { background: crmV2.bgHover, borderColor: crmV2.link, color: crmV2.link } : undefined}
+          >
+            Modifier une propriété
+          </CrmV2Button>
+          <CrmV2Button
+            size="sm"
+            variant="danger"
+            icon={<Trash2 size={13} />}
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting || selectingAllView || bulkUpdating || selectedIds.size === 0}
+            title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
+          >
+            {bulkDeleting ? 'Suppression…' : 'Supprimer'}
+          </CrmV2Button>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: crmV2.textMuted }}>Assigner à :</span>
+          <select
+            value={bulkTeleproId}
+            onChange={e => setBulkTeleproId(e.target.value)}
+            disabled={selectingAllView || bulkUpdating}
+            style={{
+              height: 32, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius,
+              padding: '0 10px', color: crmV2.text, fontSize: 13, fontFamily: 'inherit', maxWidth: 220,
+            }}
+          >
+            <option value="">Choisir un télépro</option>
+            {telepros.map(u => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+          <CrmV2Button
+            size="sm"
+            variant="primary"
+            onClick={handleBulkAssign}
+            disabled={!bulkTeleproId || bulkAssigning || selectingAllView || bulkUpdating || selectedIds.size === 0}
+          >
+            {bulkAssigning ? 'Attribution…' : 'Assigner'}
+          </CrmV2Button>
+        </div>
+      </div>
+
+      {/* Sélectionner toute la vue */}
+      {(canSelectEntireView || selectingAllView) && (
+        <div style={{
+          background: 'rgba(0,145,174,0.06)', border: '1px solid rgba(0,145,174,0.22)',
+          borderRadius: crmV2.radius, padding: '8px 12px', fontSize: 13, color: crmV2.text,
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        }}>
+          {selectingAllView ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <V2InlineSpinner />
+              Sélection de tous les contacts de la vue en cours…
+              {selectAllViewProgress
+                ? ` ${selectAllViewProgress.loaded.toLocaleString('fr-FR')}${selectAllViewProgress.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
+                : ''}
+            </span>
+          ) : (
+            <>
+              <span>Les {displayed.length.toLocaleString('fr-FR')} contacts de cette page sont sélectionnés.</span>
+              <CrmV2Button size="sm" variant="ghost" onClick={selectAllMatchingView} style={{ padding: '4px 6px' }}>
+                Sélectionner les {total.toLocaleString('fr-FR')} contacts de cette vue
+              </CrmV2Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Édition d'une propriété en masse */}
+      {bulkPropOpen && selectedIds.size > 0 && !selectingAllView && (
+        <div style={{
+          background: crmV2.bgHover, border: `1px solid ${crmV2.border}`, borderRadius: 12,
+          padding: '10px 12px', display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap',
+          position: 'relative', zIndex: 50, overflow: 'visible',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, position: 'relative', zIndex: 50, overflow: 'visible' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Propriété</label>
+            <CRMBulkPropertyPicker
+              value={bulkPropName}
+              onChange={name => {
+                setBulkPropName(name)
+                setBulkPropValue('')
               }}
-            >
-              {ingestionHealth.is_stale ? '⚠' : '●'} Dernier lead {formatSignalTime(
-                ingestionHealth.latest_meta_event?.processed_at ?? ingestionHealth.latest_contact?.synced_at,
-              )} · 24h: {ingestionHealth.meta_events_24h} events Meta / {ingestionHealth.contacts_24h} contacts MAJ
+              crmProps={allCrmProps}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 200, flex: 1 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: crmV2.textMuted }}>Nouvelle valeur</label>
+            {(() => {
+              const meta = bulkPropMeta
+              const ft = String(meta?.field_type || '').toLowerCase()
+              const tp = String(meta?.type || '').toLowerCase()
+              const opts = Array.isArray(meta?.options) ? meta!.options! : null
+              const inputStyle = {
+                background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: crmV2.radius,
+                padding: '0 10px', height: 34, color: crmV2.text, fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+              } as const
+              if (!bulkPropName) {
+                return <input disabled placeholder="Choisir une propriété d’abord" style={inputStyle} />
+              }
+              if (tp === 'bool' || ft === 'booleancheckbox') {
+                return (
+                  <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="true">Oui</option>
+                    <option value="false">Non</option>
+                  </select>
+                )
+              }
+              if ((ft === 'select' || ft === 'radio' || ft === 'checkbox') && opts && opts.length > 0) {
+                return (
+                  <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
+                    <option value="">— (vide)</option>
+                    {opts.map(o => (
+                      <option key={String(o.value)} value={String(o.value)}>{o.label || o.value}</option>
+                    ))}
+                  </select>
+                )
+              }
+              if (tp === 'date' || ft === 'date') {
+                return (
+                  <input type="date" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
+                )
+              }
+              if (tp === 'number' || ft === 'number') {
+                return (
+                  <input type="number" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
+                )
+              }
+              return (
+                <input
+                  type="text"
+                  value={bulkPropValue}
+                  onChange={e => setBulkPropValue(e.target.value)}
+                  placeholder="Valeur (vide = effacer)"
+                  style={inputStyle}
+                />
+              )
+            })()}
+          </div>
+          <CrmV2Button
+            variant="primary"
+            onClick={handleBulkPropUpdate}
+            disabled={!bulkPropName || bulkUpdating}
+          >
+            {bulkUpdating
+              ? `Mise à jour… ${bulkUpdateProgress ? `${bulkUpdateProgress.done}/${bulkUpdateProgress.total}` : ''}`
+              : `Appliquer à ${selectedIds.size.toLocaleString('fr-FR')}`}
+          </CrmV2Button>
+        </div>
+      )}
+    </div>
+  ) : null
+
+  // Pied de tableau : « 1–25 sur N » + pagination ronde
+  const pager = (
+    <V2ContactsPager
+      page={page}
+      limit={limit}
+      total={total}
+      estimated={totalEstimated}
+      onPage={p => setPage(p)}
+      onLimit={n => { setLimit(n); setPage(0) }}
+      compact={isMobile}
+      hint={apiHint}
+    />
+  )
+
+  return (
+    <div
+      ref={pageRootRef}
+      style={{
+        display: 'flex', flexDirection: 'column',
+        // Remplit la zone qui défile du shell V2 : seul le tableau défile.
+        height: fillHeight ?? (isMobile ? 'calc(100dvh - 56px)' : '100vh'),
+        background: crmV2.bgSoft, color: crmV2.text, fontFamily: 'inherit',
+      }}
+    >
+
+      {/* ── En-tête blanc : titre, compteur, actions, onglets de vues ───────── */}
+      <CrmV2Header
+        title="Contacts"
+        subtitle={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {loading ? (
+              <><V2InlineSpinner /> Chargement…</>
+            ) : (
+              <span title={apiHint} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {totalEstimated ? '≈ ' : ''}{total.toLocaleString('fr-FR')} contact{total !== 1 ? 's' : ''}
+              </span>
+            )}
+            {pipelineLabel && <span>· Pipeline {pipelineLabel}</span>}
+            {(formation || classe || period) && !loading ? <span>· {displayed.length} affiché{displayed.length !== 1 ? 's' : ''}</span> : null}
+            {!isMobile && ingestionHealth && (
+              <span
+                title="Basé sur meta_lead_events.processed_at et crm_contacts.synced_at"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  color: ingestionHealth.is_stale ? '#b45309' : crmV2.textMuted,
+                  fontWeight: ingestionHealth.is_stale ? 700 : 400, whiteSpace: 'nowrap',
+                }}
+              >
+                ·
+                {ingestionHealth.is_stale
+                  ? <AlertTriangle size={13} />
+                  : <span style={{ width: 7, height: 7, borderRadius: '50%', background: crmV2.success }} />}
+                Dernier lead {formatSignalTime(
+                  ingestionHealth.latest_meta_event?.processed_at ?? ingestionHealth.latest_contact?.synced_at,
+                )} · 24 h : {ingestionHealth.meta_events_24h} événements Meta / {ingestionHealth.contacts_24h} contacts mis à jour
+              </span>
+            )}
+          </span>
+        }
+        actions={isMobile ? (
+          <>
+            <V2MoreMenu items={headerMenuItems} size={40} />
+            <V2RoundButton variant="primary" size={40} title="Créer un contact" onClick={() => setShowNewContact(true)}>
+              <Plus size={18} />
+            </V2RoundButton>
+          </>
+        ) : (
+          <>
+            <V2MoreMenu items={headerMenuItems} />
+            <V2PillLink href="/admin/crm/import" icon={<Upload size={14} />}>Importer</V2PillLink>
+            <CrmV2Button icon={<Download size={14} />} onClick={() => setExportModalOpen(true)}>Exporter</CrmV2Button>
+            <CrmV2Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowNewContact(true)}>Créer un contact</CrmV2Button>
+          </>
+        )}
+      >
+        {/* Onglets de vues soulignés : la rangée défile horizontalement */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-end', gap: 0,
+          margin: isMobile ? '0 -12px' : '0 -28px', padding: isMobile ? '0 12px' : '0 28px',
+          overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
+        }}>
+          <V2ViewSearch value={viewQuery} onChange={setViewQuery} compact={isMobile} />
+
+          {shownTopLevelViews.map(view => {
+            const isBucket = view.kind === 'bucket' || isAttributionBucketId(view.id)
+            const isActive = activeViewId === view.id || (isBucket && activeBucketId === view.id)
+            const isRenaming = renamingViewId === view.id
+            const isDraggable = !view.isDefault && !isRenaming
+            const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
+            const count = viewCounts[view.id]
+
+            return (
+              <div
+                key={view.id}
+                draggable={isDraggable}
+                onDragStart={isDraggable ? (e) => {
+                  setDraggedViewId(view.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                } : undefined}
+                onDragOver={(e) => {
+                  if (!draggedViewId || view.isDefault) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setDragOverViewId(view.id)
+                }}
+                onDragLeave={() => {
+                  if (dragOverViewId === view.id) setDragOverViewId(null)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (draggedViewId && !view.isDefault) {
+                    reorderCRMViews(draggedViewId, view.id)
+                  }
+                  setDraggedViewId(null)
+                  setDragOverViewId(null)
+                }}
+                onDragEnd={() => {
+                  setDraggedViewId(null)
+                  setDragOverViewId(null)
+                }}
+                onClick={() => { if (!isRenaming) applyCRMView(view) }}
+                onDoubleClick={() => {
+                  if (!view.isDefault) {
+                    setRenamingViewId(view.id)
+                    setRenameValue(view.name)
+                  }
+                }}
+                role="tab"
+                aria-selected={isActive}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+                  padding: isMobile ? '10px 12px' : '10px 14px', marginBottom: -1,
+                  borderBottom: isActive
+                    ? `3px solid ${crmV2.text}`
+                    : isDragOver ? `3px solid ${crmV2.goldBorder}` : '3px solid transparent',
+                  background: isDragOver ? crmV2.goldSoft : 'transparent',
+                  fontSize: 14, fontWeight: isActive ? 600 : 500,
+                  color: isActive ? crmV2.text : crmV2.textMuted,
+                  cursor: isRenaming ? 'text' : isDraggable ? 'grab' : 'pointer',
+                  opacity: draggedViewId === view.id ? 0.5 : 1,
+                  transition: 'color .12s, border-color .12s',
+                }}
+              >
+                {isBucket && <Layers size={14} color={isActive ? crmV2.text : crmV2.textFaint} />}
+
+                {isRenaming ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') renameCRMView(view.id, renameValue)
+                      if (e.key === 'Escape') setRenamingViewId(null)
+                    }}
+                    onBlur={() => renameCRMView(view.id, renameValue)}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      background: crmV2.bg, border: `1px solid ${crmV2.gold}`,
+                      borderRadius: crmV2.radiusSm, padding: '2px 8px', color: crmV2.text,
+                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                      outline: 'none', width: Math.max(80, renameValue.length * 8),
+                    }}
+                  />
+                ) : (
+                  <span>{view.name}</span>
+                )}
+
+                {/* Compteur gris entre parenthèses */}
+                {count !== undefined && (
+                  <span style={{ color: crmV2.textFaint, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    ({count.toLocaleString('fr-FR')})
+                  </span>
+                )}
+
+                {!view.isDefault && isActive && !isRenaming && (
+                  <>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        setRenamingViewId(view.id)
+                        setRenameValue(view.name)
+                      }}
+                      title="Renommer la vue (tous les admins et télépros)"
+                      aria-label="Renommer la vue"
+                      style={{ background: 'none', border: 'none', padding: 2, color: crmV2.textFaint, cursor: 'pointer', display: 'flex', marginLeft: 2 }}
+                    >
+                      <Pen size={12} />
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); unpinCRMView(view.id) }}
+                      title="Retirer de mes onglets"
+                      aria-label="Retirer de mes onglets"
+                      style={{ background: 'none', border: 'none', padding: 2, color: crmV2.textFaint, cursor: 'pointer', display: 'flex' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          {viewQuery.trim() && shownTopLevelViews.length === 0 && (
+            <span style={{ alignSelf: 'center', padding: '0 14px 6px', fontSize: 13, color: crmV2.textFaint, whiteSpace: 'nowrap' }}>
+              Aucune vue
             </span>
           )}
-        </div>
 
-        {/* ── Outils + actions principales ───────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: isMobile ? 0 : 'auto', flexWrap: 'nowrap' }}>
-          {!isMobile && (
-            <CRMToolBtn icon={<BookOpen size={11} />} label="Journal Repop" onClick={() => setShowRepop(true)} />
-          )}
-
-          <button
-            onClick={() => setExportModalOpen(true)}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid #e5ddc8',
-              borderRadius: 8, color: '#4cabdb',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <Download size={12} /> {isMobile ? 'Export' : 'Exporter CSV'}
-          </button>
-
-          <a
-            href="/admin/crm/import"
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid #e5ddc8',
-              borderRadius: 8, color: '#4cabdb',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-              whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none',
-            }}
-          >
-            <Upload size={12} /> {isMobile ? 'Import' : 'Importer CSV'}
-          </a>
-
-          <a
-            href="/admin/crm/transactions"
-            style={{
-              background: 'rgba(204,172,113,0.10)',
-              border: '1px solid rgba(204,172,113,0.3)',
-              borderRadius: 8, padding: '6px 14px', color: '#C9A84C',
-              fontSize: 12, textDecoration: 'none', display: 'flex',
-              alignItems: 'center', gap: 6, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <GraduationCap size={13} /> {isMobile ? 'Transactions' : 'Transactions 2026-2027'}
-          </a>
-
-          <button
-            onClick={() => setShowNewContact(true)}
-            style={{
-              padding: '7px 12px',
-              background: '#12314d',
-              border: '1px solid #12314d',
-              borderRadius: 8, color: '#ffffff',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <Plus size={12} /> {isMobile ? 'Contact' : 'Nouveau contact'}
-          </button>
-        </div>
-
-      </div>
-
-      {/* ── Views Tab Bar (HubSpot-style) ─────────────────────────────────── */}
-      <div
-        className="crm-views-tab-bar"
-        style={{
-        padding: isMobile ? '0 12px' : '0 20px', background: '#ffffff',
-        borderBottom: '1px solid #dfe3eb', flexShrink: 0,
-        display: 'flex', alignItems: 'stretch', gap: 2,
-        overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'thin',
-      }}>
-        {topLevelViews.map(view => {
-          const isBucket = view.kind === 'bucket' || isAttributionBucketId(view.id)
-          const isActive = activeViewId === view.id || (isBucket && activeBucketId === view.id)
-          const isRenaming = renamingViewId === view.id
-          const Icon = isBucket ? Layers : view.id === 'a_attribuer' ? Zap : view.id === 'recents' ? Bell : List
-          const isDraggable = !view.isDefault && !isRenaming
-          const isDragOver = dragOverViewId === view.id && draggedViewId && draggedViewId !== view.id
-
-          return (
-            <div
-              key={view.id}
-              draggable={isDraggable}
-              onDragStart={isDraggable ? (e) => {
-                setDraggedViewId(view.id)
-                e.dataTransfer.effectAllowed = 'move'
-              } : undefined}
-              onDragOver={(e) => {
-                if (!draggedViewId || view.isDefault) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                setDragOverViewId(view.id)
-              }}
-              onDragLeave={() => {
-                if (dragOverViewId === view.id) setDragOverViewId(null)
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                if (draggedViewId && !view.isDefault) {
-                  reorderCRMViews(draggedViewId, view.id)
-                }
-                setDraggedViewId(null)
-                setDragOverViewId(null)
-              }}
-              onDragEnd={() => {
-                setDraggedViewId(null)
-                setDragOverViewId(null)
-              }}
-              onClick={() => { if (!isRenaming) applyCRMView(view) }}
-              onDoubleClick={() => {
-                if (!view.isDefault) {
-                  setRenamingViewId(view.id)
-                  setRenameValue(view.name)
-                }
-              }}
-              className={`crm-view-tab${isActive ? ' is-active' : ''}${isBucket ? ' is-bucket' : ''}`}
-              style={{
-                padding: '9px 14px 8px',
-                borderRadius: '6px 6px 0 0',
-                border: '1px solid transparent',
-                borderBottom: isActive
-                  ? '2px solid #C9A84C'
-                  : isDragOver
-                    ? '2px solid rgba(201,168,76,0.5)'
-                    : '2px solid transparent',
-                background: isActive
-                  ? '#f5f8fa'
-                  : isDragOver
-                    ? 'rgba(201,168,76,0.08)'
-                    : 'transparent',
-                cursor: isRenaming ? 'text' : isDraggable ? 'grab' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 7,
-                whiteSpace: 'nowrap',
-                transition: 'background 0.15s, border-color 0.15s',
-                flexShrink: 0,
-                opacity: draggedViewId === view.id ? 0.5 : 1,
-              }}
-            >
-              {(view.isDefault || isBucket) && <Icon size={14} style={{ color: isActive ? '#12314d' : '#3D5275' }} />}
-
-              {isRenaming ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') renameCRMView(view.id, renameValue)
-                    if (e.key === 'Escape') setRenamingViewId(null)
-                  }}
-                  onBlur={() => renameCRMView(view.id, renameValue)}
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
-                    borderRadius: 4, padding: '2px 6px', color: '#C9A84C',
-                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                    outline: 'none', width: Math.max(60, renameValue.length * 8),
-                  }}
-                />
-              ) : (
-                <span style={{
-                  fontSize: 13, fontWeight: isActive ? 700 : 600,
-                  color: isActive ? '#0F1F3D' : '#33475b',
-                }}>
-                  {view.name}
-                </span>
-              )}
-
-              {/* Badge count — tous les onglets */}
-              {viewCounts[view.id] !== undefined && viewCounts[view.id] > 0 && (
-                <span style={{
-                  fontSize: 10.5, fontWeight: 700,
-                  color: isActive ? '#8a6e3a' : '#516f90',
-                  background: isActive ? 'rgba(201,168,76,0.16)' : '#eaf0f6',
-                  border: 'none',
-                  borderRadius: 999, padding: '1px 7px',
-                  letterSpacing: '0.01em',
-                  fontVariantNumeric: 'tabular-nums',
-                  transition: 'all 0.2s',
-                }}>
-                  {fmtCount(viewCounts[view.id])}
-                </span>
-              )}
-
-              {!view.isDefault && isActive && !isRenaming && (
-                <>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation()
-                      setRenamingViewId(view.id)
-                      setRenameValue(view.name)
-                    }}
-                    title="Renommer la vue (tous les admins et télépros)"
-                    style={{
-                      background: 'none', border: 'none', padding: 0,
-                      color: '#12314d', cursor: 'pointer', display: 'flex', marginLeft: 2,
-                    }}
-                  >
-                    <Pen size={11} />
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); unpinCRMView(view.id) }}
-                    title="Retirer de mes onglets"
-                    style={{
-                      background: 'none', border: 'none', padding: 0,
-                      color: '#3D5275', cursor: 'pointer', display: 'flex',
-                    }}
-                  >
-                    <X size={11} />
-                  </button>
-                </>
-              )}
+          {/* Créer une vue (saisie du nom) ou ouvrir l'annuaire des vues */}
+          {creatingView ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+              padding: '6px 10px', marginBottom: -1, borderBottom: `3px solid ${crmV2.gold}`,
+            }}>
+              <input
+                autoFocus
+                value={newViewName}
+                onChange={e => setNewViewName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') createCRMView(newViewName)
+                  if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
+                }}
+                placeholder="Nom de la vue…"
+                style={{
+                  background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+                  borderRadius: crmV2.radius, padding: '4px 10px', color: crmV2.text,
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 150,
+                }}
+              />
+              <button
+                onClick={() => createCRMView(newViewName)}
+                title="Créer la vue"
+                aria-label="Créer la vue"
+                style={{ background: crmV2.primary, border: 'none', borderRadius: 999, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Check size={13} color="#fff" />
+              </button>
+              <button
+                onClick={() => { setCreatingView(false); setNewViewName('') }}
+                title="Annuler"
+                aria-label="Annuler"
+                style={{ background: 'none', border: 'none', padding: 0, color: crmV2.textMuted, cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={14} />
+              </button>
             </div>
-          )
-        })}
-
-        {/* Annuaire : ajouter une vue existante ou en créer une */}
-        {creatingView ? (
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '6px 10px', flexShrink: 0,
-              borderBottom: '2px solid #C9A84C',
-            }}
-          >
-            <input
-              autoFocus
-              value={newViewName}
-              onChange={e => setNewViewName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') createCRMView(newViewName)
-                if (e.key === 'Escape') { setCreatingView(false); setNewViewName('') }
-              }}
-              placeholder="Nom de la vue…"
+          ) : (
+            <button
+              onClick={() => setManageViewsOpen(true)}
+              title="Ajouter une vue existante ou en créer une"
               style={{
-                background: 'rgba(204,172,113,0.08)', border: '1px solid #C9A84C',
-                borderRadius: 4, padding: '3px 8px', color: '#C9A84C',
-                fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 140,
+                appearance: 'none', background: 'none', border: 'none', borderBottom: '3px solid transparent',
+                marginBottom: -1, padding: isMobile ? '10px 12px' : '10px 14px',
+                display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, whiteSpace: 'nowrap',
+                fontSize: 14, fontWeight: 600, color: crmV2.link, cursor: 'pointer', fontFamily: 'inherit',
               }}
-            />
-            <button
-              onClick={() => createCRMView(newViewName)}
-              title="Créer la vue"
-              style={{ background: '#C9A84C', border: 'none', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => (e.currentTarget.style.color = crmV2.linkHover)}
+              onMouseLeave={e => (e.currentTarget.style.color = crmV2.link)}
             >
-              <Check size={12} color="#f7f4ee" />
+              <Plus size={13} /> Ajouter une vue
             </button>
-            <button
-              onClick={() => { setCreatingView(false); setNewViewName('') }}
-              title="Annuler"
-              style={{ background: 'none', border: 'none', padding: 0, color: '#3D5275', cursor: 'pointer', display: 'flex' }}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setManageViewsOpen(true)}
-            title="Ajouter une vue existante ou en créer une"
-            style={{
-              padding: '6px 12px', alignSelf: 'center',
-              background: 'transparent',
-              border: 'none',
-              color: '#3D5275', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#3D5275')}
-          >
-            <Plus size={14} /> Ajouter
-          </button>
-        )}
-
-      </div>
+          )}
+        </div>
+      </CrmV2Header>
 
       {activeBucketParent && (
         <CRMBucketSubviewsBar
@@ -2417,619 +2627,137 @@ export default function CRMPage() {
         />
       )}
 
-      {/* ── Search + actions + quick dropdowns ──────────────────────────────── */}
+      {/* ── Corps (carte tableau) + panneau des filtres avancés ─────────────── */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+
       <div style={{
-        padding: isMobile ? '8px 12px' : '10px 20px 8px', background: '#ffffff',
-        borderBottom: '1px solid #eaf0f6', flexShrink: 0,
+        flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+        padding: isMobile ? '10px 10px 0' : '16px 28px 20px', gap: isMobile ? 8 : 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isMobile && !mobileFiltersOpen ? 0 : 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: '#ffffff', border: '1px solid #cbd6e2', borderRadius: 999,
-            padding: isMobile ? '9px 14px' : '6px 14px',
-            flex: isMobile ? '1 1 0' : '0 1 260px', maxWidth: isMobile ? undefined : 260, minWidth: 0,
-          }}>
-            <Search size={13} style={{ color: '#0F1F3D', flexShrink: 0 }} />
-            <input
-              type="text" placeholder="Rechercher (nom, email, téléphone)"
+        {/* Mobile : recherche + bouton filtres avec compteur */}
+        {isMobile && (
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <V2ContactSearch
               value={search}
-              onChange={e => { setSearch(e.target.value) }}
-              onKeyDown={e => { if (e.key === 'Enter') fetchContacts(true) }}
-              style={{ background: 'transparent', border: 'none', color: '#0F1F3D', fontSize: isMobile ? 16 : 13, outline: 'none', flex: 1, minWidth: 0, fontFamily: 'inherit' }}
+              onChange={setSearch}
+              onEnter={() => fetchContacts(true)}
+              height={42}
+              style={{ flex: 1 }}
             />
-            {search && (
-              <button onClick={() => { setSearch('') }} style={{ background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                <X size={13} />
-              </button>
-            )}
-          </div>
-          {isMobile && (
-            <button
+            <V2RoundButton
+              size={42}
+              title="Filtres"
+              active={mobileFiltersOpen}
+              badge={quickFilterCount}
               onClick={() => setMobileFiltersOpen(o => !o)}
-              style={{
-                padding: '9px 12px',
-                background: mobileFiltersOpen ? 'rgba(204,172,113,0.12)' : '#ffffff',
-                border: `1px solid ${mobileFiltersOpen || hasActiveFilters ? 'rgba(204,172,113,0.5)' : '#e5ddc8'}`,
-                borderRadius: 8, color: hasActiveFilters ? '#C9A84C' : '#0F1F3D',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 13, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
-              }}
             >
-              <SlidersHorizontal size={13} /> Filtres
-            </button>
-          )}
-          {hasActiveFilters && (!isMobile || mobileFiltersOpen) && (
-            <button onClick={() => { resetAll(); scheduleRefetch() }} style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 8, padding: '7px 12px', color: '#ef4444', fontSize: 12,
-              cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-              gap: 5, fontWeight: 600, whiteSpace: 'nowrap',
-            }}>
-              <X size={11} /> Réinitialiser
-            </button>
-          )}
-
-          {/* Action bar — visible à côté de la recherche */}
-          <div style={{ display: isMobile && !mobileFiltersOpen ? 'none' : 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0, flexBasis: isMobile ? '100%' : undefined }}>
-            <button
-              onClick={() => setFilterPanelOpen(o => !o)}
-              style={{
-                padding: '6px 14px',
-                background: filterPanelOpen || totalFilterRules > 0 ? 'rgba(204,172,113,0.12)' : '#f5f8fa',
-                border: `1px solid ${filterPanelOpen || totalFilterRules > 0 ? 'rgba(204,172,113,0.45)' : '#cbd6e2'}`,
-                borderRadius: 999, color: totalFilterRules > 0 ? '#8a6e3a' : '#33475b',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              <SlidersHorizontal size={12} />
-              Filtres avancés{totalFilterRules > 0 ? ` (${totalFilterRules})` : ''}
-            </button>
-
-            {crmViewChanged && activeViewId !== 'all' && !activeCRMView?.isDefault && (
-              <button
-                onClick={() => updateCRMViewFilters(activeViewId)}
-                style={{
-                  padding: '6px 10px', background: 'rgba(204,172,113,0.08)',
-                  border: '1px solid rgba(204,172,113,0.25)', borderRadius: 6,
-                  color: '#C9A84C', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                  whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-              >
-                <Save size={10} /> Sauvegarder
-              </button>
-            )}
-
-            <button
-              onClick={() => setManageViewsOpen(true)}
-              style={{
-                padding: '7px 10px', background: 'none', border: '1px solid transparent',
-                borderRadius: 6, color: '#0F1F3D', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 4,
-                fontSize: 12, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#3D5275'; e.currentTarget.style.borderColor = '#D4C4A0' }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#0F1F3D'; e.currentTarget.style.borderColor = 'transparent' }}
-            >
-              <List size={11} /> Annuaire
-            </button>
-
-            {!creatingView && (
-              <button
-                onClick={() => { setCreatingView(true); setNewViewName('') }}
-                style={{
-                  padding: '8px 12px', background: 'none', border: 'none',
-                  color: '#0F1F3D', cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'inherit',
-                  fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#0F1F3D')}
-              >
-                <Plus size={12} /> Enregistrer la vue
-              </button>
-            )}
+              <SlidersHorizontal size={16} />
+            </V2RoundButton>
           </div>
+        )}
+        {isMobile && mobileFiltersOpen && (
+          <div style={{
+            flexShrink: 0, background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+            padding: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+          }}>
+            {quickFilterPills}
+            <V2AdvancedFiltersLink count={totalFilterRules} open={filterPanelOpen} onClick={() => setFilterPanelOpen(o => !o)} />
+            {viewActionLinks}
+            {activeFilterChips}
+          </div>
+        )}
 
-          {/* Compteur + colonnes, à droite (style HubSpot) */}
+        <div style={{
+          flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0,
+          ...(isMobile ? {} : {
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+            boxShadow: crmV2.shadow, overflow: 'hidden',
+          }),
+        }}>
+          {/* Barre d'outils : recherche, filtres pilules, Filtres avancés, Colonnes */}
           {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto', flexShrink: 0 }}>
-              <span
-                title={lastFetchClientMs !== null ? `API ${lastFetchClientMs}ms${lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}` : undefined}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#516f90', fontWeight: 600, whiteSpace: 'nowrap' }}
-              >
-                {loading ? (
-                  <>
-                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #e5ddc8', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-                    Chargement…
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#0F1F3D', fontVariantNumeric: 'tabular-nums' }}>
-                      {totalEstimated ? `≈ ${total.toLocaleString('fr')}` : total.toLocaleString('fr')}
-                    </span>
-                    contact{total !== 1 ? 's' : ''}
-                    {(formation || classe || period) ? <span>· {displayed.length} affiché{displayed.length !== 1 ? 's' : ''}</span> : null}
-                  </>
-                )}
-              </span>
-              <div ref={setColumnsSlot} />
-            </div>
-          )}
-        </div>
-        <div style={{ display: isMobile && !mobileFiltersOpen ? 'none' : 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <FilterMultiSelect value={stage} onChange={v => { setStage(v); scheduleRefetch() }} options={STAGE_OPTIONS} />
-          <FilterMultiSelect value={closerContactHsId} onChange={v => { setCloserContactHsId(v); scheduleRefetch() }} options={closerOptions} />
-          <FilterMultiSelect value={teleproHsId} onChange={v => { setTeleproHsId(v); scheduleRefetch() }} options={teleproOptions} />
-          <FilterSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
-        </div>
-        {hasActiveFilters && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingLeft: 6, borderLeft: '1px solid #dfe3eb' }}>
-            {noTelepro && <FilterPill label="Sans télépro" onRemove={() => { setNoTelepro(false); scheduleRefetch() }} />}
-            {recentFormMonths > 0 && <FilterPill label={`Form. < ${recentFormMonths} mois`} onRemove={() => { setRecentFormMonths(0); scheduleRefetch() }} />}
-            {recentFormDays > 0 && <FilterPill label={`Form. < ${recentFormDays} j`} onRemove={() => { setRecentFormDays(0); scheduleRefetch() }} />}
-            {createdBeforeDays > 0 && <FilterPill label={`Créé > ${createdBeforeDays} j`} onRemove={() => { setCreatedBeforeDays(0); scheduleRefetch() }} />}
-            {stage && <FilterPill label={stage.includes(',') ? `${stage.split(',').length} étapes` : STAGE_OPTIONS.find(o => o.id === stage)?.label ?? stage} onRemove={() => { setStage(''); scheduleRefetch() }} />}
-            {closerContactHsId && <FilterPill label={closerContactHsId.includes(',') ? `${closerContactHsId.split(',').length} closers` : closerOptions.find(o => o.id === closerContactHsId)?.label ?? 'Closer du contact'} onRemove={() => { setCloserContactHsId(''); scheduleRefetch() }} />}
-            {teleproHsId && <FilterPill label={teleproHsId.includes(',') ? `${teleproHsId.split(',').length} télépros` : teleproOptions.find(o => o.id === teleproHsId)?.label ?? 'Télépro'} onRemove={() => { setTeleproHsId(''); scheduleRefetch() }} />}
-            {formEvent && <FilterPill label={formEvent.includes(',') ? `${formEvent.split(',').length} formulaires` : formEvent} onRemove={() => { setFormEvent(''); scheduleRefetch() }} />}
-            {formEventNot && <FilterPill label={`Formulaire ≠ ${formEventNot.includes(',') ? `${formEventNot.split(',').length} valeurs` : formEventNot}`} onRemove={() => { setFormEventNot(''); scheduleRefetch() }} />}
-            {period && <FilterPill label={PERIOD_OPTIONS.find(o => o.id === period)?.label ?? period} onRemove={() => setPeriod('')} />}
-            {search && <FilterPill label={`"${search}"`} onRemove={() => { setSearch(''); scheduleRefetch() }} />}
-          </div>
-        )}
-        </div>
-      </div>
-
-      {/* ── Table + Advanced Filter Panel ─────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-      {/* ── Table area ──────────────────────────────────────────────────────── */}
-      <div ref={tableScrollRef} style={{ flex: 1, overflow: 'auto', padding: '0 0 20px', WebkitOverflowScrolling: 'touch' }}>
-        {/* Compteur contacts (mobile — sur desktop il est dans la barre d'outils) */}
-        {isMobile && <div style={{ padding: '8px 12px 6px' }}>
-          {loading ? (
             <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(58,80,112,0.15)', borderRadius: 20,
-              padding: '5px 12px',
+              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap',
+              borderBottom: `1px solid ${crmV2.border}`, flexShrink: 0,
             }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #e5ddc8', borderTopColor: '#4cabdb', animation: 'spin 0.8s linear infinite' }} />
-              <span style={{ fontSize: 12, color: '#0F1F3D' }}>Chargement…</span>
-            </div>
-          ) : (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-              <div style={{
-                display: 'flex', alignItems: 'baseline', gap: 5,
-                background: 'rgba(76,171,219,0.07)',
-                border: '1px solid rgba(76,171,219,0.18)',
-                borderRadius: '10px 0 0 10px',
-                padding: '5px 14px',
-              }}>
-                <span style={{ fontSize: 17, fontWeight: 800, color: '#4cabdb', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.5px' }}>
-                  {totalEstimated ? `≈ ${total.toLocaleString('fr')}` : total.toLocaleString('fr')}
-                </span>
-                <span style={{ fontSize: 11, color: '#0F1F3D', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                  contact{total !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {(formation || classe || period) ? (
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', gap: 4,
-                  background: 'rgba(58,80,112,0.12)',
-                  border: '1px solid rgba(58,80,112,0.25)',
-                  borderLeft: 'none',
-                  borderRadius: '0 10px 10px 0',
-                  padding: '5px 12px',
-                }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#3D5275' }}>{displayed.length}</span>
-                  <span style={{ fontSize: 10, color: '#0F1F3D' }}>affiché{displayed.length !== 1 ? 's' : ''}</span>
-                </div>
-              ) : (
-                <div style={{
-                  width: 10, height: '100%',
-                  background: 'rgba(76,171,219,0.07)',
-                  border: '1px solid rgba(76,171,219,0.18)',
-                  borderLeft: 'none',
-                  borderRadius: '0 10px 10px 0',
-                }} />
-              )}
+              <V2ContactSearch
+                value={search}
+                onChange={setSearch}
+                onEnter={() => fetchContacts(true)}
+                style={{ flex: '0 1 280px', minWidth: 220 }}
+              />
+              {quickFilterPills}
+              <V2AdvancedFiltersLink count={totalFilterRules} open={filterPanelOpen} onClick={() => setFilterPanelOpen(o => !o)} />
+              {viewActionLinks}
+              <div style={{ flex: 1 }} />
+              {/* Bouton « Colonnes » rendu ici par CRMContactsTable (portail) */}
+              <div ref={setColumnsSlot} />
+              {activeFilterChips}
             </div>
           )}
-          {lastFetchClientMs !== null && (
-            <div style={{ marginTop: 6, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-              <span style={{
-                fontSize: 10,
-                color: '#3D5275',
-                border: '1px solid rgba(81,111,144,0.25)',
-                borderRadius: 999,
-                padding: '2px 8px',
-                background: '#fff',
-              }}>
-                API {lastFetchClientMs}ms
-                {lastFetchServerMs !== null ? ` (srv ${lastFetchServerMs}ms)` : ''}
+
+          {!isMobile && bulkBar}
+
+          {!loading && displayed.length === 0 && totalFilterRules > 0 && (
+            <div style={{
+              margin: isMobile ? '0 0 8px' : '12px 14px 0', flexShrink: 0,
+              background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 12,
+              padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: 13, color: crmV2.goldDark }}>
+                Les filtres avancés actifs masquent tous les résultats.
               </span>
+              <CrmV2Button size="sm" onClick={clearAdvancedFilters}>
+                Retirer les filtres avancés
+              </CrmV2Button>
             </div>
           )}
-        </div>}
 
-        {/* ── Barre sélection en masse ───────────────────────────────────────── */}
-        {(selectedIds.size > 0 || selectingAllView) && (
-          <div style={{
-            position: 'sticky', top: 0, zIndex: 40,
-            background: '#ffffff', border: `1px solid #e5ddc8`,
-            borderRadius: 10, padding: '10px 16px', margin: '8px 20px',
-            display: 'flex', flexDirection: 'column', gap: 10,
-            overflow: 'visible',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#4cabdb' }}>
-              ☑ {selectingAllView
-                ? `Chargement… ${(selectAllViewProgress?.loaded ?? 0).toLocaleString('fr-FR')}${selectAllViewProgress?.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
-                : `${selectedIds.size.toLocaleString('fr-FR')} lead${selectedIds.size > 1 ? 's' : ''} sélectionné${selectedIds.size > 1 ? 's' : ''}${selectionScope === 'view' ? ' (toute la vue)' : ''}`}
-            </span>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[25, 100, 500].map(n => (
-                <button key={n} onClick={() => selectFirst(n)}
-                  disabled={selectingAllView || bulkUpdating}
-                  style={{ background: 'rgba(76,171,219,0.1)', border: '1px solid rgba(76,171,219,0.3)', borderRadius: 6, padding: '4px 10px', color: '#4cabdb', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {n} premiers
-                </button>
-              ))}
-              <button onClick={selectAll}
-                disabled={selectingAllView || bulkUpdating}
-                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Tout ({displayed.length})
-              </button>
-              <button onClick={clearSelection}
-                style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, padding: '4px 10px', color: '#3D5275', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {selectingAllView ? 'Annuler' : 'Désélectionner'}
-              </button>
-              <button
-                onClick={() => {
-                  ensureCrmPropsLoaded()
-                  setBulkPropOpen(o => !o)
-                }}
-                disabled={selectingAllView || selectedIds.size === 0 || bulkUpdating}
-                style={{
-                  background: bulkPropOpen ? 'rgba(76,171,219,0.15)' : 'rgba(76,171,219,0.08)',
-                  border: '1px solid rgba(76,171,219,0.4)',
-                  borderRadius: 6, padding: '4px 10px',
-                  color: '#4cabdb', fontSize: 11, fontWeight: 700,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  opacity: selectingAllView || selectedIds.size === 0 ? 0.5 : 1,
-                }}
-              >
-                <Pencil size={12} />
-                Modifier une propriété
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting || selectingAllView || bulkUpdating || selectedIds.size === 0}
-                title={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} et leurs transactions`}
-                style={{
-                  background: 'rgba(239,68,68,0.10)',
-                  border: '1px solid rgba(239,68,68,0.45)',
-                  borderRadius: 6, padding: '4px 10px',
-                  color: '#ef4444', fontSize: 11, fontWeight: 700,
-                  cursor: bulkDeleting ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit', opacity: bulkDeleting ? 0.6 : 1,
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                <Trash2 size={12} />
-                {bulkDeleting ? 'Suppression…' : 'Supprimer'}
-              </button>
-            </div>
-            <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, color: '#3D5275' }}>Assigner à :</span>
-            <select
-              value={bulkTeleproId}
-              onChange={e => setBulkTeleproId(e.target.value)}
-              disabled={selectingAllView || bulkUpdating}
-              style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 10px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit' }}
-            >
-              <option value="">— Choisir un télépro —</option>
-              {telepros.map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleBulkAssign}
-              disabled={!bulkTeleproId || bulkAssigning || selectingAllView || bulkUpdating || selectedIds.size === 0}
-              style={{
-                background: bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.1)',
-                border: `1px solid ${bulkTeleproId ? '#22c55e' : 'rgba(34,197,94,0.3)'}`,
-                borderRadius: 8, padding: '6px 16px', color: '#fff', fontSize: 12,
-                fontWeight: 700, cursor: bulkTeleproId ? 'pointer' : 'not-allowed',
-                fontFamily: 'inherit', opacity: bulkAssigning ? 0.6 : 1,
-              }}
-            >
-              {bulkAssigning ? 'Attribution…' : 'Assigner'}
-            </button>
-            </div>
-
-            {/* HubSpot-like : sélectionner toute la vue */}
-            {(canSelectEntireView || selectingAllView) && (
+          {/* Zone qui défile : tableau (ordinateur) ou liste compacte (mobile) */}
+          <div ref={tableScrollRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {isMobile && bulkBar}
+            <CRMContactsTable
+              contacts={displayed}
+              loading={loading && displayed.length === 0}
+              mode="admin"
+              onRefresh={() => fetchContacts()}
+              onContactPatched={handleContactPatched}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onSelectAll={selectAllPage}
+              onDeselectAll={deselectAll}
+              onOpenDrawer={setDrawerContact}
+              leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
+              sourceOptions={sourceOptions.filter(o => o.id !== '')}
+              closerSelectOptions={closerOptions.filter(o => o.id !== '')}
+              teleproSelectOptions={teleproOptions.filter(o => o.id !== '')}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSortChange={handleSortChange}
+              allCrmProps={allCrmProps}
+              extraColumns={extraColumns}
+              onExtraColumnsChange={persistExtraColumns}
+              onRequestProps={ensureCrmPropsLoaded}
+              columnsMenuSlot={isMobile ? null : columnsSlot}
+            />
+            {isMobile && (
               <div style={{
-                background: 'rgba(76,171,219,0.08)',
-                border: '1px solid rgba(76,171,219,0.25)',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 12,
-                color: '#2a4a66',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                flexWrap: 'wrap',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                padding: '12px 4px 20px', fontSize: 13, color: crmV2.textMuted,
               }}>
-                {selectingAllView ? (
-                  <span>
-                    Sélection de tous les contacts de la vue en cours…
-                    {selectAllViewProgress
-                      ? ` ${selectAllViewProgress.loaded.toLocaleString('fr-FR')}${selectAllViewProgress.total ? ` / ${selectAllViewProgress.total.toLocaleString('fr-FR')}` : ''}`
-                      : ''}
-                  </span>
-                ) : (
-                  <>
-                    <span>
-                      Les {displayed.length.toLocaleString('fr-FR')} contacts de cette page sont sélectionnés.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={selectAllMatchingView}
-                      style={{
-                        background: '#4cabdb', border: 'none', borderRadius: 6,
-                        padding: '5px 12px', color: '#fff', fontSize: 12, fontWeight: 700,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      Sélectionner les {total.toLocaleString('fr-FR')} contacts de cette vue
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Panel édition propriété en masse */}
-            {bulkPropOpen && selectedIds.size > 0 && !selectingAllView && (
-              <div style={{
-                background: '#faf7f0',
-                border: '1px solid #e5ddc8',
-                borderRadius: 8,
-                padding: '10px 12px',
-                display: 'flex',
-                alignItems: 'flex-end',
-                gap: 10,
-                flexWrap: 'wrap',
-                position: 'relative',
-                zIndex: 50,
-                overflow: 'visible',
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, position: 'relative', zIndex: 50, overflow: 'visible' }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#3D5275' }}>Propriété</label>
-                  <CRMBulkPropertyPicker
-                    value={bulkPropName}
-                    onChange={name => {
-                      setBulkPropName(name)
-                      setBulkPropValue('')
-                    }}
-                    crmProps={allCrmProps}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 200, flex: 1 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#3D5275' }}>Nouvelle valeur</label>
-                  {(() => {
-                    const meta = bulkPropMeta
-                    const ft = String(meta?.field_type || '').toLowerCase()
-                    const tp = String(meta?.type || '').toLowerCase()
-                    const opts = Array.isArray(meta?.options) ? meta!.options! : null
-                    const inputStyle = {
-                      background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6,
-                      padding: '6px 10px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit', width: '100%',
-                    } as const
-                    if (!bulkPropName) {
-                      return <input disabled placeholder="Choisir une propriété d’abord" style={inputStyle} />
-                    }
-                    if (tp === 'bool' || ft === 'booleancheckbox') {
-                      return (
-                        <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
-                          <option value="">—</option>
-                          <option value="true">Oui</option>
-                          <option value="false">Non</option>
-                        </select>
-                      )
-                    }
-                    if ((ft === 'select' || ft === 'radio' || ft === 'checkbox') && opts && opts.length > 0) {
-                      return (
-                        <select value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle}>
-                          <option value="">— (vide)</option>
-                          {opts.map(o => (
-                            <option key={String(o.value)} value={String(o.value)}>{o.label || o.value}</option>
-                          ))}
-                        </select>
-                      )
-                    }
-                    if (tp === 'date' || ft === 'date') {
-                      return (
-                        <input type="date" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
-                      )
-                    }
-                    if (tp === 'number' || ft === 'number') {
-                      return (
-                        <input type="number" value={bulkPropValue} onChange={e => setBulkPropValue(e.target.value)} style={inputStyle} />
-                      )
-                    }
-                    return (
-                      <input
-                        type="text"
-                        value={bulkPropValue}
-                        onChange={e => setBulkPropValue(e.target.value)}
-                        placeholder="Valeur (vide = effacer)"
-                        style={inputStyle}
-                      />
-                    )
-                  })()}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleBulkPropUpdate}
-                  disabled={!bulkPropName || bulkUpdating}
-                  style={{
-                    background: bulkPropName && !bulkUpdating ? '#4cabdb' : 'rgba(76,171,219,0.25)',
-                    border: 'none', borderRadius: 8, padding: '8px 16px',
-                    color: '#fff', fontSize: 12, fontWeight: 700,
-                    cursor: bulkPropName && !bulkUpdating ? 'pointer' : 'not-allowed',
-                    fontFamily: 'inherit', whiteSpace: 'nowrap',
-                  }}
-                >
-                  {bulkUpdating
-                    ? `Mise à jour… ${bulkUpdateProgress ? `${bulkUpdateProgress.done}/${bulkUpdateProgress.total}` : ''}`
-                    : `Appliquer à ${selectedIds.size.toLocaleString('fr-FR')}`}
-                </button>
+                {pager}
+                {apiHint && <span style={{ fontSize: 11, color: crmV2.textFaint, width: '100%' }}>{apiHint}</span>}
               </div>
             )}
           </div>
-        )}
 
-        <div style={{ padding: isMobile ? 0 : '0 20px' }}>
-        {!loading && displayed.length === 0 && totalFilterRules > 0 && (
-          <div style={{
-            margin: '0 0 10px',
-            background: 'rgba(204,172,113,0.1)',
-            border: '1px solid rgba(204,172,113,0.35)',
-            borderRadius: 10,
-            padding: '10px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}>
-            <span style={{ fontSize: 12, color: '#6b5630' }}>
-              Les filtres avancés actifs masquent tous les résultats.
-            </span>
-            <button
-              onClick={clearAdvancedFilters}
-              style={{
-                background: '#ffffff',
-                border: '1px solid rgba(204,172,113,0.45)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                color: '#8a6e3a',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Retirer les filtres avancés
-            </button>
-          </div>
-        )}
-        <CRMContactsTable
-          contacts={displayed}
-          loading={loading && displayed.length === 0}
-          mode="admin"
-          onRefresh={() => fetchContacts()}
-          onContactPatched={handleContactPatched}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onSelectAll={selectAllPage}
-          onDeselectAll={deselectAll}
-          onOpenDrawer={setDrawerContact}
-          leadStatusOptions={leadStatusOptions.filter(o => o.id !== '')}
-          sourceOptions={sourceOptions.filter(o => o.id !== '')}
-          closerSelectOptions={closerOptions.filter(o => o.id !== '')}
-          teleproSelectOptions={teleproOptions.filter(o => o.id !== '')}
-          sortBy={sortBy}
-          sortDir={sortDir}
-          onSortChange={handleSortChange}
-          allCrmProps={allCrmProps}
-          extraColumns={extraColumns}
-          onExtraColumnsChange={persistExtraColumns}
-          onRequestProps={ensureCrmPropsLoaded}
-          columnsMenuSlot={isMobile ? null : columnsSlot}
-        /></div>
-
-        {/* Pagination */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap', padding: isMobile ? '0 12px 20px' : '0 0 20px' }}>
-          {/* Sélecteur nb par page */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, flexBasis: isMobile ? '100%' : undefined, justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, color: '#0F1F3D' }}>Par page :</span>
-            {[25, 50, 100].map(n => (
-              <button
-                key={n}
-                onClick={() => { setLimit(n); setPage(0) }}
-                style={{
-                  background: limit === n ? 'rgba(204,172,113,0.12)' : 'transparent',
-                  border: `1px solid ${limit === n ? 'rgba(204,172,113,0.35)' : '#D4C4A0'}`,
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  color: limit === n ? '#C9A84C' : '#0F1F3D',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  fontWeight: limit === n ? 700 : 400,
-                }}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <>
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                style={{ background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 7, padding: '6px 16px', color: page === 0 ? '#D4C4A0' : '#3D5275', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
-              >
-                {isMobile ? '←' : '← Précédent'}
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                  const p = totalPages <= 7 ? i : (
-                    i === 0 ? 0 :
-                    i === 6 ? totalPages - 1 :
-                    page <= 3 ? i :
-                    page >= totalPages - 4 ? totalPages - 7 + i :
-                    page - 3 + i
-                  )
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setPage(p)}
-                      style={{
-                        background: p === page ? 'rgba(204,172,113,0.15)' : 'transparent',
-                        border: `1px solid ${p === page ? 'rgba(204,172,113,0.4)' : 'transparent'}`,
-                        borderRadius: 6,
-                        width: 32,
-                        height: 32,
-                        color: p === page ? '#C9A84C' : '#0F1F3D',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontFamily: 'inherit',
-                        fontWeight: p === page ? 700 : 400,
-                      }}
-                    >
-                      {p + 1}
-                    </button>
-                  )
-                })}
-              </div>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                style={{ background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 7, padding: '6px 16px', color: page >= totalPages - 1 ? '#D4C4A0' : '#3D5275', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
-              >
-                {isMobile ? '→' : 'Suivant →'}
-              </button>
-            </>
+          {!isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+              padding: '10px 14px', borderTop: `1px solid ${crmV2.border}`, fontSize: 13, color: crmV2.textMuted, flexShrink: 0,
+            }}>
+              {pager}
+            </div>
           )}
         </div>
       </div>
@@ -3038,27 +2766,31 @@ export default function CRMPage() {
       {filterPanelOpen && (
         <div style={{
           width: isMobile ? '100%' : 380, flexShrink: 0,
-          background: '#ffffff', borderLeft: '1px solid #e5ddc8',
+          background: crmV2.bg, borderLeft: `1px solid ${crmV2.border}`,
+          boxShadow: isMobile ? 'none' : '-8px 0 24px rgba(15,31,61,0.06)',
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
           ...(isMobile ? { position: 'fixed' as const, inset: 0, bottom: 56, zIndex: 60 } : {}),
         }}>
-          {/* Panel header */}
+          {/* En-tête du panneau */}
           <div style={{
-            padding: '14px 16px', borderBottom: '1px solid #e5ddc8',
+            padding: '14px 16px', borderBottom: `1px solid ${crmV2.border}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F1F3D' }}>Tous les filtres</span>
-            <button onClick={() => setFilterPanelOpen(false)} style={{
-              background: 'none', border: 'none', color: '#3D5275', cursor: 'pointer', display: 'flex', padding: 2,
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, color: crmV2.text }}>
+              <SlidersHorizontal size={16} color={crmV2.gold} /> Tous les filtres
+            </span>
+            <button onClick={() => setFilterPanelOpen(false)} aria-label="Fermer" style={{
+              width: 32, height: 32, borderRadius: 999, background: crmV2.bg, border: `1px solid ${crmV2.border}`,
+              color: crmV2.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
             }}>
               <X size={16} />
             </button>
           </div>
 
-          {/* Panel body */}
+          {/* Corps du panneau */}
           <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#3D5275', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>
               Filtres avancés
             </div>
 
@@ -3298,23 +3030,24 @@ export default function CRMPage() {
 
           {/* Panel footer */}
           {totalFilterRules > 0 && (
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #e5ddc8', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Update current view — shown when filters changed on a custom (non-default) view */}
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${crmV2.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Mettre à jour la vue personnalisée active si ses filtres ont changé */}
               {crmViewChanged && activeCRMView && !activeCRMView.isDefault && (
-                <button
+                <CrmV2Button
+                  icon={<Save size={14} />}
                   onClick={() => { updateCRMViewFilters(activeViewId); }}
-                  style={{ width: '100%', padding: '10px', background: 'rgba(76,171,219,0.12)', border: '1px solid rgba(76,171,219,0.35)', borderRadius: 8, color: '#4cabdb', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  style={{ width: '100%' }}
                 >
-                  <Save size={13} /> Mettre à jour « {activeCRMView.name} »
-                </button>
+                  Mettre à jour « {activeCRMView.name} »
+                </CrmV2Button>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <CrmV2Button variant="danger" onClick={() => { setFilterGroups([]); applyGroupsToFilters([]); scheduleRefetch() }} style={{ flex: 1 }}>
                   Tout effacer
-                </button>
-                <button onClick={() => setCreatingView(true)} style={{ flex: 1, padding: '8px', background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, color: '#C9A84C', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  + Nouvelle vue
-                </button>
+                </CrmV2Button>
+                <CrmV2Button variant="gold" icon={<Plus size={14} />} onClick={() => setCreatingView(true)} style={{ flex: 1 }}>
+                  Nouvelle vue
+                </CrmV2Button>
               </div>
             </div>
           )}
@@ -3327,8 +3060,8 @@ export default function CRMPage() {
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #e5ddc8; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3a5a7a; }
+        ::-webkit-scrollbar-thumb { background: #cbd6e2; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #7c98b6; }
       `}</style>
 
       {/* ── Manage Views Modal ──────────────────────────────────────────────── */}
@@ -3573,25 +3306,28 @@ export default function CRMPage() {
       {/* ── Modal "Nouveau contact" ────────────────────────────────────── */}
       {showNewContact && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(11,26,45,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,31,61,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget && !newContactSaving) { setShowNewContact(false); setNewContactExisting(null) } }}
         >
           <style>{`
-            .crm-newcontact-input { color: #12314d !important; background: #ffffff !important; }
-            .crm-newcontact-input::placeholder { color: #4a6070 !important; opacity: 1 !important; }
-            .crm-newcontact-input:focus { outline: none !important; border-color: #12314d !important; box-shadow: 0 0 0 3px rgba(18,49,77,0.12) !important; }
+            .crm-newcontact-input { color: #2d3e50 !important; background: #ffffff !important; border-radius: 10px !important; border-color: #cbd6e2 !important; }
+            .crm-newcontact-input::placeholder { color: #7c98b6 !important; opacity: 1 !important; }
+            .crm-newcontact-input:focus { outline: none !important; border-color: #C9A84C !important; box-shadow: 0 0 0 3px rgba(201,168,76,0.18) !important; }
+            .crm-newcontact-input.is-invalid { border-color: #ef4444 !important; }
+            .crm-newcontact-input.is-existing { border-color: #e3c878 !important; }
           `}</style>
-          <div style={{ background: '#ffffff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
+          <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, padding: 24, width: '100%', maxWidth: 480, position: 'relative', boxShadow: crmV2.shadowPanel, boxSizing: 'border-box' }}>
             <button
               onClick={() => { if (!newContactSaving) { setShowNewContact(false); setNewContactExisting(null) } }}
-              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', cursor: 'pointer', color: '#3D5275', padding: 4 }}
+              aria-label="Fermer"
+              style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 999, background: crmV2.bg, border: `1px solid ${crmV2.border}`, cursor: 'pointer', color: crmV2.textMuted, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
-              <X size={18} />
+              <X size={16} />
             </button>
 
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#c6aa7c', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>Nouveau contact</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#12314d' }}>Créer un contact dans le CRM</div>
+            <div style={{ marginBottom: 18, paddingRight: 40 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 4 }}>Nouveau contact</div>
+              <div style={{ fontSize: 19, fontWeight: 600, color: crmV2.text, letterSpacing: '-0.02em' }}>Créer un contact</div>
             </div>
 
             {/* Email en premier — avec validation live */}
@@ -3599,11 +3335,11 @@ export default function CRMPage() {
               <input
                 type="email" placeholder="Email *" value={newContact.email}
                 onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
-                className="crm-newcontact-input"
+                className={`crm-newcontact-input${newContactEmailFormatError ? ' is-invalid' : newContactExisting ? ' is-existing' : ''}`}
                 style={{
                   width: '100%', padding: '10px 12px',
-                  border: `1px solid ${newContactEmailFormatError ? '#ef4444' : newContactExisting ? '#f0d28a' : '#D4C4A0'}`,
-                  borderRadius: 8, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box',
+                  border: '1px solid #cbd6e2',
+                  borderRadius: 10, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box',
                 }}
                 autoFocus
               />
@@ -3624,43 +3360,43 @@ export default function CRMPage() {
                 type="text" placeholder="Prénom *" value={newContact.firstname}
                 onChange={e => setNewContact(c => ({ ...c, firstname: e.target.value }))}
                 className="crm-newcontact-input"
-                style={{ padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', minWidth: 0 }}
               />
               <input
                 type="text" placeholder="Nom *" value={newContact.lastname}
                 onChange={e => setNewContact(c => ({ ...c, lastname: e.target.value }))}
                 className="crm-newcontact-input"
-                style={{ padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', minWidth: 0 }}
               />
             </div>
             <input
               type="tel" placeholder="Téléphone *" value={newContact.phone}
               onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
               className="crm-newcontact-input"
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <input
                 type="text" placeholder="Département *" value={newContact.departement}
                 onChange={e => setNewContact(c => ({ ...c, departement: e.target.value }))}
                 className="crm-newcontact-input"
-                style={{ padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', minWidth: 0 }}
               />
               <input
                 type="text" placeholder="Classe actuelle *" value={newContact.classe_actuelle}
                 onChange={e => setNewContact(c => ({ ...c, classe_actuelle: e.target.value }))}
                 className="crm-newcontact-input"
-                style={{ padding: '10px 12px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                style={{ padding: '10px 12px', border: '1px solid #cbd6e2', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', minWidth: 0 }}
               />
             </div>
             {newContactError && (
-              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+              <div style={{ background: crmV2.dangerSoft, border: '1px solid rgba(242,84,91,0.35)', color: '#d13a41', padding: '8px 12px', borderRadius: 12, fontSize: 13, marginBottom: 12 }}>
                 {newContactError}
               </div>
             )}
 
             {newContactExisting && (
-              <div style={{ background: '#fff8e6', border: '1px solid #f0d28a', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={{ background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <AlertTriangle size={16} color="#a4844c" />
                   <div style={{ fontWeight: 700, color: '#8a6e3a', fontSize: 13 }}>Ce contact existe déjà</div>
@@ -3674,13 +3410,13 @@ export default function CRMPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => { window.location.href = `/admin/crm/contacts/${newContactExisting.id}` }}
-                    style={{ padding: '8px 14px', background: '#c6aa7c', border: 'none', borderRadius: 6, color: '#0f2842', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                    style={{ padding: '7px 14px', background: crmV2.primary, border: `1px solid ${crmV2.primary}`, borderRadius: 999, color: '#ffffff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}
                   >
-                    Voir la fiche existante →
+                    Voir la fiche existante <ChevronRight size={13} />
                   </button>
                   <button
                     onClick={() => setNewContactExisting(null)}
-                    style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #e0d0a8', borderRadius: 6, color: '#8a6e3a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    style={{ padding: '7px 14px', background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, borderRadius: 999, color: crmV2.text, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Modifier l'email
                   </button>
@@ -3701,30 +3437,21 @@ export default function CRMPage() {
                 !newContactSaving
               return (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-                  <button
+                  <CrmV2Button
                     onClick={() => { setShowNewContact(false); setNewContactExisting(null) }}
                     disabled={newContactSaving}
-                    style={{ padding: '10px 18px', background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 8, color: '#5b6b7a', fontSize: 13, fontWeight: 600, cursor: newContactSaving ? 'not-allowed' : 'pointer' }}
                   >
                     Annuler
-                  </button>
-                  <button
+                  </CrmV2Button>
+                  <CrmV2Button
+                    variant="primary"
                     onClick={handleCreateContact}
                     disabled={!canCreate}
-                    style={{
-                      padding: '10px 22px',
-                      background: canCreate ? '#12314d' : '#D4C4A0',
-                      border: 'none', borderRadius: 8,
-                      color: canCreate ? '#ffffff' : '#a89e8a',
-                      fontSize: 13, fontWeight: 700,
-                      cursor: !canCreate ? 'not-allowed' : (newContactSaving ? 'wait' : 'pointer'),
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      opacity: canCreate ? 1 : 0.85,
-                      transition: 'background 0.15s',
-                    }}
+                    icon={newContactSaving ? undefined : <Plus size={14} />}
+                    style={newContactSaving ? { cursor: 'wait' } : undefined}
                   >
-                    {newContactSaving ? 'Création…' : <><Plus size={14} /> Créer le contact</>}
-                  </button>
+                    {newContactSaving ? 'Création…' : 'Créer le contact'}
+                  </CrmV2Button>
                 </div>
               )
             })()}
@@ -3734,11 +3461,11 @@ export default function CRMPage() {
 
       {showRepop && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(15,31,61,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
           onClick={e => { if (e.target === e.currentTarget) setShowRepop(false) }}
         >
-          <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 860, padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', position: 'relative' }}>
-            <button onClick={() => setShowRepop(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#3D5275', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>✕</button>
+          <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, width: '100%', maxWidth: 860, padding: '24px', boxShadow: crmV2.shadowPanel, position: 'relative', boxSizing: 'border-box' }}>
+            <button onClick={() => setShowRepop(false)} aria-label="Fermer" style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, background: crmV2.bg, border: `1px solid ${crmV2.border}`, cursor: 'pointer', color: crmV2.textMuted, padding: 0, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
             <RepopJournal scope="admin" />
           </div>
         </div>
