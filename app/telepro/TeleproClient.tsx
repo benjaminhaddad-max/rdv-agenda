@@ -1,474 +1,42 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { format, addDays, isSameDay, startOfToday, startOfWeek, addWeeks, subWeeks, isSameWeek, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, isBefore, isAfter } from 'date-fns'
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { format, startOfWeek } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  Calendar, Clock, Phone, Tag, FileText, ArrowLeft, Search, User, MapPin,
-  GraduationCap, X, CheckCircle, Link, Plus, Mail, Video, PhoneCall, Copy,
-  Check, PlusCircle, RefreshCw, ChevronLeft, ChevronRight, TrendingUp, RotateCcw, List,
-  ExternalLink, AlertCircle,
+  ArrowLeft, Briefcase, CalendarDays, Clock, LifeBuoy, LogOut, Phone, Plus, RefreshCw, Repeat2, RotateCcw, Tag, X,
 } from 'lucide-react'
-import LogoutButton from '@/components/LogoutButton'
-import SupportButton from '@/components/SupportButton'
-import SupportWidget from '@/components/SupportWidget'
+import Link from 'next/link'
 import WeekCalendar from '@/components/WeekCalendar'
-import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
+import { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
-import MeetingModeSwitcher from '@/components/MeetingModeSwitcher'
 import RepopJournal from '@/components/RepopJournal'
 import PlatformGuide from '@/components/PlatformGuide'
 import ResourcesPanel from '@/components/ResourcesPanel'
 import UserCRMView from '@/components/UserCRMView'
 import SuiviRdvPanel from '@/components/SuiviRdvPanel'
-import { crmV2 } from '@/lib/crm-v2-theme'
-import { fetchRecentContacts, saveRecentContact, clearRecentContactsRemote } from '@/lib/recent-contacts'
 import LinovaAppointmentModal from '@/components/crm/LinovaAppointmentModal'
 import CRMGlobalSearchBar from '@/components/CRMGlobalSearchBar'
-import { validateEmailDomain } from '@/lib/email-validation'
+import { CrmV2Button, CrmV2Header, CrmV2Tabs } from '@/components/crm-v2/primitives'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { parseExtraParticipants } from '@/lib/appointment-participants'
-import { formatAppointmentPlacementLabel } from '@/lib/appointment-display'
 import { usePageTitle } from '@/components/DocumentTitle'
-
-// ─── Types ─────────────────────────────────────────────────────────────────
-type Slot = { start: string; end: string; count?: number }
-
-interface HubSpotContact {
-  id: string
-  properties: {
-    email?: string
-    firstname?: string
-    lastname?: string
-    phone?: string
-    departement?: string
-    classe_actuelle?: string
-    diploma_sante___formation_demandee?: string
-  }
-}
-
-type TeleproUser = {
-  id: string
-  name: string
-  email: string
-  role: string
-  slug: string
-  avatar_color: string
-  hubspot_owner_id?: string | null
-  hubspot_user_id?: string | null
-  crm_brand?: string | null
-  crm_scope?: string | null
-}
-
-type MyAppointment = {
-  id: string
-  prospect_name: string
-  prospect_email: string
-  prospect_phone: string | null
-  start_at: string
-  end_at: string
-  status: AppointmentStatus
-  formation_type?: string | null
-  meeting_type?: string | null
-  meeting_link?: string | null
-  extra_participants?: unknown
-  report_summary?: string | null
-  report_telepro_advice?: string | null
-  hubspot_contact_id?: string | null
-  hubspot_deal_id?: string | null
-  notes?: string | null
-  source?: string | null
-  classe_actuelle?: string | null
-  departement?: string | null
-  telepro_id?: string | null
-  telepro?: { id: string; name: string; avatar_color?: string | null } | null
-  rdv_users?: { id: string; name: string; avatar_color: string; slug: string } | null
-}
-
-// ─── Constantes ────────────────────────────────────────────────────────────
-const FORMATIONS: { value: string; label: string }[] = [
-  { value: 'PAS',         label: 'PASS' },
-  { value: 'LSPS',        label: 'LSPS' },
-  { value: 'LAS',         label: 'LAS' },
-  { value: 'P-1',         label: 'Terminale Santé (P-1)' },
-  { value: 'P-2',         label: 'Première Élite (P-2)' },
-  { value: 'APES0',       label: 'PAES FR/EU' },
-  { value: 'LAS 2 UPEC',  label: 'LSPS2 UPEC' },
-  { value: 'LAS 3 Upec',  label: 'LSPS3 UPEC' },
-]
-
-const CLASSES = [
-  'Troisième', 'Seconde', 'Première', 'Terminale',
-  'PASS', 'LSPS 1', 'LSPS 2', 'LSPS 3',
-  'LAS 1', 'LAS 2', 'LAS 3',
-  'Etudes médicales', 'Etudes Sup.', 'Autre',
-]
-
-const CAMPUS_OPTIONS = [
-  '100 quai de la Rapée 75012 Paris',
-  '29 rue Lauriston 75016 Paris',
-]
-
-// Statuts pertinents pour le suivi télépro (dans l'ordre d'affichage)
-const TRACKING_STATUSES: AppointmentStatus[] = [
-  'no_show', 'a_travailler', 'pre_positif', 'positif', 'negatif', 'annule', 'confirme', 'non_assigne',
-]
-
-// Statuts pour lesquels on propose "Reprendre RDV"
-const REPLAN_STATUSES: AppointmentStatus[] = ['no_show', 'a_travailler', 'negatif']
+import type { MyAppointment, TeleproUser } from '@/components/telepro-v2/types'
+import { useNewRdvForm } from '@/components/telepro-v2/useNewRdvForm'
+import NewRdvFlow, { RdvSuccess } from '@/components/telepro-v2/NewRdvFlow'
+import PlanningView from '@/components/telepro-v2/PlanningView'
+import RdvDetailDrawer from '@/components/telepro-v2/RdvDetailDrawer'
+import TeleproContactsMobile from '@/components/telepro-v2/TeleproContactsMobile'
+import {
+  TpMobileHeader, TpPlusSheet, TpRoundButton, TpTabBar, useLogout, useSupportUnread,
+  type TpMenuItem, type TpMobileTab,
+} from '@/components/telepro-v2/ui'
 
 const PLANNING_FETCH_TIMEOUT_MS = 2500
 const PLANNING_LOADING_GUARD_MS = 3000
-// ─── Styles partagés ───────────────────────────────────────────────────────
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8',
-  borderRadius: 10, padding: '11px 14px', color: '#0e1e35',
-  fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-}
 
-const labelStyle: React.CSSProperties = {
-  fontWeight: 700, fontSize: 12, color: '#4a6070', marginBottom: 6,
-  display: 'flex', alignItems: 'center', gap: 5,
-  textTransform: 'uppercase', letterSpacing: '0.05em',
-}
-
-function generateJitsiLink() {
-  // Nom historique — génère désormais une URL LiveKit sur notre domaine.
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let id = ''
-  for (let i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-  const base = (typeof window !== 'undefined' && window.location?.origin)
-    ? window.location.origin
-    : (process.env.NEXT_PUBLIC_APP_URL || 'https://rdv-agenda.vercel.app')
-  return `${base}/visio/rdv-${id}`
-}
-
-// ─── Modal fiche RDV (lecture seule + note interne éditable) ──────────────
-function TeleproRdvModal({
-  rdv, noteValue, onNoteChange, onNoteSave, saving, saved, onClose, onConfirm, confirming, onCancel, cancelling, onReset,
-  onMeetingModeUpdated,
-}: {
-  rdv: MyAppointment
-  noteValue: string
-  onNoteChange: (val: string) => void
-  onNoteSave: () => void
-  saving: boolean
-  saved: boolean
-  onClose: () => void
-  onConfirm?: () => void
-  confirming?: boolean
-  onCancel?: () => void
-  cancelling?: boolean
-  onReset?: () => void
-  onMeetingModeUpdated?: (updated: { meeting_type: string; meeting_link: string | null }) => void
-}) {
-  const start = new Date(rdv.start_at)
-  const end = new Date(rdv.end_at)
-  const meetingColor = rdv.meeting_type === 'visio' ? '#C9A84C' : rdv.meeting_type === 'telephone' ? '#22c55e' : '#C9A84C'
-  const meetingLabel = rdv.meeting_type === 'visio' ? 'Visio' : rdv.meeting_type === 'telephone' ? 'Téléphone' : 'Présentiel'
-  const mouseDownOnBackdrop = { current: false }
-
-  return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
-      onClick={e => { if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose(); mouseDownOnBackdrop.current = false }}
-    >
-      <div style={{ background: '#e5ddc8', border: '1px solid #e5ddc8', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
-        {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5ddc8', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1e35', marginBottom: 4 }}>{rdv.prospect_name}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4a6070', fontSize: 14 }}>
-              <Clock size={14} />
-              <span>{format(start, 'EEEE d MMMM', { locale: fr })} · {format(start, 'HH:mm')} – {format(end, 'HH:mm')}</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <StatusBadge status={rdv.status} />
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#4a6070', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center' }}>
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Infos prospect */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-              <Mail size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <span>{rdv.prospect_email}</span>
-            </div>
-            {rdv.prospect_phone && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <Phone size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>{rdv.prospect_phone}</span>
-              </div>
-            )}
-            {rdv.formation_type && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <Tag size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>Filière : <strong style={{ color: '#0e1e35' }}>{rdv.formation_type}</strong></span>
-              </div>
-            )}
-            {rdv.source && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <span>{formatAppointmentPlacementLabel(rdv)}</span>
-              </div>
-            )}
-            {rdv.meeting_type && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                  {rdv.meeting_type === 'visio' ? <Video size={14} style={{ color: meetingColor, flexShrink: 0 }} />
-                    : rdv.meeting_type === 'telephone' ? <PhoneCall size={14} style={{ color: meetingColor, flexShrink: 0 }} />
-                    : <MapPin size={14} style={{ color: meetingColor, flexShrink: 0 }} />}
-                  <span style={{ color: meetingColor, fontWeight: 600 }}>{meetingLabel}</span>
-                  {rdv.meeting_type === 'presentiel' && rdv.meeting_link && !/^https?:\/\//i.test(rdv.meeting_link) && (
-                    <span style={{ color: '#0e1e35', fontWeight: 600 }}>— {rdv.meeting_link}</span>
-                  )}
-                  {rdv.meeting_type === 'visio' && rdv.meeting_link && (
-                    <a href={rdv.meeting_link} target="_blank" rel="noopener noreferrer"
-                      style={{ background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '2px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <Video size={11} /> Rejoindre
-                    </a>
-                  )}
-                </div>
-                {onMeetingModeUpdated && (
-                  <MeetingModeSwitcher
-                    appointmentId={rdv.id}
-                    meetingType={rdv.meeting_type}
-                    meetingLink={rdv.meeting_link}
-                    status={rdv.status}
-                    onUpdated={onMeetingModeUpdated}
-                  />
-                )}
-              </>
-            )}
-            {rdv.classe_actuelle && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <span style={{ color: '#C9A84C', flexShrink: 0 }}>🎓</span>
-                <span>Classe actuelle : <strong style={{ color: '#0e1e35' }}>{rdv.classe_actuelle}</strong></span>
-              </div>
-            )}
-            {rdv.rdv_users && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#4a6070' }}>
-                <User size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                <span>Closer : <strong style={{ color: '#0e1e35' }}>{rdv.rdv_users.name}</strong></span>
-              </div>
-            )}
-            {(rdv.hubspot_contact_id || rdv.hubspot_deal_id) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {rdv.hubspot_contact_id && (
-                  <a href={`/admin/crm/contacts/${rdv.hubspot_contact_id}`}
-                    target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                    <ExternalLink size={11} /> Ouvrir le contact
-                  </a>
-                )}
-                {rdv.hubspot_deal_id && (
-                  <a href={`/admin/crm/deals/${rdv.hubspot_deal_id}`}
-                    target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#C9A84C', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                    <ExternalLink size={11} /> Ouvrir la transaction
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Retour prospect */}
-        {(rdv.status === 'confirme' || rdv.status === 'confirme_prospect' || rdv.status === 'annule') && (
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              Retour prospect
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {onConfirm && (
-                <button
-                  onClick={onConfirm}
-                  disabled={confirming || cancelling}
-                  style={{
-                    flex: 1,
-                    background: rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.18)' : 'transparent',
-                    border: `1px solid ${rdv.status === 'confirme_prospect' ? 'rgba(16,185,129,0.5)' : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: rdv.status === 'confirme_prospect' ? '#10b981' : '#4a6070',
-                    fontSize: 13, fontWeight: rdv.status === 'confirme_prospect' ? 700 : 400,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    opacity: confirming ? 0.7 : 1,
-                  }}
-                >
-                  ✅ {confirming ? 'Confirmation…' : 'Prospect confirmé'}
-                  {rdv.status === 'confirme_prospect' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
-                </button>
-              )}
-              {onCancel && (
-                <button
-                  onClick={onCancel}
-                  disabled={cancelling || confirming}
-                  style={{
-                    flex: 1,
-                    background: rdv.status === 'annule' ? 'rgba(107,114,128,0.18)' : 'transparent',
-                    border: `1px solid ${rdv.status === 'annule' ? 'rgba(107,114,128,0.5)' : '#e5ddc8'}`,
-                    borderRadius: 8, padding: '9px 14px',
-                    color: rdv.status === 'annule' ? '#9ca3af' : '#4a6070',
-                    fontSize: 13, fontWeight: rdv.status === 'annule' ? 700 : 400,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    opacity: cancelling ? 0.7 : 1,
-                  }}
-                >
-                  🚫 {cancelling ? 'Annulation…' : 'Prospect a annulé'}
-                  {rdv.status === 'annule' && <span style={{ fontSize: 11, marginLeft: 2 }}>✓</span>}
-                </button>
-              )}
-            </div>
-            {(rdv.status === 'confirme_prospect' || rdv.status === 'annule') && onReset && (
-              <button
-                onClick={onReset}
-                disabled={confirming || cancelling}
-                style={{
-                  marginTop: 8, background: 'none', border: 'none',
-                  color: '#4a6070', fontSize: 11, cursor: 'pointer',
-                  textDecoration: 'underline', padding: 0,
-                  opacity: (confirming || cancelling) ? 0.5 : 1,
-                }}
-              >
-                ⏳ Remettre en attente de confirmation
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Suivi statut (lecture seule — toujours visible) */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              Résultat du RDV
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {([
-                { status: 'no_show',      label: 'No-show',        icon: '❌', hint: '→ A replanifier' },
-                { status: 'annule',       label: 'Annulé',         icon: '🚫', hint: '→ A replanifier' },
-                { status: 'a_travailler', label: 'A travailler',   icon: '📧', hint: '→ Mail PI + brochure' },
-                { status: 'pre_positif',  label: 'Pré-positif',    icon: '🔥', hint: '→ Mail PI + brochure' },
-                { status: 'positif',      label: 'POSITIF',        icon: '🎉', hint: '→ Pré-inscription' },
-                { status: 'negatif',      label: 'Négatif',        icon: '💀', hint: '→ Rien à faire' },
-              ] as { status: AppointmentStatus; label: string; icon: string; hint: string }[]).map(action => {
-                const cfg = STATUS_CONFIG[action.status]
-                const isActive = rdv.status === action.status
-                return (
-                  <div key={action.status} style={{
-                    background: isActive ? cfg.bg : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isActive ? cfg.border : '#e5ddc8'}`,
-                    borderRadius: 10, padding: '10px 14px',
-                    opacity: isActive ? 1 : 0.35,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? cfg.color : '#4a6070', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {action.icon} {action.label}
-                      {isActive && <span style={{ marginLeft: 'auto', fontSize: 12 }}>✓</span>}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>{action.hint}</div>
-                  </div>
-                )
-              })}
-            </div>
-        </div>
-
-        {/* Rapport closer (lecture seule) */}
-        {(rdv.report_summary || rdv.report_telepro_advice) && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5ddc8' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              Rapport du RDV
-            </div>
-            {rdv.report_summary && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Résumé du RDV</div>
-                <div style={{ fontSize: 13, color: '#0e1e35', lineHeight: 1.5, background: '#f7f4ee', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_summary}</div>
-              </div>
-            )}
-            {rdv.report_telepro_advice && (
-              <div>
-                <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conseil pour toi</div>
-                <div style={{ fontSize: 13, color: '#0e1e35', lineHeight: 1.5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px' }}>{rdv.report_telepro_advice}</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Note interne — ÉDITABLE */}
-        <div style={{ padding: '16px 24px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <FileText size={12} /> Note interne
-          </div>
-          <textarea
-            value={noteValue}
-            onChange={e => onNoteChange(e.target.value)}
-            placeholder="Tes notes d'appel…"
-            rows={4}
-            style={{ width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 10, padding: '11px 14px', color: '#0e1e35', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
-          />
-          <button
-            onClick={onNoteSave}
-            disabled={saving}
-            style={{ marginTop: 10, background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.12)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(204,172,113,0.3)'}`, borderRadius: 8, padding: '8px 18px', color: saved ? '#22c55e' : '#C9A84C', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-          >
-            <Check size={13} /> {saved ? 'Sauvegardé !' : saving ? 'Sauvegarde…' : 'Sauvegarder la note'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Composant principal ───────────────────────────────────────────────────
-// ─── Sous-composant : note éditable dans l'onglet Historique ───────────────
-function HistoriqueNoteEditor({ rdvId, initialNote }: { rdvId: string; initialNote: string }) {
-  const [note, setNote] = useState(initialNote)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    await fetch(`/api/appointments/${rdvId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes: note }),
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Mes notes historiques
-      </div>
-      <textarea
-        value={note}
-        onChange={e => setNote(e.target.value)}
-        rows={3}
-        style={{
-          width: '100%', background: '#f7f4ee', border: '1px solid #e5ddc8',
-          borderRadius: 8, color: '#c8cadb', fontSize: 13, padding: '8px 12px',
-          resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
-        }}
-        placeholder="Laisser un compte-rendu ou note de suivi…"
-      />
-      <button
-        onClick={save}
-        disabled={saving}
-        style={{
-          marginTop: 6, background: 'rgba(204,172,113,0.15)',
-          border: '1px solid rgba(204,172,113,0.3)', borderRadius: 6,
-          padding: '4px 12px', color: '#C9A84C', fontSize: 12,
-          cursor: 'pointer', fontFamily: 'inherit',
-        }}
-      >
-        {saving ? 'Sauvegarde…' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
-      </button>
-    </div>
-  )
-}
+type TeleproTab = 'form' | 'rdvs' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'
 
 export default function TeleproClient({
   teleproUser,
@@ -480,212 +48,28 @@ export default function TeleproClient({
   adminUser?: { name: string }
 }) {
   usePageTitle(teleproUser.name)
+  const isMobile = useIsMobile()
   const isAdmin = teleproUser.role === 'admin'
   const isLinovaBrandUser = String(teleproUser.crm_brand || '').toLowerCase() === 'linova'
+  const firstName = (teleproUser.name || '').trim().split(/\s+/)[0] || teleproUser.name
   // "Mes Contacts" doit reposer sur l'identité CRM interne du télépro.
-  // Le backend gère la compatibilité avec les anciens enregistrements HubSpot.
+  // Le backend gère la compatibilité avec les anciens enregistrements.
   const teleproCrmFilterId = teleproUser.id || ''
-  // Les transactions restent filtrées côté deal avec l'ID HubSpot existant.
+  // Les transactions restent filtrées côté deal avec l'ID externe existant.
   const teleproDealsFilterId = teleproUser.hubspot_user_id || teleproUser.hubspot_owner_id || ''
-  const [activeTab, setActiveTab] = useState<'form' | 'rdvs' | 'suivi' | 'agenda' | 'historique' | 'repop' | 'contacts' | 'transactions'>('rdvs')
+  const [activeTab, setActiveTab] = useState<TeleproTab>('rdvs')
   const [showGuide, setShowGuide] = useState(false)
   const [showResources, setShowResources] = useState(false)
   const [crmTotal, setCrmTotal] = useState(0)
-  const [txTotal, setTxTotal] = useState(0)
+  const [txTotal] = useState(0)
+  const [plusOpen, setPlusOpen] = useState(false)
+  // Mobile : la vue complète des contacts (vues, filtres avancés) reste accessible
+  const [contactsAdvanced, setContactsAdvanced] = useState(false)
+  const supportUnread = useSupportUnread(!previewMode)
+  const logout = useLogout()
 
-  const today = startOfToday()
-  // Date maximale de prise de RDV : 31 août (de la saison en cours).
-  // Robuste si on est déjà après août → bascule sur l'année suivante.
-  const maxBookingDate = useMemo(() => {
-    const y = today.getMonth() > 7 ? today.getFullYear() + 1 : today.getFullYear()
-    return new Date(y, 7, 31)
-  }, [today])
-
-  // ── Recherche contact dans le CRM ──────────────────────────────────────
-  const [lookupInput, setLookupInput] = useState('')
-  const [lookupMode, setLookupMode] = useState<'search' | 'new'>('search')
-  const [lookupLoading, setLookupLoading] = useState(false)
-  const [lookupError, setLookupError] = useState<string | null>(null)
-  const [contact, setContact] = useState<HubSpotContact | null>(null)
-  const [showLinovaModal, setShowLinovaModal] = useState(false)
-  // Résultats de recherche dans le CRM (Supabase)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [searchResults, setSearchResults] = useState<any[]>([])
-
-  // ── Historique de recherche (par télépro) ─────────────────────────────
-  // Mémorise les derniers contacts ouverts pour y revenir d'un clic, sans
-  // relancer une recherche globale. Synchronisé en base (suit le compte sur
-  // tous les appareils) ; localStorage sert de cache instantané + repli.
-  const RECENT_LOOKUP_MAX = 5
-  const recentLookupContext = 'telepro-lookup'
-  const recentLookupKey = `telepro-recent-contacts-${teleproUser.id || 'anon'}`
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [recentLookups, setRecentLookups] = useState<any[]>([])
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function cacheRecentLookups(list: any[]) {
-    try { localStorage.setItem(recentLookupKey, JSON.stringify(list)) } catch { /* ignore */ }
-  }
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const saved = localStorage.getItem(recentLookupKey)
-      if (saved) setRecentLookups(JSON.parse(saved))
-    } catch {
-      // ignore
-    }
-    let cancelled = false
-    fetchRecentContacts(recentLookupContext).then(remote => {
-      if (cancelled || remote === null) return
-      setRecentLookups(remote)
-      cacheRecentLookups(remote)
-    })
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentLookupKey])
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function recordRecentLookup(c: any) {
-    const entry = {
-      hubspot_contact_id: c.hubspot_contact_id,
-      firstname: c.firstname ?? null,
-      lastname: c.lastname ?? null,
-      email: c.email ?? null,
-      phone: c.phone ?? null,
-      departement: c.departement ?? null,
-      classe_actuelle: c.classe_actuelle ?? null,
-      formation_demandee: c.formation_demandee ?? null,
-      telepro: c.telepro ?? null,
-    }
-    setRecentLookups(prev => {
-      const next = [entry, ...prev.filter(p => p.hubspot_contact_id !== entry.hubspot_contact_id)].slice(0, RECENT_LOOKUP_MAX)
-      cacheRecentLookups(next)
-      return next
-    })
-    void saveRecentContact(recentLookupContext, entry)
-  }
-
-  function clearRecentLookups() {
-    setRecentLookups([])
-    cacheRecentLookups([])
-    void clearRecentContactsRemote(recentLookupContext)
-  }
-
-  // Liste des derniers contacts ouverts — affichée tant qu'aucune recherche
-  // n'est en cours, pour rouvrir une fiche d'un seul clic.
-  function renderRecentLookups() {
-    if (lookupInput.trim() || searchResults.length > 0 || recentLookups.length === 0) return null
-    return (
-      <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid #f7f4ee' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-            <Clock size={12} /> Recherches récentes
-          </span>
-          <button onClick={clearRecentLookups} style={{ background: 'none', border: 'none', color: '#4a6070', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-            Effacer
-          </button>
-        </div>
-        {recentLookups.map(r => {
-          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
-          return (
-            <button key={r.hubspot_contact_id}
-              onClick={() => pickSearchResult(r)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '10px 14px',
-                background: 'transparent', border: 'none',
-                borderBottom: '1px solid #f7f4ee',
-                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Clock size={14} style={{ color: '#C9A84C' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
-                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
-                </div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── Nouveau contact ──────────────────────────────────────────────────
-  const [newFirstname, setNewFirstname] = useState('')
-  const [newLastname, setNewLastname] = useState('')
-  const [newEmail, setNewEmail] = useState('')
-  const [newPhone, setNewPhone] = useState('')
-  const [newFormation, setNewFormation] = useState('')
-  const [newClasse, setNewClasse] = useState('')
-  const [newDepartement, setNewDepartement] = useState('')
-  const [creating, setCreating] = useState(false)
-  // Validation live de l'email du nouveau contact
-  const [newEmailFormatError, setNewEmailFormatError] = useState<string | null>(null)
-  const [newEmailChecking, setNewEmailChecking] = useState(false)
-  const [newEmailExisting, setNewEmailExisting] = useState<{
-    id: string; firstname: string; lastname: string; email: string;
-  } | null>(null)
-
-  useEffect(() => {
-    const email = newEmail.trim()
-    setNewEmailExisting(null)
-    if (!email) { setNewEmailFormatError(null); setNewEmailChecking(false); return }
-    const err = validateEmailDomain(email)
-    if (err) { setNewEmailFormatError(err); setNewEmailChecking(false); return }
-    setNewEmailFormatError(null); setNewEmailChecking(true)
-    const ctrl = new AbortController()
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/crm/contacts/check?email=${encodeURIComponent(email)}`, { signal: ctrl.signal })
-        const data = await res.json()
-        if (data.exists && data.contact) setNewEmailExisting(data.contact)
-        else setNewEmailExisting(null)
-      } catch { /* ignore */ }
-      finally { setNewEmailChecking(false) }
-    }, 400)
-    return () => { clearTimeout(timer); ctrl.abort() }
-  }, [newEmail])
-
-  // ── Télépro actuellement assigné au contact (read-only display) ───────
-  // Affiché en grisé sur le form UNIQUEMENT si différent du télépro courant.
-  // Sert aussi à signaler un doublon télépro à arbitrer par Pascal.
-  const [existingTeleproId, setExistingTeleproId] = useState<string | null>(null)
-  const [existingTeleproName, setExistingTeleproName] = useState<string | null>(null)
-
-  // ── Champs prospect ───────────────────────────────────────────────────
-  const [email, setEmail] = useState('')
-  const [emailSynced, setEmailSynced] = useState(false)
-  const emailOriginalRef = useRef('')
-  const [emailParent, setEmailParent] = useState('')
-  const [phone, setPhone] = useState('')
-  const [departement, setDepartement] = useState('')
-  const [classeActuelle, setClasseActuelle] = useState('')
-  const [formation, setFormation] = useState('')
-  const [meetingType, setMeetingType] = useState<'visio' | 'presentiel'>('visio')
-  const [meetingLink, setMeetingLink] = useState(() => generateJitsiLink())
-  const [meetingCampus, setMeetingCampus] = useState(CAMPUS_OPTIONS[0])
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [notes, setNotes] = useState('')
-
-  // ── Date / Heure ──────────────────────────────────────────────────────
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
-  const [slots, setSlots] = useState<Slot[]>([])
-  const [slotsLoading, setSlotsLoading] = useState(false)
-  // Mois actuellement affiché dans le calendrier de prise de RDV.
-  const [calMonth, setCalMonth] = useState<Date>(startOfMonth(startOfToday()))
-
-  // ── Submit ────────────────────────────────────────────────────────────
-  const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // ── Prise de RDV (recherche contact, créneaux, envoi) ─────────────────
+  const form = useNewRdvForm({ teleproUser, isLinovaBrandUser })
 
   // ── Planning ──────────────────────────────────────────────────────────
   const [myRdvs, setMyRdvs] = useState<MyAppointment[]>([])
@@ -694,7 +78,6 @@ export default function TeleproClient({
   const myRdvsFetchInFlightRef = useRef(false)
   const myRdvsFetchSeqRef = useRef(0)
   const myRdvsLastFetchAtRef = useRef(0)
-  const [expandedRdv, setExpandedRdv] = useState<string | null>(null)
   const [planningWeekStart, setPlanningWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -708,7 +91,7 @@ export default function TeleproClient({
   const [confirmingRdv, setConfirmingRdv] = useState<string | null>(null)
   const [cancellingRdv, setCancellingRdv] = useState<string | null>(null)
 
-  // ── Historique HubSpot ────────────────────────────────────────────────
+  // ── Historique ────────────────────────────────────────────────────────
   type HistRdv = MyAppointment & {
     hs_stage: string | null
     hs_stage_label: string | null
@@ -718,28 +101,14 @@ export default function TeleproClient({
     repop_form_date?: string | null
     repop_form_name?: string | null
   }
-  type EngInfo = {
-    engagements: Array<{
-      id: number; type: string; createdAt: number
-      body: string | null; direction: string | null
-    }>
-    contact: {
-      email: string | null; phone: string | null
-      firstname: string | null; lastname: string | null
-      classe_actuelle: string | null; departement: string | null
-      formation: string | null
-    } | null
-  }
   const [histRdvs, setHistRdvs]           = useState<HistRdv[]>([])
   const [histLoading, setHistLoading]     = useState(false)
-  const [engData, setEngData]             = useState<Record<string, EngInfo>>({})
-  const [loadingEng, setLoadingEng]       = useState<Record<string, boolean>>({})
   const [selectedHistRdv, setSelectedHistRdv] = useState<HistRdv | null>(null)
   const [closingDeal, setClosingDeal]     = useState<string | null>(null)
   const [stageFilter, setStageFilter]     = useState<string | null>(null)
   const [savingSuivi, setSavingSuivi]     = useState<string | null>(null)
 
-  // ── HubSpot stats ─────────────────────────────────────────────────────
+  // ── Stats ─────────────────────────────────────────────────────────────
   const [hsStats, setHsStats] = useState<{ total: number; thisMonth: number; positifs: number; aVenir: number } | null>(null)
 
   const fetchMyRdvs = useCallback(async () => {
@@ -855,14 +224,14 @@ export default function TeleproClient({
         setMyRdvs(prev => prev.map(r => r.id === rdvId ? { ...r, status: 'confirme' } : r))
         setSelectedRdv(prev => prev?.id === rdvId ? { ...prev, status: 'confirme' } : prev)
       }
-    } catch (_e) { /* silent */ }
+    } catch { /* silent */ }
   }
 
   useEffect(() => {
     if (activeTab === 'rdvs' || previewMode) fetchMyRdvs()
   }, [activeTab, previewMode, fetchMyRdvs])
 
-  // Guard-fou UI: ne jamais laisser un spinner infini côté planning.
+  // Garde-fou UI : ne jamais laisser un spinner infini côté planning.
   useEffect(() => {
     if (!myRdvsLoading) return
     const guard = setTimeout(() => {
@@ -884,7 +253,7 @@ export default function TeleproClient({
     setHsStats({ total: myRdvs.length, thisMonth, positifs, aVenir })
   }, [myRdvs])
 
-  // ── Historique : fetch via HubSpot owner → Supabase hubspot_deal_id ──
+  // ── Historique ────────────────────────────────────────────────────────
   const fetchHistorique = useCallback(async () => {
     if (!teleproUser.id) return
     setHistLoading(true)
@@ -896,16 +265,11 @@ export default function TeleproClient({
     } finally {
       setHistLoading(false)
     }
-  }, [teleproUser.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchEngagements = useCallback(async (_rdv: HistRdv) => {
-    // HubSpot désactivé : on ne charge plus les engagements externes.
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [teleproUser.id])
 
   useEffect(() => {
     if (activeTab === 'historique') fetchHistorique()
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
-
 
   const marquerPerdu = useCallback(async (rdv: HistRdv) => {
     setClosingDeal(rdv.id)
@@ -925,13 +289,13 @@ export default function TeleproClient({
     } finally {
       setClosingDeal(null)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const saveSuivi = useCallback(async (rdv: HistRdv, suivi: string | null) => {
     setSavingSuivi(rdv.id)
     try {
-      const isHubSpotOnly = rdv.id === rdv.hubspot_deal_id
-      const res = isHubSpotOnly
+      const isExternalOnly = rdv.id === rdv.hubspot_deal_id
+      const res = isExternalOnly
         ? await fetch('/api/hist-suivi', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -952,16 +316,7 @@ export default function TeleproClient({
     } finally {
       setSavingSuivi(null)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const REPRISE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
-  const hasReprise = (data: EngInfo) => {
-    const cutoff = Date.now() - REPRISE_WINDOW_MS
-    return data.engagements.some(e =>
-      e.createdAt > cutoff && ['CALL', 'INCOMING_EMAIL', 'EMAIL'].includes(e.type)
-    )
-  }
-  const repriseCount = histRdvs.filter(r => engData[r.id] && hasReprise(engData[r.id])).length
+  }, [])
 
   const uniqueStages = useMemo(() => {
     const map = new Map<string, { color: string; count: number }>()
@@ -980,214 +335,22 @@ export default function TeleproClient({
   )
 
   const SUIVI_OPTIONS = [
-    { value: 'ne_repond_plus', label: '📵 Ne répond plus', color: '#6b7280' },
-    { value: 'a_travailler',   label: '🔧 À travailler',   color: '#C9A84C' },
-    { value: 'pre_positif',    label: '⭐ Pré-positif',    color: '#06b6d4' },
+    { value: 'ne_repond_plus', label: 'Ne répond plus', color: '#6b7280' },
+    { value: 'a_travailler',   label: 'À travailler',   color: '#b8963e' },
+    { value: 'pre_positif',    label: 'Pré-positif',    color: '#06b6d4' },
   ]
 
-  // ── Computed stats ────────────────────────────────────────────────────
-  const now = new Date()
-  const rdvsThisMonth = myRdvs.filter(r => {
-    const d = new Date(r.start_at)
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  })
-  const rdvsPositifs = myRdvs.filter(r => r.status === 'positif' || r.status === 'preinscription')
-  const rdvsAVenir = myRdvs.filter(r => new Date(r.start_at) > now)
-
-  // Counts par statut
-  const statusCounts = myRdvs.reduce((acc, r) => {
-    acc[r.status] = (acc[r.status] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
-  // ── Planning week ─────────────────────────────────────────────────────
-  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(planningWeekStart, i))
-  const rdvsThisWeek = myRdvs.filter(r =>
-    isSameWeek(new Date(r.start_at), planningWeekStart, { weekStartsOn: 1 })
-  )
-  const isCurrentWeek = isSameWeek(planningWeekStart, now, { weekStartsOn: 1 })
-
-  // Filtered list for status view
-  const filteredRdvs = statusFilter
-    ? [...myRdvs].filter(r => r.status === statusFilter).sort((a, b) =>
-        new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
-      )
-    : []
-
-  // Chrono view: all RDVs sorted by date ascending, grouped by day
-  const allRdvsSorted = [...myRdvs].sort((a, b) =>
-    new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
-  )
-  const allChronoGroups: { date: Date; rdvs: MyAppointment[] }[] = []
-  for (const rdv of allRdvsSorted) {
-    const d = new Date(rdv.start_at)
-    const existing = allChronoGroups.find(g => isSameDay(g.date, d))
-    if (existing) existing.rdvs.push(rdv)
-    else allChronoGroups.push({ date: d, rdvs: [rdv] })
-  }
-
-  // ── Slots ─────────────────────────────────────────────────────────────
-  async function loadPoolSlots(date: Date) {
-    setSlotsLoading(true)
-    setSlots([])
-    try {
-      const dateStr = format(date, 'yyyy-MM-dd')
-      const res = await fetch(`/api/availability/pool?date=${dateStr}`)
-      if (res.ok) setSlots(await res.json())
-    } finally {
-      setSlotsLoading(false)
-    }
-  }
-
-  function handleSelectDate(date: Date) {
-    setSelectedDate(date)
-    setSelectedSlot(null)
-    loadPoolSlots(date)
-  }
-
-  // ── Recherche dans le CRM (Supabase) ──────────────────────────────────
-  async function searchContact() {
-    if (!lookupInput.trim()) return
-    setLookupLoading(true); setLookupError(null); setSearchResults([])
-    try {
-      // global_search=1 : un telepro doit pouvoir retrouver N'IMPORTE QUEL
-      // contact de la base CRM (pas seulement ses propres leads assignés), car
-      // il prend parfois des RDV pour des contacts d'autres télépros.
-      // all_classes=1 + show_external=1 pour ne PAS filtrer le lookup sur les
-      // classes prioritaires / l'equipe externe.
-      const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(lookupInput.trim())}&limit=10&all_classes=1&show_external=1&global_search=1`)
-      const data = await res.json()
-      if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
-      const results = data.data ?? []
-      if (results.length === 0) { setLookupError('Aucun contact trouvé dans le CRM.'); return }
-      setSearchResults(results)
-    } catch { setLookupError('Erreur réseau') }
-    finally { setLookupLoading(false) }
-  }
-
-  // Sélectionne un contact dans la liste des résultats CRM
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function pickSearchResult(c: any) {
-    // Convertit la ligne CRM en shape HubSpotContact pour le reste du code
-    const shaped: HubSpotContact = {
-      id: c.hubspot_contact_id,
-      properties: {
-        email: c.email ?? '',
-        firstname: c.firstname ?? '',
-        lastname: c.lastname ?? '',
-        phone: c.phone ?? '',
-        departement: c.departement != null ? String(c.departement) : '',
-        classe_actuelle: c.classe_actuelle ?? '',
-        diploma_sante___formation_demandee: c.formation_demandee ?? '',
-      },
-    }
-    setContact(shaped)
-    setSearchResults([])
-    recordRecentLookup(c)
-    const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-    if (c.phone) setPhone(c.phone)
-    if (c.departement) setDepartement(String(c.departement))
-    if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
-    if (c.formation_demandee) setFormation(c.formation_demandee)
-    // Récupère le télépro déjà assigné au contact.
-    // L'API joint déjà l'objet rdv_users sous c.telepro ({ id, name, ... }).
-    // c.telepro_user_id est en réalité le hubspot_user_id (number) — pas l'UUID Supabase.
-    // On utilise donc c.telepro.id (UUID) pour comparer avec teleproUser.id.
-    if (c.telepro?.id) {
-      setExistingTeleproId(c.telepro.id)
-      setExistingTeleproName(c.telepro.name || null)
-    } else {
-      setExistingTeleproId(null)
-      setExistingTeleproName(null)
-    }
-  }
-
-  // ── Créer nouveau contact (100 % Supabase, indépendant de HubSpot) ────
-  async function createNewContact() {
-    if (
-      !newFirstname.trim() || !newLastname.trim() || !newEmail.trim() ||
-      !newPhone.trim() || !newDepartement.trim() || !newClasse.trim()
-    ) return
-    if (newEmailFormatError || newEmailExisting) return
-    setCreating(true); setLookupError(null)
-    try {
-      const res = await fetch('/api/crm/contacts', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstname: newFirstname.trim(), lastname: newLastname.trim(),
-          email: newEmail.trim(), phone: newPhone.trim() || undefined,
-          departement: newDepartement.trim() || undefined,
-          classe_actuelle: newClasse || undefined, formation: newFormation || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setLookupError(data.error || 'Erreur'); return }
-      setContact(data)
-      setEmail(newEmail); emailOriginalRef.current = newEmail; setEmailSynced(false)
-      if (newPhone) setPhone(newPhone)
-      if (newDepartement) setDepartement(newDepartement)
-      if (newClasse) setClasseActuelle(newClasse)
-      if (newFormation) setFormation(newFormation)
-    } catch { setLookupError('Erreur réseau') }
-    finally { setCreating(false) }
-  }
-
-  function resetContact() {
-    setContact(null); setLookupInput(''); setLookupError(null); setSearchResults([])
-    setExistingTeleproId(null); setExistingTeleproName(null)
-    setEmail(''); emailOriginalRef.current = ''; setEmailSynced(false)
-    setPhone(''); setDepartement(''); setClasseActuelle(''); setFormation('')
-    setMeetingType('visio'); setMeetingLink(generateJitsiLink()); setMeetingCampus(CAMPUS_OPTIONS[0]); setLinkCopied(false)
-    setNotes(''); setSelectedDate(null); setSelectedSlot(null); setError(null)
-    setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
-    setNewFormation(''); setNewClasse(''); setNewDepartement('')
-  }
-
-  async function syncEmail() {
-    if (!contact || !email.trim() || email.trim() === emailOriginalRef.current) return
-    setEmailSynced(false)
-    try {
-      const res = await fetch(`/api/crm/contacts/${contact.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-      if (res.ok) { emailOriginalRef.current = email.trim(); setEmailSynced(true); setTimeout(() => setEmailSynced(false), 2000) }
-    } catch { /* silencieux */ }
-  }
-
-  // ── Reprendre un RDV (depuis la vue suivi) ────────────────────────────
+  // ── Reprendre un RDV (depuis le planning / l'historique) ──────────────
   async function handleReprendre(rdv: MyAppointment) {
     if (isLinovaBrandUser) {
-      setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
+      form.setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
       return
     }
-    resetContact()
+    form.resetContact()
     if (rdv.hubspot_contact_id) {
       setRebookLoading(rdv.id)
       try {
-        const res = await fetch(`/api/crm/contacts/${rdv.hubspot_contact_id}/details?phase=core`)
-        const data = await res.json()
-        if (res.ok && data.contact) {
-          const c = data.contact
-          const shaped: HubSpotContact = {
-            id: c.hubspot_contact_id,
-            properties: {
-              email: c.email ?? '',
-              firstname: c.firstname ?? '',
-              lastname: c.lastname ?? '',
-              phone: c.phone ?? '',
-              departement: c.departement != null ? String(c.departement) : '',
-              classe_actuelle: c.classe_actuelle ?? '',
-              diploma_sante___formation_demandee: c.formation_demandee ?? '',
-            },
-          }
-          setContact(shaped)
-          const ev = c.email || ''; setEmail(ev); emailOriginalRef.current = ev; setEmailSynced(false)
-          if (c.phone) setPhone(c.phone)
-          if (c.departement) setDepartement(String(c.departement))
-          if (c.classe_actuelle) setClasseActuelle(c.classe_actuelle)
-          if (c.formation_demandee) setFormation(c.formation_demandee)
-        }
+        await form.prefillFromContactId(rdv.hubspot_contact_id)
       } finally {
         setRebookLoading(null)
       }
@@ -1195,227 +358,313 @@ export default function TeleproClient({
     setActiveTab('form')
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────
-  const contactName = contact ? [contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') : ''
-  const contactEmail = email || contact?.properties.email || ''
-  const canSubmit = contact && selectedSlot && phone && departement && classeActuelle && formation && (meetingType !== 'presentiel' || !!meetingCampus)
+  // L'écran « RDV enregistré » ne survit pas à un changement d'onglet
+  const { success: formSuccess, reset: resetForm } = form
+  useEffect(() => {
+    if (formSuccess && activeTab !== 'form' && !isAdmin) resetForm()
+  }, [activeTab, formSuccess, isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function submit() {
-    if (isLinovaBrandUser) {
-      setError('Prise de RDV classique desactivee pour la marque LINOVA. Utilise le flux Linova depuis le CRM.')
-      return
-    }
-    if (!canSubmit) { setError('Remplis tous les champs obligatoires (*)'); return }
-    setSubmitting(true); setError(null)
-    const formationLabel = FORMATIONS.find(f => f.value === formation)?.label || formation
-    try {
-      const res = await fetch('/api/appointments', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prospect_name: contactName || contactEmail,
-          prospect_email: contactEmail, prospect_phone: phone,
-          email_parent: emailParent.trim() || null,
-          start_at: selectedSlot!.start, end_at: selectedSlot!.end,
-          source: 'telepro', formation_type: formationLabel, formation_hs_value: formation,
-          hubspot_contact_id: contact!.id, departement, classe_actuelle: classeActuelle,
-          meeting_type: meetingType,
-          meeting_link: meetingType === 'visio' ? meetingLink || null : (meetingType === 'presentiel' ? meetingCampus : null),
-          telepro_id: teleproUser.id,
-          call_notes: [
-            `📚 Formation demandée : ${formationLabel}`,
-            `📍 Département : ${departement}`,
-            `🎓 Classe actuelle : ${classeActuelle}`,
-            phone ? `📞 Téléphone : ${phone}` : '',
-            meetingType === 'presentiel' ? `🏫 Campus : ${meetingCampus}` : '',
-            notes.trim() ? `\n📝 Notes d'appel :\n${notes.trim()}` : '',
-          ].filter(Boolean).join('\n'),
-          booking_note: notes.trim() || null,
-        }),
-      })
-      if (res.ok) {
-        // Le serveur génère le vrai lien (Google Meet) et le renvoie : on
-        // affiche celui-ci, pas le lien temporaire généré côté client.
-        const created = await res.json().catch(() => null)
-        if (created?.meeting_link) setMeetingLink(created.meeting_link)
-        setSuccess(true)
-      }
-      else { const data = await res.json(); setError(data.error || 'Erreur') }
-    } finally { setSubmitting(false) }
+  function openRdv(rdv: MyAppointment) {
+    setSelectedRdv(rdv)
+    setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' }))
   }
 
-  function reset() { setSuccess(false); resetContact() }
+  function goTab(tab: TeleproTab) {
+    setActiveTab(tab)
+    setPlusOpen(false)
+  }
 
-  // ─── Success screen ────────────────────────────────────────────────────
-  if (success) {
-    return (
-      <div className="crm-v2 crm-v2-skin" style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: crmV2.font }}>
-        <div style={{ background: '#e5ddc8', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440 }}>
-          <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: 16 }} />
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>RDV enregistré !</div>
-          <div style={{ fontSize: 15, color: '#4a6070', marginBottom: 4 }}>{contactName}</div>
-          <div style={{ fontSize: 14, color: '#22c55e', fontWeight: 600, marginBottom: 4 }}>
-            {selectedSlot && format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
+  // ─── Contenus des onglets ──────────────────────────────────────────────
+
+  const skin = (node: ReactNode, style?: React.CSSProperties) => (
+    // Composants partagés encore au style d'origine : habillés par la skin V2
+    <div className="crm-v2-skin" style={style}>{node}</div>
+  )
+
+  const newRdvContent = form.success ? (
+    <RdvSuccess
+      form={form}
+      isMobile={isMobile}
+      onNew={form.reset}
+      onPlanning={() => { form.reset(); setActiveTab('rdvs'); fetchMyRdvs() }}
+    />
+  ) : (
+    <NewRdvFlow form={form} isMobile={isMobile} teleproUserId={teleproUser.id} linova={isLinovaBrandUser} />
+  )
+
+  const planningContent = (
+    <PlanningView
+      rdvs={myRdvs}
+      loading={myRdvsLoading}
+      error={myRdvsError}
+      onRefresh={fetchMyRdvs}
+      stats={hsStats}
+      statusFilter={statusFilter}
+      setStatusFilter={setStatusFilter}
+      planningView={planningView}
+      setPlanningView={setPlanningView}
+      planningWeekStart={planningWeekStart}
+      setPlanningWeekStart={setPlanningWeekStart}
+      rebookLoading={rebookLoading}
+      onOpen={openRdv}
+      onReprendre={handleReprendre}
+      isMobile={isMobile}
+    />
+  )
+
+  const historiqueContent = (
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: isMobile ? '14px 12px 20px' : '20px 28px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={16} color={crmV2.gold} /> Historique RDV
           </div>
-          {meetingType === 'visio' && meetingLink && (
-            <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Video size={14} style={{ color: '#C9A84C', flexShrink: 0 }} />
-              <a href={meetingLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#C9A84C', wordBreak: 'break-all', flex: 1 }}>{meetingLink}</a>
-              <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '5px 10px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
-              </button>
-            </div>
-          )}
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 28, marginTop: 12, padding: '10px 16px', background: 'rgba(204,172,113,0.08)', borderRadius: 8, border: '1px solid rgba(204,172,113,0.15)' }}>
-            Le RDV est dans la file d&apos;attente.<br />Pascal va l&apos;assigner à un closer.<br />
-            <span style={{ color: '#C9A84C' }}>Les notes sont enregistrées sur la transaction.</span>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={reset} style={{ flex: 1, background: '#C9A84C', color: '#0e1e35', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              + Nouveau RDV
-            </button>
-            <button onClick={() => { reset(); setActiveTab('rdvs'); fetchMyRdvs() }}
-              style={{ flex: 1, background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              Voir mon planning
-            </button>
+          <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2 }}>
+            Diploma Santé 2026-2027 — RDV passés depuis le 1er oct. 2025 · {histRdvs.length} RDV
           </div>
         </div>
+        <TpRoundButton onClick={fetchHistorique} title="Actualiser" spinning={histLoading}><RefreshCw size={14} /></TpRoundButton>
       </div>
-    )
-  }
 
-  // ─── Main UI ───────────────────────────────────────────────────────────
-  return (
-    <div
-      className="crm-v2 crm-v2-skin"
-      style={{ minHeight: '100vh', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font }}
-    >
-
-      {/* Preview banner */}
-      {previewMode && adminUser && (
-        <div style={{ background: crmV2.goldSoft, borderBottom: `1px solid ${crmV2.goldBorder}`, padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-          <span style={{ color: crmV2.gold, fontWeight: 700 }}>Mode aperçu</span>
-          <span style={{ color: crmV2.textMuted }}>Tu vois la plateforme telle que</span>
-          <span style={{ color: crmV2.text, fontWeight: 700 }}>{teleproUser.name}</span>
-          <span style={{ color: crmV2.textMuted }}>la voit.</span>
-          <a href="/admin/crm-v2" style={{ marginLeft: 'auto', color: crmV2.gold, fontSize: 11, textDecoration: 'none', background: crmV2.goldSoft, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 999, padding: '4px 12px', fontWeight: 600 }}>
-            ← Retour Admin
-          </a>
+      {uniqueStages.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {stageFilter && (
+            <button type="button" onClick={() => setStageFilter(null)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`,
+              borderRadius: 999, padding: '5px 12px', fontSize: 12, color: crmV2.textMuted, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+            }}>
+              <X size={12} /> Tous ({histRdvs.length})
+            </button>
+          )}
+          {uniqueStages.map(s => (
+            <button key={s.label} type="button" onClick={() => setStageFilter(stageFilter === s.label ? null : s.label)} style={{
+              background: stageFilter === s.label ? `${s.color}1f` : crmV2.bg,
+              border: `1px solid ${stageFilter === s.label ? `${s.color}66` : crmV2.border}`,
+              borderRadius: 999, padding: '5px 12px', color: stageFilter === s.label ? s.color : crmV2.textMuted,
+              fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
+            }}>
+              {s.label} <span style={{ opacity: 0.7 }}>{s.count}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94, 188, 227, 0.35)' }}>
-            <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>Bonjour {teleproUser.name}</div>
-            <div style={{ fontSize: 11, color: '#4a6070' }}>Placement RDV — Télépro</div>
-          </div>
+      {!histLoading && histRdvs.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: crmV2.textMuted, fontSize: 13 }}>
+          {teleproUser.hubspot_owner_id
+            ? 'Aucun RDV trouvé depuis le 1er octobre 2025 sur la pipeline Diploma Santé 2026-2027.'
+            : 'Aucun identifiant propriétaire configuré pour ce télépro.'}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {!isAdmin && (
-            <>
-              <button onClick={() => setActiveTab('form')} style={{
-                background: activeTab === 'form' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'form' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'form' ? '#C9A84C' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <PlusCircle size={12} /> {isLinovaBrandUser ? 'Nouveau RDV Linova' : 'Nouveau RDV'}
-              </button>
-              <button onClick={() => setActiveTab('rdvs')} style={{
-                background: activeTab === 'rdvs' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'rdvs' ? 'rgba(34,197,94,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'rdvs' ? '#22c55e' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <Calendar size={12} /> Mon planning
-                {myRdvs.length > 0 && (
-                  <span style={{ background: 'rgba(34,197,94,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                    {myRdvs.length}
-                  </span>
-                )}
-              </button>
-              <button onClick={() => setActiveTab('suivi')} style={{
-                background: activeTab === 'suivi' ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'suivi' ? 'rgba(37,99,235,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'suivi' ? '#2563eb' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: 'inherit',
-              }}>
-                <List size={12} /> Suivi RDV
-              </button>
-              <button onClick={() => setActiveTab('agenda')} style={{
-                background: activeTab === 'agenda' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'agenda' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'agenda' ? '#C9A84C' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <Calendar size={12} /> Agenda équipe
-              </button>
-              <button onClick={() => setActiveTab('contacts')} style={{
-                background: activeTab === 'contacts' ? 'rgba(76,171,219,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'contacts' ? 'rgba(76,171,219,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'contacts' ? '#4cabdb' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: 'inherit',
-              }}>
-                👥 Mes Contacts
-                {crmTotal > 0 && (
-                  <span style={{ background: 'rgba(76,171,219,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                    {crmTotal}
-                  </span>
-                )}
-              </button>
-              <button onClick={() => setActiveTab('transactions')} style={{
-                background: activeTab === 'transactions' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'transactions' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'transactions' ? '#C9A84C' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: 'inherit',
-              }}>
-                🏷️ Mes Transactions
-                {txTotal > 0 && (
-                  <span style={{ background: 'rgba(204,172,113,0.2)', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                    {txTotal}
-                  </span>
-                )}
-              </button>
-              <button onClick={() => setActiveTab('repop')} style={{
-                background: activeTab === 'repop' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${activeTab === 'repop' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                borderRadius: 8, padding: '6px 12px', color: activeTab === 'repop' ? '#C9A84C' : '#4a6070',
-                fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: 'inherit',
-              }}>
-                🔁 Repop
-              </button>
-            </>
-          )}
-          {isAdmin && !previewMode && (
-            <a href="/admin" style={{ background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 8, padding: '6px 12px', color: '#4a6070', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <ArrowLeft size={12} /> Admin
-            </a>
-          )}
-          {!previewMode && <SupportButton />}
-          {!previewMode && <SupportWidget />}
-          {!previewMode && <LogoutButton />}
+      )}
+
+      {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
+        <div style={{ textAlign: 'center', padding: '30px 20px', color: crmV2.textMuted, fontSize: 13 }}>
+          Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
         </div>
-      </div>
+      )}
 
-      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
-          fiche (contact / transaction), même non attribuée au télépro. */}
-      {!isAdmin && <CRMGlobalSearchBar />}
+      {filteredHistRdvs.map(rdv => {
+        const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
+        const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
+        const chip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: crmV2.textMuted, background: crmV2.chipBg, border: `1px solid ${crmV2.chipBorder}`, borderRadius: 999, padding: '2px 9px' }
+        return (
+          <div key={rdv.id} onClick={() => setSelectedHistRdv(rdv)} style={{
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow,
+            cursor: 'pointer', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: crmV2.textMuted, flexShrink: 0 }}>
+                {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+              </div>
+              <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: crmV2.text, minWidth: 0 }}>
+                {rdv.prospect_name}
+                {rdv.rdv_users && <span style={{ marginLeft: 8, fontSize: 12, color: crmV2.textMuted, fontWeight: 500 }}>→ {rdv.rdv_users.name}</span>}
+              </div>
+              {rdv.hs_stage_label && rdv.hs_stage_color && (
+                <span style={{ background: `${rdv.hs_stage_color}1a`, color: rdv.hs_stage_color, borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                  {rdv.hs_stage_label}
+                </span>
+              )}
+              {rdv.repop_form_date && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: crmV2.goldSoft, color: crmV2.goldDark, borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                  <Repeat2 size={11} /> Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {rdv.prospect_phone && <span style={chip}><Phone size={10} /> {rdv.prospect_phone}</span>}
+              {rdv.formation_type && <span style={chip}><Tag size={10} color={crmV2.gold} /> Filière : <strong style={{ color: crmV2.text }}>{rdv.formation_type}</strong></span>}
+              {resultCfg && <span style={{ ...chip, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, fontWeight: 700 }}>{resultCfg.label}</span>}
+            </div>
+            {rdv.hs_stage_label === 'À replanifier' && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <CrmV2Button size="sm" variant="gold" icon={<RotateCcw size={12} />} disabled={rebookLoading === rdv.id}
+                  onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}>
+                  {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
+                </CrmV2Button>
+                <CrmV2Button size="sm" variant="danger" icon={<X size={12} />} disabled={closingDeal === rdv.id}
+                  onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}>
+                  {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
+                </CrmV2Button>
+              </div>
+            )}
+            {rdv.hs_stage_label === 'Délai de réflexion' && (
+              <div onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: crmV2.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Suivi post-RDV</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {SUIVI_OPTIONS.map(opt => {
+                    const isActive = rdv.telepro_suivi === opt.value
+                    return (
+                      <button key={opt.value} type="button" onClick={() => saveSuivi(rdv, isActive ? null : opt.value)} disabled={savingSuivi === rdv.id} style={{
+                        background: isActive ? `${opt.color}1f` : crmV2.bg, border: `1px solid ${isActive ? `${opt.color}66` : crmV2.border}`,
+                        borderRadius: 999, padding: '5px 12px', color: isActive ? opt.color : crmV2.textMuted,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      }}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {rdv.telepro_suivi && rdv.telepro_suivi_at && (
+                  <p style={{ fontSize: 11, color: crmV2.textMuted, margin: '6px 0 0' }}>
+                    Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 
+  const fullHeight: React.CSSProperties = { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+
+  // Contenu de l'onglet actif (identique mobile / ordinateur, sauf contacts)
+  function tabContent(): ReactNode {
+    if (isAdmin) return newRdvContent
+    switch (activeTab) {
+      case 'form': return newRdvContent
+      case 'rdvs': return planningContent
+      case 'historique': return historiqueContent
+      case 'agenda':
+        // Tous les RDV de la semaine (toute l'équipe) : permet au télépro de
+        // repérer où il reste de la place avant de placer un RDV.
+        return <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 560 }}><WeekCalendar teamView /></div>
+      case 'suivi':
+        // Tableau de suivi rempli automatiquement à chaque RDV placé par le
+        // télépro ; statut dérivé de l'agenda, modifiable à la main.
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Suivi RDV" subtitle="Une ligne par contact, remplie automatiquement à chaque RDV que tu places." />}
+            <div style={isMobile ? { padding: 12 } : { maxWidth: 1280, margin: '0 auto', padding: '20px 28px 32px', width: '100%', boxSizing: 'border-box' }}>
+              {!isMobile && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Suivi de mes RDV</div>
+                  <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>Une ligne par contact, remplie automatiquement à chaque RDV que tu places.</div>
+                </div>
+              )}
+              {skin(<SuiviRdvPanel teleproId={teleproUser.id} />)}
+            </div>
+          </>
+        )
+      case 'contacts': {
+        // « Mes contacts » : filtré par télépro au niveau contact
+        // (crm_contacts.telepro_user_id), même sans transaction associée.
+        if (!teleproCrmFilterId) {
+          return <div style={{ padding: 24, color: crmV2.textMuted, fontSize: 13 }}>Aucun identifiant CRM configuré pour ce télépro.</div>
+        }
+        if (isMobile && !contactsAdvanced) {
+          return (
+            <TeleproContactsMobile
+              teleproId={teleproCrmFilterId}
+              onTotalChange={setCrmTotal}
+              onAdvanced={() => setContactsAdvanced(true)}
+              onNewContact={() => { form.resetContact(); form.setLookupMode('new'); setActiveTab('form') }}
+              searchBar={skin(<CRMGlobalSearchBar />)}
+            />
+          )
+        }
+        return (
+          <>
+            {isMobile && (
+              <TpMobileHeader
+                title="Mes contacts"
+                subtitle="Vue complète : vues et filtres"
+                action={(
+                  <button type="button" onClick={() => setContactsAdvanced(false)} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4, height: 36, padding: '0 12px', borderRadius: 999,
+                    border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg, color: crmV2.text, fontSize: 13, fontWeight: 600,
+                    fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0,
+                  }}>
+                    <ArrowLeft size={14} /> Liste
+                  </button>
+                )}
+              />
+            )}
+            {skin(
+              <UserCRMView ownerParam="telepro_id" ownerId={teleproCrmFilterId} mode="telepro" onTotalChange={setCrmTotal} />,
+              { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+            )}
+          </>
+        )
+      }
+      case 'transactions':
+        // Mes transactions (télépro sur la transaction)
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Mes transactions" />}
+            <div style={{ ...fullHeight, minHeight: isMobile ? 0 : 600 }}>
+              <iframe
+                src={`/telepro/transactions?telepro=${encodeURIComponent(teleproDealsFilterId)}&embed=1`}
+                style={{ width: '100%', flex: 1, minHeight: isMobile ? 480 : 600, border: 'none', display: 'block' }}
+                title="Kanban Mes transactions"
+              />
+            </div>
+          </>
+        )
+      case 'repop':
+        return (
+          <>
+            {isMobile && <TpMobileHeader title="Repop" />}
+            {skin(
+              <RepopJournal hubspotOwnerId={teleproUser.hubspot_owner_id ?? undefined} scope="telepro" scopeId={teleproUser.id} />,
+            )}
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
+  // ─── Éléments communs ──────────────────────────────────────────────────
+
+  const previewBanner = previewMode && adminUser ? (
+    <div style={{
+      background: crmV2.goldSoft, borderBottom: `1px solid ${crmV2.goldBorder}`, padding: isMobile ? '8px 12px' : '8px 28px',
+      display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap', flexShrink: 0,
+    }}>
+      <span style={{ color: crmV2.goldDark, fontWeight: 700 }}>Mode aperçu</span>
+      <span style={{ color: crmV2.textMuted }}>Tu vois la plateforme telle que</span>
+      <span style={{ color: crmV2.text, fontWeight: 700 }}>{teleproUser.name}</span>
+      <span style={{ color: crmV2.textMuted }}>la voit.</span>
+      <Link href="/admin/crm-v2" style={{
+        marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, color: crmV2.goldDark, fontSize: 12, textDecoration: 'none',
+        background: crmV2.bg, border: `1px solid ${crmV2.goldBorder}`, borderRadius: 999, padding: '4px 12px', fontWeight: 700,
+      }}>
+        <ArrowLeft size={12} /> Retour Admin
+      </Link>
+    </div>
+  ) : null
+
+  const overlays = (
+    <>
       {showGuide && <PlatformGuide role="telepro" onClose={() => setShowGuide(false)} />}
       {showResources && <ResourcesPanel role="telepro" onClose={() => setShowResources(false)} />}
 
-      {/* ── Modal fiche RDV ─────────────────────────────────────────────── */}
+      {/* Fiche RDV du planning */}
       {selectedRdv && (
-        <TeleproRdvModal
+        <RdvDetailDrawer
           rdv={selectedRdv}
           noteValue={selectedRdv.id in editingNotes ? editingNotes[selectedRdv.id] : (selectedRdv.notes || '')}
           onNoteChange={val => setEditingNotes(prev => ({ ...prev, [selectedRdv.id]: val }))}
@@ -1435,1315 +684,25 @@ export default function TeleproClient({
         />
       )}
 
-      {/* ── Onglet Agenda équipe ─────────────────────────────────────────── */}
-      {/* Tous les RDV de la semaine (toute l'équipe) : permet au télépro de
-          repérer où il reste de la place avant de placer un RDV. */}
-      {activeTab === 'agenda' && !isAdmin && (
-        <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-          <WeekCalendar teamView />
-        </div>
-      )}
-
-      {/* ── Onglet Suivi RDV ─────────────────────────────────────────────── */}
-      {/* Tableau de suivi rempli automatiquement à chaque RDV placé par le
-          télépro ; statut dérivé de l'agenda, modifiable à la main. */}
-      {activeTab === 'suivi' && !isAdmin && (
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 20px' }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#0e1e35', marginBottom: 4 }}>Suivi de mes RDV</div>
-          <div style={{ fontSize: 12, color: '#4a6070', marginBottom: 16 }}>
-            Une ligne par contact, remplie automatiquement à chaque RDV que tu places.
-          </div>
-          <SuiviRdvPanel teleproId={teleproUser.id} />
-        </div>
-      )}
-
-      {/* ── Onglet Mon Planning ──────────────────────────────────────────── */}
-      {activeTab === 'rdvs' && !isAdmin && (
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <TrendingUp size={18} style={{ color: '#22c55e' }} />
-                Mon Planning
-              </div>
-              <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
-                Suivi de tous tes RDVs placés
-              </div>
-            </div>
-            <button onClick={fetchMyRdvs} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-              <RefreshCw size={14} style={{ animation: myRdvsLoading ? 'spin 1s linear infinite' : 'none' }} />
-            </button>
-          </div>
-
-          {/* Stats KPI — données HubSpot (toutes périodes) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
-            {[
-              { label: 'Total placés', value: hsStats?.total ?? myRdvs.length, color: '#C9A84C', bg: 'rgba(204,172,113,0.1)' },
-              { label: 'Ce mois', value: hsStats?.thisMonth ?? rdvsThisMonth.length, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-              { label: 'Positifs 🎉', value: hsStats?.positifs ?? rdvsPositifs.length, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
-              { label: 'À venir', value: hsStats?.aVenir ?? rdvsAVenir.length, color: '#C9A84C', bg: 'rgba(204,172,113,0.1)' },
-            ].map(stat => (
-              <div key={stat.label} style={{ background: stat.bg, border: `1px solid ${stat.color}25`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: 26, fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: '#4a6070', marginTop: 4, fontWeight: 600 }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-          {hsStats && (
-            <div style={{ fontSize: 11, color: '#4a6070', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#C9A84C' }}>●</span> Statistiques sur l’historique complet
-            </div>
-          )}
-
-          {/* Filtre par statut */}
-          {myRdvs.length > 0 && (
-            <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: '#4a6070', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-                Suivi par statut — clique pour filtrer
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {/* Bouton "Tous" */}
-                <button
-                  onClick={() => setStatusFilter(null)}
-                  style={{
-                    background: statusFilter === null ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: `1px solid ${statusFilter === null ? 'rgba(255,255,255,0.3)' : '#e5ddc8'}`,
-                    borderRadius: 20, padding: '4px 12px', color: statusFilter === null ? '#0e1e35' : '#4a6070',
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  }}
-                >
-                  Tous ({myRdvs.length})
-                </button>
-                {/* Badges par statut */}
-                {TRACKING_STATUSES.map(status => {
-                  const count = statusCounts[status] || 0
-                  if (count === 0) return null
-                  const cfg = STATUS_CONFIG[status]
-                  const active = statusFilter === status
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setStatusFilter(active ? null : status)}
-                      style={{
-                        background: active ? `${cfg.bg}` : 'transparent',
-                        border: `1px solid ${active ? cfg.border : '#e5ddc8'}`,
-                        borderRadius: 20, padding: '4px 12px',
-                        color: active ? cfg.color : '#4a6070',
-                        fontSize: 12, fontWeight: active ? 700 : 600, cursor: 'pointer',
-                        transition: 'all 0.12s',
-                      }}
-                    >
-                      {cfg.label} ({count})
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Toggle vue chronologique / par semaine */}
-          {myRdvs.length > 0 && !statusFilter && (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              <button
-                onClick={() => setPlanningView('chrono')}
-                style={{
-                  background: planningView === 'chrono' ? 'rgba(204,172,113,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${planningView === 'chrono' ? 'rgba(204,172,113,0.4)' : '#475569'}`,
-                  borderRadius: 8, padding: '6px 14px',
-                  color: planningView === 'chrono' ? '#C9A84C' : '#4a6070',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                <List size={12} /> Chronologique
-              </button>
-              <button
-                onClick={() => setPlanningView('week')}
-                style={{
-                  background: planningView === 'week' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${planningView === 'week' ? 'rgba(34,197,94,0.4)' : '#475569'}`,
-                  borderRadius: 8, padding: '6px 14px',
-                  color: planningView === 'week' ? '#22c55e' : '#4a6070',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                <Calendar size={12} /> Par semaine
-              </button>
-            </div>
-          )}
-
-          {myRdvsLoading && myRdvs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#4a6070' }}>
-              <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
-              <div>Chargement…</div>
-            </div>
-          ) : myRdvsError && myRdvs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#ef4444' }}>
-              <AlertCircle size={24} style={{ marginBottom: 12 }} />
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Erreur de chargement</div>
-              <div style={{ fontSize: 12, opacity: 0.9 }}>{myRdvsError}</div>
-              <button
-                onClick={() => {
-                  fetchMyRdvs()
-                }}
-                style={{
-                  marginTop: 12,
-                  background: 'rgba(239,68,68,0.1)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  color: '#ef4444',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Réessayer
-              </button>
-            </div>
-          ) : myRdvs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#4a6070' }}>
-              <Calendar size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aucun RDV placé pour le moment</div>
-              <div style={{ fontSize: 13 }}>Place ton premier RDV depuis l&apos;onglet &quot;Nouveau RDV&quot;</div>
-            </div>
-
-          ) : statusFilter ? (
-            /* ── Vue filtrée par statut ─────────────────────────────── */
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: STATUS_CONFIG[statusFilter]?.color }}>
-                  {STATUS_CONFIG[statusFilter]?.label} — {filteredRdvs.length} RDV{filteredRdvs.length > 1 ? 's' : ''}
-                </div>
-                <button onClick={() => setStatusFilter(null)}
-                  style={{ background: 'transparent', border: 'none', color: '#4a6070', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <X size={12} /> Tout voir
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filteredRdvs.map(rdv => {
-                  const expanded = expandedRdv === rdv.id
-                  const canReplan = REPLAN_STATUSES.includes(rdv.status)
-                  const isRebooking = rebookLoading === rdv.id
-                  return (
-                    <div key={rdv.id} style={{ background: '#e5ddc8', border: '1px solid #e5ddc8', borderRadius: 12, overflow: 'hidden' }}>
-                      <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-
-                        {/* Date */}
-                        <div style={{ minWidth: 70, flexShrink: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>
-                            {format(new Date(rdv.start_at), 'd MMM', { locale: fr })}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#4a6070' }}>
-                            {format(new Date(rdv.start_at), 'HH:mm')}
-                          </div>
-                        </div>
-
-                        {/* Prospect */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35' }}>{rdv.prospect_name}</div>
-                          <div style={{ fontSize: 12, color: '#4a6070', display: 'flex', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
-                            {rdv.formation_type && <span>{rdv.formation_type}</span>}
-                            {rdv.prospect_phone && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#4a6070' }}>
-                                <Phone size={10} /> {rdv.prospect_phone}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Closer + actions */}
-                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                          {rdv.rdv_users ? (
-                            <div style={{ fontSize: 11, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 3 }}>
-                              <User size={10} /> {rdv.rdv_users.name}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 11, color: '#4a6070' }}>Non assigné</div>
-                          )}
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            {canReplan && (
-                              <button
-                                onClick={() => handleReprendre(rdv)}
-                                disabled={isRebooking}
-                                style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 7, padding: '4px 10px', color: '#C9A84C', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                              >
-                                <RotateCcw size={10} />
-                                {isRebooking ? 'Chargement…' : 'Reprendre RDV'}
-                              </button>
-                            )}
-                            <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                              style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '4px 10px', color: '#C9A84C', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                              Voir fiche
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-          ) : planningView === 'chrono' ? (
-            /* ── Vue chronologique ──────────────────────────────────── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {allChronoGroups.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 0', color: '#4a6070' }}>
-                  <Calendar size={28} style={{ marginBottom: 10, opacity: 0.4 }} />
-                  <div style={{ fontSize: 14 }}>Aucun RDV</div>
-                </div>
-              ) : allChronoGroups.map(({ date, rdvs: dayRdvs }) => {
-                const isPast = date < today && !isSameDay(date, today)
-                const isToday = isSameDay(date, today)
-                return (
-                  <div key={date.toISOString()}>
-                    {/* En-tête jour */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', marginBottom: 4 }}>
-                      <div style={{
-                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                        color: isToday ? '#C9A84C' : isPast ? '#475569' : '#4a6070',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                      }}>
-                        {isToday && <span style={{ background: '#C9A84C', borderRadius: 4, padding: '1px 6px', color: '#0e1e35', fontSize: 9, fontWeight: 800, letterSpacing: 0 }}>AUJOURD&apos;HUI</span>}
-                        {isPast && !isToday && <span style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 4, padding: '1px 5px', color: '#475569', fontSize: 9, fontWeight: 700, letterSpacing: 0 }}>PASSÉ</span>}
-                        {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
-                      </div>
-                      <div style={{ flex: 1, height: 1, background: isToday ? 'rgba(204,172,113,0.3)' : '#e5ddc8' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#4a6070' }}>{dayRdvs.length} rdv</span>
-                    </div>
-                    {/* Cartes RDV */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                      {dayRdvs.map(rdv => {
-                        const expanded = expandedRdv === rdv.id
-                        const canReplan = REPLAN_STATUSES.includes(rdv.status)
-                        const isRebooking = rebookLoading === rdv.id
-                        return (
-                          <div key={rdv.id} style={{
-                            background: '#e5ddc8',
-                            border: `1px solid ${isToday ? 'rgba(204,172,113,0.25)' : isPast ? '#f7f4ee' : '#e5ddc8'}`,
-                            borderRadius: 10, overflow: 'hidden', opacity: isPast ? 0.8 : 1,
-                          }}>
-                            <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <div style={{ fontSize: 15, fontWeight: 800, color: isToday ? '#C9A84C' : isPast ? '#475569' : '#4a6070', minWidth: 44, flexShrink: 0 }}>
-                                {format(new Date(rdv.start_at), 'HH:mm')}
-                              </div>
-                              <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: rdv.meeting_type === 'visio' ? 'rgba(204,172,113,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)',
-                              }}>
-                                {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#C9A84C' }} />
-                                  : rdv.meeting_type === 'telephone' ? <PhoneCall size={11} style={{ color: '#22c55e' }} />
-                                  : <MapPin size={11} style={{ color: '#C9A84C' }} />}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {rdv.prospect_name}
-                                </div>
-                                <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', gap: 8 }}>
-                                  {rdv.formation_type && <span>{rdv.formation_type}</span>}
-                                  {rdv.prospect_phone && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={9} />{rdv.prospect_phone}</span>}
-                                </div>
-                              </div>
-                              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                {rdv.rdv_users ? (
-                                  <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <User size={10} /> {rdv.rdv_users.name}
-                                  </div>
-                                ) : (
-                                  <div style={{ fontSize: 11, color: '#4a6070' }}>Non assigné</div>
-                                )}
-                                <StatusBadge status={rdv.status} />
-                                {canReplan && (
-                                  <button
-                                    onClick={() => handleReprendre(rdv)}
-                                    disabled={isRebooking}
-                                    style={{ background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.3)', borderRadius: 7, padding: '3px 8px', color: '#C9A84C', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                                  >
-                                    <RotateCcw size={9} />
-                                    {isRebooking ? '…' : 'Reprendre'}
-                                  </button>
-                                )}
-                              </div>
-                              <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                                style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '4px 10px', color: '#C9A84C', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                                Voir fiche
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            /* ── Vue semaine ────────────────────────────────────────── */
-            <>
-              {/* Navigation semaine */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#e5ddc8', border: '1px solid #e5ddc8', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
-                <button onClick={() => setPlanningWeekStart(w => subWeeks(w, 1))}
-                  style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                  <ChevronLeft size={16} />
-                </button>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0e1e35' }}>
-                    {isCurrentWeek ? 'Cette semaine' : `Semaine du ${format(planningWeekStart, 'd MMM', { locale: fr })} au ${format(addDays(planningWeekStart, 4), 'd MMM yyyy', { locale: fr })}`}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#4a6070', marginTop: 2 }}>
-                    {rdvsThisWeek.length} RDV{rdvsThisWeek.length > 1 ? 's' : ''} cette semaine
-                  </div>
-                </div>
-                <button onClick={() => setPlanningWeekStart(w => addWeeks(w, 1))}
-                  style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              {/* Jours */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {weekDays.map(day => {
-                  const dayRdvs = rdvsThisWeek.filter(r => isSameDay(new Date(r.start_at), day))
-                  const isPast = day < today && !isSameDay(day, today)
-                  return (
-                    <div key={day.toISOString()}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
-                        <div style={{
-                          fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                          color: isSameDay(day, today) ? '#C9A84C' : isPast ? '#475569' : '#4a6070',
-                          minWidth: 120,
-                        }}>
-                          {isSameDay(day, today) && <span style={{ color: '#C9A84C' }}>Aujourd&apos;hui · </span>}
-                          {format(day, 'EEEE d MMM', { locale: fr })}
-                        </div>
-                        <div style={{ flex: 1, height: 1, background: isSameDay(day, today) ? 'rgba(204,172,113,0.3)' : '#e5ddc8' }} />
-                        {dayRdvs.length > 0 && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#4a6070' }}>{dayRdvs.length} rdv</span>
-                        )}
-                      </div>
-
-                      {dayRdvs.length === 0 ? (
-                        <div style={{ paddingLeft: 12, paddingBottom: 6, fontSize: 12, color: '#a89e8a', fontStyle: 'italic' }}>—</div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
-                          {dayRdvs.map(rdv => {
-                            const expanded = expandedRdv === rdv.id
-                            return (
-                              <div key={rdv.id} style={{
-                                background: '#e5ddc8',
-                                border: `1px solid ${isSameDay(day, today) ? 'rgba(204,172,113,0.25)' : '#e5ddc8'}`,
-                                borderRadius: 10, overflow: 'hidden',
-                              }}>
-                                <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                                  <div style={{ fontSize: 15, fontWeight: 800, color: '#C9A84C', minWidth: 44, flexShrink: 0 }}>
-                                    {format(new Date(rdv.start_at), 'HH:mm')}
-                                  </div>
-                                  <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: rdv.meeting_type === 'visio' ? 'rgba(204,172,113,0.15)' : rdv.meeting_type === 'telephone' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)',
-                                  }}>
-                                    {rdv.meeting_type === 'visio' ? <Video size={11} style={{ color: '#C9A84C' }} />
-                                      : rdv.meeting_type === 'telephone' ? <PhoneCall size={11} style={{ color: '#22c55e' }} />
-                                      : <MapPin size={11} style={{ color: '#C9A84C' }} />}
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {rdv.prospect_name}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', gap: 8 }}>
-                                      {rdv.formation_type && <span>{rdv.formation_type}</span>}
-                                      {rdv.prospect_phone && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={9} />{rdv.prospect_phone}</span>}
-                                    </div>
-                                  </div>
-                                  <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                                    {rdv.rdv_users ? (
-                                      <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                        <User size={10} /> {rdv.rdv_users.name}
-                                      </div>
-                                    ) : (
-                                      <div style={{ fontSize: 11, color: '#4a6070' }}>Non assigné</div>
-                                    )}
-                                    <StatusBadge status={rdv.status} />
-                                    <button onClick={() => { setSelectedRdv(rdv); setEditingNotes(prev => ({ ...prev, [rdv.id]: rdv.notes || '' })) }}
-                                      style={{ background: 'rgba(204,172,113,0.1)', border: '1px solid rgba(204,172,113,0.25)', borderRadius: 7, padding: '3px 8px', color: '#C9A84C', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-                                      Voir fiche
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {!isCurrentWeek && (
-                <div style={{ textAlign: 'center', marginTop: 16 }}>
-                  <button onClick={() => setPlanningWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-                    style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, padding: '7px 16px', fontSize: 12, color: '#4a6070', cursor: 'pointer', fontWeight: 600 }}>
-                    Revenir à cette semaine
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ── Onglet Nouveau RDV ─────────────────────────────────────────── */}
-      {(activeTab === 'form' || isAdmin) && !isLinovaBrandUser && (
-        <div style={{ maxWidth: 780, margin: '0 auto', padding: '24px 20px' }}>
-
-          {/* Étape 1 */}
-          <div style={{
-            background: '#e5ddc8',
-            border: contact ? '1px solid rgba(34,197,94,0.35)' : '1px solid #e5ddc8',
-            borderRadius: 14, padding: '18px 20px', marginBottom: 20, transition: 'border-color 0.2s',
-          }}>
-            {contact ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <User size={17} style={{ color: '#22c55e' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>{contactName || '(Sans nom)'}</div>
-                    <div style={{ fontSize: 12, color: '#4a6070' }}>{contactEmail} · CRM #{contact.id}</div>
-                  </div>
-                </div>
-                <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <X size={11} /> Changer
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Search size={14} style={{ color: '#C9A84C' }} />
-                  Étape 1 — Trouver le contact dans le CRM
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                  {([
-                    { key: 'search' as const, icon: <Search size={11} />, label: 'Rechercher dans le CRM' },
-                    { key: 'new' as const, icon: <Plus size={11} />, label: 'Nouveau contact' },
-                  ]).map(tab => (
-                    <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null); setSearchResults([]) }}
-                      style={{
-                        background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)' : 'transparent',
-                        border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                        borderRadius: 8, padding: '5px 12px',
-                        color: lookupMode === tab.key ? tab.key === 'new' ? '#22c55e' : '#C9A84C' : '#4a6070',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                      }}>
-                      {tab.icon} {tab.label}
-                    </button>
-                  ))}
-                </div>
-                {lookupMode === 'search' && (
-                  <>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input value={lookupInput} onChange={e => setLookupInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchContact()}
-                        placeholder="Nom, prénom, email ou téléphone…"
-                        style={{ ...inputStyle, flex: 1 }} autoFocus />
-                      <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
-                        style={{ background: lookupInput.trim() ? '#C9A84C' : '#f7f4ee', color: lookupInput.trim() ? '#0e1e35' : '#4a6070', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {lookupLoading ? '…' : 'Rechercher'}
-                      </button>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#4a6070', marginTop: 10 }}>
-                      Recherche dans la base contacts du CRM (nom, email, téléphone).
-                    </div>
-                    {renderRecentLookups()}
-                    {searchResults.length > 0 && (
-                      <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
-                        {searchResults.map(r => {
-                          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
-                          return (
-                            <button key={r.hubspot_contact_id}
-                              onClick={() => pickSearchResult(r)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                width: '100%', padding: '10px 14px',
-                                background: 'transparent', border: 'none',
-                                borderBottom: '1px solid #f7f4ee',
-                                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                              }}
-                              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                            >
-                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <User size={14} style={{ color: '#C9A84C' }} />
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
-                                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
-                                </div>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-                {lookupMode === 'new' && (() => {
-                  const allFilled =
-                    newFirstname.trim() && newLastname.trim() && newEmail.trim() &&
-                    newPhone.trim() && newDepartement.trim() && newClasse.trim()
-                  const canCreate =
-                    !!allFilled && !newEmailFormatError && !newEmailExisting && !newEmailChecking && !creating
-                  return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {/* Email en premier */}
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="email" value={newEmail}
-                        onChange={e => setNewEmail(e.target.value)}
-                        placeholder="Email *"
-                        style={{
-                          ...inputStyle,
-                          borderColor: newEmailFormatError ? '#ef4444' : (newEmailExisting ? '#f0d28a' : (inputStyle as React.CSSProperties).borderColor),
-                        }}
-                        autoFocus
-                      />
-                      {newEmailChecking && (
-                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>
-                          vérification…
-                        </span>
-                      )}
-                    </div>
-                    {newEmailFormatError && (
-                      <div style={{ color: '#b91c1c', fontSize: 12, marginTop: -4 }}>{newEmailFormatError}</div>
-                    )}
-                    {newEmailExisting && (
-                      <div style={{ background: '#fff8e6', border: '1px solid #f0d28a', borderRadius: 10, padding: '12px 14px' }}>
-                        <div style={{ fontWeight: 700, color: '#8a6e3a', fontSize: 13, marginBottom: 4 }}>⚠ Ce contact existe déjà</div>
-                        <div style={{ fontSize: 13, color: '#6b5630', lineHeight: 1.5, marginBottom: 8 }}>
-                          Un contact avec cet email est déjà dans le CRM
-                          {newEmailExisting.firstname || newEmailExisting.lastname
-                            ? <> au nom de <strong>{[newEmailExisting.firstname, newEmailExisting.lastname].filter(Boolean).join(' ')}</strong></>
-                            : null}.
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              // Charge le contact existant DANS le flow télépro (pas de redirection vers le CRM admin)
-                              try {
-                                const res = await fetch(`/api/crm/contacts?search=${encodeURIComponent(newEmailExisting.email)}&limit=1&all_classes=1&show_external=1&global_search=1`)
-                                const data = await res.json()
-                                const found = (data?.data ?? [])[0]
-                                if (found) {
-                                  pickSearchResult(found)
-                                  setLookupMode('search')
-                                  setNewFirstname(''); setNewLastname(''); setNewEmail(''); setNewPhone('')
-                                  setNewDepartement(''); setNewClasse(''); setNewFormation('')
-                                  setNewEmailExisting(null); setNewEmailFormatError(null)
-                                } else {
-                                  setLookupError('Contact introuvable.')
-                                }
-                              } catch {
-                                setLookupError('Erreur lors du chargement du contact.')
-                              }
-                            }}
-                            style={{ padding: '7px 12px', background: '#c6aa7c', border: 'none', borderRadius: 6, color: '#0f2842', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            Utiliser ce contact pour le RDV →
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inputStyle} />
-                      <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={inputStyle} />
-                    </div>
-                    <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone *" style={inputStyle} />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département * (ex: 75)" maxLength={3} style={inputStyle} />
-                      <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                        <option value="">Classe actuelle *</option>
-                        {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <button onClick={createNewContact} disabled={!canCreate}
-                      style={{
-                        background: canCreate ? '#22c55e' : '#e5ddc8',
-                        color: canCreate ? '#ffffff' : '#94a3b8',
-                        border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700,
-                        cursor: !canCreate ? 'not-allowed' : (creating ? 'wait' : 'pointer'),
-                        opacity: canCreate ? 1 : 0.85,
-                      }}>
-                      {creating ? 'Création…' : 'Créer le contact'}
-                    </button>
-                  </div>
-                  )
-                })()}
-                {lookupError && (
-                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '9px 14px', color: '#ef4444', fontSize: 13, marginTop: 10 }}>
-                    {lookupError}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Étape 2 */}
-          {contact && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div>
-                <div style={{ marginBottom: 20 }}>
-                  <div style={labelStyle}><Calendar size={12} style={{ color: '#C9A84C' }} /> Date du RDV *</div>
-                  {(() => {
-                    const monthStart = startOfMonth(calMonth)
-                    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
-                    const gridDays = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i))
-                    const canPrev = isAfter(monthStart, startOfMonth(today))
-                    const canNext = isBefore(monthStart, startOfMonth(maxBookingDate))
-                    const navBtn = (enabled: boolean): React.CSSProperties => ({
-                      background: enabled ? '#e5ddc8' : 'transparent',
-                      border: '1px solid #e5ddc8', borderRadius: 8, padding: '4px 8px',
-                      color: enabled ? '#4a6070' : '#cbbf9e', cursor: enabled ? 'pointer' : 'not-allowed',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    })
-                    return (
-                      <div style={{ background: '#faf7f0', border: '1px solid #e5ddc8', borderRadius: 10, padding: 10 }}>
-                        {/* En-tête mois + navigation */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                          <button type="button" disabled={!canPrev} onClick={() => canPrev && setCalMonth(subMonths(monthStart, 1))} style={navBtn(canPrev)}>
-                            <ChevronLeft size={14} />
-                          </button>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#4a6070', textTransform: 'capitalize' }}>
-                            {format(monthStart, 'MMMM yyyy', { locale: fr })}
-                          </span>
-                          <button type="button" disabled={!canNext} onClick={() => canNext && setCalMonth(addMonths(monthStart, 1))} style={navBtn(canNext)}>
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                        {/* Jours de la semaine */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3 }}>
-                          {['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(d => (
-                            <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#a4844c', textTransform: 'uppercase', padding: '2px 0' }}>{d}</div>
-                          ))}
-                        </div>
-                        {/* Grille des jours */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-                          {gridDays.map(day => {
-                            const inMonth = isSameMonth(day, monthStart)
-                            const disabled = !inMonth || isBefore(day, today) || isAfter(day, maxBookingDate)
-                            const sel = selectedDate && isSameDay(day, selectedDate)
-                            return (
-                              <button
-                                key={day.toISOString()}
-                                type="button"
-                                disabled={disabled}
-                                onClick={() => !disabled && handleSelectDate(day)}
-                                style={{
-                                  aspectRatio: '1 / 1',
-                                  background: sel ? 'rgba(204,172,113,0.18)' : disabled ? 'transparent' : '#ffffff',
-                                  border: `1px solid ${sel ? 'rgba(204,172,113,0.55)' : disabled ? 'transparent' : '#e5ddc8'}`,
-                                  borderRadius: 8,
-                                  color: sel ? '#a4844c' : disabled ? '#cbbf9e' : '#4a6070',
-                                  fontSize: 13, fontWeight: sel ? 700 : 400,
-                                  cursor: disabled ? 'default' : 'pointer',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  opacity: !inMonth ? 0 : 1,
-                                }}
-                              >
-                                {format(day, 'd')}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-                {selectedDate && (
-                  <div>
-                    <div style={labelStyle}>
-                      <Clock size={12} style={{ color: '#22c55e' }} /> Créneau *
-                      {slots.length > 0 && <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>{slots.length} dispo</span>}
-                    </div>
-                    {slotsLoading ? (
-                      <div style={{ color: '#4a6070', fontSize: 13, padding: '12px 0' }}>Chargement…</div>
-                    ) : slots.length === 0 ? (
-                      <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13 }}>
-                        Aucun créneau disponible.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-                        {slots.map(slot => {
-                          const sel = selectedSlot?.start === slot.start
-                          return (
-                            <button key={slot.start} onClick={() => setSelectedSlot(slot)}
-                              style={{ background: sel ? 'rgba(34,197,94,0.12)' : '#e5ddc8', border: `1px solid ${sel ? 'rgba(34,197,94,0.4)' : '#e5ddc8'}`, borderRadius: 6, padding: '7px', color: sel ? '#22c55e' : '#4a6070', fontSize: 13, fontWeight: sel ? 700 : 400, cursor: 'pointer', position: 'relative' }}>
-                              {format(new Date(slot.start), 'HH:mm')}
-                              {slot.count && slot.count > 1 && <span style={{ position: 'absolute', top: 2, right: 4, fontSize: 9, color: '#4a6070' }}>{slot.count}</span>}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Mail size={12} style={{ color: '#06b6d4' }} /> Email
-                    {emailSynced && <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>Mis à jour</span>}
-                  </div>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={syncEmail} placeholder="email@exemple.com" style={inputStyle} />
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Mail size={12} style={{ color: '#a78bfa' }} /> Email parent <span style={{ fontSize: 10, color: '#4a6070', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(facultatif)</span></div>
-                  <input type="email" value={emailParent} onChange={e => setEmailParent(e.target.value)} placeholder="parent@exemple.com" style={inputStyle} />
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Phone size={12} style={{ color: '#C9A84C' }} /> Téléphone *</div>
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex : 0612345678" style={inputStyle} />
-                </div>
-                {/* Téléprospecteur déjà assigné — affiché en grisé UNIQUEMENT si ≠ télépro courant
-                    (signale qu'au Valider, le contact sera réassigné au télépro courant) */}
-                {existingTeleproId && existingTeleproId !== teleproUser.id && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={labelStyle}>
-                      <User size={12} style={{ color: '#94a3b8' }} /> Téléprospecteur actuel du contact
-                      <span style={{ fontSize: 10, color: '#a4844c', fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(sera réassigné à vous au Valider)</span>
-                    </div>
-                    <input
-                      type="text"
-                      value={existingTeleproName || 'Télépro inconnu'}
-                      disabled
-                      style={{
-                        ...inputStyle,
-                        background: '#f7f4ee',
-                        color: '#4a6070',
-                        cursor: 'not-allowed',
-                      }}
-                    />
-                  </div>
-                )}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><MapPin size={12} style={{ color: '#C9A84C' }} /> Département *</div>
-                  <input type="text" value={departement} onChange={e => setDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Ex : 75" maxLength={3} style={inputStyle} />
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><GraduationCap size={12} style={{ color: '#a855f7' }} /> Classe actuelle *</div>
-                  <select value={classeActuelle} onChange={e => setClasseActuelle(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="">Sélectionner…</option>
-                    {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Tag size={12} style={{ color: '#22c55e' }} /> Formation souhaitée *</div>
-                  <select value={formation} onChange={e => setFormation(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="">Sélectionner…</option>
-                    {FORMATIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={labelStyle}><Video size={12} style={{ color: '#C9A84C' }} /> Type de RDV</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {([
-                      { key: 'visio' as const, icon: <Video size={12} />, label: 'Visio', color: '#C9A84C' },
-                      { key: 'presentiel' as const, icon: <MapPin size={12} />, label: 'Présentiel', color: '#C9A84C' },
-                    ]).map(t => (
-                      <button key={t.key} type="button" onClick={() => {
-                        setMeetingType(t.key)
-                        if (t.key === 'visio' && !meetingLink) setMeetingLink(generateJitsiLink())
-                        if (t.key === 'presentiel' && !meetingCampus) setMeetingCampus(CAMPUS_OPTIONS[0])
-                        setLinkCopied(false)
-                      }}
-                        style={{ flex: 1, background: meetingType === t.key ? `${t.color}18` : '#f7f4ee', border: `1px solid ${meetingType === t.key ? `${t.color}60` : '#e5ddc8'}`, borderRadius: 8, padding: '8px 6px', color: meetingType === t.key ? t.color : '#4a6070', fontSize: 12, fontWeight: meetingType === t.key ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        {t.icon} {t.label}
-                      </button>
-                    ))}
-                  </div>
-                  {meetingType === 'presentiel' && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={labelStyle}><MapPin size={12} style={{ color: '#C9A84C' }} /> Campus (présentiel)</div>
-                      <select value={meetingCampus} onChange={e => setMeetingCampus(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                        {CAMPUS_OPTIONS.map(campus => <option key={campus} value={campus}>{campus}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {meetingType === 'visio' && meetingLink && (
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '8px 12px' }}>
-                      <Video size={13} style={{ color: '#C9A84C', flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#4a6070', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meetingLink}</span>
-                      <button type="button" onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
-                        style={{ background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)', border: 'none', borderRadius: 6, padding: '4px 8px', color: linkCopied ? '#22c55e' : '#C9A84C', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        {linkCopied ? <><Check size={10} /> Copié</> : <><Copy size={10} /> Copier</>}
-                      </button>
-                      <button type="button" onClick={() => setMeetingLink(generateJitsiLink())} style={{ background: 'transparent', border: 'none', padding: 4, color: '#4a6070', fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>↻</button>
-                    </div>
-                  )}
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                  <div style={labelStyle}>
-                    <FileText size={12} style={{ color: '#06b6d4' }} /> Notes d&apos;appel
-                    <span style={{ fontSize: 10, color: '#475569', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>→ transaction</span>
-                  </div>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Situation, motivations, objections…" rows={4} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
-                </div>
-                {error && (
-                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, marginBottom: 12 }}>
-                    {error}
-                  </div>
-                )}
-                {selectedSlot && (
-                  <div style={{ background: 'rgba(204,172,113,0.08)', border: '1px solid rgba(204,172,113,0.2)', borderRadius: 8, padding: '9px 14px', color: '#C9A84C', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
-                    {format(new Date(selectedSlot.start), 'EEEE d MMMM à HH:mm', { locale: fr })}
-                  </div>
-                )}
-                <button onClick={submit} disabled={submitting || !canSubmit}
-                  style={{ width: '100%', background: canSubmit ? '#C9A84C' : '#f7f4ee', color: canSubmit ? '#0e1e35' : '#4a6070', border: 'none', borderRadius: 10, padding: '13px', fontSize: 14, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'default' }}>
-                  {submitting ? 'Enregistrement…' : 'Valider le RDV'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'form' && isLinovaBrandUser && !isAdmin && (
-        <div style={{ maxWidth: 780, margin: '0 auto', padding: '24px 20px' }}>
-          <div style={{
-            background: '#ffffff',
-            border: contact ? '1px solid rgba(34,197,94,0.35)' : '1px solid #e5ddc8',
-            borderRadius: 14, padding: '18px 20px', marginBottom: 16,
-          }}>
-            {contact ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <User size={17} style={{ color: '#22c55e' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#0e1e35' }}>
-                      {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || '(Sans nom)'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#4a6070' }}>{contact.properties.email || '—'} · CRM #{contact.id}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={resetContact} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <X size={11} /> Changer
-                  </button>
-                  <button onClick={() => setShowLinovaModal(true)} style={{ background: '#C9A84C', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#0e1e35', fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <Calendar size={11} /> Programmer RDV Linova
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Search size={14} style={{ color: '#C9A84C' }} />
-                  Nouveau RDV Linova — choisir un contact
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                  {([
-                    { key: 'search' as const, icon: <Search size={11} />, label: 'Contact existant CRM' },
-                    { key: 'new' as const, icon: <Plus size={11} />, label: 'Nouveau contact' },
-                  ]).map(tab => (
-                    <button key={tab.key} onClick={() => { setLookupMode(tab.key); setLookupInput(''); setLookupError(null); setSearchResults([]) }}
-                      style={{
-                        background: lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.15)' : 'rgba(204,172,113,0.15)' : 'transparent',
-                        border: `1px solid ${lookupMode === tab.key ? tab.key === 'new' ? 'rgba(34,197,94,0.4)' : 'rgba(204,172,113,0.4)' : '#e5ddc8'}`,
-                        borderRadius: 8, padding: '5px 12px',
-                        color: lookupMode === tab.key ? tab.key === 'new' ? '#22c55e' : '#C9A84C' : '#4a6070',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                      }}>
-                      {tab.icon} {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {lookupMode === 'search' && (
-                  <>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input value={lookupInput} onChange={e => setLookupInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchContact()}
-                        placeholder="Nom, prénom, email ou téléphone…"
-                        style={{ ...inputStyle, flex: 1 }} autoFocus />
-                      <button onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
-                        style={{ background: lookupInput.trim() ? '#C9A84C' : '#f7f4ee', color: lookupInput.trim() ? '#0e1e35' : '#4a6070', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {lookupLoading ? '…' : 'Rechercher'}
-                      </button>
-                    </div>
-                    {renderRecentLookups()}
-                    {searchResults.length > 0 && (
-                      <div style={{ marginTop: 12, border: '1px solid #e5ddc8', borderRadius: 10, background: '#ffffff', maxHeight: 320, overflowY: 'auto' }}>
-                        {searchResults.map(r => {
-                          const fullName = [r.firstname, r.lastname].filter(Boolean).join(' ') || '(Sans nom)'
-                          return (
-                            <button key={r.hubspot_contact_id}
-                              onClick={() => pickSearchResult(r)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                width: '100%', padding: '10px 14px',
-                                background: 'transparent', border: 'none',
-                                borderBottom: '1px solid #f7f4ee',
-                                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                              }}
-                              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                            >
-                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(204,172,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <User size={14} style={{ color: '#C9A84C' }} />
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
-                                <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {[r.email, r.phone, r.classe_actuelle].filter(Boolean).join(' · ') || '—'}
-                                </div>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {lookupMode === 'new' && (() => {
-                  const allFilled =
-                    newFirstname.trim() && newLastname.trim() && newEmail.trim() &&
-                    newPhone.trim() && newDepartement.trim() && newClasse.trim()
-                  const canCreate =
-                    !!allFilled && !newEmailFormatError && !newEmailExisting && !newEmailChecking && !creating
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="email" value={newEmail}
-                          onChange={e => setNewEmail(e.target.value)}
-                          placeholder="Email *"
-                          style={{
-                            ...inputStyle,
-                            borderColor: newEmailFormatError ? '#ef4444' : (newEmailExisting ? '#f0d28a' : (inputStyle as React.CSSProperties).borderColor),
-                          }}
-                          autoFocus
-                        />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <input value={newFirstname} onChange={e => setNewFirstname(e.target.value)} placeholder="Prénom *" style={inputStyle} />
-                        <input value={newLastname} onChange={e => setNewLastname(e.target.value)} placeholder="Nom *" style={inputStyle} />
-                      </div>
-                      <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Téléphone *" style={inputStyle} />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <input type="text" value={newDepartement} onChange={e => setNewDepartement(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Département * (ex: 75)" maxLength={3} style={inputStyle} />
-                        <select value={newClasse} onChange={e => setNewClasse(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                          <option value="">Classe actuelle *</option>
-                          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <button onClick={createNewContact} disabled={!canCreate}
-                        style={{
-                          background: canCreate ? '#22c55e' : '#e5ddc8',
-                          color: canCreate ? '#ffffff' : '#94a3b8',
-                          border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700,
-                          cursor: !canCreate ? 'not-allowed' : (creating ? 'wait' : 'pointer'),
-                          opacity: canCreate ? 1 : 0.85,
-                        }}>
-                        {creating ? 'Création…' : 'Créer le contact'}
-                      </button>
-                    </div>
-                  )
-                })()}
-
-                {lookupError && (
-                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '9px 14px', color: '#ef4444', fontSize: 13, marginTop: 10 }}>
-                    {lookupError}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Onglet Historique ───────────────────────────────────────────── */}
-      {activeTab === 'historique' && !isAdmin && (
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-
-          {/* En-tête */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0e1e35', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} style={{ color: '#C9A84C' }} />
-                Historique RDV
-              </div>
-              <div style={{ fontSize: 12, color: '#4a6070', marginTop: 2 }}>
-                Diploma Santé 2026-2027 — RDVs passés depuis le 1er oct. 2025
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {histLoading && (
-                <span style={{ fontSize: 12, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Chargement…
-                </span>
-              )}
-              <button onClick={fetchHistorique} style={{ background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4a6070' }}>
-                <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
-              </button>
-              {!histLoading && (
-                <span style={{ fontSize: 12, color: '#4a6070' }}>
-                  {histRdvs.length} RDV{histRdvs.length > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Filtres par stage */}
-          {uniqueStages.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-              {stageFilter && (
-                <button
-                  onClick={() => setStageFilter(null)}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid #475569', borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#4a6070', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  ✕ Tous ({histRdvs.length})
-                </button>
-              )}
-              {uniqueStages.map(s => (
-                <button
-                  key={s.label}
-                  onClick={() => setStageFilter(stageFilter === s.label ? null : s.label)}
-                  style={{
-                    background: stageFilter === s.label ? `${s.color}22` : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${stageFilter === s.label ? `${s.color}66` : '#475569'}`,
-                    borderRadius: 20, padding: '3px 10px',
-                    color: stageFilter === s.label ? s.color : '#4a6070',
-                    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  }}
-                >
-                  {s.label} <span style={{ opacity: 0.7 }}>{s.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!histLoading && histRdvs.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#4a6070', fontSize: 13 }}>
-              {teleproUser.hubspot_owner_id
-                ? 'Aucun RDV trouvé depuis le 1er octobre 2025 sur la pipeline Diploma Santé 2026-2027.'
-                : 'Aucun hubspot_owner_id configuré pour ce télépro.'}
-            </div>
-          )}
-
-          {filteredHistRdvs.length === 0 && stageFilter && !histLoading && (
-            <div style={{ textAlign: 'center', padding: '30px 20px', color: '#4a6070', fontSize: 13 }}>
-              Aucun RDV avec le statut «&nbsp;{stageFilter}&nbsp;».
-            </div>
-          )}
-
-          {filteredHistRdvs.map(rdv => {
-            const RESULT_STATUSES = ['no_show', 'annule', 'a_travailler', 'pre_positif', 'positif', 'negatif']
-            const resultCfg = RESULT_STATUSES.includes(rdv.status) ? STATUS_CONFIG[rdv.status as AppointmentStatus] : null
-
-            return (
-              <div
-                key={rdv.id}
-                onClick={() => setSelectedHistRdv(rdv)}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #e5ddc8',
-                  borderRadius: 12, marginBottom: 10, overflow: 'hidden',
-                  cursor: 'pointer', transition: 'border-color 0.15s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5ddc8')}
-              >
-                {/* Ligne principale */}
-                <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ minWidth: 80, fontSize: 11, color: '#4a6070', flexShrink: 0 }}>
-                    {new Date(rdv.start_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                  </div>
-                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#0e1e35', minWidth: 0 }}>
-                    {rdv.prospect_name}
-                    {rdv.rdv_users && (
-                      <span style={{ marginLeft: 8, fontSize: 11, color: '#4a6070', fontWeight: 400 }}>
-                        → {rdv.rdv_users.name}
-                      </span>
-                    )}
-                  </div>
-                  {rdv.hs_stage_label && rdv.hs_stage_color && (
-                    <span style={{
-                      background: `${rdv.hs_stage_color}22`, border: `1px solid ${rdv.hs_stage_color}66`,
-                      color: rdv.hs_stage_color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                      flexShrink: 0,
-                    }}>
-                      {rdv.hs_stage_label}
-                    </span>
-                  )}
-                  {rdv.repop_form_date && (
-                    <span style={{
-                      background: 'rgba(204,172,113,0.15)', border: '1px solid rgba(204,172,113,0.4)',
-                      color: '#C9A84C', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-                      flexShrink: 0,
-                    }}>
-                      🔁 Repop {format(new Date(rdv.repop_form_date), 'd MMM', { locale: fr })}
-                    </span>
-                  )}
-                </div>
-
-                {/* Infos prospect */}
-                <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {rdv.prospect_phone && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
-                      <Phone size={10} /> {rdv.prospect_phone}
-                    </span>
-                  )}
-                  {rdv.formation_type && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4a6070', background: '#f7f4ee', borderRadius: 5, padding: '2px 8px' }}>
-                      <Tag size={10} style={{ color: '#C9A84C' }} />
-                      Filière : <strong style={{ color: '#0e1e35' }}>{rdv.formation_type}</strong>
-                    </span>
-                  )}
-                  {resultCfg && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, background: resultCfg.bg, color: resultCfg.color, border: `1px solid ${resultCfg.border}`, borderRadius: 5, padding: '2px 8px', fontWeight: 600 }}>
-                      {resultCfg.label}
-                    </span>
-                  )}
-                </div>
-
-                {/* Boutons d'action pour "À replanifier" */}
-                {rdv.hs_stage_label === 'À replanifier' && (
-                  <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleReprendre(rdv) }}
-                      disabled={rebookLoading === rdv.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: 'rgba(204,172,113,0.12)', border: '1px solid rgba(204,172,113,0.35)',
-                        borderRadius: 7, padding: '5px 12px', color: '#C9A84C',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <RotateCcw size={12} />
-                      {rebookLoading === rdv.id ? 'Chargement…' : 'Reprendre RDV'}
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); marquerPerdu(rdv) }}
-                      disabled={closingDeal === rdv.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                        borderRadius: 7, padding: '5px 12px', color: '#ef4444',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <X size={12} />
-                      {closingDeal === rdv.id ? 'En cours…' : 'Marquer comme perdu'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Suivi post-RDV pour "Délai de réflexion" */}
-                {rdv.hs_stage_label === 'Délai de réflexion' && (
-                  <div style={{ padding: '0 20px 14px' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: '#4a6070', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Suivi post-RDV
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {SUIVI_OPTIONS.map(opt => {
-                        const isActive = rdv.telepro_suivi === opt.value
-                        return (
-                          <button
-                            key={opt.value}
-                            onClick={() => saveSuivi(rdv, isActive ? null : opt.value)}
-                            disabled={savingSuivi === rdv.id}
-                            style={{
-                              background: isActive ? `${opt.color}22` : 'rgba(255,255,255,0.04)',
-                              border: `1px solid ${isActive ? `${opt.color}66` : '#475569'}`,
-                              borderRadius: 7, padding: '5px 12px',
-                              color: isActive ? opt.color : '#4a6070',
-                              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                            }}
-                          >
-                            {opt.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {rdv.telepro_suivi && rdv.telepro_suivi_at && (
-                      <p style={{ fontSize: 11, color: '#4a6070', margin: '6px 0 0' }}>
-                        Mis à jour le {new Date(rdv.telepro_suivi_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* ── Onglet Mes Contacts (filtré par TÉLÉPRO au niveau CONTACT —
-            crm_contacts.telepro_user_id, aligné sur la vue admin "Télépro est Elsa".
-            Inclut tous les contacts dont Elsa est le télépro, même sans deal associé). ──── */}
-      {activeTab === 'contacts' && !isAdmin && (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {teleproCrmFilterId ? (
-            <UserCRMView
-              ownerParam="telepro_id"
-              ownerId={teleproCrmFilterId}
-              mode="telepro"
-              onTotalChange={setCrmTotal}
-            />
-          ) : (
-            <div style={{ padding: 24, color: '#4a6070', fontSize: 13 }}>
-              Aucun identifiant CRM configuré pour ce télépro.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Onglet Mes Transactions (télépro sur le deal) ─────────── */}
-      {activeTab === 'transactions' && !isAdmin && (
-        <div style={{ width: '100%' }}>
-          <iframe
-            src={`/telepro/transactions?telepro=${encodeURIComponent(teleproDealsFilterId)}&embed=1`}
-            style={{ width: '100%', height: 'calc(100vh - 180px)', border: 'none', display: 'block' }}
-            title="Kanban Mes Transactions"
-          />
-        </div>
-      )}
-
-      {/* ── Onglet Repop ────────────────────────────────────────────── */}
-      {activeTab === 'repop' && !isAdmin && (
-        <RepopJournal
-          hubspotOwnerId={teleproUser.hubspot_owner_id ?? undefined}
-          scope="telepro"
-          scopeId={teleproUser.id}
-        />
-      )}
-
-      {showLinovaModal && contact && (
+      {form.showLinovaModal && form.contact && (
         <LinovaAppointmentModal
           contact={{
-            id: contact.id,
-            firstname: contact.properties.firstname ?? '',
-            lastname: contact.properties.lastname ?? '',
-            email: contact.properties.email ?? '',
-            phone: contact.properties.phone ?? '',
-            classe_actuelle: contact.properties.classe_actuelle ?? '',
+            id: form.contact.id,
+            firstname: form.contact.properties.firstname ?? '',
+            lastname: form.contact.properties.lastname ?? '',
+            email: form.contact.properties.email ?? '',
+            phone: form.contact.properties.phone ?? '',
+            classe_actuelle: form.contact.properties.classe_actuelle ?? '',
           }}
-          onClose={() => setShowLinovaModal(false)}
+          onClose={() => form.setShowLinovaModal(false)}
           onSaved={() => {
-            setShowLinovaModal(false)
+            form.setShowLinovaModal(false)
             fetchMyRdvs()
           }}
         />
       )}
 
-      {/* Modal AppointmentModal pour l'historique */}
+      {/* Fiche RDV de l'historique */}
       {selectedHistRdv && (
         <AppointmentModal
           appointment={{
@@ -2774,13 +733,146 @@ export default function TeleproClient({
           }}
         />
       )}
+    </>
+  )
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
+  const newRdvLabel = isLinovaBrandUser ? 'Nouveau RDV Linova' : 'Nouveau RDV'
+
+  // ─── Mobile : en-têtes blancs + barre d'onglets navy en bas ────────────
+  if (isMobile) {
+    const mobileTab: TpMobileTab = isAdmin ? 'form'
+      : activeTab === 'rdvs' ? 'planning'
+      : activeTab === 'suivi' ? 'suivi'
+      : activeTab === 'contacts' ? 'contacts'
+      : activeTab === 'form' ? 'form'
+      : 'plus'
+    const plusItems: TpMenuItem[] = [
+      { key: 'agenda', label: 'Agenda équipe', icon: <CalendarDays size={18} />, onClick: () => goTab('agenda'), active: activeTab === 'agenda' },
+      { key: 'transactions', label: 'Mes transactions', icon: <Briefcase size={18} />, onClick: () => goTab('transactions'), active: activeTab === 'transactions', badge: txTotal },
+      { key: 'repop', label: 'Repop', icon: <Repeat2 size={18} />, onClick: () => goTab('repop'), active: activeTab === 'repop' },
+      ...(!previewMode ? [
+        { key: 'support', label: 'Service technique', icon: <LifeBuoy size={18} />, href: '/support', badge: supportUnread },
+        { key: 'logout', label: 'Déconnexion', icon: <LogOut size={18} />, onClick: () => { void logout() }, danger: true },
+      ] : []),
+    ]
+    return (
+      <div className="crm-v2" style={{
+        height: '100dvh', display: 'flex', flexDirection: 'column', background: crmV2.bgSoft, color: crmV2.text,
+        fontFamily: crmV2.font, overflow: 'hidden',
+      }}>
+        {previewBanner}
+        <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {activeTab === 'rdvs' && !isAdmin && (
+            <div style={{
+              background: crmV2.bg, borderBottom: `1px solid ${crmV2.border}`, padding: 12, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={38} height={38} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Bonjour {firstName}</div>
+                  <div style={{ fontSize: 12, color: crmV2.textMuted }}>Placement RDV — Télépro</div>
+                </div>
+              </div>
+              <TpRoundButton onClick={fetchMyRdvs} title="Actualiser" spinning={myRdvsLoading}><RefreshCw size={15} /></TpRoundButton>
+            </div>
+          )}
+          {isAdmin && !previewMode && (
+            <div style={{ padding: '10px 12px 0' }}>
+              <CrmV2Button size="sm" icon={<ArrowLeft size={12} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
+            </div>
+          )}
+          {tabContent()}
+        </main>
+        {!isAdmin && (
+          <TpTabBar
+            active={plusOpen ? 'plus' : mobileTab}
+            newLabel="Nouveau RDV"
+            onPlanning={() => goTab('rdvs')}
+            onSuivi={() => goTab('suivi')}
+            onNew={() => goTab('form')}
+            onContacts={() => goTab('contacts')}
+            onPlus={() => setPlusOpen(true)}
+          />
+        )}
+        <TpPlusSheet open={plusOpen} onClose={() => setPlusOpen(false)} title="Hub Diploma · Télépro" items={plusItems} />
+        {overlays}
+      </div>
+    )
+  }
+
+  // ─── Ordinateur : en-tête blanc + onglets soulignés ────────────────────
+  const tabs = [
+    { id: 'rdvs', label: 'Mon planning', count: myRdvs.length > 0 ? myRdvs.length : undefined },
+    { id: 'form', label: newRdvLabel },
+    { id: 'suivi', label: 'Suivi RDV' },
+    { id: 'agenda', label: 'Agenda équipe' },
+    { id: 'contacts', label: 'Mes contacts', count: crmTotal > 0 ? crmTotal : undefined },
+    { id: 'transactions', label: 'Mes transactions', count: txTotal > 0 ? txTotal : undefined },
+    { id: 'repop', label: 'Repop' },
+  ]
+
+  return (
+    <div className="crm-v2" style={{
+      height: '100vh', display: 'flex', flexDirection: 'column', background: crmV2.bgSoft, color: crmV2.text, fontFamily: crmV2.font,
+    }}>
+      {previewBanner}
+      <CrmV2Header
+        title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: '#241F3F', boxShadow: '0 0 0 2px rgba(94,188,227,0.35)', display: 'inline-block' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-hub-diploma-mark.png" alt="Hub Diploma" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </span>
+            Bonjour {firstName}
+          </span>
+        )}
+        subtitle="Placement RDV — Télépro"
+        actions={(
+          <>
+            {!isAdmin && (
+              <CrmV2Button variant="accent" icon={<Plus size={14} />} onClick={() => setActiveTab('form')}>{newRdvLabel}</CrmV2Button>
+            )}
+            {isAdmin && !previewMode && (
+              <CrmV2Button icon={<ArrowLeft size={14} />} onClick={() => { window.location.href = '/admin' }}>Admin</CrmV2Button>
+            )}
+            {!previewMode && (
+              <a href="/support" style={{
+                position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '8px 16px',
+                fontSize: 13, fontWeight: 600, color: crmV2.text, background: crmV2.bg, border: `1px solid ${crmV2.borderStrong}`, textDecoration: 'none',
+              }}>
+                <LifeBuoy size={14} /> Service technique
+                {supportUnread > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 999, background: crmV2.danger,
+                    color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+                  }}>{supportUnread}</span>
+                )}
+              </a>
+            )}
+            {!previewMode && (
+              <CrmV2Button variant="danger" icon={<LogOut size={14} />} onClick={() => { void logout() }}>Déconnexion</CrmV2Button>
+            )}
+          </>
+        )}
+      >
+        {!isAdmin && (
+          <CrmV2Tabs bordered={false} items={tabs} value={activeTab} onChange={id => setActiveTab(id as TeleproTab)} />
+        )}
+      </CrmV2Header>
+
+      {/* Recherche globale CRM — permet de retrouver et ouvrir n'importe quelle
+          fiche (contact / transaction), même non attribuée au télépro. */}
+      {!isAdmin && skin(<CRMGlobalSearchBar />, { flexShrink: 0 })}
+
+      <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {tabContent()}
+      </main>
+
+      {overlays}
     </div>
   )
 }
