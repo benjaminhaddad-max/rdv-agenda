@@ -53,37 +53,36 @@ type Commercial = {
 const GRID_START_HOUR = 9
 const GRID_END_HOUR = 21
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => i + GRID_START_HOUR) // 9h … 20h
-const HOUR_HEIGHT = 64        // hauteur min d'une tranche en vue semaine (défile sur les petits écrans)
+const HOUR_HEIGHT = 70        // hauteur min d'une tranche en vue semaine (défile sur les petits écrans)
 const HOUR_HEIGHT_DAY = 64    // hauteur min d'une tranche en vue jour (ordinateur)
 const HOUR_HEIGHT_MOBILE = 36 // hauteur min d'une tranche sur mobile
 
 /** Couleurs de FOND post-RDV — le CONTOUR reste toujours la couleur du closer. */
-/** Cartes de RDV façon maquette V2 : fond pastel, bordure douce, horaire coloré. */
-type CardPalette = { bg: string; border: string; time: string }
-const CARD_PALETTES = {
-  upcoming:       { bg: '#e6f3fa', border: '#b9dcef', time: '#1f7ca8' }, // RDV à venir
-  positif:        { bg: '#e5f7ec', border: '#b4e5c6', time: '#15803d' },
-  pre_positif:    { bg: '#e2f5f8', border: '#a9dfe8', time: '#0e7490' },
-  no_show:        { bg: '#eef0f3', border: '#d3d8df', time: '#4b5563' },
-  pending_update: { bg: '#fdecec', border: '#f3bdbd', time: '#c02626' }, // fiche non mise à jour
-  annule:         { bg: '#f5f6f8', border: '#e3e6eb', time: '#9aa5b1' },
-} as const satisfies Record<string, CardPalette>
-
-/** Couleurs de la légende (= couleur de l'horaire sur les cartes). */
+/** Code couleur du CRM : issue d'un RDV passé (les RDV à venir prennent la couleur du closer). */
 const POST_RDV_COLORS = {
-  positif: CARD_PALETTES.positif.time,
-  pre_positif: CARD_PALETTES.pre_positif.time,
-  no_show: CARD_PALETTES.no_show.time,
-  pending_update: CARD_PALETTES.pending_update.time,
+  positif: '#166534',       // vert foncé
+  pre_positif: '#22c55e',   // vert clair
+  no_show: '#374151',       // gris foncé
+  pending_update: '#dc2626', // rouge — fiche non mise à jour
 } as const
 
-const POST_RDV_LEGEND: { label: string; color: string; bg: string }[] = [
-  { label: 'À venir', color: CARD_PALETTES.upcoming.time, bg: CARD_PALETTES.upcoming.bg },
-  { label: 'Positif', color: POST_RDV_COLORS.positif, bg: CARD_PALETTES.positif.bg },
-  { label: 'Pré-positif', color: POST_RDV_COLORS.pre_positif, bg: CARD_PALETTES.pre_positif.bg },
-  { label: 'No-show', color: POST_RDV_COLORS.no_show, bg: CARD_PALETTES.no_show.bg },
-  { label: 'Fiche non màj', color: POST_RDV_COLORS.pending_update, bg: CARD_PALETTES.pending_update.bg },
+const POST_RDV_LEGEND: { label: string; color: string }[] = [
+  { label: 'Positif', color: POST_RDV_COLORS.positif },
+  { label: 'Pré-positif', color: POST_RDV_COLORS.pre_positif },
+  { label: 'No-show', color: POST_RDV_COLORS.no_show },
+  { label: 'Fiche non màj', color: POST_RDV_COLORS.pending_update },
 ]
+
+/** Carte façon maquette V2 : fond teinté, bordure douce, horaire dans la couleur de base. */
+type CardPalette = { base: string; bg: string; border: string }
+function cardPalette(base: string): CardPalette {
+  return {
+    base,
+    bg: `color-mix(in srgb, ${base} 13%, #ffffff)`,
+    border: `color-mix(in srgb, ${base} 38%, #ffffff)`,
+  }
+}
+const CANCELLED_PALETTE: CardPalette = { base: '#9aa5b1', bg: '#f5f6f8', border: '#e3e6eb' }
 
 const SNAP_MIN = 15          // aimantation du glisser-déposer (minutes)
 const GRID_TOTAL_MIN = (GRID_END_HOUR - GRID_START_HOUR) * 60
@@ -423,25 +422,32 @@ export default function WeekCalendar({
   }
 
   /** Fond du bloc = statut post-RDV (null = pas encore qualifié → fond blanc). */
-  function getCardPalette(appt: Appointment): CardPalette {
+  /** Couleur de l'issue d'un RDV passé, ou null s'il est à venir. */
+  function getOutcomeColor(appt: Appointment): string | null {
     const s = appt.status
-    if (s === 'positif' || s === 'preinscription') return CARD_PALETTES.positif
-    if (s === 'pre_positif') return CARD_PALETTES.pre_positif
-    if (s === 'no_show') return CARD_PALETTES.no_show
-    if (s === 'annule') return CARD_PALETTES.annule
+    if (s === 'positif' || s === 'preinscription') return POST_RDV_COLORS.positif
+    if (s === 'pre_positif') return POST_RDV_COLORS.pre_positif
+    if (s === 'no_show') return POST_RDV_COLORS.no_show
     const ended = new Date(appt.end_at).getTime() < Date.now()
-    if (ended && (s === 'confirme' || s === 'confirme_prospect')) return CARD_PALETTES.pending_update
-    return CARD_PALETTES.upcoming
+    if (ended && (s === 'confirme' || s === 'confirme_prospect')) return POST_RDV_COLORS.pending_update
+    return null
   }
 
-  /** Fond pastel d'un RDV passé (null = RDV à venir, fond blanc en vue liste). */
+  /** Carte : couleur de l'issue si le RDV est passé, sinon couleur du closer. */
+  function getCardPalette(appt: Appointment): CardPalette {
+    if (appt.status === 'annule') return CANCELLED_PALETTE
+    return cardPalette(getOutcomeColor(appt) || getColorForCommercial(appt.users?.id || ''))
+  }
+
+  /** Fond teinté d'un RDV passé (null = RDV à venir, fond blanc en vue liste). */
   function getStatusFill(appt: Appointment): string | null {
-    const p = getCardPalette(appt)
-    return p === CARD_PALETTES.upcoming ? null : p.bg
+    if (appt.status === 'annule') return CANCELLED_PALETTE.bg
+    const c = getOutcomeColor(appt)
+    return c ? cardPalette(c).bg : null
   }
 
   function statusFillTextColor(fill: string | null): string {
-    return fill === CARD_PALETTES.annule.bg ? '#7c98b6' : '#2d3e50'
+    return fill === CANCELLED_PALETTE.bg ? '#7c98b6' : '#2d3e50'
   }
 
   /** Applique le déplacement : calcule le nouveau créneau, met à jour de façon
@@ -594,7 +600,7 @@ export default function WeekCalendar({
     const isConfirmed = appt.status === 'confirme_prospect'
     const textOnFill = isCancelled ? '#7c98b6' : '#2d3e50'
     const subtleOnFill = '#64748b'
-    const timeColor = palette.time
+    const timeColor = palette.base
     const formation = (appt.formation_type || '').trim()
     const displayName = shortProspectName(appt.prospect_name)
     const niveau = getNiveau(appt.classe_actuelle, appt.prospect_name)
@@ -614,7 +620,7 @@ export default function WeekCalendar({
     ].filter(Boolean).join('\n')
 
     const lay = dayLayout.slots.get(appt.id) || { col: 0, cols: 1 }
-    const gap = compact ? 1 : 3
+    const gap = compact ? 1 : 4
     const widthPct = 100 / lay.cols
     const leftPct = widthPct * lay.col
     const sideBySide = lay.cols > 1
@@ -665,16 +671,17 @@ export default function WeekCalendar({
         }}
         style={{
           position: 'absolute',
-          left: `calc(${leftPct}% + ${lay.col === 0 ? (compact ? 1 : 3) : gap}px)`,
-          width: `calc(${widthPct}% - ${lay.cols === 1 ? (compact ? 2 : 6) : gap + (compact ? 1 : 2)}px - ${rightReserve}px)`,
+          // De l'air autour des cartes, comme sur la maquette
+          left: `calc(${leftPct}% + ${lay.col === 0 ? (compact ? 1 : 5) : gap / 2}px)`,
+          width: `calc(${widthPct}% - ${lay.cols === 1 ? (compact ? 2 : 10) : (compact ? 2 : 7)}px - ${rightReserve / lay.cols}px)`,
           // Hauteur = durée exacte du RDV (pas de hauteur mini : sinon les cartes se chevauchent)
-          top: `calc(${top}% + 1px)`,
-          height: `calc(${height}% - 2px)`,
+          top: `calc(${top}% + ${compact ? 1 : 2}px)`,
+          height: `calc(${height}% - ${compact ? 2 : 4}px)`,
           // Style maquette : fond pastel selon l'issue, point = couleur du closer
           background: palette.bg,
           border: `1px solid ${palette.border}`,
           borderRadius: compact ? 6 : 10,
-          padding: isDay && !isMobile ? '5px 10px' : compact ? '1px 3px' : inline ? '0 8px' : (sideBySide ? '3px 6px' : '4px 8px'),
+          padding: isDay && !isMobile ? '6px 12px' : compact ? '1px 3px' : inline ? '0 10px' : (sideBySide ? '5px 7px' : '6px 10px'),
           display: 'flex',
           flexDirection: inline ? 'row' : 'column',
           alignItems: inline ? 'center' : 'stretch',
@@ -711,7 +718,7 @@ export default function WeekCalendar({
             style={{
               width: compact ? 5 : 7, height: compact ? 5 : 7, borderRadius: '50%', flexShrink: 0,
               background: appt.users ? closerColor : 'transparent',
-              border: appt.users ? 'none' : `1.5px solid ${palette.time}`,
+              border: appt.users ? 'none' : `1.5px solid ${palette.base}`,
               boxSizing: 'border-box',
             }}
           />
@@ -1099,13 +1106,13 @@ export default function WeekCalendar({
   const legend = showLegend ? (
     <>
       <span style={{ fontSize: 12, color: crmV2.textMuted, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-        Fond = issue · Point = closer
+        Couleur = closer · RDV passés = issue
       </span>
       <AgendaLegendChip swatch={<MediboxBadge brand="medibox" compact style={{ fontSize: 10 }} />} label="RDV Medibox" />
       {POST_RDV_LEGEND.map(item => (
         <span key={item.label} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
-          background: item.bg, color: item.color, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700,
+          background: cardPalette(item.color).bg, color: item.color, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700,
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.color }} />
           {item.label}
