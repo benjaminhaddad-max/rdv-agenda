@@ -10,6 +10,7 @@ import {
   ExternalLink, AlertCircle,
 } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import SupportButton from '@/components/SupportButton'
 import WeekCalendar from '@/components/WeekCalendar'
 import StatusBadge, { AppointmentStatus, STATUS_CONFIG } from '@/components/StatusBadge'
 import AppointmentModal from '@/components/AppointmentModal'
@@ -1398,6 +1399,7 @@ export default function TeleproClient({
               <ArrowLeft size={12} /> Admin
             </a>
           )}
+          {!previewMode && <SupportButton />}
           {!previewMode && <LogoutButton />}
         </div>
       </div>

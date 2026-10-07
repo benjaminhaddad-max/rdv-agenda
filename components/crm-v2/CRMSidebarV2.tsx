@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Calendar, CalendarDays,
   BarChart3, CheckSquare, Workflow, Upload, GitMerge, Settings as SettingsIcon,
   Database, Facebook, AlertTriangle, MessageSquare, Search, Menu, X, List,
-  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall,
+  Palette, Repeat2, FileSignature, Phone, ExternalLink, Presentation, PhoneCall, LifeBuoy,
 } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { crmV2 } from '@/lib/crm-v2-theme'
@@ -17,7 +17,7 @@ interface NavItem {
   label: string
   href: string
   icon: typeof Users
-  badgeKey?: 'errors'
+  badgeKey?: 'errors' | 'support'
   ready?: boolean
   external?: boolean
 }
@@ -46,6 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
       { key: 'contacts', label: 'Contacts', href: '/admin/crm-v2', icon: Users, ready: true },
       { key: 'transactions', label: 'Transactions', href: '/admin/crm-v2/transactions', icon: Briefcase, ready: true },
       { key: 'tasks', label: 'Mes tâches', href: '/admin/crm-v2/tasks', icon: CheckSquare, ready: true },
+      { key: 'service-technique', label: 'Service technique', href: '/admin/crm-v2/service-technique', icon: LifeBuoy, badgeKey: 'support', ready: true },
       { key: 'rappels-lab', label: 'Demandes de rappel Lab', href: '/admin/crm-v2/rappels-lab', icon: PhoneCall, ready: true },
       { key: 'import', label: 'Import CSV', href: '/admin/crm-v2/import', icon: Upload, ready: true },
       { key: 'doublons', label: 'Doublons', href: '/admin/crm-v2/doublons', icon: GitMerge, ready: true },
@@ -130,6 +131,24 @@ export default function CRMSidebarV2() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [errorCount, setErrorCount] = useState(0)
+  const [supportCount, setSupportCount] = useState(0)
+
+  // Service technique : demandes à valider par un admin + réponses non lues
+  useEffect(() => {
+    let cancelled = false
+    async function fetchSupport() {
+      try {
+        const res = await fetch('/api/support/tickets?scope=all', { cache: 'no-store' })
+        if (!res.ok) return
+        const j = await res.json()
+        const toValidate = (j.tickets || []).filter((t: { status: string }) => t.status === 'validation').length
+        if (!cancelled) setSupportCount(toValidate + (j.unread || 0))
+      } catch { /* ignore */ }
+    }
+    fetchSupport()
+    const id = setInterval(fetchSupport, 120_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -152,7 +171,7 @@ export default function CRMSidebarV2() {
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
-  const badgeFor = (key?: string) => (key === 'errors' ? errorCount : 0)
+  const badgeFor = (key?: string) => (key === 'errors' ? errorCount : key === 'support' ? supportCount : 0)
 
   const toggleCollapse = () => {
     const next = !collapsed

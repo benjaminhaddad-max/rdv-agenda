@@ -1,6 +1,6 @@
 import SupportClient from './SupportClient'
 
-export const metadata = { title: 'Support technique' }
+export const metadata = { title: 'Service technique' }
 
 export default async function SupportPage({
   searchParams,

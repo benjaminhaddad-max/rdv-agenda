@@ -41,7 +41,7 @@ export default function SupportButton() {
       }}
     >
       <LifeBuoy size={12} />
-      Support
+      Service technique
       {unread > 0 && (
         <span style={{
           position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, borderRadius: 999,

@@ -322,7 +322,7 @@ function MessageBubble({ m }: { m: SupportMessage }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, color: crmV2.textMuted, marginBottom: 4 }}>
-          <strong style={{ color: crmV2.text }}>{isAgent ? 'Support technique' : m.author_name || 'Moi'}</strong>
+          <strong style={{ color: crmV2.text }}>{isAgent ? 'Service technique' : m.author_name || 'Moi'}</strong>
           {' · '}{format(new Date(m.created_at), "d MMM 'à' HH:mm", { locale: fr })}
         </div>
         <div style={{
@@ -369,10 +369,16 @@ function AttachmentView({ a }: { a: SupportAttachment }) {
 
 /* ─── Page ────────────────────────────────────────────────────────────── */
 
-export default function SupportClient({ initialTicketId }: { initialTicketId: string | null }) {
+export default function SupportClient({
+  initialTicketId, embedded = false,
+}: {
+  initialTicketId: string | null
+  /** Affiché dans le shell CRM (sidebar) : pas de bandeau « Retour », toute l'équipe par défaut. */
+  embedded?: boolean
+}) {
   const [me, setMe] = useState<Me | null>(null)
   const [tickets, setTickets] = useState<SupportTicket[]>([])
-  const [scopeAll, setScopeAll] = useState(false)
+  const [scopeAll, setScopeAll] = useState(embedded)
   const [selectedId, setSelectedId] = useState<string | null>(initialTicketId)
   const [detail, setDetail] = useState<{ ticket: SupportTicket; messages: SupportMessage[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -467,15 +473,19 @@ export default function SupportClient({ initialTicketId }: { initialTicketId: st
   const isAdmin = me?.role === 'admin'
 
   return (
-    <div style={{ minHeight: '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font, color: crmV2.text }}>
+    <div style={{ minHeight: embedded ? '100%' : '100vh', background: crmV2.bgSoft, fontFamily: crmV2.font, color: crmV2.text }}>
       <header style={{
-        background: '#241F3F', color: '#eef2f8', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12,
+        background: embedded ? crmV2.bg : '#241F3F', color: embedded ? crmV2.text : '#eef2f8',
+        borderBottom: embedded ? `1px solid ${crmV2.border}` : 'none',
+        padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
       }}>
-        <a href={homeHref(me)} style={{ color: '#eef2f8', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, textDecoration: 'none', opacity: 0.85 }}>
-          <ArrowLeft size={14} /> Retour
-        </a>
-        <LifeBuoy size={18} color="#e3c878" />
-        <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Support technique</h1>
+        {!embedded && (
+          <a href={homeHref(me)} style={{ color: '#eef2f8', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, textDecoration: 'none', opacity: 0.85 }}>
+            <ArrowLeft size={14} /> Retour
+          </a>
+        )}
+        <LifeBuoy size={18} color={embedded ? crmV2.gold : '#e3c878'} />
+        <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Service technique</h1>
         <div style={{ flex: 1 }} />
         {isAdmin && (
           <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -549,7 +559,7 @@ export default function SupportClient({ initialTicketId }: { initialTicketId: st
                 <h2 style={{ fontSize: 18, margin: '0 0 6px' }}>Une modif, un bug, une idée ?</h2>
                 <p style={{ fontSize: 13, color: crmV2.textMuted, margin: 0, lineHeight: 1.5 }}>
                   Explique ce que tu veux (ou ce qui ne marche pas), ajoute des captures, un PDF, une vidéo de ton écran ou une note vocale.
-                  La demande est prise en charge automatiquement et tu reçois la réponse ici : <strong>« c’est fait »</strong>, <strong>« pas fait »</strong> (avec la raison) ou une question si on a besoin de précisions.
+                  La demande est prise en charge par le service technique et tu reçois la réponse ici : <strong>« c’est fait »</strong>, <strong>« pas fait »</strong> (avec la raison) ou une question si on a besoin de précisions.
                 </p>
               </div>
               <Composer
@@ -610,7 +620,7 @@ export default function SupportClient({ initialTicketId }: { initialTicketId: st
                 {(t.status === 'nouveau' || t.status === 'en_cours') && (
                   <div style={{ fontSize: 12, color: crmV2.textFaint, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Loader2 size={13} className="animate-spin" />
-                    {t.status === 'en_cours' ? 'Le support travaille dessus…' : 'En attente de prise en charge (quelques minutes).'}
+                    {t.status === 'en_cours' ? 'Le service technique travaille dessus…' : 'En attente de prise en charge (quelques minutes).'}
                   </div>
                 )}
                 <div ref={threadEndRef} />
@@ -618,7 +628,7 @@ export default function SupportClient({ initialTicketId }: { initialTicketId: st
 
               {(t.author_id === me?.id || isAdmin) && (
                 <Composer
-                  placeholder={t.status === 'besoin_infos' ? 'Réponds à la question du support…' : 'Ajouter une précision, un fichier… (relance la demande)'}
+                  placeholder={t.status === 'besoin_infos' ? 'Réponds à la question du service technique…' : 'Ajouter une précision, un fichier… (relance la demande)'}
                   submitLabel="Répondre"
                   onSubmit={p => reply(p)}
                 />
