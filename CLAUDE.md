@@ -43,6 +43,16 @@ Le fichier `EN-COURS.md` (racine) dit qui travaille sur quoi en ce moment. Tout 
 4. **À la fin de la tâche** (ou si elle est abandonnée) : retirer sa ligne, commit `chore(en-cours): …`, push.
 5. Les lignes de plus de 4 h sont considérées comme périmées : les ignorer et les supprimer au passage.
 
+### Base de données Supabase (commune à Ben et Aaron)
+
+Toute modif de structure (table, colonne, index, fonction, vue, policy…) suit ces règles, en silence aussi :
+
+1. **Toujours un fichier de migration commité** : `supabase-migration-crm-vNN-<sujet>.sql` à la racine, avec NN = plus grand numéro existant + 1 (calculé juste après un `git pull`). Jamais de modif de structure directement dans Supabase sans ce fichier — sinon le Claude de l'autre ne peut pas la voir.
+2. **Réserver le numéro tout de suite** : la ligne dans `EN-COURS.md` indique `BDD vNN · tables touchées`, et elle est pushée avant d'écrire la migration. Si l'autre a déjà réservé ce numéro, prendre le suivant.
+3. **Avant de toucher une table** : relire les migrations récentes qui la concernent et le code qui l'utilise (`grep` sur le nom de la table / colonne), sur la dernière version de `main`.
+4. **Modifs additives uniquement** : ajouter des colonnes/tables/index, oui (`IF NOT EXISTS`). Supprimer ou renommer une colonne/table utilisée ailleurs : non — sauf demande explicite, et après avoir vérifié qu'aucun code ne l'utilise.
+5. Pusher le code qui utilise une nouvelle colonne **après** avoir appliqué la migration, pas avant (sinon la prod casse).
+
 Les commits qui ne touchent que `EN-COURS.md` ne déclenchent pas de déploiement Vercel (`ignoreCommand` dans `vercel.json`).
 
 ## Rôles utilisateurs
