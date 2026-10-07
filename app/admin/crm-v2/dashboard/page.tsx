@@ -13,6 +13,8 @@ import {
   CrmV2Button,
   CrmV2Card,
   CrmV2Header,
+  CrmV2KpiCard,
+  CrmV2KpiGrid,
   CrmV2Link,
   CrmV2Page,
   CrmV2Spinner,
@@ -91,7 +93,7 @@ export default function DashboardV2Page() {
 
         {stats && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: isMobile ? 8 : 12 }}>
+            <CrmV2KpiGrid style={isMobile ? undefined : { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
               <Kpi
                 icon={<TrendingUp size={16} />}
                 label="Nouveaux leads"
@@ -99,7 +101,6 @@ export default function DashboardV2Page() {
                 sub={`${stats.leads.last_7_days} / 7j · ${stats.leads.last_30_days} / 30j`}
                 href="/admin/crm-v2"
                 accent={crmV2.link}
-                compact={isMobile}
               />
               <Kpi
                 icon={<Briefcase size={16} />}
@@ -108,7 +109,6 @@ export default function DashboardV2Page() {
                 sub={`${stats.deals.won_month} gagnées ce mois`}
                 href="/admin/crm-v2/transactions"
                 accent={crmV2.success}
-                compact={isMobile}
               />
               <Kpi
                 icon={<CheckSquare size={16} />}
@@ -117,7 +117,6 @@ export default function DashboardV2Page() {
                 sub={`${stats.tasks.today} aujourd'hui · ${stats.tasks.week} semaine`}
                 href="/admin/crm-v2/tasks"
                 accent={stats.tasks.overdue > 0 ? crmV2.danger : crmV2.textMuted}
-                compact={isMobile}
               />
               <Kpi
                 icon={<Workflow size={16} />}
@@ -126,11 +125,10 @@ export default function DashboardV2Page() {
                 sub={`${stats.workflows.running_executions} contacts en cours`}
                 href="/admin/crm-v2/workflows"
                 accent={crmV2.gold}
-                compact={isMobile}
               />
-            </div>
+            </CrmV2KpiGrid>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
               <Panel title="Sources (30j)" icon={<TrendingUp size={12} />}>
                 <BarList items={stats.sources.map(s => ({ label: s.label, value: s.count }))} color={crmV2.link} />
               </Panel>
@@ -231,8 +229,9 @@ export default function DashboardV2Page() {
   )
 }
 
+/** Indicateur cliquable : CrmV2KpiCard dans un lien vers la page détaillée. */
 function Kpi({
-  icon, label, value, sub, href, accent, compact = false,
+  icon, label, value, sub, href, accent,
 }: {
   icon: React.ReactNode
   label: string
@@ -240,28 +239,17 @@ function Kpi({
   sub: string
   href: string
   accent: string
-  /** Version resserrée pour le mobile (grille 2 colonnes) */
-  compact?: boolean
 }) {
   return (
-    <Link href={href} style={{ textDecoration: 'none', minWidth: 0 }}>
-      <CrmV2Card style={{ padding: compact ? 12 : 16, height: '100%', minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 6, background: crmV2.bgSoft, flexShrink: 0,
-            color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {icon}
-          </div>
-          <div style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: crmV2.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, minWidth: 0 }}>
-            {label}
-          </div>
-        </div>
-        <div style={{ fontSize: compact ? 22 : 28, fontWeight: 700, color: accent, letterSpacing: '-0.02em' }}>
-          {value.toLocaleString('fr-FR')}
-        </div>
-        <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 4 }}>{sub}</div>
-      </CrmV2Card>
+    <Link href={href} style={{ textDecoration: 'none', color: 'inherit', minWidth: 0, display: 'block' }}>
+      <CrmV2KpiCard
+        icon={icon}
+        label={label}
+        value={value.toLocaleString('fr-FR')}
+        detail={sub}
+        color={accent}
+        style={{ height: '100%', boxSizing: 'border-box', cursor: 'pointer' }}
+      />
     </Link>
   )
 }

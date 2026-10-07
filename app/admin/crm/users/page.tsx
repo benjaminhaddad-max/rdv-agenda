@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Users, Plus, Trash2, Mail, Shield } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { UserPlus, Trash2, Shield, Copy, Users } from 'lucide-react'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Button, CrmV2Search, CrmV2TableCard,
+  CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Avatar, CrmV2StatusPill, CrmV2Toggle, CrmV2Empty,
+  CrmV2Spinner, CrmV2Field, CrmV2Input, CrmV2Select, CrmV2FormSection,
+} from '@/components/crm-v2/primitives'
+import {
+  AdminNotice, AdminModal, AdminPillSelect, AdminMobileList, AdminMobileRow, AdminEllipsis, AdminIconButton,
+} from '@/components/crm-v2/admin/AdminUi'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface User {
   id: string
@@ -29,12 +38,15 @@ const ROLE_LABELS: Record<User['role'], string> = {
   telepro:    'Téléprospecteur',
 }
 
-const ROLE_BADGE: Record<User['role'], string> = {
-  admin:      'bg-amber-100 text-amber-800 border-amber-200',
-  manager:    'bg-indigo-100 text-indigo-800 border-indigo-200',
-  closer:     'bg-emerald-100 text-emerald-800 border-emerald-200',
-  telepro:    'bg-blue-100 text-blue-800 border-blue-200',
+/** Couleur de la pastille de rôle (brief V2) */
+const ROLE_COLOR: Record<User['role'], string> = {
+  admin:      '#7e22ce',
+  manager:    '#0091ae',
+  closer:     '#8a6d22',
+  telepro:    '#1f7ca8',
 }
+
+type RoleTab = 'all' | User['role']
 
 const BRAND_OPTIONS = [
   { id: '', label: 'Toutes marques' },
@@ -60,6 +72,11 @@ export default function UsersPage() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [credentials, setCredentials] = useState<{ name: string; email: string; password: string; emailSent: boolean } | null>(null)
+  // Présentation V2 : onglet de rôle, recherche, fiche mobile
+  const [roleTab, setRoleTab] = useState<RoleTab>('all')
+  const [search, setSearch] = useState('')
+  const [mobileUserId, setMobileUserId] = useState<string | null>(null)
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -172,349 +189,321 @@ export default function UsersPage() {
     } else { const d = await r.json(); alert(d?.error || 'Erreur') }
   }
 
-  return (
-    <div className="min-h-screen bg-[#f7f4ee]">
-      {/* Header */}
-      <div className="bg-white border-b border-[#e5ddc8]">
-        <div className="max-w-[1400px] mx-auto px-3 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-[#2ea3f2] to-[#0038f0] flex items-center justify-center">
-              <Users size={18} className="text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold text-[#0e1e35]">Utilisateurs</h1>
-              <p className="text-xs text-[#4a6070]">{users.length} {users.length > 1 ? 'comptes' : 'compte'} ayant accès au CRM</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="shrink-0 whitespace-nowrap inline-flex items-center gap-2 bg-[#C9A84C] hover:bg-[#b89a5e] text-white text-sm font-semibold px-3 md:px-4 py-2 rounded-lg transition-colors"
-          >
-            {/* Libellé raccourci sur mobile */}
-            <Plus size={14} /> <span className="md:hidden">Ajouter</span><span className="hidden md:inline">Ajouter un utilisateur</span>
-          </button>
-        </div>
-      </div>
+  const counts = useMemo(() => {
+    const c: Record<RoleTab, number> = { all: users.length, admin: 0, manager: 0, closer: 0, telepro: 0 }
+    for (const u of users) c[u.role] = (c[u.role] ?? 0) + 1
+    return c
+  }, [users])
 
-      <div className="max-w-[1400px] mx-auto px-3 md:px-6 py-4 md:py-6">
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return users.filter(u =>
+      (roleTab === 'all' || u.role === roleTab) &&
+      (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.hubspot_owner_id || '').includes(q)),
+    )
+  }, [users, roleTab, search])
+
+  const mobileUser = mobileUserId ? users.find(u => u.id === mobileUserId) ?? null : null
+
+  const roleSelect = (u: User) => (
+    <AdminPillSelect
+      color={ROLE_COLOR[u.role] ?? ROLE_COLOR.closer}
+      value={u.role}
+      onChange={e => handleRoleChange(u, e.target.value as User['role'])}
+      aria-label={`Rôle de ${u.name}`}
+    >
+      {ROLES.map(r => (
+        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+      ))}
+    </AdminPillSelect>
+  )
+
+  const brandSelect = (u: User) => (
+    <AdminPillSelect
+      value={u.crm_brand ?? ''}
+      onChange={e => handleBrandChange(u, e.target.value)}
+      aria-label={`Marque CRM de ${u.name}`}
+      style={{ minHeight: 30, padding: '4px 28px 4px 12px', fontSize: 12 }}
+    >
+      {BRAND_OPTIONS.map(b => (
+        <option key={b.id} value={b.id}>{b.label}</option>
+      ))}
+    </AdminPillSelect>
+  )
+
+  const authPill = (u: User) => u.auth_id
+    ? <CrmV2StatusPill label={<><Shield size={11} /> Activé</>} color="#16a34a" dot={false} />
+    : <CrmV2StatusPill label="Non lié" color="#b45309" />
+
+  return (
+    <CrmV2Page>
+      <CrmV2Header
+        title="Utilisateurs"
+        subtitle={`${users.length} ${users.length > 1 ? 'comptes' : 'compte'} · admins, closers et télépros`}
+        actions={
+          <CrmV2Button variant="primary" icon={<UserPlus size={14} />} onClick={() => setShowCreate(true)}>
+            {isMobile ? 'Inviter' : 'Inviter un utilisateur'}
+          </CrmV2Button>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={roleTab}
+          onChange={id => setRoleTab(id as RoleTab)}
+          items={[
+            { id: 'all', label: 'Tous', count: counts.all },
+            { id: 'admin', label: 'Admins', count: counts.admin },
+            ...(counts.manager > 0 ? [{ id: 'manager', label: 'Managers', count: counts.manager }] : []),
+            { id: 'closer', label: 'Closers', count: counts.closer },
+            { id: 'telepro', label: 'Télépros', count: counts.telepro },
+          ]}
+        />
+      </CrmV2Header>
+
+      <CrmV2Body>
         {credentials && (
-          <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-sm flex items-start justify-between gap-3">
-            <div>
-              <div className="font-semibold">
-                {credentials.name} créé — {credentials.emailSent
-                  ? 'identifiants envoyés par email'
-                  : "l'email n'a pas pu être envoyé, transmettez-lui ces identifiants"}
-              </div>
-              <div className="mt-1 font-mono text-xs select-all">
-                {credentials.email} / {credentials.password}
-              </div>
+          <AdminNotice tone="success" onClose={() => setCredentials(null)}>
+            <div style={{ fontWeight: 700 }}>
+              {credentials.name} créé — {credentials.emailSent
+                ? 'identifiants envoyés par email'
+                : "l'email n'a pas pu être envoyé, transmettez-lui ces identifiants"}
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <button
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+              <code style={{ fontSize: 12, userSelect: 'all', wordBreak: 'break-all', color: crmV2.text }}>
+                {credentials.email} / {credentials.password}
+              </code>
+              <CrmV2Button
+                size="sm"
+                variant="secondary"
+                icon={<Copy size={13} />}
                 onClick={() => navigator.clipboard.writeText(`${credentials.email} / ${credentials.password}`)}
-                className="text-xs font-semibold underline"
               >
                 Copier
-              </button>
-              <button onClick={() => setCredentials(null)} className="text-xs underline">Fermer</button>
+              </CrmV2Button>
             </div>
-          </div>
+          </AdminNotice>
         )}
-        {notice && (
-          <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
-            {notice}
-          </div>
-        )}
+        {notice && <AdminNotice tone="success">{notice}</AdminNotice>}
 
-        {/* Mobile : une carte par utilisateur (le tableau est réservé au desktop) */}
-        <div className="md:hidden flex flex-col gap-2">
-          {loading && (
-            <div className="bg-white border border-[#e5ddc8] rounded-xl px-4 py-10 text-center text-sm text-[#a89e8a]">Chargement…</div>
-          )}
-          {!loading && users.length === 0 && (
-            <div className="bg-white border border-[#e5ddc8] rounded-xl px-4 py-10 text-center text-sm text-[#a89e8a]">Aucun utilisateur.</div>
-          )}
-          {users.map(u => (
-            <div key={u.id} className="bg-white border border-[#e5ddc8] rounded-xl p-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ background: u.avatar_color || '#3b82f6' }}
-                >
-                  {u.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-sm text-[#0e1e35] truncate">{u.name}</div>
-                  <div className="text-xs text-[#4a6070] break-all">{u.email}</div>
-                </div>
-                <button
-                  onClick={() => handleDelete(u)}
-                  title="Supprimer"
-                  className="shrink-0 w-9 h-9 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 mt-3">
-                <select
-                  value={u.role}
-                  onChange={e => handleRoleChange(u, e.target.value as User['role'])}
-                  className={`text-xs font-bold px-2.5 py-1.5 rounded-full border cursor-pointer ${ROLE_BADGE[u.role] ?? ROLE_BADGE.closer}`}
-                >
-                  {ROLES.map(r => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                  ))}
-                </select>
-                <select
-                  value={u.crm_brand ?? ''}
-                  onChange={e => handleBrandChange(u, e.target.value)}
-                  className="text-xs border border-slate-300 rounded px-2 py-1.5 text-slate-700 bg-white"
-                >
-                  {BRAND_OPTIONS.map(b => (
-                    <option key={b.id} value={b.id}>{b.label}</option>
-                  ))}
-                </select>
-                {u.role === 'telepro' && (
-                  <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={!!u.is_default_brand_telepro}
-                      disabled={!u.crm_brand}
-                      onChange={e => handleDefaultBrandTeleproChange(u, e.target.checked)}
-                    />
-                    Défaut
-                  </label>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
-                {u.auth_id ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                    <Shield size={11} /> Activé
-                  </span>
-                ) : (
-                  <span className="text-amber-600">Non lié</span>
-                )}
-                <span className="text-[#4a6070] font-mono">Owner : {u.hubspot_owner_id || '—'}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="hidden md:block bg-white border border-[#e5ddc8] rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-[#f7f4ee] border-b border-[#e5ddc8]">
-              <tr className="text-xs uppercase tracking-wide text-[#4a6070]">
-                <th className="text-left px-4 py-3 font-semibold">Nom</th>
-                <th className="text-left px-4 py-3 font-semibold">Email</th>
-                <th className="text-left px-4 py-3 font-semibold">Rôle</th>
-                <th className="text-left px-4 py-3 font-semibold">ID propriétaire</th>
-                <th className="text-left px-4 py-3 font-semibold">Marque CRM</th>
-                <th className="text-left px-4 py-3 font-semibold">Default marque</th>
-                <th className="text-left px-4 py-3 font-semibold">Compte auth</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#a89e8a]">Chargement…</td></tr>
-              )}
-              {!loading && users.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#a89e8a]">Aucun utilisateur.</td></tr>
-              )}
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-[#f7f4ee]">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                        style={{ background: u.avatar_color || '#3b82f6' }}
-                      >
-                        {u.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
-                      </div>
-                      <div className="font-semibold text-[#0e1e35]">{u.name}</div>
+        {isMobile ? (
+          <>
+            <CrmV2Search
+              placeholder="Rechercher un utilisateur…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', height: 40 }}
+            />
+            {loading ? (
+              <CrmV2Spinner />
+            ) : visible.length === 0 ? (
+              <AdminMobileList><CrmV2Empty icon={<Users size={26} />} title="Aucun utilisateur." /></AdminMobileList>
+            ) : (
+              <AdminMobileList>
+                {visible.map((u, i) => (
+                  <AdminMobileRow key={u.id} last={i === visible.length - 1} onClick={() => setMobileUserId(u.id)}>
+                    <CrmV2Avatar name={u.name} color={u.avatar_color || crmV2.link} size={40} radius="36%" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <AdminEllipsis style={{ fontSize: 14, fontWeight: 600, color: crmV2.text }}>{u.name}</AdminEllipsis>
+                      <AdminEllipsis style={{ fontSize: 12, color: crmV2.textMuted }}>{u.email}</AdminEllipsis>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-[#4a6070]">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={u.role}
-                      onChange={e => handleRoleChange(u, e.target.value as User['role'])}
-                      className={`text-xs font-bold px-2.5 py-1 rounded-full border cursor-pointer ${ROLE_BADGE[u.role] ?? ROLE_BADGE.closer}`}
-                    >
-                      {ROLES.map(r => (
-                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-[#4a6070] font-mono text-xs">{u.hubspot_owner_id || '—'}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={u.crm_brand ?? ''}
-                      onChange={e => handleBrandChange(u, e.target.value)}
-                      className="text-xs border border-slate-300 rounded px-2 py-1 text-slate-700 bg-white"
-                    >
-                      {BRAND_OPTIONS.map(b => (
-                        <option key={b.id} value={b.id}>{b.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    {u.role === 'telepro' ? (
-                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                        <input
-                          type="checkbox"
+                    <CrmV2StatusPill label={ROLE_LABELS[u.role]} color={ROLE_COLOR[u.role] ?? ROLE_COLOR.closer} />
+                  </AdminMobileRow>
+                ))}
+              </AdminMobileList>
+            )}
+          </>
+        ) : (
+          <CrmV2TableCard
+            toolbar={
+              <CrmV2Search
+                placeholder="Rechercher un utilisateur…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            }
+            footer={<span>{visible.length} sur {users.length} utilisateur{users.length > 1 ? 's' : ''}</span>}
+          >
+            <CrmV2Table>
+              <thead>
+                <tr>
+                  <CrmV2Th>Nom</CrmV2Th>
+                  <CrmV2Th>Email</CrmV2Th>
+                  <CrmV2Th>Rôle</CrmV2Th>
+                  <CrmV2Th>ID propriétaire</CrmV2Th>
+                  <CrmV2Th>Marque CRM</CrmV2Th>
+                  <CrmV2Th>Default marque</CrmV2Th>
+                  <CrmV2Th>Compte auth</CrmV2Th>
+                  <CrmV2Th style={{ width: 56 }}>{''}</CrmV2Th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><CrmV2Td colSpan={8} style={{ height: 'auto' }}><CrmV2Spinner /></CrmV2Td></tr>
+                )}
+                {!loading && visible.length === 0 && (
+                  <tr><CrmV2Td colSpan={8} style={{ height: 'auto' }}><CrmV2Empty icon={<Users size={26} />} title="Aucun utilisateur." /></CrmV2Td></tr>
+                )}
+                {!loading && visible.map(u => (
+                  <CrmV2Tr key={u.id}>
+                    <CrmV2Td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
+                        <CrmV2Avatar name={u.name} color={u.avatar_color || crmV2.link} size={24} radius="36%" ring />
+                        <span style={{ fontWeight: 600, color: crmV2.link }}>{u.name}</span>
+                      </span>
+                    </CrmV2Td>
+                    <CrmV2Td style={{ whiteSpace: 'nowrap' }}>{u.email}</CrmV2Td>
+                    <CrmV2Td>{roleSelect(u)}</CrmV2Td>
+                    <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{u.hubspot_owner_id || '—'}</CrmV2Td>
+                    <CrmV2Td>{brandSelect(u)}</CrmV2Td>
+                    <CrmV2Td>
+                      {u.role === 'telepro' ? (
+                        <CrmV2Toggle
                           checked={!!u.is_default_brand_telepro}
                           disabled={!u.crm_brand}
-                          onChange={e => handleDefaultBrandTeleproChange(u, e.target.checked)}
+                          onChange={v => handleDefaultBrandTeleproChange(u, v)}
+                          label={<span style={{ fontSize: 12, color: crmV2.textMuted }}>Défaut</span>}
                         />
-                        Défaut
-                      </label>
-                    ) : (
-                      <span className="text-[#a89e8a] text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {u.auth_id ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-semibold">
-                        <Shield size={11} /> Activé
-                      </span>
-                    ) : (
-                      <span className="text-amber-600 text-xs">Non lié</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(u)}
-                      title="Supprimer"
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      ) : (
+                        <span style={{ color: crmV2.textFaint }}>—</span>
+                      )}
+                    </CrmV2Td>
+                    <CrmV2Td>{authPill(u)}</CrmV2Td>
+                    <CrmV2Td style={{ textAlign: 'right' }}>
+                      <AdminIconButton icon={<Trash2 size={14} />} title="Supprimer" tone="danger" onClick={() => handleDelete(u)} />
+                    </CrmV2Td>
+                  </CrmV2Tr>
+                ))}
+              </tbody>
+            </CrmV2Table>
+          </CrmV2TableCard>
+        )}
+      </CrmV2Body>
 
-      {/* Modal Create */}
-      {showCreate && (
-        <div
-          onClick={() => !creating && setShowCreate(false)}
-          className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4 max-md:p-3"
-        >
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-md:p-4 max-md:max-h-[90vh] max-md:overflow-y-auto">
-            <div className="flex items-center gap-2 mb-2">
-              <Mail size={16} className="text-[#C9A84C]" />
-              <h2 className="text-base font-bold text-[#0e1e35]">Ajouter un utilisateur</h2>
-            </div>
-            <p className="text-xs text-[#4a6070] mb-5">
-              Un mot de passe sera généré et envoyé par email avec le lien de connexion.
-            </p>
-
-            <div className="space-y-3">
-              <Field label="Nom complet">
-                <input
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Jean Dupont"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
-                />
-              </Field>
-              <Field label="Email">
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="jean@diploma-sante.fr"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
-                />
-              </Field>
-              <Field label="Rôle">
-                <select
-                  value={form.role}
-                  onChange={e => setForm(f => ({
-                    ...f,
-                    role: e.target.value as User['role'],
-                    is_default_brand_telepro:
-                      (e.target.value as User['role']) === 'telepro' ? f.is_default_brand_telepro : false,
-                  }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
-                >
-                  {ROLES.map(r => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="ID propriétaire (optionnel)">
-                <input
-                  value={form.hubspot_owner_id}
-                  onChange={e => setForm(f => ({ ...f, hubspot_owner_id: e.target.value }))}
-                  placeholder="844126942"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] placeholder:text-[#a89e8a] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
-                />
-              </Field>
-              <Field label="Marque CRM (optionnel)">
-                <select
-                  value={form.crm_brand}
-                  onChange={e => setForm(f => ({ ...f, crm_brand: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0e1e35] bg-white focus:outline-none focus:ring-2 focus:ring-[#2ea3f2]/40 focus:border-[#2ea3f2]"
-                >
-                  {BRAND_OPTIONS.map(b => (
-                    <option key={b.id} value={b.id}>{b.label}</option>
-                  ))}
-                </select>
-              </Field>
-              {form.role === 'telepro' && (
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.is_default_brand_telepro}
-                    disabled={!form.crm_brand}
-                    onChange={e => setForm(f => ({ ...f, is_default_brand_telepro: e.target.checked }))}
-                  />
-                  Téléprospecteur par défaut de cette marque
-                </label>
-              )}
-            </div>
-
-            {createError && (
-              <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">
-                {createError}
-              </div>
+      {/* Mobile : fiche d'un utilisateur (rôle, marque, défaut, compte, suppression) */}
+      <AdminModal
+        open={!!mobileUser}
+        onClose={() => setMobileUserId(null)}
+        title={mobileUser?.name ?? ''}
+        subtitle={mobileUser?.email}
+        footer={mobileUser && (
+          <CrmV2Button
+            variant="danger"
+            icon={<Trash2 size={14} />}
+            onClick={() => { const u = mobileUser; setMobileUserId(null); handleDelete(u) }}
+            style={{ flex: 1, minHeight: 44 }}
+          >
+            Supprimer
+          </CrmV2Button>
+        )}
+      >
+        {mobileUser && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <CrmV2Field label="Rôle">{roleSelect(mobileUser)}</CrmV2Field>
+            <CrmV2Field label="Marque CRM">{brandSelect(mobileUser)}</CrmV2Field>
+            {mobileUser.role === 'telepro' && (
+              <CrmV2Toggle
+                checked={!!mobileUser.is_default_brand_telepro}
+                disabled={!mobileUser.crm_brand}
+                onChange={v => handleDefaultBrandTeleproChange(mobileUser, v)}
+                label="Téléprospecteur par défaut de cette marque"
+              />
             )}
-
-            <div className="flex gap-2 justify-end mt-5">
-              <button
-                onClick={() => setShowCreate(false)}
-                disabled={creating}
-                className="px-4 py-2 text-sm text-[#4a6070] border border-slate-300 rounded-lg hover:bg-[#f7f4ee] transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={creating}
-                className="px-4 py-2 text-sm font-semibold bg-[#C9A84C] text-white rounded-lg hover:bg-[#b89a5e] transition-colors disabled:opacity-60"
-              >
-                {creating ? 'Création…' : 'Créer et envoyer les accès'}
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: crmV2.textMuted }}>
+              Compte auth : {authPill(mobileUser)}
+            </div>
+            <div style={{ fontSize: 13, color: crmV2.textMuted }}>
+              ID propriétaire : <span style={{ color: crmV2.text, fontWeight: 600 }}>{mobileUser.hubspot_owner_id || '—'}</span>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
+        )}
+      </AdminModal>
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="text-xs font-semibold text-[#4a6070] uppercase tracking-wide mb-1">
-        {label}
-      </div>
-      {children}
-    </div>
+      {/* Fenêtre de création */}
+      <AdminModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        closeDisabled={creating}
+        title="Ajouter un utilisateur"
+        subtitle="Un mot de passe sera généré et envoyé par email avec le lien de connexion."
+        width={560}
+        footer={
+          <>
+            <CrmV2Button variant="secondary" onClick={() => setShowCreate(false)} disabled={creating}>
+              Annuler
+            </CrmV2Button>
+            <CrmV2Button variant="primary" onClick={handleCreate} disabled={creating}>
+              {creating ? 'Création…' : 'Créer et envoyer les accès'}
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2FormSection
+          title="Compte"
+          style={{ border: 'none', boxShadow: 'none', padding: 0 }}
+        >
+          <CrmV2Field label="Nom complet">
+            <CrmV2Input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Jean Dupont"
+            />
+          </CrmV2Field>
+          <CrmV2Field label="Email">
+            <CrmV2Input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="jean@diploma-sante.fr"
+            />
+          </CrmV2Field>
+          <CrmV2Field label="Rôle">
+            <CrmV2Select
+              value={form.role}
+              onChange={e => setForm(f => ({
+                ...f,
+                role: e.target.value as User['role'],
+                is_default_brand_telepro:
+                  (e.target.value as User['role']) === 'telepro' ? f.is_default_brand_telepro : false,
+              }))}
+            >
+              {ROLES.map(r => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+          <CrmV2Field label="ID propriétaire (optionnel)">
+            <CrmV2Input
+              value={form.hubspot_owner_id}
+              onChange={e => setForm(f => ({ ...f, hubspot_owner_id: e.target.value }))}
+              placeholder="844126942"
+            />
+          </CrmV2Field>
+          <CrmV2Field label="Marque CRM (optionnel)" span={2}>
+            <CrmV2Select
+              value={form.crm_brand}
+              onChange={e => setForm(f => ({ ...f, crm_brand: e.target.value }))}
+            >
+              {BRAND_OPTIONS.map(b => (
+                <option key={b.id} value={b.id}>{b.label}</option>
+              ))}
+            </CrmV2Select>
+          </CrmV2Field>
+          {form.role === 'telepro' && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <CrmV2Toggle
+                checked={form.is_default_brand_telepro}
+                disabled={!form.crm_brand}
+                onChange={v => setForm(f => ({ ...f, is_default_brand_telepro: v }))}
+                label="Téléprospecteur par défaut de cette marque"
+              />
+            </div>
+          )}
+        </CrmV2FormSection>
+
+        {createError && (
+          <AdminNotice tone="error" style={{ marginTop: 14 }}>{createError}</AdminNotice>
+        )}
+      </AdminModal>
+    </CrmV2Page>
   )
 }

@@ -1,7 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { AlertTriangle, AlertCircle, Info, CheckCircle2, RefreshCw, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Fragment, useEffect, useState, useCallback } from 'react'
+import { AlertTriangle, AlertCircle, Info, CheckCircle2, RefreshCw, Trash2, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Button, CrmV2Search, CrmV2TableCard,
+  CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2StatusPill, CrmV2Empty, CrmV2Spinner, CrmV2SectionLabel,
+} from '@/components/crm-v2/primitives'
+import { AdminIconCell, AdminPillSelect, AdminMobileList, AdminEllipsis, AdminSpin } from '@/components/crm-v2/admin/AdminUi'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type LogLevel = 'error' | 'warn' | 'info'
 
@@ -32,6 +39,7 @@ export default function AdminErrorsPage() {
     level: '', label: '', resolved: '0',
   })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,196 +83,295 @@ export default function AdminErrorsPage() {
     })
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Radar erreurs</h1>
-            <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-              Toutes les erreurs runtime du CRM, stockées en local dans Supabase. Aucune dépendance externe.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={load} style={btn('secondary')}>
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Rafraîchir
-            </button>
-            <button onClick={purgeOld} style={btn('danger')}>
-              <Trash2 size={12} /> Purger &gt;30j
-            </button>
-          </div>
+  const details = (log: ErrorLog) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+      <div style={{ fontSize: 13, color: crmV2.text, wordBreak: 'break-word', lineHeight: 1.5 }}>{log.message}</div>
+      {log.context && Object.keys(log.context).length > 0 && (
+        <div>
+          <CrmV2SectionLabel style={{ marginBottom: 4 }}>Contexte</CrmV2SectionLabel>
+          <pre style={preStyle}>{JSON.stringify(log.context, null, 2)}</pre>
         </div>
-
-        {/* Top labels */}
-        {topLabels.length > 0 && (
-          <section style={{ marginBottom: 20 }}>
-            <h2 style={sectionTitle}>Top 10 labels (7 derniers jours, non résolus)</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
-              {topLabels.map(s => (
-                <button
-                  key={s.label}
-                  onClick={() => setFilter(f => ({ ...f, label: s.label }))}
-                  style={{
-                    ...card({ padding: 10, textAlign: 'left' }),
-                    cursor: 'pointer',
-                    borderColor: filter.label === s.label ? '#0038f0' : '#e5ddc8',
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>{s.label}</div>
-                  <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
-                    {s.error > 0 && <span style={{ color: '#dc2626' }}>{s.error} err</span>}
-                    {s.warn > 0 && <span style={{ color: '#f59e0b' }}>{s.warn} warn</span>}
-                    {s.info > 0 && <span style={{ color: '#4a6070' }}>{s.info} info</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Filtres */}
-        <div style={card({ padding: 12, marginBottom: 12, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' })}>
-          <select value={filter.level} onChange={e => setFilter(f => ({ ...f, level: e.target.value }))} style={selectStyle}>
-            <option value="">Tous niveaux</option>
-            <option value="error">Erreurs</option>
-            <option value="warn">Warnings</option>
-            <option value="info">Info</option>
-          </select>
-          <select value={filter.resolved} onChange={e => setFilter(f => ({ ...f, resolved: e.target.value }))} style={selectStyle}>
-            <option value="0">Non résolus</option>
-            <option value="1">Résolus</option>
-            <option value="">Tous</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Filtrer par label…"
-            value={filter.label}
-            onChange={e => setFilter(f => ({ ...f, label: e.target.value }))}
-            style={{ ...selectStyle, minWidth: 200 }}
-          />
-          {filter.label && (
-            <button onClick={() => setFilter(f => ({ ...f, label: '' }))} style={btn('secondary')}>Effacer</button>
-          )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#4a6070' }}>
-            {total} entrée{total > 1 ? 's' : ''}
-          </span>
+      )}
+      {log.stack && (
+        <div>
+          <CrmV2SectionLabel style={{ marginBottom: 4 }}>Pile d’appels</CrmV2SectionLabel>
+          <pre style={preStyle}>{log.stack}</pre>
         </div>
-
-        {/* Liste */}
-        {loading && logs.length === 0 ? (
-          <div style={card({ padding: 40, textAlign: 'center', color: '#94a3b8' })}>Chargement…</div>
-        ) : logs.length === 0 ? (
-          <div style={card({ padding: 40, textAlign: 'center' })}>
-            <CheckCircle2 size={36} style={{ color: '#22c55e', margin: '0 auto 10px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Aucune erreur</div>
-            <div style={{ fontSize: 13, color: '#4a6070' }}>
-              {filter.resolved === '0' ? 'Aucune erreur non résolue.' : 'Aucune erreur ne correspond aux filtres.'}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {logs.map(log => {
-              const isOpen = expanded.has(log.id)
-              return (
-                <div key={log.id} style={card({ padding: 12, borderLeft: `3px solid ${levelColor(log.level)}` })}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                    <button
-                      onClick={() => toggleExpand(log.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#4a6070', flexShrink: 0 }}
-                    >
-                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                    <LevelIcon level={log.level} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 12 }}>{log.label}</strong>
-                        <span style={{ fontSize: 10, color: '#94a3b8' }}>
-                          {new Date(log.occurred_at).toLocaleString('fr-FR')}
-                        </span>
-                        {log.resolved && (
-                          <span style={badge('#22c55e')}>résolu</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#1a2f4b', wordBreak: 'break-word' }}>
-                        {log.message}
-                      </div>
-                      {isOpen && (
-                        <div style={{ marginTop: 8, fontSize: 11 }}>
-                          {log.context && Object.keys(log.context).length > 0 && (
-                            <div style={{ marginBottom: 6 }}>
-                              <div style={{ fontWeight: 600, color: '#4a6070', marginBottom: 4 }}>Context</div>
-                              <pre style={preStyle}>{JSON.stringify(log.context, null, 2)}</pre>
-                            </div>
-                          )}
-                          {log.stack && (
-                            <div>
-                              <div style={{ fontWeight: 600, color: '#4a6070', marginBottom: 4 }}>Stack</div>
-                              <pre style={preStyle}>{log.stack}</pre>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {!log.resolved && (
-                      <button onClick={() => resolve(log.id)} style={btn('secondary')}>
-                        <CheckCircle2 size={12} /> Marquer résolu
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
+      )}
     </div>
   )
+
+  const statusPill = (log: ErrorLog) => log.resolved
+    ? <CrmV2StatusPill label="Résolue" color="#16a34a" />
+    : <CrmV2StatusPill label="Non résolue" color="#dc2626" />
+
+  const route = (log: ErrorLog) => [log.request_method, log.request_path].filter(Boolean).join(' ') || '—'
+
+  const levelSelect = (
+    <AdminPillSelect
+      value={filter.level}
+      onChange={e => setFilter(f => ({ ...f, level: e.target.value }))}
+      aria-label="Niveau"
+      style={isMobile ? { minHeight: 40 } : undefined}
+    >
+      <option value="">Tous niveaux</option>
+      <option value="error">Erreurs</option>
+      <option value="warn">Avertissements</option>
+      <option value="info">Info</option>
+    </AdminPillSelect>
+  )
+
+  const labelSearch = (
+    <CrmV2Search
+      placeholder="Filtrer par label…"
+      value={filter.label}
+      onChange={e => setFilter(f => ({ ...f, label: e.target.value }))}
+      style={isMobile ? { width: '100%', boxSizing: 'border-box', height: 40 } : undefined}
+    />
+  )
+
+  const emptyState = (
+    <CrmV2Empty
+      icon={<CheckCircle2 size={28} />}
+      title="Aucune erreur"
+      description={filter.resolved === '0' ? 'Aucune erreur non résolue.' : 'Aucune erreur ne correspond aux filtres.'}
+    />
+  )
+
+  return (
+    <CrmV2Page style={{ minHeight: '100vh' }}>
+      <CrmV2Header
+        title="Erreurs"
+        subtitle={`Erreurs applicatives et synchronisations, stockées dans la base du CRM · ${total} entrée${total > 1 ? 's' : ''}`}
+        actions={
+          <>
+            <CrmV2Button variant="secondary" icon={loading ? <AdminSpin /> : <RefreshCw size={14} />} onClick={load}>
+              Rafraîchir
+            </CrmV2Button>
+            <CrmV2Button variant="danger" icon={<Trash2 size={14} />} onClick={purgeOld}>
+              Purger &gt; 30 j
+            </CrmV2Button>
+          </>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={filter.resolved === '' ? 'all' : filter.resolved}
+          onChange={id => setFilter(f => ({ ...f, resolved: id === 'all' ? '' : id }))}
+          items={[
+            { id: '0', label: 'Non résolues', count: filter.resolved === '0' && !loading ? total : undefined },
+            { id: '1', label: 'Résolues', count: filter.resolved === '1' && !loading ? total : undefined },
+            { id: 'all', label: 'Toutes', count: filter.resolved === '' && !loading ? total : undefined },
+          ]}
+        />
+      </CrmV2Header>
+
+      <CrmV2Body>
+        {/* Labels les plus fréquents */}
+        {topLabels.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <CrmV2SectionLabel>Top 10 labels (7 derniers jours, non résolus)</CrmV2SectionLabel>
+            <div style={{
+              display: 'grid', gap: 8,
+              gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fill, minmax(200px, 1fr))',
+            }}>
+              {topLabels.map(s => {
+                const active = filter.label === s.label
+                return (
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => setFilter(f => ({ ...f, label: s.label }))}
+                    style={{
+                      textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', minWidth: 0, minHeight: 44,
+                      background: active ? 'rgba(0,145,174,0.06)' : crmV2.bg,
+                      border: `1px solid ${active ? 'rgba(0,145,174,0.45)' : crmV2.border}`,
+                      borderRadius: 12, boxShadow: crmV2.shadow, padding: '10px 12px',
+                    }}
+                  >
+                    <AdminEllipsis style={{ fontWeight: 700, fontSize: 13, color: crmV2.text, marginBottom: 4 }}>{s.label}</AdminEllipsis>
+                    <div style={{ display: 'flex', gap: 8, fontSize: 12, fontWeight: 600 }}>
+                      {s.error > 0 && <span style={{ color: '#dc2626' }}>{s.error} err.</span>}
+                      {s.warn > 0 && <span style={{ color: '#b45309' }}>{s.warn} avert.</span>}
+                      {s.info > 0 && <span style={{ color: crmV2.textMuted }}>{s.info} info</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {isMobile ? (
+          <>
+            {labelSearch}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {levelSelect}
+              {filter.label && (
+                <CrmV2Button variant="ghost" onClick={() => setFilter(f => ({ ...f, label: '' }))}>Effacer</CrmV2Button>
+              )}
+            </div>
+            {loading && logs.length === 0 ? (
+              <CrmV2Spinner />
+            ) : logs.length === 0 ? (
+              <AdminMobileList>{emptyState}</AdminMobileList>
+            ) : (
+              <AdminMobileList>
+                {logs.map((log, idx) => {
+                  const isOpen = expanded.has(log.id)
+                  return (
+                    <div key={log.id} style={{ borderBottom: idx === logs.length - 1 ? 'none' : `1px solid ${crmV2.borderLight}` }}>
+                      <div
+                        onClick={() => toggleExpand(log.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', minHeight: 52, cursor: 'pointer' }}
+                      >
+                        <LevelIcon level={log.level} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <AdminEllipsis style={{ fontSize: 14, fontWeight: 600, color: crmV2.text }}>{log.label}</AdminEllipsis>
+                          <AdminEllipsis style={{ fontSize: 12, color: crmV2.textMuted }}>
+                            {new Date(log.occurred_at).toLocaleString('fr-FR')} · {log.message}
+                          </AdminEllipsis>
+                        </div>
+                        {log.resolved
+                          ? <CrmV2StatusPill label="Résolue" color="#16a34a" />
+                          : (
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); resolve(log.id) }}
+                              title="Marquer résolu"
+                              aria-label="Marquer résolu"
+                              style={{
+                                width: 40, height: 40, borderRadius: 999, border: `1px solid ${crmV2.borderStrong}`, background: crmV2.bg,
+                                color: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer',
+                              }}
+                            >
+                              <Check size={16} />
+                            </button>
+                          )}
+                      </div>
+                      {isOpen && <div style={{ padding: '0 12px 12px' }}>{details(log)}</div>}
+                    </div>
+                  )
+                })}
+              </AdminMobileList>
+            )}
+          </>
+        ) : (
+          <CrmV2TableCard
+            toolbar={
+              <>
+                {labelSearch}
+                {levelSelect}
+                {filter.label && (
+                  <CrmV2Button variant="ghost" size="sm" onClick={() => setFilter(f => ({ ...f, label: '' }))}>Effacer</CrmV2Button>
+                )}
+                <span style={{ marginLeft: 'auto', fontSize: 13, color: crmV2.textMuted }}>
+                  {total} entrée{total > 1 ? 's' : ''}
+                </span>
+              </>
+            }
+            footer={logs.length > 0 ? <span>{logs.length} affichée{logs.length > 1 ? 's' : ''} sur {total}</span> : undefined}
+          >
+            {loading && logs.length === 0 ? (
+              <CrmV2Spinner />
+            ) : logs.length === 0 ? (
+              emptyState
+            ) : (
+              <CrmV2Table>
+                <thead>
+                  <tr>
+                    <CrmV2Th style={{ width: 36 }}>{''}</CrmV2Th>
+                    <CrmV2Th>Erreur</CrmV2Th>
+                    <CrmV2Th>Route</CrmV2Th>
+                    <CrmV2Th>Dernière</CrmV2Th>
+                    <CrmV2Th>Statut</CrmV2Th>
+                    <CrmV2Th style={{ width: 150 }}>{''}</CrmV2Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map(log => {
+                    const isOpen = expanded.has(log.id)
+                    return (
+                      <Fragment key={log.id}>
+                        <CrmV2Tr onClick={() => toggleExpand(log.id)}>
+                          <CrmV2Td style={{ color: crmV2.textMuted }}>
+                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </CrmV2Td>
+                          <CrmV2Td style={{ maxWidth: 520 }}>
+                            <AdminIconCell
+                              icon={<LevelGlyph level={log.level} />}
+                              color={levelColor(log.level)}
+                              sub={log.message}
+                            >
+                              {log.label}
+                            </AdminIconCell>
+                          </CrmV2Td>
+                          <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap', maxWidth: 260 }}>
+                            <AdminEllipsis>{route(log)}</AdminEllipsis>
+                          </CrmV2Td>
+                          <CrmV2Td style={{ color: crmV2.textMuted, whiteSpace: 'nowrap' }}>
+                            {new Date(log.occurred_at).toLocaleString('fr-FR')}
+                          </CrmV2Td>
+                          <CrmV2Td>{statusPill(log)}</CrmV2Td>
+                          <CrmV2Td style={{ textAlign: 'right' }}>
+                            {!log.resolved && (
+                              <CrmV2Button
+                                size="sm"
+                                variant="secondary"
+                                icon={<Check size={13} />}
+                                onClick={e => { e.stopPropagation(); resolve(log.id) }}
+                              >
+                                Marquer résolu
+                              </CrmV2Button>
+                            )}
+                          </CrmV2Td>
+                        </CrmV2Tr>
+                        {isOpen && (
+                          <tr>
+                            <td colSpan={6} style={{ padding: '12px 14px 16px 50px', background: crmV2.bgHover, borderBottom: `1px solid ${crmV2.border}` }}>
+                              {details(log)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </CrmV2Table>
+            )}
+          </CrmV2TableCard>
+        )}
+      </CrmV2Body>
+    </CrmV2Page>
+  )
+}
+
+function LevelGlyph({ level }: { level: LogLevel }) {
+  if (level === 'error') return <AlertCircle size={15} />
+  if (level === 'warn') return <AlertTriangle size={15} />
+  return <Info size={15} />
 }
 
 function LevelIcon({ level }: { level: LogLevel }) {
   const c = levelColor(level)
-  if (level === 'error') return <AlertCircle size={16} style={{ color: c, flexShrink: 0, marginTop: 2 }} />
-  if (level === 'warn') return <AlertTriangle size={16} style={{ color: c, flexShrink: 0, marginTop: 2 }} />
-  return <Info size={16} style={{ color: c, flexShrink: 0, marginTop: 2 }} />
+  return (
+    <span style={{
+      width: 28, height: 28, borderRadius: 8, background: c === crmV2.textMuted ? crmV2.bgSoft : `${c}1f`, color: c,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <LevelGlyph level={level} />
+    </span>
+  )
 }
 
 function levelColor(level: LogLevel): string {
   if (level === 'error') return '#dc2626'
-  if (level === 'warn') return '#f59e0b'
-  return '#4a6070'
+  if (level === 'warn') return '#b45309'
+  return crmV2.textMuted
 }
 
-const sectionTitle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#4a6070', marginTop: 0, marginBottom: 10,
-}
-function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 10, ...extra }
-}
-function btn(variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 4, border: 'none',
-  }
-  if (variant === 'primary') return { ...base, background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }
-  if (variant === 'danger') return { ...base, background: '#fee2e2', color: '#dc2626' }
-  return { ...base, background: '#f7f4ee', color: '#4a6070', border: '1px solid #e5ddc8' }
-}
-function badge(color: string): React.CSSProperties {
-  return {
-    display: 'inline-block', padding: '2px 8px', borderRadius: 999,
-    background: color + '22', color, fontSize: 10, fontWeight: 600,
-  }
-}
-const selectStyle: React.CSSProperties = {
-  padding: '6px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 140,
-}
 const preStyle: React.CSSProperties = {
-  background: '#f7f4ee', border: '1px solid #e5ddc8', borderRadius: 6, padding: 8,
-  fontSize: 10, overflow: 'auto', maxHeight: 300, margin: 0,
-  fontFamily: 'ui-monospace, monospace',
+  background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 10, padding: 10,
+  fontSize: 11, overflow: 'auto', maxHeight: 300, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: crmV2.text,
 }

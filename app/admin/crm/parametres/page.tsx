@@ -1,7 +1,19 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Power, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Power, CheckCircle2, Check, Unplug, Settings2 } from 'lucide-react'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Button, CrmV2Toggle, CrmV2Spinner, CrmV2Empty,
+} from '@/components/crm-v2/primitives'
+import { AdminNotice, AdminSpin, hideLegacyBrand } from '@/components/crm-v2/admin/AdminUi'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
+
+/** Réglages de connexion à l'ancien CRM (onglet dédié) */
+const LEGACY_KEYS = ['hubspot_mirror_enabled', 'hubspot_read_enabled']
+const isLegacyKey = (key: string) => LEGACY_KEYS.includes(key) || key.startsWith('hubspot_')
+
+type SettingsTab = 'legacy' | 'other'
 
 type Setting = {
   key: string
@@ -17,6 +29,10 @@ export default function ParametresPage() {
   const [error, setError] = useState<string | null>(null)
   const [migrationPending, setMigrationPending] = useState(false)
   const [doneKey, setDoneKey] = useState<string | null>(null)
+  // Gabarit E : les interrupteurs modifient un brouillon, appliqué par « Enregistrer »
+  const [draft, setDraft] = useState<Record<string, boolean>>({})
+  const [tab, setTab] = useState<SettingsTab>('legacy')
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -35,27 +51,43 @@ export default function ParametresPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function toggle(key: string, currentValue: unknown) {
-    const newValue = currentValue === true ? false : true
+  async function applySetting(key: string, newValue: boolean) {
+    const res = await fetch('/api/crm/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value: newValue }),
+    })
+    const j = await res.json()
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+  }
+
+  const confirmLabel = (key: string, newValue: boolean) => {
     const labelOff = key === 'hubspot_mirror_enabled'
       ? 'Couper le miroir vers l\'ancien CRM ? Les éditions de fiche n\'y écriront plus.'
       : key === 'hubspot_read_enabled'
         ? 'Couper la lecture de l\'ancien CRM ? L\'app n\'ira plus y chercher de données.'
-        : `Désactiver "${key}" ?`
-    const labelOn = `Réactiver "${key}" ?`
+        : `Désactiver "${labelFor(key)}" ?`
+    const labelOn = `Réactiver "${labelFor(key)}" ?`
+    return newValue ? labelOn : labelOff
+  }
 
-    if (!confirm(newValue ? labelOn : labelOff)) return
+  // Modifications en attente (clé → nouvelle valeur)
+  const pending = useMemo(
+    () => settings.filter(s => s.key in draft && draft[s.key] !== (s.value === true)),
+    [settings, draft],
+  )
 
-    setSaving(key); setError(null); setDoneKey(null)
+  async function saveDraft() {
+    if (pending.length === 0) return
+    // Même confirmation qu'avant, regroupée pour toutes les modifications
+    const msg = pending.map(s => confirmLabel(s.key, draft[s.key])).join('\n\n')
+    if (!confirm(msg)) return
+
+    setSaving(pending.length === 1 ? pending[0].key : 'draft'); setError(null); setDoneKey(null)
     try {
-      const res = await fetch('/api/crm/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value: newValue }),
-      })
-      const j = await res.json()
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
-      setDoneKey(key)
+      for (const s of pending) await applySetting(s.key, draft[s.key])
+      setDoneKey(pending.length === 1 ? pending[0].key : 'draft')
+      setDraft({})
       // Recharge pour récupérer updated_at
       await load()
       setTimeout(() => setDoneKey(null), 3000)
@@ -86,6 +118,7 @@ export default function ParametresPage() {
         if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
       }
       setDoneKey('hubspot_disconnect')
+      setDraft({})
       await load()
       setTimeout(() => setDoneKey(null), 3000)
     } catch (e) {
@@ -95,176 +128,195 @@ export default function ParametresPage() {
     }
   }
 
-  const labelFor = (key: string) => {
+  function labelFor(key: string) {
     switch (key) {
       case 'hubspot_mirror_enabled': return 'Miroir vers l\'ancien CRM (écritures)'
       case 'hubspot_read_enabled':   return 'Lectures depuis l\'ancien CRM'
-      default: return key
+      default: return hideLegacyBrand(key)
     }
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 24px 80px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>
-            Paramètres CRM
-          </h1>
-          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-            Réglages dynamiques modifiables sans redéploiement.
-          </p>
-          <div style={{ marginTop: 12 }}>
-            <button
-              onClick={disconnectHubspot}
-              disabled={saving !== null}
-              style={{
-                border: '1px solid #ef4444',
-                background: '#fff5f5',
-                color: '#b91c1c',
-                padding: '8px 12px',
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: saving ? 'wait' : 'pointer',
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
-              {saving === 'hubspot_disconnect' ? 'Déconnexion…' : 'Déconnecter l\'ancien CRM'}
-            </button>
-            {doneKey === 'hubspot_disconnect' && (
-              <span style={{ marginLeft: 8, color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
-                Ancien CRM déconnecté
-              </span>
-            )}
-          </div>
-        </div>
+  const legacySettings = settings.filter(s => isLegacyKey(s.key))
+  const otherSettings = settings.filter(s => !isLegacyKey(s.key))
+  const shown = tab === 'legacy' ? legacySettings : otherSettings
 
-        {migrationPending && (
-          <div style={{
-            padding: 16, background: '#fef3c7', border: '1px solid #fcd34d',
-            borderRadius: 12, color: '#92400e', fontSize: 13, marginBottom: 16,
-            display: 'flex', gap: 10, alignItems: 'flex-start',
-          }}>
-            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
+  const card: React.CSSProperties = {
+    background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+    boxShadow: crmV2.shadow, padding: isMobile ? 14 : 20, boxSizing: 'border-box', width: '100%',
+  }
+
+  return (
+    <CrmV2Page style={{ display: 'flex', flexDirection: 'column' }}>
+      <CrmV2Header
+        title="Paramètres"
+        subtitle="Configuration du CRM — réglages dynamiques modifiables sans redéploiement"
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tab}
+          onChange={id => setTab(id as SettingsTab)}
+          items={[
+            { id: 'legacy', label: 'Ancien CRM', count: loading ? undefined : legacySettings.length },
+            { id: 'other', label: 'Autres réglages', count: loading ? undefined : otherSettings.length },
+          ]}
+        />
+      </CrmV2Header>
+
+      <div style={{ padding: isMobile ? 12 : '20px 28px 24px' }}>
+        <div style={{ maxWidth: 880, display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+          {migrationPending && (
+            <AdminNotice tone="warning">
               <strong>Migration v15 pas encore appliquée.</strong>
-              <div style={{ marginTop: 6, fontSize: 12 }}>
+              <div style={{ marginTop: 4, fontSize: 12 }}>
                 Va dans Supabase SQL Editor et applique <code>supabase-migration-crm-v15-settings.sql</code>.
               </div>
-            </div>
-          </div>
-        )}
+            </AdminNotice>
+          )}
 
-        {error && (
-          <div style={{
-            padding: 12, background: '#fef2f2', border: '1px solid #fecaca',
-            borderRadius: 8, color: '#dc2626', fontSize: 13, marginBottom: 16,
-            display: 'flex', gap: 8, alignItems: 'center',
-          }}>
-            <AlertTriangle size={16} /> {error}
-          </div>
-        )}
+          {error && <AdminNotice tone="error">{error}</AdminNotice>}
+          {doneKey === 'draft' && <AdminNotice tone="success">Modifications enregistrées</AdminNotice>}
 
-        {loading && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a' }}>
-            <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
-            <div style={{ marginTop: 8, fontSize: 13 }}>Chargement…</div>
-          </div>
-        )}
-
-        {!loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {settings.map(s => {
-              const isOn = s.value === true
-              const isSaving = saving === s.key
-              const justDone = doneKey === s.key
-              return (
-                <div
-                  key={s.key}
-                  style={{
-                    background: '#fff', border: '1px solid ' + (justDone ? '#86efac' : '#e5ddc8'),
-                    borderRadius: 12, padding: 16, transition: 'border-color .3s',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {labelFor(s.key)}
-                        {justDone && <CheckCircle2 size={16} style={{ color: '#22c55e' }} />}
-                      </div>
-                      {s.description && (
-                        <div style={{ fontSize: 12, color: '#4a6070', lineHeight: 1.5 }}>
-                          {s.description}
-                        </div>
-                      )}
-                    </div>
-                    {/* Toggle iOS-style */}
-                    <button
-                      onClick={() => toggle(s.key, s.value)}
-                      disabled={isSaving}
-                      style={{
-                        position: 'relative',
-                        width: 50, height: 28,
-                        borderRadius: 999,
-                        border: 'none',
-                        background: isOn ? 'linear-gradient(135deg, #2ea3f2, #0038f0)' : '#e5ddc8',
-                        cursor: isSaving ? 'wait' : 'pointer',
-                        flexShrink: 0,
-                        transition: 'background .2s',
-                        opacity: isSaving ? 0.6 : 1,
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 3, left: isOn ? 25 : 3,
-                          width: 22, height: 22, borderRadius: '50%',
-                          background: '#fff',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                          transition: 'left .2s',
-                        }}
-                      />
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 11, color: '#a89e8a', flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: 'monospace' }}>{s.key}</span>
-                    {s.updated_at && (
-                      <span>Modifié le {new Date(s.updated_at).toLocaleString('fr-FR')}</span>
-                    )}
-                    <span style={{ color: isOn ? '#22c55e' : '#dc2626', fontWeight: 600 }}>
-                      {isOn ? 'ACTIVÉ' : 'DÉSACTIVÉ'}
-                    </span>
-                  </div>
+          {loading ? (
+            <div style={card}><CrmV2Spinner /></div>
+          ) : (
+            <>
+              {/* Section : interrupteurs */}
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>
+                  {tab === 'legacy' ? 'Connexion à l’ancien CRM' : 'Réglages du CRM'}
                 </div>
-              )
-            })}
-          </div>
-        )}
+                <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>
+                  {tab === 'legacy'
+                    ? 'Synchronisation des fiches avec l’ancien outil, le temps de la transition.'
+                    : 'Autres interrupteurs stockés dans la base du CRM.'}
+                </div>
 
-        {/* Info HubSpot cut */}
-        {!loading && settings.some(s => s.key === 'hubspot_mirror_enabled') && (
-          <div style={{
-            marginTop: 24, padding: 16, background: '#eff6ff',
-            border: '1px solid #bfdbfe', borderRadius: 12,
-            fontSize: 13, color: '#1e40af',
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Power size={14} /> Comment couper l&apos;ancien CRM proprement
-            </div>
-            <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6 }}>
-              <li>Désactive d'abord le <strong>Mirroir</strong> (les éditions ne touchent plus l'ancien CRM, mais la sync pull continue)</li>
-              <li>Vérifie quelques jours que tout fonctionne en pleine autonomie</li>
-              <li>Désactive ensuite les <strong>Lectures</strong></li>
-              <li>Désactive les crons de sync dans <code>vercel.json</code> (et redéploie)</li>
-            </ol>
-          </div>
-        )}
+                {shown.length === 0 ? (
+                  <CrmV2Empty icon={<Settings2 size={26} />} title="Aucun réglage" description="Aucun réglage dans cette catégorie." />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+                    {shown.map((s, i) => {
+                      const saved = s.value === true
+                      const isOn = s.key in draft ? draft[s.key] : saved
+                      const changed = isOn !== saved
+                      const isSaving = saving === s.key || saving === 'draft'
+                      const justDone = doneKey === s.key
+                      return (
+                        <div
+                          key={s.key}
+                          title={s.key}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                            padding: '14px 0', borderBottom: i === shown.length - 1 ? 'none' : `1px solid ${crmV2.border}`,
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: crmV2.text, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              {labelFor(s.key)}
+                              {justDone && <CheckCircle2 size={15} color="#16a34a" />}
+                              {changed && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: crmV2.goldDark, background: crmV2.goldSoft, borderRadius: 999, padding: '1px 8px' }}>
+                                  Non enregistré
+                                </span>
+                              )}
+                            </div>
+                            {s.description && (
+                              <div style={{ fontSize: 12, color: crmV2.textMuted, marginTop: 2, lineHeight: 1.5 }}>
+                                {hideLegacyBrand(s.description)}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 11, color: crmV2.textFaint, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                              <span style={{ color: saved ? '#16a34a' : '#d13a41', fontWeight: 700 }}>
+                                {saved ? 'Activé' : 'Désactivé'}
+                              </span>
+                              {s.updated_at && <span>Modifié le {new Date(s.updated_at).toLocaleString('fr-FR')}</span>}
+                            </div>
+                          </div>
+                          {isSaving ? <AdminSpin size={16} color={crmV2.gold} /> : null}
+                          <CrmV2Toggle
+                            checked={isOn}
+                            disabled={saving !== null}
+                            onChange={v => setDraft(d => ({ ...d, [s.key]: v }))}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Section : coupure complète de l'ancien CRM */}
+              {tab === 'legacy' && (
+                <div style={card}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: crmV2.text }}>Couper l’ancien CRM</div>
+                  <div style={{ fontSize: 13, color: crmV2.textMuted, marginTop: 2 }}>
+                    Désactive d’un coup le miroir et les lectures.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+                    <CrmV2Button
+                      variant="danger"
+                      icon={saving === 'hubspot_disconnect' ? <AdminSpin /> : <Unplug size={14} />}
+                      onClick={disconnectHubspot}
+                      disabled={saving !== null}
+                      style={isMobile ? { width: '100%', minHeight: 44 } : undefined}
+                    >
+                      {saving === 'hubspot_disconnect' ? 'Déconnexion…' : 'Déconnecter l\'ancien CRM'}
+                    </CrmV2Button>
+                    {doneKey === 'hubspot_disconnect' && (
+                      <span style={{ color: '#16a34a', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle2 size={14} /> Ancien CRM déconnecté
+                      </span>
+                    )}
+                  </div>
+
+                  {settings.some(s => s.key === 'hubspot_mirror_enabled') && (
+                    <div style={{ marginTop: 16, padding: 14, background: crmV2.bgSoft, borderRadius: 12, fontSize: 13, color: crmV2.text }}>
+                      <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Power size={14} color={crmV2.gold} /> Comment couper l&apos;ancien CRM proprement
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, color: crmV2.textMuted }}>
+                        <li>Désactive d&apos;abord le <strong>Miroir</strong> (les éditions ne touchent plus l&apos;ancien CRM, mais la synchronisation entrante continue)</li>
+                        <li>Vérifie quelques jours que tout fonctionne en pleine autonomie</li>
+                        <li>Désactive ensuite les <strong>Lectures</strong></li>
+                        <li>Désactive les crons de synchronisation dans <code>vercel.json</code> (et redéploie)</li>
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Pied : Annuler / Enregistrer */}
+              <div style={{
+                display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                ...(isMobile ? { position: 'sticky' as const, bottom: 0, background: crmV2.bgSoft, padding: '8px 0' } : {}),
+              }}>
+                {pending.length > 0 && (
+                  <span style={{ fontSize: 12, color: crmV2.textMuted, marginRight: 'auto' }}>
+                    {pending.length} modification{pending.length > 1 ? 's' : ''} en attente
+                  </span>
+                )}
+                <CrmV2Button
+                  variant="secondary"
+                  onClick={() => setDraft({})}
+                  disabled={pending.length === 0 || saving !== null}
+                  style={isMobile ? { flex: 1, minHeight: 44 } : undefined}
+                >
+                  Annuler
+                </CrmV2Button>
+                <CrmV2Button
+                  variant="primary"
+                  icon={saving === 'draft' || (saving && pending.some(p => p.key === saving)) ? <AdminSpin /> : <Check size={14} />}
+                  onClick={saveDraft}
+                  disabled={pending.length === 0 || saving !== null}
+                  style={isMobile ? { flex: 1, minHeight: 44 } : undefined}
+                >
+                  Enregistrer
+                </CrmV2Button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-      <style jsx>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+    </CrmV2Page>
   )
 }

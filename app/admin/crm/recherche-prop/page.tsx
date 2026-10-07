@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Search, ChevronDown, Loader2, ExternalLink } from 'lucide-react'
+import { Search, ChevronDown, ExternalLink, Database } from 'lucide-react'
 import { isUserTypeProperty, buildUserNameIndex, type Owner } from '@/lib/crm-user-resolver'
 import { useIsMobile } from '@/lib/useIsMobile'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Body, CrmV2Button, CrmV2Search, CrmV2TableCard, CrmV2Card,
+  CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Avatar, CrmV2Pill, CrmV2Empty, CrmV2Input, CrmV2Select,
+} from '@/components/crm-v2/primitives'
+import { AdminNotice, AdminSpin, AdminMobileList, AdminMobileRow, AdminEllipsis } from '@/components/crm-v2/admin/AdminUi'
+import { crmV2 } from '@/lib/crm-v2-theme'
 
 type Property = {
   name: string
@@ -74,6 +80,8 @@ export default function RecherchePropPage() {
   const [error, setError] = useState<string | null>(null)
   const [owners, setOwners] = useState<Owner[]>([])
   const isMobile = useIsMobile()
+  // Filtre d'affichage sur les résultats déjà chargés
+  const [resultFilter, setResultFilter] = useState('')
 
   const isUserProp = pickedProp ? isUserTypeProperty(pickedProp.name) : false
   const userIndex = useMemo(() => buildUserNameIndex(owners), [owners])
@@ -143,29 +151,50 @@ export default function RecherchePropPage() {
   const opNeedsValue = !['is_empty', 'is_not_empty'].includes(operator)
   const isEnum = pickedProp?.type === 'enumeration' && pickedProp.options && pickedProp.options.length > 0
   const ops = pickedProp ? (OPERATORS_BY_TYPE[pickedProp.type] || DEFAULT_OPS) : DEFAULT_OPS
+  const canSearch = !!pickedProp && !loading && !(opNeedsValue && !value)
+
+  const shownResults = useMemo(() => {
+    const q = resultFilter.trim().toLowerCase()
+    if (!q) return results
+    return results.filter(c =>
+      [c.firstname, c.lastname, c.email, c.phone, c.classe_actuelle, c.formation_souhaitee, c.matched_value]
+        .some(v => (v || '').toLowerCase().includes(q)),
+    )
+  }, [results, resultFilter])
+
+  const matchedCell = (c: Contact) => c.matched_value ? (
+    isUserProp && userIndex.get(c.matched_value) ? (
+      <span style={{ display: 'inline-flex', flexDirection: 'column' }}>
+        <span style={{ fontWeight: 600 }}>{userIndex.get(c.matched_value)}</span>
+        <span style={{ fontSize: 11, color: crmV2.textFaint }}>{c.matched_value}</span>
+      </span>
+    ) : (
+      <CrmV2Pill style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.matched_value}</CrmV2Pill>
+    )
+  ) : (
+    <span style={{ color: crmV2.textFaint, fontStyle: 'italic' }}>(vide)</span>
+  )
+
+  const fullName = (c: Contact) => [c.firstname, c.lastname].filter(Boolean).join(' ') || '—'
+  const convDate = (c: Contact) => c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px 60px' : '24px 24px 80px' }}>
-        <div style={{ marginBottom: isMobile ? 14 : 20 }}>
-          <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, margin: 0, marginBottom: 4 }}>Recherche par propriété</h1>
-          <p style={{ fontSize: 13, color: '#4a6070', margin: 0 }}>
-            Filtre tes contacts sur n&apos;importe laquelle des {properties.length || 829} propriétés. Utile pour vérifier des données
-            ou trouver des contacts avec une valeur précise.
-          </p>
-        </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Recherche par propriété"
+        subtitle={`Trouver les contacts selon la valeur d’une des ${properties.length || 829} propriétés — pour vérifier des données ou retrouver une valeur précise.`}
+      />
 
-        {/* Builder filtre */}
-        <div style={card({ padding: isMobile ? 12 : 16, marginBottom: 16 })}>
-          {/* Mobile : propriété pleine largeur, puis opérateur + valeur, puis bouton pleine largeur */}
+      <CrmV2Body>
+        {/* Constructeur du filtre */}
+        <CrmV2Card style={{ padding: isMobile ? 12 : 16 }}>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? 'minmax(0, 2fr) minmax(0, 3fr)' : '2fr 1fr 2fr auto',
-            gap: 10, alignItems: 'flex-end', flexWrap: 'wrap',
+            display: isMobile ? 'grid' : 'flex',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : undefined,
+            alignItems: 'flex-end', gap: 12, flexWrap: 'wrap',
           }}>
-            {/* Picker de propriété */}
-            <div style={isMobile ? { gridColumn: '1 / -1', minWidth: 0 } : undefined}>
-              <label style={labelStyle}>Propriété</label>
+            <div style={{ ...fieldWrap, minWidth: isMobile ? 0 : 260, flex: isMobile ? undefined : '1 1 260px' }}>
+              <span style={labelStyle}>Propriété</span>
               <PropertyPicker
                 properties={filteredProps}
                 allCount={properties.length}
@@ -177,21 +206,19 @@ export default function RecherchePropPage() {
               />
             </div>
 
-            {/* Opérateur */}
-            <div style={isMobile ? { minWidth: 0 } : undefined}>
-              <label style={labelStyle}>Opérateur</label>
-              <select value={operator} onChange={e => setOperator(e.target.value)} style={input} disabled={!pickedProp}>
+            <label style={{ ...fieldWrap, minWidth: isMobile ? 0 : 160 }}>
+              <span style={labelStyle}>Opérateur</span>
+              <CrmV2Select value={operator} onChange={e => setOperator(e.target.value)} disabled={!pickedProp} style={isMobile ? { height: 42 } : undefined}>
                 {ops.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
+              </CrmV2Select>
+            </label>
 
-            {/* Valeur */}
-            <div style={isMobile ? { minWidth: 0 } : undefined}>
-              <label style={labelStyle}>Valeur</label>
+            <label style={{ ...fieldWrap, minWidth: isMobile ? 0 : 220, flex: isMobile ? undefined : '2 1 220px' }}>
+              <span style={labelStyle}>Valeur</span>
               {!opNeedsValue ? (
-                <input value="(pas de valeur requise)" disabled style={{ ...input, color: '#a89e8a' }} />
+                <CrmV2Input value="(pas de valeur requise)" disabled style={{ color: crmV2.textFaint, background: crmV2.bgHover }} />
               ) : isUserProp && owners.length > 0 ? (
-                <select value={value} onChange={e => setValue(e.target.value)} style={input}>
+                <CrmV2Select value={value} onChange={e => setValue(e.target.value)} style={isMobile ? { height: 42 } : undefined}>
                   <option value="">— Choisir un utilisateur —</option>
                   {owners
                     .slice()
@@ -202,175 +229,154 @@ export default function RecherchePropPage() {
                       const id = pickedProp?.name === 'teleprospecteur' ? (o.user_id || o.hubspot_owner_id) : o.hubspot_owner_id
                       return <option key={String(id)} value={String(id)}>{name}</option>
                     })}
-                </select>
+                </CrmV2Select>
               ) : isEnum ? (
-                <select value={value} onChange={e => setValue(e.target.value)} style={input}>
+                <CrmV2Select value={value} onChange={e => setValue(e.target.value)} style={isMobile ? { height: 42 } : undefined}>
                   <option value="">— Choisir —</option>
                   {pickedProp!.options!.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                </CrmV2Select>
               ) : (
-                <input
+                <CrmV2Input
                   type={pickedProp?.type === 'number' ? 'number' : pickedProp?.type === 'date' ? 'date' : 'text'}
                   value={value}
                   onChange={e => setValue(e.target.value)}
                   placeholder="Valeur à chercher…"
-                  style={input}
                   onKeyDown={e => { if (e.key === 'Enter') runSearch() }}
+                  style={isMobile ? { height: 42 } : undefined}
                 />
               )}
-            </div>
+            </label>
 
-            <button
+            <CrmV2Button
+              variant="primary"
+              icon={loading ? <AdminSpin /> : <Search size={14} />}
               onClick={runSearch}
-              disabled={!pickedProp || loading || (opNeedsValue && !value)}
-              style={{
-                padding: '8px 16px', borderRadius: 8, border: 'none',
-                background: (!pickedProp || (opNeedsValue && !value)) ? '#e5ddc8' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-                color: '#fff', fontSize: 13, fontWeight: 600,
-                cursor: (!pickedProp || (opNeedsValue && !value)) ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6, height: 36,
-                ...(isMobile ? { gridColumn: '1 / -1', justifyContent: 'center', height: 40 } : {}),
-              }}
+              disabled={!canSearch}
+              style={{ height: isMobile ? 44 : 38, ...(isMobile ? { width: '100%' } : {}) }}
             >
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
               Rechercher
-            </button>
+            </CrmV2Button>
           </div>
 
           {pickedProp && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#a89e8a', wordBreak: 'break-word' }}>
-              <strong>{pickedProp.label}</strong> · <code>{pickedProp.name}</code> · type {pickedProp.type}
+            <div style={{ marginTop: 10, fontSize: 12, color: crmV2.textFaint, wordBreak: 'break-word' }}>
+              <strong style={{ color: crmV2.textMuted }}>{pickedProp.label}</strong> · {pickedProp.name} · type {pickedProp.type}
               {pickedProp.group_name && <> · groupe {pickedProp.group_name}</>}
             </div>
           )}
-        </div>
+        </CrmV2Card>
 
-        {error && <div style={{ ...card({ padding: 12, marginBottom: 12 }), background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626', fontSize: 13 }}>{error}</div>}
+        {error && <AdminNotice tone="error">{error}</AdminNotice>}
 
         {/* Résultats */}
-        {!pickedProp ? null : (
-          <div style={card({ padding: 0, overflow: 'hidden' })}>
-            <div style={{ padding: isMobile ? '10px 12px' : '12px 16px', borderBottom: '1px solid #e5ddc8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(isMobile ? { flexWrap: 'wrap' as const, gap: 4 } : {}) }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>
-                Résultats {total > 0 && <span style={{ color: '#4a6070', fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
-                {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 10, color: '#a89e8a' }}>(via données brutes)</span>}
-              </div>
-              {results.length > 0 && (
-                <div style={{ fontSize: 11, color: '#a89e8a' }}>50 premiers résultats triés par dernière conversion</div>
-              )}
+        {!pickedProp ? null : isMobile ? (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 600, color: crmV2.text, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+              Résultats
+              {total > 0 && <span style={{ color: crmV2.textMuted, fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
+              {storage === 'hubspot_raw' && <span style={{ fontSize: 11, color: crmV2.textFaint, fontWeight: 400 }}>(via données brutes)</span>}
             </div>
-
             {loading && results.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a' }}>
-                <Loader2 size={20} className="animate-spin" />
-              </div>
+              <div style={{ padding: 32, display: 'flex', justifyContent: 'center' }}><AdminSpin size={20} color={crmV2.gold} /></div>
             ) : results.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#a89e8a', fontSize: 13 }}>
-                {pickedProp ? 'Aucun contact ne correspond. Essaye un autre opérateur ou une autre valeur.' : 'Choisis une propriété ci-dessus.'}
-              </div>
-            ) : isMobile ? (
-              // Mobile : un contact par carte
-              <div>
-                {results.map(c => (
-                  <a
-                    key={c.hubspot_contact_id}
-                    href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'block', padding: '10px 12px', borderBottom: '1px solid #f7f4ee', color: 'inherit', textDecoration: 'none', fontSize: 12, minWidth: 0 }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {[c.firstname, c.lastname].filter(Boolean).join(' ') || '—'}
-                      </div>
-                      <span style={{ flexShrink: 0, fontSize: 11, color: '#a89e8a' }}>
-                        {c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'}
-                      </span>
-                    </div>
-                    <div style={{ color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
-                    </div>
-                    {(c.classe_actuelle || c.formation_souhaitee) && (
-                      <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {[c.classe_actuelle, c.formation_souhaitee].filter(Boolean).join(' · ')}
-                      </div>
-                    )}
-                    <div style={{ marginTop: 3, fontSize: 11, wordBreak: 'break-all' }}>
-                      {c.matched_value ? (
-                        isUserProp && userIndex.get(c.matched_value) ? (
-                          <span style={{ fontWeight: 500 }}>{userIndex.get(c.matched_value)}</span>
-                        ) : (
-                          <span style={{ fontFamily: 'monospace', color: '#4a6070' }}>{c.matched_value}</span>
-                        )
-                      ) : (
-                        <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>(vide)</span>
-                      )}
-                      <ExternalLink size={10} style={{ marginLeft: 6, color: '#2ea3f2', verticalAlign: 'middle' }} />
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <AdminMobileList>
+                <CrmV2Empty icon={<Database size={26} />} title="Aucun contact" description="Aucun contact ne correspond. Essaye un autre opérateur ou une autre valeur." />
+              </AdminMobileList>
             ) : (
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+              <AdminMobileList>
+                {results.map((c, i) => (
+                  <AdminMobileRow
+                    key={c.hubspot_contact_id}
+                    last={i === results.length - 1}
+                    href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
+                  >
+                    <CrmV2Avatar name={fullName(c)} size={36} radius="36%" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <AdminEllipsis style={{ fontSize: 14, fontWeight: 600, color: crmV2.link }}>{fullName(c)}</AdminEllipsis>
+                      <AdminEllipsis style={{ fontSize: 12, color: crmV2.textMuted }}>
+                        {c.matched_value
+                          ? (isUserProp && userIndex.get(c.matched_value)) || c.matched_value
+                          : '(vide)'}
+                        {' · '}{[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                      </AdminEllipsis>
+                    </div>
+                    <span style={{ fontSize: 11, color: crmV2.textFaint, flexShrink: 0 }}>{convDate(c)}</span>
+                  </AdminMobileRow>
+                ))}
+              </AdminMobileList>
+            )}
+          </>
+        ) : (
+          <CrmV2TableCard
+            toolbar={
+              <>
+                <CrmV2Search placeholder="Filtrer les résultats…" value={resultFilter} onChange={e => setResultFilter(e.target.value)} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: crmV2.text }}>
+                  Résultats {total > 0 && <span style={{ color: crmV2.textMuted, fontWeight: 400 }}>· {total.toLocaleString('fr-FR')} contacts</span>}
+                  {storage === 'hubspot_raw' && <span style={{ marginLeft: 8, fontSize: 11, color: crmV2.textFaint, fontWeight: 400 }}>(via données brutes)</span>}
+                </span>
+              </>
+            }
+            footer={results.length > 0 ? (
+              <>
+                <span>{total.toLocaleString('fr-FR')} contact{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 12, color: crmV2.textFaint }}>50 premiers résultats triés par dernière conversion</span>
+              </>
+            ) : undefined}
+          >
+            {loading && results.length === 0 ? (
+              <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><AdminSpin size={20} color={crmV2.gold} /></div>
+            ) : results.length === 0 ? (
+              <CrmV2Empty icon={<Database size={26} />} title="Aucun contact" description="Aucun contact ne correspond. Essaye un autre opérateur ou une autre valeur." />
+            ) : (
+              <CrmV2Table>
                 <thead>
-                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
-                    <th style={th}>Nom</th>
-                    <th style={th}>Email / Téléphone</th>
-                    <th style={th}>Classe / Formation</th>
-                    <th style={th}>Valeur trouvée</th>
-                    <th style={th}>Dern. conversion</th>
-                    <th style={th}></th>
+                  <tr>
+                    <CrmV2Th>Nom</CrmV2Th>
+                    <CrmV2Th>Email / Téléphone</CrmV2Th>
+                    <CrmV2Th>Classe / Formation</CrmV2Th>
+                    <CrmV2Th>Valeur trouvée</CrmV2Th>
+                    <CrmV2Th>Dern. conversion</CrmV2Th>
+                    <CrmV2Th>{''}</CrmV2Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map(c => (
-                    <tr key={c.hubspot_contact_id} style={{ borderBottom: '1px solid #f7f4ee' }}>
-                      <td style={td}>
-                        <div style={{ fontWeight: 600 }}>{[c.firstname, c.lastname].filter(Boolean).join(' ') || '—'}</div>
-                        <div style={{ fontSize: 10, color: '#a89e8a' }}>{c.hubspot_contact_id}</div>
-                      </td>
-                      <td style={td}>
-                        <div>{c.email || '—'}</div>
-                        <div style={{ fontSize: 11, color: '#4a6070' }}>{c.phone || ''}</div>
-                      </td>
-                      <td style={td}>
-                        <div>{c.classe_actuelle || '—'}</div>
-                        <div style={{ fontSize: 11, color: '#4a6070' }}>{c.formation_souhaitee || ''}</div>
-                      </td>
-                      <td style={{ ...td, maxWidth: 240, overflow: 'hidden' }}>
-                        {c.matched_value ? (
-                          isUserProp && userIndex.get(c.matched_value) ? (
-                            <>
-                              <div style={{ fontWeight: 500 }}>{userIndex.get(c.matched_value)}</div>
-                              <div style={{ fontSize: 10, color: '#a89e8a', fontFamily: 'monospace' }}>{c.matched_value}</div>
-                            </>
-                          ) : (
-                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#4a6070' }}>{c.matched_value}</span>
-                          )
-                        ) : (
-                          <span style={{ color: '#a89e8a', fontStyle: 'italic' }}>(vide)</span>
-                        )}
-                      </td>
-                      <td style={td}>{c.recent_conversion_date ? new Date(c.recent_conversion_date).toLocaleDateString('fr-FR') : '—'}</td>
-                      <td style={td}>
-                        <a href={`/admin/crm/contacts/${c.hubspot_contact_id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#2ea3f2', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                          Ouvrir <ExternalLink size={10} />
+                  {shownResults.map(c => (
+                    <CrmV2Tr key={c.hubspot_contact_id}>
+                      <CrmV2Td>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
+                          <CrmV2Avatar name={fullName(c)} size={24} radius="36%" ring />
+                          <span style={{ display: 'flex', flexDirection: 'column' }}>
+                            <a href={`/admin/crm/contacts/${c.hubspot_contact_id}`} target="_blank" rel="noopener noreferrer" style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}>
+                              {fullName(c)}
+                            </a>
+                            <span style={{ fontSize: 11, color: crmV2.textFaint }}>{c.hubspot_contact_id}</span>
+                          </span>
+                        </span>
+                      </CrmV2Td>
+                      <CrmV2Td style={{ whiteSpace: 'nowrap' }}>
+                        {c.email || '—'}
+                        {c.phone && <span style={{ color: crmV2.textMuted }}> · {c.phone}</span>}
+                      </CrmV2Td>
+                      <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>
+                        {[c.classe_actuelle, c.formation_souhaitee].filter(Boolean).join(' · ') || '—'}
+                      </CrmV2Td>
+                      <CrmV2Td style={{ maxWidth: 260 }}>{matchedCell(c)}</CrmV2Td>
+                      <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>{convDate(c)}</CrmV2Td>
+                      <CrmV2Td>
+                        <a href={`/admin/crm/contacts/${c.hubspot_contact_id}`} target="_blank" rel="noopener noreferrer" style={{ color: crmV2.link, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}>
+                          Ouvrir <ExternalLink size={12} />
                         </a>
-                      </td>
-                    </tr>
+                      </CrmV2Td>
+                    </CrmV2Tr>
                   ))}
                 </tbody>
-              </table>
+              </CrmV2Table>
             )}
-          </div>
+          </CrmV2TableCard>
         )}
-      </div>
-
-      <style jsx>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
-    </div>
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
 
@@ -388,6 +394,7 @@ function PropertyPicker({
   loading: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   // Groupe par group_name
   const grouped = useMemo(() => {
@@ -403,74 +410,76 @@ function PropertyPicker({
   return (
     <div style={{ position: 'relative' }}>
       <button
-        onClick={() => setOpen(o => !o)}
+        type="button"
+        onClick={e => { e.preventDefault(); setOpen(o => !o) }}
         style={{
-          ...input,
-          textAlign: 'left',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          width: '100%', height: isMobile ? 42 : 38, boxSizing: 'border-box',
+          border: `1px solid ${open ? crmV2.link : crmV2.borderStrong}`, borderRadius: crmV2.radius, padding: '0 12px',
+          background: crmV2.bg, fontFamily: 'inherit', fontSize: 13, textAlign: 'left',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
           cursor: loading ? 'wait' : 'pointer',
           fontWeight: picked ? 600 : 400,
-          color: picked ? '#1a2f4b' : '#a89e8a',
+          color: picked ? crmV2.text : crmV2.textFaint,
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {loading ? 'Chargement…' : picked ? picked.label : 'Choisir une propriété…'}
         </span>
-        <ChevronDown size={14} />
+        <ChevronDown size={14} color={crmV2.textFaint} style={{ flexShrink: 0 }} />
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
           <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-            background: '#fff', border: '1px solid #e5ddc8', borderRadius: 8,
-            zIndex: 100, maxHeight: 400, overflowY: 'auto',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, minWidth: isMobile ? 0 : 320,
+            background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: 12,
+            zIndex: 100, maxHeight: 400, overflowY: 'auto', boxShadow: crmV2.shadowPanel,
           }}>
-            <div style={{ padding: 8, borderBottom: '1px solid #e5ddc8', position: 'sticky', top: 0, background: '#fff' }}>
-              <input
-                type="text"
+            <div style={{ padding: 8, borderBottom: `1px solid ${crmV2.border}`, position: 'sticky', top: 0, background: crmV2.bg, zIndex: 1 }}>
+              <CrmV2Search
                 value={search}
                 onChange={e => onSearchChange(e.target.value)}
                 placeholder={`Rechercher parmi ${allCount} propriétés…`}
                 autoFocus
-                style={{ ...input, fontSize: 12 }}
+                style={{ minWidth: 0 }}
               />
             </div>
             {grouped.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', color: '#a89e8a', fontSize: 12 }}>
+              <div style={{ padding: 16, textAlign: 'center', color: crmV2.textFaint, fontSize: 13 }}>
                 Aucune propriété trouvée.
               </div>
             ) : grouped.map(([group, items]) => (
               <div key={group}>
-                <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: '#4a6070', textTransform: 'uppercase', background: '#fafbfc' }}>
+                <div style={{
+                  padding: '6px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.4px', color: crmV2.textMuted,
+                  textTransform: 'uppercase', background: crmV2.thBg,
+                }}>
                   {group} ({items.length})
                 </div>
                 {items.map(p => (
                   <button
                     key={p.name}
+                    type="button"
                     onClick={() => { onPick(p); setOpen(false) }}
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '6px 12px', background: 'transparent', border: 'none',
-                      cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      borderTop: '1px solid #f7f4ee',
+                      display: 'block', width: '100%', textAlign: 'left', minHeight: 40,
+                      padding: '7px 12px', background: 'transparent', border: 'none',
+                      cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+                      borderTop: `1px solid ${crmV2.borderLight}`,
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
+                    onMouseEnter={e => (e.currentTarget.style.background = crmV2.rowHover)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <div style={{ fontWeight: 500, color: '#1a2f4b' }}>{p.label}</div>
-                    <div style={{ fontSize: 10, color: '#a89e8a' }}>
-                      <code>{p.name}</code> · {p.type}
+                    <div style={{ fontWeight: 600, color: crmV2.text }}>{p.label}</div>
+                    <div style={{ fontSize: 11, color: crmV2.textFaint }}>
+                      {p.name} · {p.type}
                     </div>
                   </button>
                 ))}
               </div>
             ))}
             {properties.length > 200 && (
-              <div style={{ padding: 10, textAlign: 'center', fontSize: 10, color: '#a89e8a', borderTop: '1px solid #e5ddc8' }}>
+              <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: crmV2.textFaint, borderTop: `1px solid ${crmV2.border}` }}>
                 {properties.length - 200} autres propriétés masquées. Affine ta recherche.
               </div>
             )}
@@ -483,16 +492,5 @@ function PropertyPicker({
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
-function card(extra: React.CSSProperties = {}): React.CSSProperties {
-  return { background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12, ...extra }
-}
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 600, color: '#4a6070',
-  textTransform: 'uppercase', marginBottom: 4,
-}
-const input: React.CSSProperties = {
-  padding: '8px 10px', border: '1px solid #e5ddc8', borderRadius: 8, fontSize: 13,
-  width: '100%', boxSizing: 'border-box', background: '#fff', height: 36,
-}
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 10, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }
-const td: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'top' }
+const fieldWrap: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: crmV2.textMuted }

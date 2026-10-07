@@ -1,7 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { GitMerge, Trash2, RefreshCw, Mail, Phone, User, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { GitMerge, RefreshCw, Mail, Phone, User, CheckCircle2 } from 'lucide-react'
+import {
+  CrmV2Page, CrmV2Header, CrmV2Tabs, CrmV2Body, CrmV2Button, CrmV2Search, CrmV2TableCard,
+  CrmV2Table, CrmV2Th, CrmV2Td, CrmV2Tr, CrmV2Avatar, CrmV2Pill, CrmV2Empty,
+} from '@/components/crm-v2/primitives'
+import {
+  AdminNotice, AdminRoundCheck, AdminSpin, AdminEllipsis,
+} from '@/components/crm-v2/admin/AdminUi'
+import { crmV2 } from '@/lib/crm-v2-theme'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 type Contact = {
   hubspot_contact_id: string
@@ -44,6 +53,8 @@ export default function DoublonsPage() {
   const [merging, setMerging] = useState<string | null>(null)  // group key being processed
   const [primarySelections, setPrimarySelections] = useState<Record<string, string>>({})  // group key -> contact id
   const [doneMessage, setDoneMessage] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null); setDoneMessage(null)
@@ -97,7 +108,7 @@ export default function DoublonsPage() {
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
-      setDoneMessage(`✅ ${j.deleted_count} doublon(s) supprimé(s), ${j.relinked_records} enregistrement(s) re-lié(s)`)
+      setDoneMessage(`${j.deleted_count} doublon(s) supprimé(s), ${j.relinked_records} enregistrement(s) re-lié(s)`)
       // Retire le groupe de la liste
       setGroups(gs => gs.filter(x => x.key !== g.key))
     } catch (e) {
@@ -109,205 +120,219 @@ export default function DoublonsPage() {
 
   const TabIcon = TAB_INFO[tab].icon
 
+  // Filtre d'affichage (nom, email, téléphone, clé du groupe)
+  const visibleGroups = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return groups
+    return groups.filter(g =>
+      g.key.toLowerCase().includes(q) ||
+      g.contacts.some(c =>
+        fullName(c).toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q),
+      ),
+    )
+  }, [groups, search])
+
+  const mergeButton = (g: Group, full = false) => {
+    const primaryId = primarySelections[g.key]
+    return (
+      <CrmV2Button
+        variant="primary"
+        size="sm"
+        icon={merging === g.key ? <AdminSpin size={13} /> : <GitMerge size={13} />}
+        onClick={() => mergeGroup(g)}
+        disabled={merging === g.key || !primaryId}
+        style={full ? { width: '100%', minHeight: 40 } : undefined}
+      >
+        {merging === g.key ? 'Fusion en cours…' : `Fusionner ${g.contacts.length - 1} doublon${g.contacts.length > 2 ? 's' : ''}`}
+      </CrmV2Button>
+    )
+  }
+
+  const keepCheck = (g: Group, c: Contact, isPrimary: boolean) => (
+    <AdminRoundCheck
+      done={isPrimary}
+      title={isPrimary ? 'Contact gardé' : 'Garder ce contact'}
+      onClick={() => setPrimarySelections(s => ({ ...s, [g.key]: c.hubspot_contact_id }))}
+    />
+  )
+
   return (
-    <div style={{ minHeight: '100vh', background: '#fafbfc', color: '#1a2f4b', padding: 0 }}>
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a2f4b' }}>Doublons à fusionner</h1>
-        <p className="text-sm" style={{ color: '#4a6070' }}>
-          Détection native dans Supabase. Fusionne ou supprime les contacts en double, les deals/tâches/activités sont automatiquement re-liés au contact gardé.
-        </p>
-      </div>
+    <CrmV2Page>
+      <CrmV2Header
+        title="Doublons à fusionner"
+        subtitle={loading
+          ? 'Détection en cours…'
+          : `${groups.length} groupe${groups.length > 1 ? 's' : ''} détecté${groups.length > 1 ? 's' : ''} · ${TAB_INFO[tab].help}`}
+        actions={
+          <CrmV2Button
+            variant="secondary"
+            icon={loading ? <AdminSpin /> : <RefreshCw size={14} />}
+            onClick={load}
+            disabled={loading}
+          >
+            Relancer la détection
+          </CrmV2Button>
+        }
+      >
+        <CrmV2Tabs
+          bordered={false}
+          value={tab}
+          onChange={id => setTab(id as Tab)}
+          items={(Object.keys(TAB_INFO) as Tab[]).map(k => {
+            const Icon = TAB_INFO[k].icon
+            return {
+              id: k,
+              label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon size={14} /> {TAB_INFO[k].label}</span>,
+              count: k === tab && !loading ? groups.length : undefined,
+            }
+          })}
+        />
+      </CrmV2Header>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {(Object.keys(TAB_INFO) as Tab[]).map(k => {
-          const Icon = TAB_INFO[k].icon
-          const active = k === tab
-          return (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: '1px solid ' + (active ? '#2ea3f2' : '#e5ddc8'),
-                background: active ? '#2ea3f2' : '#fff',
-                color: active ? '#fff' : '#4a6070',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <Icon size={14} /> {TAB_INFO[k].label}
-            </button>
+      <CrmV2Body>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <CrmV2Search
+            placeholder="Rechercher un doublon…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={isMobile ? { width: '100%', boxSizing: 'border-box', height: 40 } : { width: 320 }}
+          />
+          <span style={{ fontSize: 13, color: crmV2.textMuted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <TabIcon size={14} /> Les transactions, tâches et activités sont re-liées au contact gardé.
+          </span>
+        </div>
+
+        {error && <AdminNotice tone="error">{error}</AdminNotice>}
+        {doneMessage && <AdminNotice tone="success">{doneMessage}</AdminNotice>}
+
+        {loading && (
+          <div style={{ padding: 48, textAlign: 'center', color: crmV2.textMuted, fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><AdminSpin size={26} color={crmV2.gold} /></div>
+            Détection des doublons en cours…
+          </div>
+        )}
+
+        {!loading && visibleGroups.length === 0 && (
+          <div style={{ background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg, boxShadow: crmV2.shadow }}>
+            <CrmV2Empty
+              icon={<CheckCircle2 size={28} />}
+              title={groups.length === 0 ? 'Aucun doublon détecté' : 'Aucun groupe ne correspond'}
+              description={groups.length === 0 ? 'Pas de contacts en double sur ce critère.' : 'Modifie ta recherche.'}
+            />
+          </div>
+        )}
+
+        {!loading && visibleGroups.map(g => {
+          const primaryId = primarySelections[g.key]
+          const groupTitle = (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, fontSize: 13 }}>
+              <strong style={{ color: crmV2.text, whiteSpace: 'nowrap' }}>{g.contacts.length} contacts</strong>
+              <span style={{ color: crmV2.textFaint }}>·</span>
+              <AdminEllipsis style={{ color: crmV2.link, fontWeight: 600 }}>{g.key}</AdminEllipsis>
+            </div>
           )
-        })}
-        <button
-          onClick={load}
-          disabled={loading}
-          style={{
-            padding: '8px 12px', borderRadius: 8, border: '1px solid #e5ddc8',
-            background: '#fff', color: '#4a6070', fontSize: 13, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto',
-          }}
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Rafraîchir
-        </button>
-      </div>
 
-      <p style={{ color: '#4a6070', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <TabIcon size={14} /> {TAB_INFO[tab].help}
-      </p>
-
-      {error && (
-        <div style={{
-          padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca',
-          borderRadius: 8, color: '#dc2626', fontSize: 13, marginBottom: 16,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <AlertCircle size={16} /> {error}
-        </div>
-      )}
-      {doneMessage && (
-        <div style={{
-          padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0',
-          borderRadius: 8, color: '#166534', fontSize: 13, marginBottom: 16,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <CheckCircle2 size={16} /> {doneMessage}
-        </div>
-      )}
-
-      {loading && (
-        <div style={{ padding: 60, textAlign: 'center', color: '#4a6070' }}>
-          <RefreshCw className="animate-spin" size={28} style={{ marginBottom: 12 }} />
-          <div>Détection des doublons en cours…</div>
-        </div>
-      )}
-
-      {!loading && groups.length === 0 && (
-        <div style={{
-          padding: 60, textAlign: 'center', color: '#4a6070',
-          background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12,
-        }}>
-          <CheckCircle2 size={40} style={{ color: '#22c55e', margin: '0 auto 12px' }} />
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#1a2f4b', marginBottom: 4 }}>
-            Aucun doublon détecté
-          </div>
-          <div style={{ fontSize: 13 }}>
-            Pas de contacts en double sur ce critère.
-          </div>
-        </div>
-      )}
-
-      {!loading && groups.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 13, color: '#4a6070' }}>
-            <strong style={{ color: '#1a2f4b' }}>{groups.length}</strong> groupe{groups.length > 1 ? 's' : ''} de doublons détecté{groups.length > 1 ? 's' : ''}
-          </div>
-          {groups.map(g => {
-            const primaryId = primarySelections[g.key]
+          if (isMobile) {
             return (
               <div key={g.key} style={{
-                background: '#fff', border: '1px solid #e5ddc8', borderRadius: 12,
-                overflow: 'hidden',
+                background: crmV2.bg, border: `1px solid ${crmV2.border}`, borderRadius: crmV2.radiusLg,
+                boxShadow: crmV2.shadow, overflow: 'hidden',
               }}>
-                <div style={{
-                  padding: '10px 16px', background: '#f7f4ee', borderBottom: '1px solid #e5ddc8',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  flexWrap: 'wrap', gap: 8,
-                }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#1a2f4b' }}>
-                    <strong>{g.contacts.length} contacts</strong> · {tab}: <span style={{ color: '#2ea3f2' }}>{g.key}</span>
-                  </div>
-                  <button
-                    onClick={() => mergeGroup(g)}
-                    disabled={merging === g.key || !primaryId}
-                    style={{
-                      padding: '6px 14px', borderRadius: 8, border: 'none',
-                      background: merging === g.key ? '#e5ddc8' : 'linear-gradient(135deg, #2ea3f2, #0038f0)',
-                      color: '#fff', fontSize: 13, fontWeight: 600, cursor: merging === g.key ? 'wait' : 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <GitMerge size={13} /> {merging === g.key ? 'Fusion en cours…' : `Fusionner ${g.contacts.length - 1} doublon${g.contacts.length > 2 ? 's' : ''}`}
-                  </button>
-                </div>
-                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e5ddc8' }}>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Garder ?</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Contact</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Email</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Téléphone</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Classe / Zone</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Statut du lead</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Créé</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#4a6070', fontWeight: 600, textTransform: 'uppercase' }}>Dernière soumission</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.contacts.map(c => {
-                      const isPrimary = c.hubspot_contact_id === primaryId
-                      return (
-                        <tr
-                          key={c.hubspot_contact_id}
-                          style={{
-                            borderBottom: '1px solid #f7f4ee',
-                            background: isPrimary ? 'rgba(46,163,242,0.05)' : 'transparent',
-                          }}
-                        >
-                          <td style={{ padding: '10px 12px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                              <input
-                                type="radio"
-                                name={`primary-${g.key}`}
-                                checked={isPrimary}
-                                onChange={() => setPrimarySelections(s => ({ ...s, [g.key]: c.hubspot_contact_id }))}
-                              />
-                              <span style={{ fontSize: 11, color: isPrimary ? '#2ea3f2' : '#a89e8a' }}>
-                                {isPrimary ? 'Garder' : 'Supprimer'}
-                              </span>
-                            </label>
-                          </td>
-                          <td style={{ padding: '10px 12px' }}>
-                            <a
-                              href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
-                              target="_blank"
-                              rel="noopener"
-                              style={{ color: '#2ea3f2', fontWeight: 600, textDecoration: 'none' }}
-                            >
-                              {fullName(c)}
-                            </a>
-                            <div style={{ fontSize: 11, color: '#a89e8a' }}>{c.origine || '—'}</div>
-                          </td>
-                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{c.email || '—'}</td>
-                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{c.phone || '—'}</td>
-                          <td style={{ padding: '10px 12px' }}>
-                            <div>{c.classe_actuelle || '—'}</div>
-                            <div style={{ fontSize: 11, color: '#a89e8a' }}>{c.zone_localite || '—'}</div>
-                          </td>
-                          <td style={{ padding: '10px 12px' }}>
-                            {c.hs_lead_status ? (
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 999, background: '#eef2f7',
-                                color: '#1a2f4b', fontSize: 11, fontWeight: 600,
-                              }}>{c.hs_lead_status}</span>
-                            ) : <span style={{ color: '#a89e8a' }}>—</span>}
-                          </td>
-                          <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.contact_createdate)}</td>
-                          <td style={{ padding: '10px 12px', color: '#4a6070' }}>{fmtDate(c.recent_conversion_date)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${crmV2.border}` }}>{groupTitle}</div>
+                {g.contacts.map(c => {
+                  const isPrimary = c.hubspot_contact_id === primaryId
+                  return (
+                    <div key={c.hubspot_contact_id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', minHeight: 52,
+                      borderBottom: `1px solid ${crmV2.borderLight}`, background: isPrimary ? 'rgba(0,189,165,0.05)' : undefined,
+                    }}>
+                      {keepCheck(g, c, isPrimary)}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <AdminEllipsis style={{ fontSize: 14 }}>
+                          <a href={`/admin/crm/contacts/${c.hubspot_contact_id}`} target="_blank" rel="noopener" style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}>
+                            {fullName(c)}
+                          </a>
+                        </AdminEllipsis>
+                        <AdminEllipsis style={{ fontSize: 12, color: crmV2.textMuted }}>
+                          {[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                        </AdminEllipsis>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isPrimary ? '#00866f' : crmV2.textFaint, flexShrink: 0 }}>
+                        {isPrimary ? 'Garder' : 'Supprimer'}
+                      </span>
+                    </div>
+                  )
+                })}
+                <div style={{ padding: 12 }}>{mergeButton(g, true)}</div>
               </div>
             )
-          })}
-        </div>
-      )}
-    </div>
-    </div>
+          }
+
+          return (
+            <CrmV2TableCard key={g.key} toolbar={<>{groupTitle}{mergeButton(g)}</>}>
+              <CrmV2Table>
+                <thead>
+                  <tr>
+                    <CrmV2Th style={{ width: 110 }}>Garder ?</CrmV2Th>
+                    <CrmV2Th>Contact</CrmV2Th>
+                    <CrmV2Th>Email</CrmV2Th>
+                    <CrmV2Th>Téléphone</CrmV2Th>
+                    <CrmV2Th>Classe / Zone</CrmV2Th>
+                    <CrmV2Th>Statut du lead</CrmV2Th>
+                    <CrmV2Th>Créé</CrmV2Th>
+                    <CrmV2Th>Dernière soumission</CrmV2Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.contacts.map(c => {
+                    const isPrimary = c.hubspot_contact_id === primaryId
+                    return (
+                      <CrmV2Tr key={c.hubspot_contact_id} style={isPrimary ? { background: 'rgba(0,189,165,0.05)' } : undefined}>
+                        <CrmV2Td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            {keepCheck(g, c, isPrimary)}
+                            <span style={{ fontSize: 12, fontWeight: 600, color: isPrimary ? '#00866f' : crmV2.textFaint }}>
+                              {isPrimary ? 'Garder' : 'Supprimer'}
+                            </span>
+                          </span>
+                        </CrmV2Td>
+                        <CrmV2Td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
+                            <CrmV2Avatar name={fullName(c)} size={24} radius="36%" ring color={isPrimary ? crmV2.gold : crmV2.textMuted} />
+                            <span style={{ display: 'flex', flexDirection: 'column' }}>
+                              <a
+                                href={`/admin/crm/contacts/${c.hubspot_contact_id}`}
+                                target="_blank"
+                                rel="noopener"
+                                style={{ color: crmV2.link, fontWeight: 600, textDecoration: 'none' }}
+                              >
+                                {fullName(c)}
+                              </a>
+                              <span style={{ fontSize: 11, color: crmV2.textFaint }}>{c.origine || '—'}</span>
+                            </span>
+                          </span>
+                        </CrmV2Td>
+                        <CrmV2Td style={{ whiteSpace: 'nowrap' }}>{c.email || '—'}</CrmV2Td>
+                        <CrmV2Td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{c.phone || '—'}</CrmV2Td>
+                        <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>
+                          {c.classe_actuelle || '—'} · {c.zone_localite || '—'}
+                        </CrmV2Td>
+                        <CrmV2Td>
+                          {c.hs_lead_status ? <CrmV2Pill>{c.hs_lead_status}</CrmV2Pill> : <span style={{ color: crmV2.textFaint }}>—</span>}
+                        </CrmV2Td>
+                        <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>{fmtDate(c.contact_createdate)}</CrmV2Td>
+                        <CrmV2Td style={{ whiteSpace: 'nowrap', color: crmV2.textMuted }}>{fmtDate(c.recent_conversion_date)}</CrmV2Td>
+                      </CrmV2Tr>
+                    )
+                  })}
+                </tbody>
+              </CrmV2Table>
+            </CrmV2TableCard>
+          )
+        })}
+      </CrmV2Body>
+    </CrmV2Page>
   )
 }
