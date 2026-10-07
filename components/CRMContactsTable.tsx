@@ -366,9 +366,9 @@ const CLASSE_OPTIONS = [
   'Etudes médicales', 'Etudes Sup.', 'Autre',
 ]
 
-const NAVY_BG     = '#f7f4ee'
+const NAVY_BG     = '#f5f8fa'
 const NAVY_ROW    = '#ffffff'
-const NAVY_BORDER = '#e5ddc8'
+const NAVY_BORDER = '#dfe3eb'
 const GOLD        = '#C9A84C'
 const BLUE        = '#4cabdb'
 
@@ -729,8 +729,8 @@ function ExpandedDetail({
         <div style={{ padding: '18px 24px' }}>
           {/* Info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Contact</div>
+            <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Contact</div>
               {contact.email && (
                 <a href={`mailto:${contact.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, color: BLUE, fontSize: 12, textDecoration: 'none', marginBottom: 6 }}>
                   <Mail size={11} />{contact.email}
@@ -750,22 +750,22 @@ function ExpandedDetail({
                 </a>
               )}
               {contact.classe_actuelle && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 4 }}>
                   <BookOpen size={11} />{contact.classe_actuelle}
                 </div>
               )}
             </div>
 
             {(contact.departement || contact.zone_localite) && (
-              <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Localisation</div>
+              <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Localisation</div>
                 {contact.departement && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 6 }}>
                     <MapPin size={11} />Dép. {contact.departement}
                   </div>
                 )}
                 {contact.zone_localite && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
                     <MapPin size={11} />{contact.zone_localite}
                   </div>
                 )}
@@ -773,18 +773,18 @@ function ExpandedDetail({
             )}
 
             {deal && (
-              <div style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Transaction</div>
+              <div style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Transaction</div>
                 {deal.formation && (
                   <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginBottom: 6 }}>{deal.formation}</div>
                 )}
                 {deal.createdate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12, marginBottom: 4 }}>
                     <Calendar size={11} />Créé le {new Date(deal.createdate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
                 {deal.closedate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4a6070', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#516f90', fontSize: 12 }}>
                     <Calendar size={11} />RDV: {new Date(deal.closedate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                 )}
@@ -800,11 +800,11 @@ function ExpandedDetail({
                   onClick={() => setStagePickerOpen(o => !o)}
                   disabled={savingStage}
                   style={{
-                    background: '#f7f4ee',
+                    background: '#f5f8fa',
                     border: `1px solid ${NAVY_BORDER}`,
                     borderRadius: 8,
                     padding: '6px 12px',
-                    color: '#4a6070',
+                    color: '#516f90',
                     fontSize: 12,
                     cursor: savingStage ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
@@ -815,7 +815,7 @@ function ExpandedDetail({
                   }}
                 >
                   {savingStage ? (
-                    <span style={{ color: '#4a6070' }}>Enregistrement…</span>
+                    <span style={{ color: '#516f90' }}>Enregistrement…</span>
                   ) : (
                     <><StageBadge stageId={deal.dealstage} /><ChevronDown size={11} /></>
                   )}
@@ -859,7 +859,7 @@ function ExpandedDetail({
                     <div style={{ height: 1, background: crmV2.borderLight, margin: '4px 6px' }} />
                     <button
                       onClick={() => setStagePickerOpen(false)}
-                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#4a6070', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 14px', color: '#516f90', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Fermer
                     </button>
@@ -871,7 +871,7 @@ function ExpandedDetail({
             {deal && (
               <button
                 onClick={onNote}
-                style={{ background: '#f7f4ee', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '6px 14px', color: '#4a6070', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: '#f5f8fa', border: `1px solid ${NAVY_BORDER}`, borderRadius: 8, padding: '6px 14px', color: '#516f90', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <StickyNote size={13} /> Note
               </button>
@@ -2827,7 +2827,7 @@ function PropertyPicker({
         style={{
           width: '100%',
           padding: '6px 10px',
-          border: '1px solid #e5ddc8',
+          border: '1px solid #dfe3eb',
           borderRadius: 6,
           fontSize: 12,
           fontFamily: 'inherit',
@@ -2837,7 +2837,7 @@ function PropertyPicker({
       />
       <div style={{
         maxHeight: 200, overflowY: 'auto', marginTop: 6,
-        border: '1px solid #e5ddc8', borderRadius: 6,
+        border: '1px solid #dfe3eb', borderRadius: 6,
       }}>
         {canAddManualProp && !allProps.some(p => p.name === normalizedQuery) && (
           <button
@@ -2846,7 +2846,7 @@ function PropertyPicker({
               display: 'block', width: '100%', textAlign: 'left',
               padding: '8px 10px', fontSize: 12,
               background: '#eff6ff', border: 'none',
-              borderBottom: '1px solid #e5ddc8',
+              borderBottom: '1px solid #dfe3eb',
               cursor: 'pointer', color: '#1d4ed8', fontFamily: 'inherit',
               fontWeight: 600,
             }}
@@ -2856,7 +2856,7 @@ function PropertyPicker({
           </button>
         )}
         {filtered.length === 0 ? (
-          <div style={{ padding: '8px 10px', fontSize: 12, color: '#a89e8a' }}>
+          <div style={{ padding: '8px 10px', fontSize: 12, color: '#7c98b6' }}>
             {query
               ? (canAddManualProp ? 'Aucun résultat dans la liste, vous pouvez l’ajouter manuellement.' : 'Aucun résultat')
               : 'Toutes les propriétés sont déjà ajoutées'}
@@ -2870,15 +2870,15 @@ function PropertyPicker({
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '6px 10px', fontSize: 12,
                 background: 'transparent', border: 'none',
-                cursor: 'pointer', color: '#0e1e35', fontFamily: 'inherit',
+                cursor: 'pointer', color: '#2d3e50', fontFamily: 'inherit',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f7f4ee')}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f8fa')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               title={p.name}
             >
               <span style={{ fontWeight: 500 }}>{neutralPropLabel(p.label, p.name)}</span>
               {p.label && p.label !== p.name && !mentionsHubspot(p.name) && (
-                <span style={{ color: '#a89e8a', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
+                <span style={{ color: '#7c98b6', marginLeft: 6, fontSize: 10 }}>{p.name}</span>
               )}
             </button>
           ))

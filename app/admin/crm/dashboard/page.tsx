@@ -59,8 +59,8 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   'NRP3':                 '#fb923c',
   'Délai de réflexion':   '#fde047',
   'À replanifier':        '#0ea5e9',
-  'Perdu':                '#a89e8a',
-  '—':                    '#e5ddc8',
+  'Perdu':                '#7c98b6',
+  '—':                    '#dfe3eb',
 }
 
 export default function DashboardPage() {
@@ -84,7 +84,7 @@ export default function DashboardPage() {
   useEffect(() => { load() }, [])
 
   if (loading && !stats) {
-    return <div style={{ padding: 60, textAlign: 'center', color: '#4a6070', fontSize: 13 }}>Chargement…</div>
+    return <div style={{ padding: 60, textAlign: 'center', color: '#516f90', fontSize: 13 }}>Chargement…</div>
   }
   if (err) {
     return <div style={{ padding: 40, color: '#ef4444' }}>Erreur : {err}</div>
@@ -95,7 +95,7 @@ export default function DashboardPage() {
   const trend30d = stats.leads.last_30_days
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f4ee', fontFamily: 'Inter, system-ui, sans-serif', color: '#0e1e35' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f8fa', fontFamily: 'Inter, system-ui, sans-serif', color: '#2d3e50' }}>
       {/* Header */}
       <div style={{ padding: '24px 32px', background: 'linear-gradient(135deg, #2ea3f2, #0038f0)', color: '#fff' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             primary={stats.tasks.overdue}
             primaryLabel={stats.tasks.overdue === 1 ? 'en retard' : 'en retard'}
             sub={`${stats.tasks.today} aujourd'hui · ${stats.tasks.week} cette semaine`}
-            color={stats.tasks.overdue > 0 ? '#ef4444' : '#4a6070'}
+            color={stats.tasks.overdue > 0 ? '#ef4444' : '#516f90'}
             href="/admin/crm/tasks"
             highlight={stats.tasks.overdue > 0}
           />
@@ -190,7 +190,7 @@ export default function DashboardPage() {
           </Card>
           <Card title="Top commerciaux (30j)" icon={TrendingUp}>
             {stats.top_owners.length === 0 ? (
-              <div style={{ color: '#4a6070', fontSize: 12, padding: 20, textAlign: 'center' }}>
+              <div style={{ color: '#516f90', fontSize: 12, padding: 20, textAlign: 'center' }}>
                 Aucun owner sur cette période
               </div>
             ) : (
@@ -202,34 +202,34 @@ export default function DashboardPage() {
         {/* Row 4 — Last submissions */}
         <Card title="Dernières soumissions de formulaire" icon={Mail}>
           {stats.last_submissions.length === 0 ? (
-            <div style={{ color: '#4a6070', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune soumission récente</div>
+            <div style={{ color: '#516f90', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune soumission récente</div>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
               {stats.last_submissions.map((s, i) => (
                 <li key={s.hubspot_contact_id + i}>
                   <Link
                     href={`/admin/crm/contacts/${s.hubspot_contact_id}`}
-                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', padding: '10px 12px', textDecoration: 'none', color: '#0e1e35', borderRadius: 6 }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f4ee')}
+                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', padding: '10px 12px', textDecoration: 'none', color: '#2d3e50', borderRadius: 6 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f8fa')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>
                         {[s.firstname, s.lastname].filter(Boolean).join(' ') || s.email || 'Anonyme'}
                       </div>
-                      <div style={{ fontSize: 11, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
+                      <div style={{ fontSize: 11, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#4a6070', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, color: '#516f90', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {s.recent_conversion_event || '—'}
                     </div>
                     <div>
                       {s.hs_lead_status && (
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: (LEAD_STATUS_COLORS[s.hs_lead_status] || '#e5ddc8') + '22', color: LEAD_STATUS_COLORS[s.hs_lead_status] || '#4a6070' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: (LEAD_STATUS_COLORS[s.hs_lead_status] || '#dfe3eb') + '22', color: LEAD_STATUS_COLORS[s.hs_lead_status] || '#516f90' }}>
                           {s.hs_lead_status}
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: '#4a6070', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 11, color: '#516f90', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                       <Clock size={11} />
                       {s.recent_conversion_date ? formatDistanceToNow(new Date(s.recent_conversion_date), { locale: fr, addSuffix: true }) : '—'}
                     </div>
@@ -240,7 +240,7 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <div style={{ fontSize: 10, color: '#4a6070', textAlign: 'right', padding: '0 8px' }}>
+        <div style={{ fontSize: 10, color: '#516f90', textAlign: 'right', padding: '0 8px' }}>
           Données générées {format(new Date(stats.generated_at), "'le' d MMMM yyyy 'à' HH:mm:ss", { locale: fr })}
         </div>
       </div>
@@ -270,7 +270,7 @@ function KpiCard({
   const inner = (
     <div style={{
       background: '#fff', borderRadius: 12, padding: 16,
-      border: `1px solid ${highlight ? color + '55' : '#e5ddc8'}`,
+      border: `1px solid ${highlight ? color + '55' : '#dfe3eb'}`,
       boxShadow: highlight ? `0 4px 16px ${color}1c` : '0 1px 3px rgba(0,0,0,0.04)',
       display: 'flex', flexDirection: 'column', gap: 8, height: '100%',
       transition: 'all 0.15s',
@@ -279,13 +279,13 @@ function KpiCard({
         <div style={{ width: 28, height: 28, borderRadius: 6, background: color + '18', color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {icon}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#4a6070', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#516f90', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <div style={{ fontSize: 30, fontWeight: 700, color }}>{primary.toLocaleString('fr-FR')}</div>
-        {primaryLabel && <div style={{ fontSize: 12, color: '#4a6070' }}>{primaryLabel}</div>}
+        {primaryLabel && <div style={{ fontSize: 12, color: '#516f90' }}>{primaryLabel}</div>}
       </div>
-      {sub && <div style={{ fontSize: 11, color: '#4a6070' }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: '#516f90' }}>{sub}</div>}
       {sparkline && sparkline.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <Sparkline data={sparkline} color={color} />
@@ -306,8 +306,8 @@ function KpiCard({
 // ─── Card ────────────────────────────────────────────────────────────────
 function Card({ title, icon: Icon, children }: { title: string; icon?: typeof TrendingUp; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5ddc8', padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#0e1e35', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #dfe3eb', padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, fontWeight: 600, color: '#2d3e50', textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {Icon && <Icon size={12} style={{ color: '#C9A84C' }} />}
         {title}
       </div>
@@ -319,7 +319,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Tr
 // ─── BarList ─────────────────────────────────────────────────────────────
 function BarList({ items, color }: { items: Array<{ label: string; value: number; color?: string }>; color: string }) {
   if (items.length === 0) {
-    return <div style={{ color: '#4a6070', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune donnée</div>
+    return <div style={{ color: '#516f90', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune donnée</div>
   }
   const max = Math.max(...items.map(i => i.value), 1)
   return (
@@ -330,8 +330,8 @@ function BarList({ items, color }: { items: Array<{ label: string; value: number
         return (
           <div key={i}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-              <span style={{ color: '#0e1e35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{item.label}</span>
-              <span style={{ color: '#4a6070', fontWeight: 600 }}>{item.value.toLocaleString('fr-FR')}</span>
+              <span style={{ color: '#2d3e50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{item.label}</span>
+              <span style={{ color: '#516f90', fontWeight: 600 }}>{item.value.toLocaleString('fr-FR')}</span>
             </div>
             <div style={{ height: 6, background: '#f0f0f5', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ width: `${pct}%`, height: '100%', background: itemColor, borderRadius: 3, transition: 'width 0.3s' }} />
@@ -365,7 +365,7 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  if (data.length === 0) return <div style={{ color: '#4a6070', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune donnée</div>
+  if (data.length === 0) return <div style={{ color: '#516f90', fontSize: 12, padding: 20, textAlign: 'center' }}>Aucune donnée</div>
 
   const W = 600, H = 160, padL = 30, padB = 22, padT = 8, padR = 4
   const max = Math.max(...data.map(d => d.count), 1)
@@ -412,11 +412,11 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
       >
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 200, display: 'block', cursor: 'crosshair' }}>
           {/* Axes */}
-          <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#e5ddc8" strokeWidth="0.5" />
-          <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#e5ddc8" strokeWidth="0.5" />
+          <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#dfe3eb" strokeWidth="0.5" />
+          <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#dfe3eb" strokeWidth="0.5" />
           {/* Y labels */}
-          <text x={padL - 4} y={padT + 4} fontSize="8" fill="#4a6070" textAnchor="end">{max}</text>
-          <text x={padL - 4} y={H - padB} fontSize="8" fill="#4a6070" textAnchor="end">0</text>
+          <text x={padL - 4} y={padT + 4} fontSize="8" fill="#516f90" textAnchor="end">{max}</text>
+          <text x={padL - 4} y={H - padB} fontSize="8" fill="#516f90" textAnchor="end">0</text>
           {/* Area gradient */}
           <defs>
             <linearGradient id="leadGrad" x1="0" x2="0" y1="0" y2="1">
@@ -452,7 +452,7 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
             if (!p) return null
             const d = new Date(p.date)
             const lab = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-            return <text key={i} x={p.x} y={H - 6} fontSize="8" fill="#4a6070" textAnchor="middle">{lab}</text>
+            return <text key={i} x={p.x} y={H - 6} fontSize="8" fill="#516f90" textAnchor="middle">{lab}</text>
           })}
         </svg>
 
@@ -464,7 +464,7 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
               left: tooltipLeft,
               top: 0,
               transform: 'translate(-50%, -110%)',
-              background: '#0e1e35',
+              background: '#2d3e50',
               color: '#fff',
               padding: '6px 10px',
               borderRadius: 6,
@@ -483,13 +483,13 @@ function LineSpark({ data }: { data: Array<{ date: string; count: number }> }) {
               width: 0, height: 0,
               borderLeft: '4px solid transparent',
               borderRight: '4px solid transparent',
-              borderTop: '4px solid #0e1e35',
+              borderTop: '4px solid #2d3e50',
             }} />
           </div>
         )}
       </div>
-      <div style={{ fontSize: 11, color: '#4a6070', textAlign: 'right', marginTop: 4 }}>
-        Total <strong style={{ color: '#0e1e35' }}>{total.toLocaleString('fr-FR')}</strong> sur 30 jours
+      <div style={{ fontSize: 11, color: '#516f90', textAlign: 'right', marginTop: 4 }}>
+        Total <strong style={{ color: '#2d3e50' }}>{total.toLocaleString('fr-FR')}</strong> sur 30 jours
       </div>
     </div>
   )

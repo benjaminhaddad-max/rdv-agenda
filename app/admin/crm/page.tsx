@@ -2799,15 +2799,15 @@ export default function CRMPage() {
               <div key={group.id}>
                 {gi > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
-                    <div style={{ flex: 1, height: 1, background: '#D4C4A0' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#3D5275', background: '#ffffff', padding: '2px 10px', border: '1px solid #e5ddc8', borderRadius: 4 }}>ou</span>
-                    <div style={{ flex: 1, height: 1, background: '#D4C4A0' }} />
+                    <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#516f90', background: '#ffffff', padding: '2px 10px', border: '1px solid #dfe3eb', borderRadius: 4 }}>ou</span>
+                    <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
                   </div>
                 )}
 
-                <div style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 10, padding: '12px' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #dfe3eb', borderRadius: 10, padding: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#3D5275' }}>Groupe {gi + 1}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#516f90' }}>Groupe {gi + 1}</span>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button onClick={() => duplicateFilterGroup(group.id)} title="Dupliquer" style={{ background: 'none', border: 'none', color: '#0F1F3D', cursor: 'pointer', display: 'flex', padding: 3 }}><Copy size={13} /></button>
                       <button onClick={() => deleteFilterGroup(group.id)} title="Supprimer" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 3 }}><Trash2 size={13} /></button>
@@ -2873,7 +2873,7 @@ export default function CRMPage() {
                     const isRange = opIsRange(rule.operator)
                     const [v1, v2] = isRange ? (rule.value || '').split('|') : [rule.value || '', '']
 
-                    const inputStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px', color: '#0F1F3D', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }
+                    const inputStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #dfe3eb', borderRadius: 6, padding: '6px 8px', color: '#0F1F3D', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: '100%' }
 
                     const renderValueInput = () => {
                       if (!showVal) return null
@@ -2929,7 +2929,7 @@ export default function CRMPage() {
                       // BOOL
                       if (kind === 'bool') {
                         return (
-                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#3D5275', cursor: 'pointer' }}>
+                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#516f90', cursor: 'pointer' }}>
                             <option value="">Rechercher…</option>
                             <option value="true">Oui</option>
                             <option value="false">Non</option>
@@ -2964,7 +2964,7 @@ export default function CRMPage() {
                           )
                         }
                         return (
-                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#3D5275', cursor: 'pointer' }}>
+                          <select value={rule.value} onChange={e => updateRule(group.id, rule.id, { value: e.target.value })} style={{ ...inputStyle, color: rule.value ? '#C9A84C' : '#516f90', cursor: 'pointer' }}>
                             <option value="">{valueOptions.length === 0 ? 'Chargement…' : 'Rechercher…'}</option>
                             {valueOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                           </select>
@@ -2977,14 +2977,14 @@ export default function CRMPage() {
                     return (
                       <div key={rule.id}>
                         {ri > 0 && <div style={{ fontSize: 11, color: '#0F1F3D', padding: '4px 0 4px 4px' }}>et</div>}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#F5F0E8', border: '1px solid #e5ddc8', borderRadius: 8, padding: '24px 10px 8px', position: 'relative' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f5f8fa', border: '1px solid #dfe3eb', borderRadius: 8, padding: '24px 10px 8px', position: 'relative' }}>
                           {/* z-index 5 : le CRMFieldPicker (position: relative) est rendu APRÈS
                               et le recouvrait → bouton invisible / inactif. */}
                           <button
                             type="button"
                             onClick={() => removeRule(group.id, rule.id)}
                             title="Supprimer ce filtre"
-                            style={{ position: 'absolute', top: 4, right: 4, background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
+                            style={{ position: 'absolute', top: 4, right: 4, background: '#ffffff', border: '1px solid #dfe3eb', borderRadius: 6, color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: 22, height: 22, zIndex: 5 }}
                           ><X size={13} /></button>
                           <CRMFieldPicker
                             value={normalizedField}
@@ -2999,7 +2999,7 @@ export default function CRMPage() {
                             }}
                             crmProps={allCrmProps}
                           />
-                          <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#ffffff', border: '1px solid #e5ddc8', borderRadius: 6, padding: '6px 8px', color: '#3D5275', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
+                          <select value={rule.operator} onChange={e => updateRule(group.id, rule.id, { operator: e.target.value as CRMFilterOp })} style={{ background: '#ffffff', border: '1px solid #dfe3eb', borderRadius: 6, padding: '6px 8px', color: '#516f90', fontSize: 12, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', width: '100%' }}>
                             {ops.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
                           </select>
                           {renderValueInput()}
@@ -3008,7 +3008,7 @@ export default function CRMPage() {
                     )
                   })}
 
-                  <button onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #e5ddc8', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => addRuleToGroup(group.id)} style={{ marginTop: 8, padding: '6px 12px', background: 'transparent', border: '1px solid #dfe3eb', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Plus size={11} /> Ajouter un filtre
                   </button>
                 </div>
@@ -3018,8 +3018,8 @@ export default function CRMPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: filterGroups.length > 0 ? 12 : 0 }}>
               {filterGroups.length > 0 && (
                 <>
-                  <div style={{ flex: 1, height: 1, background: '#D4C4A0' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#3D5275' }}>ou</span>
+                  <div style={{ flex: 1, height: 1, background: '#cbd6e2' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#516f90' }}>ou</span>
                 </>
               )}
               <button onClick={addFilterGroup} style={{ padding: '8px 14px', background: 'rgba(76,171,219,0.08)', border: '1px solid rgba(76,171,219,0.2)', borderRadius: 6, color: '#4cabdb', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
@@ -3344,7 +3344,7 @@ export default function CRMPage() {
                 autoFocus
               />
               {newContactEmailChecking && (
-                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#a89e8a' }}>
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#7c98b6' }}>
                   vérification…
                 </span>
               )}

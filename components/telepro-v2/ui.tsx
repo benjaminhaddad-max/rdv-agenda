@@ -164,7 +164,7 @@ export function TpGoldButton({
       disabled={disabled}
       style={{
         width: '100%', height: 48, border: 'none', borderRadius: 999, flexShrink: 0,
-        background: disabled ? crmV2.borderStrong : crmV2.gold, color: disabled ? crmV2.textMuted : '#0e1e35',
+        background: disabled ? crmV2.borderStrong : crmV2.gold, color: disabled ? crmV2.textMuted : '#2d3e50',
         fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: disabled ? 'not-allowed' : 'pointer',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...style,
       }}

@@ -90,7 +90,7 @@ function ContactStep({ form, isMobile, linova }: { form: NewRdvForm; isMobile: b
           {linova && (
             <button type="button" onClick={() => form.setShowLinovaModal(true)} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '0 14px', borderRadius: 999,
-              background: crmV2.gold, border: 'none', color: '#0e1e35',
+              background: crmV2.gold, border: 'none', color: '#2d3e50',
               fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
             }}>
               <Calendar size={14} /> Programmer RDV Linova
@@ -174,7 +174,7 @@ function ContactStep({ form, isMobile, linova }: { form: NewRdvForm; isMobile: b
             <button type="button" onClick={searchContact} disabled={lookupLoading || !lookupInput.trim()}
               style={{
                 height: 36, padding: '0 14px', borderRadius: 999, border: 'none', flexShrink: 0, fontFamily: 'inherit',
-                background: lookupInput.trim() ? crmV2.gold : crmV2.bgSoft, color: lookupInput.trim() ? '#0e1e35' : crmV2.textFaint,
+                background: lookupInput.trim() ? crmV2.gold : crmV2.bgSoft, color: lookupInput.trim() ? '#2d3e50' : crmV2.textFaint,
                 fontSize: 13, fontWeight: 700, cursor: lookupInput.trim() ? 'pointer' : 'default',
               }}>
               {lookupLoading ? '…' : 'Rechercher'}
@@ -251,7 +251,7 @@ function NewContactFields({ form, isMobile }: { form: NewRdvForm; isMobile: bool
           </div>
           <button type="button" onClick={loadExistingEmailContact} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '0 14px', borderRadius: 999,
-            background: crmV2.gold, border: 'none', color: '#0e1e35', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            background: crmV2.gold, border: 'none', color: '#2d3e50', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
           }}>
             Utiliser ce contact pour le RDV <ArrowRight size={14} />
           </button>

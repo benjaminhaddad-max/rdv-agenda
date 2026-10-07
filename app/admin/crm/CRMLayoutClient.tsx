@@ -56,7 +56,7 @@ function Inner({ children }: { children: React.ReactNode }) {
         : '/'
 
   return (
-    <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
+    <div className="crm-root" style={{ display: 'flex', minHeight: '100vh', background: '#f5f8fa' }}>
       {showAdminChrome && <CRMSidebar />}
       <main style={{
         flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -69,7 +69,7 @@ function Inner({ children }: { children: React.ReactNode }) {
             <div
               style={{
                 background: '#ffffff',
-                borderBottom: '1px solid #e5ddc8',
+                borderBottom: '1px solid #dfe3eb',
                 padding: '10px 16px',
                 display: 'flex',
                 alignItems: 'center',
@@ -84,10 +84,10 @@ function Inner({ children }: { children: React.ReactNode }) {
                   alignItems: 'center',
                   gap: 6,
                   background: 'transparent',
-                  border: '1px solid #e5ddc8',
+                  border: '1px solid #dfe3eb',
                   borderRadius: 8,
                   padding: '6px 12px',
-                  color: '#4a6070',
+                  color: '#516f90',
                   fontSize: 13,
                   fontWeight: 600,
                   textDecoration: 'none',
@@ -96,7 +96,7 @@ function Inner({ children }: { children: React.ReactNode }) {
                 <ArrowLeft size={14} /> Retour à mon espace
               </a>
               {me?.name && (
-                <div style={{ fontSize: 12, color: '#4a6070', fontWeight: 600 }}>{me.name}</div>
+                <div style={{ fontSize: 12, color: '#516f90', fontWeight: 600 }}>{me.name}</div>
               )}
               <LogoutButton />
             </div>
@@ -115,7 +115,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 export default function CRMLayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f4ee' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f8fa' }}>
         <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: '100vh' }}>
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>{children}</div>
         </main>

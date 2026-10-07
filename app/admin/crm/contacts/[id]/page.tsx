@@ -1595,17 +1595,17 @@ function CustomizeAboutModal({
             className={`w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm font-medium ${
               atMax
                 ? 'bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200'
-                : 'bg-[#f7f4ee] text-[#0e1e35] border-[#e5ddc8] hover:bg-[#f0ead9]'
+                : 'bg-[#f5f8fa] text-[#2d3e50] border-[#dfe3eb] hover:bg-[#eef1f6]'
             }`}
           >
             <span className="flex items-center gap-2"><Plus size={14} /> Ajouter des propriétés</span>
-            <span className="text-xs text-[#a89e8a]">({current.length}/{ABOUT_FIELDS_MAX})</span>
+            <span className="text-xs text-[#7c98b6]">({current.length}/{ABOUT_FIELDS_MAX})</span>
           </button>
 
           {showAdd && !atMax && (
             <div className="mt-2 border rounded-md shadow-sm">
               <div className="relative p-2 border-b">
-                <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
+                <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7c98b6]" />
                 <input
                   type="text"
                   value={search}
@@ -1617,7 +1617,7 @@ function CustomizeAboutModal({
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {candidates.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-[#a89e8a]">
+                  <div className="px-3 py-3 text-xs text-[#7c98b6]">
                     {q ? 'Aucun résultat' : 'Toutes les propriétés sont déjà ajoutées'}
                   </div>
                 ) : (
@@ -1625,10 +1625,10 @@ function CustomizeAboutModal({
                     <button
                       key={p.name}
                       onClick={() => { add(p.name); setSearch('') }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-[#f7f4ee] flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-[#f5f8fa] flex items-center gap-2"
                       title={p.name}
                     >
-                      <Plus size={13} className="text-[#a89e8a] shrink-0" />
+                      <Plus size={13} className="text-[#7c98b6] shrink-0" />
                       <span className="truncate">{neutralPropLabel(p.label, p.name)}</span>
                     </button>
                   ))
@@ -1641,7 +1641,7 @@ function CustomizeAboutModal({
         {/* Selected list (reorderable) */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {current.length === 0 ? (
-            <p className="text-sm text-[#a89e8a] text-center py-8">
+            <p className="text-sm text-[#7c98b6] text-center py-8">
               Aucune propriété sélectionnée. Ajoutez-en ci-dessus.
             </p>
           ) : (
@@ -1664,7 +1664,7 @@ function CustomizeAboutModal({
                     <button
                       onClick={() => move(idx, idx - 1)}
                       disabled={idx === 0}
-                      className="p-1 text-[#a89e8a] hover:text-[#0e1e35] disabled:opacity-30"
+                      className="p-1 text-[#7c98b6] hover:text-[#2d3e50] disabled:opacity-30"
                       title="Monter"
                     >
                       <ArrowUp size={13} />
@@ -1672,14 +1672,14 @@ function CustomizeAboutModal({
                     <button
                       onClick={() => move(idx, idx + 1)}
                       disabled={idx === current.length - 1}
-                      className="p-1 text-[#a89e8a] hover:text-[#0e1e35] disabled:opacity-30"
+                      className="p-1 text-[#7c98b6] hover:text-[#2d3e50] disabled:opacity-30"
                       title="Descendre"
                     >
                       <ArrowDown size={13} />
                     </button>
                     <button
                       onClick={() => remove(name)}
-                      className="p-1 text-[#a89e8a] hover:text-red-600"
+                      className="p-1 text-[#7c98b6] hover:text-red-600"
                       title="Retirer"
                     >
                       <Trash2 size={13} />
@@ -1741,13 +1741,13 @@ function PropertiesModal({
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
             <h2 className="text-lg font-bold">Toutes les propriétés</h2>
-            <p className="text-xs text-[#4a6070] mt-0.5">{properties.length} propriétés</p>
+            <p className="text-xs text-[#516f90] mt-0.5">{properties.length} propriétés</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full border border-[#dfe3eb] text-[#516f90] hover:bg-[#f5f8fa] flex items-center justify-center" title="Fermer" aria-label="Fermer"><X size={16} /></button>
         </div>
         <div className="px-5 py-3 border-b">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a89e8a]" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7c98b6]" />
             <input
               type="text"
               value={propSearch}
@@ -1768,9 +1768,9 @@ function PropertiesModal({
             <div key={group} className="mb-3 border rounded-lg overflow-hidden">
               <button
                 onClick={() => onToggle(group)}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f7f4ee] hover:bg-[#f7f4ee] text-sm font-semibold"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f5f8fa] hover:bg-[#f5f8fa] text-sm font-semibold"
               >
-                <span>{formatGroup(group)} <span className="text-xs text-[#4a6070] ml-1">({props.length})</span></span>
+                <span>{formatGroup(group)} <span className="text-xs text-[#516f90] ml-1">({props.length})</span></span>
                 {collapsed[group] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               </button>
               {!collapsed[group] && (
@@ -1781,13 +1781,13 @@ function PropertiesModal({
                     const isReadOnly = isReadOnlyPropertyType(p)
                     return (
                       <div key={p.name} className="px-3 py-2.5 grid grid-cols-5 gap-2 hover:bg-[#C9A84C]/10/30 group">
-                        <dt className="col-span-2 text-xs text-[#4a6070] flex items-center justify-between gap-1" title={p.name}>
+                        <dt className="col-span-2 text-xs text-[#516f90] flex items-center justify-between gap-1" title={p.name}>
                           <span className="truncate">{neutralPropLabel(p.label, p.name)}</span>
                           {onShowHistory && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onShowHistory(p) }}
-                              className="opacity-0 group-hover:opacity-100 text-[#a89e8a] hover:text-[#0e1e35] flex-shrink-0"
+                              className="opacity-0 group-hover:opacity-100 text-[#7c98b6] hover:text-[#2d3e50] flex-shrink-0"
                               title="Historique"
                             >
                               <History size={11} />
@@ -1812,7 +1812,7 @@ function PropertiesModal({
                                 flushSync(() => onEditStart(p.name, val))
                                 editFieldRef.current?.focus()
                               }}
-                              className={`text-left w-full block break-words ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#0e1e35]'}`}
+                              className={`text-left w-full block break-words ${isReadOnly ? 'text-slate-400 cursor-not-allowed' : 'hover:text-[#2d3e50]'}`}
                             >
                               {formatPropValue(val, p) || <span className="text-slate-300">—</span>}
                               {isReadOnly && (
